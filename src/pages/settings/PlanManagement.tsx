@@ -15,10 +15,12 @@ const plans = [
     id: "basic" as const,
     name: "Basic",
     monthlyPrice: 39,
-    yearlyPrice: 397.80,
+    yearlyPrice: 397.8,
     description: "For individuals getting started",
     features: [
       "1 ActiPlan per day",
+      "Intuitive Campaign creator",
+      "Media plan creator",
       "Visual Dashboard",
       "Bulk cross-platform activation",
       "Live insights & recommendations",
@@ -29,11 +31,16 @@ const plans = [
     id: "freelancer" as const,
     name: "Freelancer",
     monthlyPrice: 89,
-    yearlyPrice: 907.80,
+    yearlyPrice: 907.8,
     description: "For growing professionals",
     features: [
       "2 ActiPlans per day",
-      "Everything in Basic",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "1 user connection per platform",
+      "3 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "3 ad account swaps per platform every month",
+      "Everything in Basic plan",
       "Priority support",
       "Advanced reporting",
     ],
@@ -42,13 +49,25 @@ const plans = [
     id: "enterprise" as const,
     name: "Enterprise",
     monthlyPrice: 189,
-    yearlyPrice: 1927.80,
+    yearlyPrice: 1927.8,
     description: "For teams and agencies",
     features: [
       "5 ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "3 user connections per platform",
+      "150 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "3 ad account swaps per platform every month",
       "Everything in Freelancer",
+      "Guaranteed planning",
+      "All-levels duplication (ActiPlan, Platform & Market)",
+      "Advanced performance dashboard (planned vs actual)",
       "Approval workflows",
-      "HawkView reports",
+      "Requests workflows",
+      "Task Management",
+      "Change history",
+      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+      "Creative meshing",
       "5 team members",
     ],
     recommended: true,
@@ -57,12 +76,21 @@ const plans = [
     id: "agency" as const,
     name: "Agency",
     monthlyPrice: 999,
-    yearlyPrice: 10189.80,
+    yearlyPrice: 10189.8,
     description: "For large agencies",
     features: [
-      "Unlimited ActiPlans",
+      "Unlimited ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "6 user connection per platform",
+      "300 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "6 ad account swaps per platform every month",
       "Everything in Enterprise",
-      "AI Knowledge Base",
+      "Client portfolio management",
+      "Client default preferences & safeguards",
+      "AI knowledge base",
+      "Operations statistics",
+      "Cross-platform unified taxonomy",
       "10 team members",
       "Dedicated support",
     ],
@@ -73,16 +101,16 @@ export default function PlanManagement() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
-    isSubscribed, 
+    isSubscribed,
     isOnTrial,
-    loading: hookLoading, 
+    loading: hookLoading,
     refetch,
     tier,
     tierDisplayName,
     billingPeriod,
     subscriptionStart,
     subscriptionEnd,
-    trialEnd
+    trialEnd,
   } = useSubscription();
   const [isYearly, setIsYearly] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
@@ -122,10 +150,10 @@ export default function PlanManagement() {
         if (success === "true" && sessionId) {
           const w = window as any;
           w.dataLayer = w.dataLayer || [];
-          
+
           const priceValue = price ? parseFloat(price) : 0;
           const quantityValue = quantity ? parseInt(quantity, 10) : 1;
-          
+
           // GA4 ecommerce purchase event format
           w.dataLayer.push({
             event: "purchase",
@@ -133,14 +161,16 @@ export default function PlanManagement() {
               transaction_id: sessionId,
               value: priceValue,
               currency: currency || "USD",
-              items: [{
-                item_id: stripeProductId || undefined,
-                item_name: planName || undefined,
-                price: priceValue,
-                quantity: quantityValue,
-                item_category: "subscription",
-                item_variant: billingCycle || undefined,
-              }]
+              items: [
+                {
+                  item_id: stripeProductId || undefined,
+                  item_name: planName || undefined,
+                  price: priceValue,
+                  quantity: quantityValue,
+                  item_category: "subscription",
+                  item_variant: billingCycle || undefined,
+                },
+              ],
             },
             // Additional custom params for GTM flexibility
             stripe_session_id: sessionId,
@@ -155,7 +185,9 @@ export default function PlanManagement() {
         if (success === "true" && sessionId) {
           // Finalize plan change - this will cancel the old subscription if it was an upgrade
           try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const {
+              data: { session },
+            } = await supabase.auth.getSession();
             if (session) {
               const { data, error } = await supabase.functions.invoke("finalize-plan-change", {
                 body: { sessionId },
@@ -197,21 +229,23 @@ export default function PlanManagement() {
   // Set initial yearly toggle based on current billing period
   useEffect(() => {
     if (billingPeriod) {
-      setIsYearly(billingPeriod === 'yearly');
+      setIsYearly(billingPeriod === "yearly");
     }
   }, [billingPeriod]);
 
   const handleSubscribe = async (planId: string) => {
     setLoading(planId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         toast.error("Please sign in to subscribe");
         return;
       }
 
-      const priceId = isYearly 
-        ? PRICE_IDS[planId as keyof typeof PRICE_IDS].yearly 
+      const priceId = isYearly
+        ? PRICE_IDS[planId as keyof typeof PRICE_IDS].yearly
         : PRICE_IDS[planId as keyof typeof PRICE_IDS].monthly;
 
       const response = await supabase.functions.invoke("create-checkout", {
@@ -226,19 +260,19 @@ export default function PlanManagement() {
       if (response.error) {
         throw new Error(response.error.message || "Failed to process request");
       }
-      
+
       const data = response.data;
-      
+
       if (data?.error) {
         throw new Error(data.error);
       }
 
       // Handle different response types
-      if (data?.type === 'upgrade_complete') {
+      if (data?.type === "upgrade_complete") {
         // Subscription was upgraded directly with proration
         toast.success(data.message || "Plan upgraded successfully with prorated charges!");
         await refetch({ force: true });
-      } else if (data?.type === 'updated' || data?.success) {
+      } else if (data?.type === "updated" || data?.success) {
         // Subscription was updated directly via API
         toast.success("Plan updated successfully! Refreshing...");
         await refetch({ force: true });
@@ -260,7 +294,9 @@ export default function PlanManagement() {
   const handleManageSubscription = async () => {
     setLoading("manage");
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         toast.error("Please sign in");
         return;
@@ -297,12 +333,12 @@ export default function PlanManagement() {
   const isCurrentPlan = (planId: string): boolean => {
     // Must match both the tier AND the billing period toggle
     const matchesTier = tier === planId;
-    const matchesBillingPeriod = billingPeriod === (isYearly ? 'yearly' : 'monthly');
+    const matchesBillingPeriod = billingPeriod === (isYearly ? "yearly" : "monthly");
     return matchesTier && matchesBillingPeriod;
   };
 
   const getPlanTierIndex = (planId: string): number => {
-    const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
+    const tierOrder: SubscriptionTier[] = ["trial", "basic", "freelancer", "enterprise", "agency"];
     return tierOrder.indexOf(planId as SubscriptionTier);
   };
 
@@ -326,9 +362,7 @@ export default function PlanManagement() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold">Plan Management</h2>
-        <p className="text-muted-foreground mt-2">
-          Manage your subscription and billing preferences.
-        </p>
+        <p className="text-muted-foreground mt-2">Manage your subscription and billing preferences.</p>
       </div>
 
       {/* Current Plan Card */}
@@ -359,11 +393,7 @@ export default function PlanManagement() {
                   )}
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={handleManageSubscription}
-                disabled={loading === "manage"}
-              >
+              <Button variant="outline" onClick={handleManageSubscription} disabled={loading === "manage"}>
                 {loading === "manage" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Manage Subscription
@@ -382,8 +412,8 @@ export default function PlanManagement() {
             )}
 
             <p className="text-sm text-muted-foreground">
-              You can upgrade, downgrade, or cancel your subscription anytime. 
-              Changes are prorated based on your remaining billing period.
+              You can upgrade, downgrade, or cancel your subscription anytime. Changes are prorated based on your
+              remaining billing period.
             </p>
           </div>
         </CardContent>
@@ -404,9 +434,7 @@ export default function PlanManagement() {
             }`}
           />
         </button>
-        <span className={`text-sm ${isYearly ? "font-semibold" : "text-muted-foreground"}`}>
-          Yearly
-        </span>
+        <span className={`text-sm ${isYearly ? "font-semibold" : "text-muted-foreground"}`}>Yearly</span>
         <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
           Save 15%
         </Badge>
@@ -416,20 +444,18 @@ export default function PlanManagement() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {plans.map((plan) => {
           const isCurrent = isCurrentPlan(plan.id);
-          const monthlyEquivalent = isYearly 
-            ? (plan.yearlyPrice / 12).toFixed(2) 
-            : plan.monthlyPrice.toFixed(2);
+          const monthlyEquivalent = isYearly ? (plan.yearlyPrice / 12).toFixed(2) : plan.monthlyPrice.toFixed(2);
           const upgrading = isUpgrade(plan.id);
           const downgrading = isDowngrade(plan.id);
 
           return (
-            <Card 
+            <Card
               key={plan.id}
               className={`relative transition-all ${
-                isCurrent 
-                  ? "border-primary border-2 ring-4 ring-primary/20 shadow-lg" 
-                  : plan.recommended 
-                    ? "border-primary/50 shadow-md" 
+                isCurrent
+                  ? "border-primary border-2 ring-4 ring-primary/20 shadow-lg"
+                  : plan.recommended
+                    ? "border-primary/50 shadow-md"
                     : ""
               }`}
             >
@@ -442,7 +468,7 @@ export default function PlanManagement() {
                   </Badge>
                 </div>
               )}
-              
+
               <CardHeader className={isCurrent ? "pt-6" : ""}>
                 <div className="flex items-center justify-between mb-2">
                   <CardTitle className={isCurrent ? "text-primary" : ""}>{plan.name}</CardTitle>
@@ -458,16 +484,12 @@ export default function PlanManagement() {
                 <div className="mt-4">
                   {isYearly ? (
                     <>
-                      <span className="text-lg line-through text-muted-foreground">
-                        ${plan.monthlyPrice}
-                      </span>
+                      <span className="text-lg line-through text-muted-foreground">${plan.monthlyPrice}</span>
                       <span className={`text-4xl font-bold ml-2 ${isCurrent ? "text-primary" : ""}`}>
                         ${monthlyEquivalent}
                       </span>
                       <span className="text-muted-foreground">/month</span>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        ${plan.yearlyPrice.toFixed(2)} billed yearly
-                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">${plan.yearlyPrice.toFixed(2)} billed yearly</p>
                     </>
                   ) : (
                     <>
@@ -483,15 +505,17 @@ export default function PlanManagement() {
                 <ul className="space-y-3">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
-                      <Check className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isCurrent ? "text-primary" : "text-green-600"}`} />
+                      <Check
+                        className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isCurrent ? "text-primary" : "text-green-600"}`}
+                      />
                       <span className="text-sm">{feature}</span>
                     </li>
                   ))}
                 </ul>
 
                 {!isCurrent && (
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     variant={upgrading ? "default" : "outline"}
                     onClick={() => handleSubscribe(plan.id)}
                     disabled={loading === plan.id}
@@ -512,7 +536,7 @@ export default function PlanManagement() {
                     )}
                   </Button>
                 )}
-                
+
                 {isCurrent && (
                   <div className="text-center py-3 rounded-md bg-primary/10 text-primary font-medium">
                     ✓ This is your current plan
@@ -528,9 +552,8 @@ export default function PlanManagement() {
       <Card>
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            <strong>Note:</strong> Basic plan includes a 30-day free trial for new subscribers only. 
-            Freelancer, Enterprise, and Agency plans start billing immediately. 
-            Upgrades and downgrades are prorated automatically.
+            <strong>Note:</strong> Basic plan includes a 30-day free trial for new subscribers only. Freelancer,
+            Enterprise, and Agency plans start billing immediately. Upgrades and downgrades are prorated automatically.
           </p>
         </CardContent>
       </Card>

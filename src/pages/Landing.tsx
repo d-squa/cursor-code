@@ -124,11 +124,13 @@ const pricingTiers = [
     period: "30 days free",
     description: "Perfect for exploring ActiPlan capabilities",
     features: [
-      "Guided Media Plan Creation",
-      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
-      "Topline Performance Report",
-      "Cross-Platform Campaign Activation",
-      "Live Insights & Recommendations",
+      "1 ActiPlan per day",
+      "Intuitive Campaign creator",
+      "Media plan creator",
+      "Visual Dashboard",
+      "Bulk cross-platform activation",
+      "Live insights & recommendations",
+      "Email support",
     ],
     limitations: [
       "Visual Performance Dashboard",
@@ -152,15 +154,19 @@ const pricingTiers = [
     period: "/month",
     description: "For individual media buyers getting started",
     features: [
-      "Guided Media Plan Creation",
-      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
-      "Topline Performance Report",
-      "Cross-Platform Campaign Activation",
-      "Live Insights & Recommendations",
-      "Visual Performance Dashboard",
+      "1 ActiPlan per day",
+      "Intuitive Campaign creator",
+      "Media plan creator",
+      "Visual Dashboard",
+      "Bulk cross-platform activation",
+      "Live insights & recommendations",
+      "Email support",
     ],
-    limitations: ["Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
-    operationalLimits: "1 ActiPlan/Day & 1 Owner",
+    limitations: [
+      "Client portfolio management,Client default preferences & safeguards, AI knowledge base, Operations statistics, Cross-platform unified taxonomy, 10 team members, Dedicated support, Platform onboarding included",
+      "Advanced performance dashboard (planned vs actual), Approval workflows, Requests workflows, Task Management, Change history, Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports, Creative meshing, Priority support, Advanced reporting",
+    ],
+    operationalLimits: "1 ActiPlan/Day & 1 Owner, 1 platform per ActiPlan at a time",
     cta: "Get Started",
     popular: false,
   },
@@ -172,17 +178,23 @@ const pricingTiers = [
     yearlyMonthly: 75.65,
     yearlyTotal: 907.8,
     period: "/month",
-    description: "For professional media planners",
+    description: "For growing professionals",
     features: [
-      "Guided Media Plan Creation",
-      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
-      "Topline Performance Report",
-      "Cross-Platform Campaign Activation",
-      "Live Insights & Recommendations",
-      "Visual Performance Dashboard",
+      "2 ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "1 user connection per platform",
+      "3 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "3 ad account swaps per platform every month",
+      "Everything in Basic plan",
+      "Priority support",
+      "Advanced reporting",
     ],
-    limitations: ["Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
-    operationalLimits: "2 ActiPlans/Day & 1 Owner",
+    limitations: [
+      "Client portfolio management,Client default preferences & safeguards, AI knowledge base, Operations statistics, Cross-platform unified taxonomy, 10 team members, Dedicated support, Platform onboarding included",
+      "Advanced performance dashboard (planned vs actual), Approval workflows, Requests workflows, Task Management, Change history, Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports, Creative meshing",
+    ],
+    operationalLimits: "2 ActiPlans/Day & 1 Owner, 3 ad accounts per platform",
     cta: "Get Started",
     popular: true,
   },
@@ -196,18 +208,27 @@ const pricingTiers = [
     period: "/month",
     description: "For teams and growing agencies",
     features: [
-      "Guided Media Plan Creation",
-      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
-      "Topline Performance Report",
-      "Cross-Platform Campaign Activation",
-      "Live Insights & Recommendations",
-      "Visual Performance Dashboard",
-      "Approval Workflow",
-      "HawkView Intuitive Performance Report",
-      "AI-based Knowledge Base",
-      "ActiPlanners, Access & Permissions",
+      "5 ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "3 user connections per platform",
+      "150 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "3 ad account swaps per platform every month",
+      "Everything in Freelancer",
+      "Guaranteed planning",
+      "All-levels duplication (ActiPlan, Platform & Market)",
+      "Advanced performance dashboard (planned vs actual)",
+      "Approval workflows",
+      "Requests workflows",
+      "Task Management",
+      "Change history",
+      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+      "Creative meshing",
+      "5 team members",
     ],
-    limitations: ["Team Management", "Account Manager Support"],
+    limitations: [
+      "Client portfolio management,Client default preferences & safeguards, AI knowledge base, Operations statistics, Cross-platform unified taxonomy, 10 team members, Dedicated support, Platform onboarding included",
+    ],
     operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
     cta: "Get Started",
     popular: false,
@@ -222,18 +243,21 @@ const pricingTiers = [
     period: "/month",
     description: "For large agencies with dedicated support",
     features: [
-      "Guided Media Plan Creation",
-      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
-      "Topline Performance Report",
-      "Cross-Platform Campaign Activation",
-      "Live Insights & Recommendations",
-      "Visual Performance Dashboard",
-      "Approval Workflow",
-      "HawkView Intuitive Performance Report",
-      "AI-based Knowledge Base",
-      "ActiPlanners, Access & Permissions",
-      "Team Management",
-      "Account Manager + Working Hours Support",
+      "Unlimited ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "6 user connection per platform",
+      "300 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "6 ad account swaps per platform every month",
+      "Everything in Enterprise",
+      "Client portfolio management",
+      "Client default preferences & safeguards",
+      "AI knowledge base",
+      "Operations statistics",
+      "Cross-platform unified taxonomy",
+      "10 team members",
+      "Dedicated support",
+      "Platform onboarding included",
     ],
     limitations: [],
     operationalLimits: "Unlimited ActiPlans, 1 Owner, 1 Admin & 8 Team Members",
@@ -270,11 +294,7 @@ const Landing = () => {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-2">
           <div className="flex items-center shrink-0">
-            <img 
-              src="/logo.png" 
-              alt="ActiPlan" 
-              className="h-8 md:h-10 w-auto"
-            />
+            <img src="/logo.png" alt="ActiPlan" className="h-8 md:h-10 w-auto" />
           </div>
           <div className="hidden md:flex items-center gap-6">
             <button
@@ -291,10 +311,19 @@ const Landing = () => {
             </button>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <Button onClick={() => navigate("/auth")} variant="outline" size="sm" className="text-xs md:text-sm px-2 md:px-4">
+            <Button
+              onClick={() => navigate("/auth")}
+              variant="outline"
+              size="sm"
+              className="text-xs md:text-sm px-2 md:px-4"
+            >
               Sign In
             </Button>
-            <Button onClick={() => navigate("/auth?mode=signup")} size="sm" className="text-xs md:text-sm px-2 md:px-4 whitespace-nowrap">
+            <Button
+              onClick={() => navigate("/auth?mode=signup")}
+              size="sm"
+              className="text-xs md:text-sm px-2 md:px-4 whitespace-nowrap"
+            >
               Start Trial
             </Button>
           </div>
@@ -537,9 +566,11 @@ const Landing = () => {
       <section className="py-20">
         <div className="container mx-auto px-4">
           <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
-              <CardContent className="p-8 md:p-12 text-center">
-                <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Transform Your Media Team To ActiPlanners?</h2>
-                <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+            <CardContent className="p-8 md:p-12 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">
+                Ready to Transform Your Media Team To ActiPlanners?
+              </h2>
+              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
                 Start your 30-day free trial today and experience the power of cross-platform activation management.
               </p>
               <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
@@ -558,12 +589,14 @@ const Landing = () => {
               <img src="/logo.png" alt="ActiPlan" className="h-8 w-auto" />
             </div>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <Link to="/terms" className="hover:text-foreground transition-colors">Terms & Conditions</Link>
-              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">
+                Terms & Conditions
+              </Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">
+                Privacy Policy
+              </Link>
             </div>
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} ActiPlan. All rights reserved.
-            </p>
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} ActiPlan. All rights reserved.</p>
           </div>
         </div>
       </footer>
