@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,7 @@ import PlatformSyncProgressDialog from "@/components/PlatformSyncProgressDialog"
 import { useAdAccountLimits, canHaveMultipleAccounts } from "@/hooks/useAdAccountLimits";
 import AdAccountUpgradeModal from "@/components/AdAccountUpgradeModal";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import SwapCounterBadge from "@/components/SwapCounterBadge";
 
 interface MetaAdAccount {
   id: string;
@@ -895,16 +896,10 @@ export default function PlatformConnections() {
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <Badge variant="outline" className="gap-1">
-                  Meta Accounts: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
+                  Meta: {platforms.filter(p => p.platform_type === 'meta').length} connection{platforms.filter(p => p.platform_type === 'meta').length !== 1 ? 's' : ''}
                 </Badge>
                 <Badge variant="outline" className="gap-1">
-                  Meta Swaps: {adAccountLimits.meta.swapsUsed}/{adAccountLimits.meta.swapsAllowed === Infinity ? '∞' : adAccountLimits.meta.swapsAllowed}
-                </Badge>
-                <Badge variant="outline" className="gap-1">
-                  TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
-                </Badge>
-                <Badge variant="outline" className="gap-1">
-                  TikTok Swaps: {adAccountLimits.tiktok.swapsUsed}/{adAccountLimits.tiktok.swapsAllowed === Infinity ? '∞' : adAccountLimits.tiktok.swapsAllowed}
+                  TikTok: {platforms.filter(p => p.platform_type === 'tiktok').length} connection{platforms.filter(p => p.platform_type === 'tiktok').length !== 1 ? 's' : ''}
                 </Badge>
               </div>
             </div>
@@ -1068,15 +1063,21 @@ export default function PlatformConnections() {
                 <Badge variant="outline" className="gap-1">
                   Meta Accounts: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
                 </Badge>
-                <Badge variant="outline" className="gap-1">
-                  Meta Swaps: {adAccountLimits.meta.swapsUsed}/{adAccountLimits.meta.swapsAllowed === Infinity ? '∞' : adAccountLimits.meta.swapsAllowed}
-                </Badge>
+                <SwapCounterBadge
+                  label="Meta Swaps"
+                  used={adAccountLimits.meta.swapsUsed}
+                  allowed={adAccountLimits.meta.swapsAllowed}
+                  resetPeriod="monthly"
+                />
                 <Badge variant="outline" className="gap-1">
                   TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
                 </Badge>
-                <Badge variant="outline" className="gap-1">
-                  TikTok Swaps: {adAccountLimits.tiktok.swapsUsed}/{adAccountLimits.tiktok.swapsAllowed === Infinity ? '∞' : adAccountLimits.tiktok.swapsAllowed}
-                </Badge>
+                <SwapCounterBadge
+                  label="TikTok Swaps"
+                  used={adAccountLimits.tiktok.swapsUsed}
+                  allowed={adAccountLimits.tiktok.swapsAllowed}
+                  resetPeriod="monthly"
+                />
               </div>
             </div>
           </CardHeader>
