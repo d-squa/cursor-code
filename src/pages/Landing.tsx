@@ -133,11 +133,37 @@ const pricingTiers = [
       "Email support",
     ],
     limitations: [
-      "Visual Performance Dashboard",
-      "Approval Workflow",
-      "HawkView Reports",
-      "AI Knowledge Base",
-      "Team Management",
+      "Priority support",
+
+      "Advanced reporting",
+      "Guaranteed planning",
+
+      "Advanced performance dashboard (planned vs actual)",
+
+      "Approval workflows",
+
+      "Requests workflows",
+
+      "Task Management",
+
+      "Change history",
+
+      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+
+      "Creative meshing",
+      "Client portfolio management",
+
+      "Client default preferences & safeguards",
+
+      "AI knowledge base",
+
+      "Operations statistics",
+
+      "Cross-platform unified taxonomy",
+
+      "10 team members",
+
+      "Dedicated support",
     ],
     operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Start Free Trial",
@@ -163,8 +189,37 @@ const pricingTiers = [
       "Email support",
     ],
     limitations: [
-      "Client portfolio management,Client default preferences & safeguards, AI knowledge base, Operations statistics, Cross-platform unified taxonomy, 10 team members, Dedicated support, Platform onboarding included",
-      "Advanced performance dashboard (planned vs actual), Approval workflows, Requests workflows, Task Management, Change history, Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports, Creative meshing, Priority support, Advanced reporting",
+      "Priority support",
+
+      "Advanced reporting",
+      "Guaranteed planning",
+
+      "Advanced performance dashboard (planned vs actual)",
+
+      "Approval workflows",
+
+      "Requests workflows",
+
+      "Task Management",
+
+      "Change history",
+
+      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+
+      "Creative meshing",
+      "Client portfolio management",
+
+      "Client default preferences & safeguards",
+
+      "AI knowledge base",
+
+      "Operations statistics",
+
+      "Cross-platform unified taxonomy",
+
+      "10 team members",
+
+      "Dedicated support",
     ],
     operationalLimits: "1 ActiPlan/Day & 1 Owner, 1 platform per ActiPlan at a time",
     cta: "Get Started",
@@ -191,8 +246,34 @@ const pricingTiers = [
       "Advanced reporting",
     ],
     limitations: [
-      "Client portfolio management,Client default preferences & safeguards, AI knowledge base, Operations statistics, Cross-platform unified taxonomy, 10 team members, Dedicated support, Platform onboarding included",
-      "Advanced performance dashboard (planned vs actual), Approval workflows, Requests workflows, Task Management, Change history, Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports, Creative meshing",
+      "Guaranteed planning",
+
+      "Advanced performance dashboard (planned vs actual)",
+
+      "Approval workflows",
+
+      "Requests workflows",
+
+      "Task Management",
+
+      "Change history",
+
+      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+
+      "Creative meshing",
+      "Client portfolio management",
+
+      "Client default preferences & safeguards",
+
+      "AI knowledge base",
+
+      "Operations statistics",
+
+      "Cross-platform unified taxonomy",
+
+      "10 team members",
+
+      "Dedicated support",
     ],
     operationalLimits: "2 ActiPlans/Day & 1 Owner, 3 ad accounts per platform",
     cta: "Get Started",
@@ -227,7 +308,19 @@ const pricingTiers = [
       "5 team members",
     ],
     limitations: [
-      "Client portfolio management,Client default preferences & safeguards, AI knowledge base, Operations statistics, Cross-platform unified taxonomy, 10 team members, Dedicated support, Platform onboarding included",
+      "Client portfolio management",
+
+      "Client default preferences & safeguards",
+
+      "AI knowledge base",
+
+      "Operations statistics",
+
+      "Cross-platform unified taxonomy",
+
+      "10 team members",
+
+      "Dedicated support",
     ],
     operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
     cta: "Get Started",
