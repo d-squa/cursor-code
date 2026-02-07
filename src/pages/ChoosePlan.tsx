@@ -15,13 +15,16 @@ const plans = [
     id: "basic" as const,
     name: "Basic",
     monthlyPrice: 39,
-    yearlyPrice: 397.80,
+    yearlyPrice: 397.8,
     description: "For individuals getting started",
     hasTrial: true,
     features: [
       "1 ActiPlan per day",
-      "Visual Dashboard",
-      "Bulk cross-platform activation",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "1 ad account per platform",
+      "1 platform per ActiPlan at a time",
+      "1 ad account swap per platform every month",
+      "basic performance dashboard",
       "Live insights & recommendations",
       "Email support",
     ],
@@ -30,12 +33,17 @@ const plans = [
     id: "freelancer" as const,
     name: "Freelancer",
     monthlyPrice: 89,
-    yearlyPrice: 907.80,
+    yearlyPrice: 907.8,
     description: "For growing professionals",
     hasTrial: false,
     features: [
       "2 ActiPlans per day",
-      "Everything in Basic",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "1 user connection per platform",
+      "3 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "3 ad account swaps per platform every month",
+      "Everything in Basic plan",
       "Priority support",
       "Advanced reporting",
     ],
@@ -44,14 +52,25 @@ const plans = [
     id: "enterprise" as const,
     name: "Enterprise",
     monthlyPrice: 189,
-    yearlyPrice: 1927.80,
+    yearlyPrice: 1927.8,
     description: "For teams and agencies",
     hasTrial: false,
     features: [
       "5 ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "3 user connections per platform",
+      "150 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "3 ad account swaps per platform every month",
       "Everything in Freelancer",
+      "Guaranteed planning",
+      "Advanced performance dashboard (planned vs actual)",
       "Approval workflows",
-      "HawkView reports",
+      "Requests workflows",
+      "Task Management",
+      "Change history",
+      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+      "Creative meshing",
       "5 team members",
     ],
     recommended: true,
@@ -60,13 +79,22 @@ const plans = [
     id: "agency" as const,
     name: "Agency",
     monthlyPrice: 999,
-    yearlyPrice: 10189.80,
+    yearlyPrice: 10189.8,
     description: "For large agencies",
     hasTrial: false,
     features: [
-      "Unlimited ActiPlans",
+      "10 ActiPlans per day",
+      "2 integrated media platforms (Meta & Tiktok)",
+      "6 user connection per platform",
+      "300 ad account per platform",
+      "2 platforms per ActiPlan at a time",
+      "6 ad account swaps per platform every month",
       "Everything in Enterprise",
-      "AI Knowledge Base",
+      "Client portfolio management",
+      "Client default preferences & safeguards",
+      "AI knowledge base",
+      "Operations statistics",
+      "Cross-platform unified taxonomy",
       "10 team members",
       "Dedicated support",
     ],
@@ -86,24 +114,24 @@ export default function ChoosePlan() {
       navigate("/auth");
       return;
     }
-    
+
     // Redirect to auth if email not confirmed
     if (!authLoading && user && !isEmailConfirmed) {
       navigate("/auth?confirm_email=true");
       return;
     }
-    
+
     // Check onboarding status
     if (!authLoading && user && isEmailConfirmed) {
       const onboardingData = localStorage.getItem("actiplan_onboarding");
       const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
-      
+
       if (!onboardingComplete) {
         navigate("/onboarding");
         return;
       }
     }
-    
+
     // Redirect to overview if already subscribed
     if (!subLoading && isSubscribed) {
       navigate("/overview");
@@ -113,15 +141,17 @@ export default function ChoosePlan() {
   const handleSubscribe = async (planId: string) => {
     setLoading(planId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
         toast.error("Please sign in to subscribe");
         navigate("/auth");
         return;
       }
 
-      const priceId = isYearly 
-        ? PRICE_IDS[planId as keyof typeof PRICE_IDS].yearly 
+      const priceId = isYearly
+        ? PRICE_IDS[planId as keyof typeof PRICE_IDS].yearly
         : PRICE_IDS[planId as keyof typeof PRICE_IDS].monthly;
 
       const { data, error } = await supabase.functions.invoke("create-checkout", {
@@ -197,9 +227,7 @@ export default function ChoosePlan() {
               }`}
             />
           </button>
-          <span className={`text-sm ${isYearly ? "font-semibold" : "text-muted-foreground"}`}>
-            Yearly
-          </span>
+          <span className={`text-sm ${isYearly ? "font-semibold" : "text-muted-foreground"}`}>Yearly</span>
           <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
             Save 15%
           </Badge>
@@ -208,15 +236,10 @@ export default function ChoosePlan() {
         {/* Plans Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {plans.map((plan) => {
-            const monthlyEquivalent = isYearly 
-              ? (plan.yearlyPrice / 12).toFixed(2) 
-              : plan.monthlyPrice.toFixed(2);
+            const monthlyEquivalent = isYearly ? (plan.yearlyPrice / 12).toFixed(2) : plan.monthlyPrice.toFixed(2);
 
             return (
-              <Card 
-                key={plan.id}
-                className={plan.recommended ? "border-primary shadow-lg ring-2 ring-primary/20" : ""}
-              >
+              <Card key={plan.id} className={plan.recommended ? "border-primary shadow-lg ring-2 ring-primary/20" : ""}>
                 <CardHeader>
                   <div className="flex items-center justify-between mb-2">
                     <CardTitle className="text-lg">{plan.name}</CardTitle>
@@ -230,14 +253,10 @@ export default function ChoosePlan() {
                   <div className="mt-4">
                     {isYearly ? (
                       <>
-                        <span className="text-sm line-through text-muted-foreground">
-                          ${plan.monthlyPrice}
-                        </span>
+                        <span className="text-sm line-through text-muted-foreground">${plan.monthlyPrice}</span>
                         <span className="text-3xl font-bold ml-2">${monthlyEquivalent}</span>
                         <span className="text-muted-foreground text-sm">/mo</span>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          ${plan.yearlyPrice.toFixed(2)}/year
-                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">${plan.yearlyPrice.toFixed(2)}/year</p>
                       </>
                     ) : (
                       <>
@@ -257,8 +276,8 @@ export default function ChoosePlan() {
                     ))}
                   </ul>
 
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     variant={plan.recommended ? "default" : "outline"}
                     onClick={() => handleSubscribe(plan.id)}
                     disabled={loading === plan.id}
@@ -276,7 +295,8 @@ export default function ChoosePlan() {
         <Card className="max-w-2xl mx-auto">
           <CardContent className="pt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              <strong>Basic Plan:</strong> Includes a 30-day free trial. Your card won't be charged until the trial ends.
+              <strong>Basic Plan:</strong> Includes a 30-day free trial. Your card won't be charged until the trial
+              ends.
               <br />
               <strong>Freelancer, Enterprise & Agency:</strong> Billing starts immediately upon subscription.
               <br />
