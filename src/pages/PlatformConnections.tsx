@@ -888,8 +888,26 @@ export default function PlatformConnections() {
         {/* Platform Authentication */}
         <Card>
           <CardHeader>
-            <CardTitle>Platform Authentication</CardTitle>
-            <CardDescription>Connect to advertising platforms to sync ad accounts</CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Platform Authentication</CardTitle>
+                <CardDescription>Connect to advertising platforms to sync ad accounts</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <Badge variant="outline" className="gap-1">
+                  Meta Accounts: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  Meta Swaps: {adAccountLimits.meta.swapsUsed}/{adAccountLimits.meta.swapsAllowed === Infinity ? '∞' : adAccountLimits.meta.swapsAllowed}
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  TikTok Swaps: {adAccountLimits.tiktok.swapsUsed}/{adAccountLimits.tiktok.swapsAllowed === Infinity ? '∞' : adAccountLimits.tiktok.swapsAllowed}
+                </Badge>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {platforms.length === 0 ? (
@@ -1041,17 +1059,23 @@ export default function PlatformConnections() {
         {/* Platform Ad Accounts - Collapsible */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>Ad Accounts</CardTitle>
                 <CardDescription>Manage ad accounts by platform. Click to expand each platform.</CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 sm:justify-end">
                 <Badge variant="outline" className="gap-1">
-                  Meta: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
+                  Meta Accounts: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
                 </Badge>
                 <Badge variant="outline" className="gap-1">
-                  TikTok: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
+                  Meta Swaps: {adAccountLimits.meta.swapsUsed}/{adAccountLimits.meta.swapsAllowed === Infinity ? '∞' : adAccountLimits.meta.swapsAllowed}
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  TikTok Swaps: {adAccountLimits.tiktok.swapsUsed}/{adAccountLimits.tiktok.swapsAllowed === Infinity ? '∞' : adAccountLimits.tiktok.swapsAllowed}
                 </Badge>
               </div>
             </div>
@@ -1103,9 +1127,10 @@ export default function PlatformConnections() {
           platformType={platforms.find((p) => p.id === currentPlatformId)?.platform_type || "meta"}
           existingAccountIds={
             platforms.find((p) => p.id === currentPlatformId)?.platform_type === "tiktok"
-              ? tiktokAdAccounts.map(acc => acc.advertiser_id)
-              : metaAdAccounts.map(acc => acc.account_id)
+              ? tiktokAdAccounts.map((acc) => acc.advertiser_id)
+              : metaAdAccounts.map((acc) => acc.account_id)
           }
+          teamId={activeWorkspaceId}
         />
 
         <AdAccountUpgradeModal

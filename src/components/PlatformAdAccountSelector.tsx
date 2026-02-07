@@ -28,6 +28,7 @@ interface Props {
   loading?: boolean;
   platformType?: string;
   existingAccountIds?: string[];
+  teamId?: string | null;
 }
 
 export default function PlatformAdAccountSelector({ 
@@ -37,7 +38,8 @@ export default function PlatformAdAccountSelector({
   onSelect, 
   loading, 
   platformType = 'meta',
-  existingAccountIds = []
+  existingAccountIds = [],
+  teamId = null,
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -47,7 +49,8 @@ export default function PlatformAdAccountSelector({
     swapsUsed?: number;
   }>({ limitType: 'account_limit' });
 
-  const adAccountLimits = useAdAccountLimits();
+  // IMPORTANT: limits must be scoped to the active workspace (team)
+  const adAccountLimits = useAdAccountLimits(teamId);
   const platform = platformType as 'meta' | 'tiktok';
   const platformLimits = adAccountLimits[platform];
 
@@ -169,11 +172,9 @@ export default function PlatformAdAccountSelector({
               <Info className="h-3 w-3" />
               {platformLimits.currentCount} / {platformLimits.maxAllowed} accounts used
             </Badge>
-            {platformLimits.swapsAllowed > 0 && (
-              <Badge variant="outline" className="gap-1">
-                {platformLimits.swapsUsed} / {platformLimits.swapsAllowed} swaps this month
-              </Badge>
-            )}
+            <Badge variant="outline" className="gap-1">
+              {platformLimits.swapsUsed} / {platformLimits.swapsAllowed === Infinity ? '∞' : platformLimits.swapsAllowed} swaps this month
+            </Badge>
           </div>
 
           {showNoMultipleWarning && (
