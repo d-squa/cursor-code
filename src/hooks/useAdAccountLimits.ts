@@ -38,7 +38,7 @@ export interface AdAccountLimitsState {
 
 export function useAdAccountLimits(teamId?: string | null) {
   const { tier, loading: subscriptionLoading } = useSubscription();
-  const [limits, setLimits] = useState<AdAccountLimitsState>({
+  const [limits, setLimits] = useState<AdAccountLimitsState>(() => ({
     meta: {
       currentCount: 0,
       maxAllowed: AD_ACCOUNT_LIMITS[tier],
@@ -57,7 +57,29 @@ export function useAdAccountLimits(teamId?: string | null) {
     },
     loading: true,
     tier,
-  });
+  }));
+
+  // Update tier-dependent values when tier changes
+  useEffect(() => {
+    setLimits(prev => ({
+      ...prev,
+      tier,
+      meta: {
+        ...prev.meta,
+        maxAllowed: AD_ACCOUNT_LIMITS[tier],
+        swapsAllowed: SWAP_LIMITS[tier],
+        canAddMore: prev.meta.currentCount < AD_ACCOUNT_LIMITS[tier],
+        canSwap: prev.meta.swapsUsed < SWAP_LIMITS[tier],
+      },
+      tiktok: {
+        ...prev.tiktok,
+        maxAllowed: AD_ACCOUNT_LIMITS[tier],
+        swapsAllowed: SWAP_LIMITS[tier],
+        canAddMore: prev.tiktok.currentCount < AD_ACCOUNT_LIMITS[tier],
+        canSwap: prev.tiktok.swapsUsed < SWAP_LIMITS[tier],
+      },
+    }));
+  }, [tier]);
 
   const fetchLimits = useCallback(async () => {
     try {
@@ -123,10 +145,10 @@ export function useAdAccountLimits(teamId?: string | null) {
   }, [tier, teamId]);
 
   useEffect(() => {
-    if (!subscriptionLoading) {
+    if (!subscriptionLoading && teamId) {
       fetchLimits();
     }
-  }, [subscriptionLoading, fetchLimits]);
+  }, [subscriptionLoading, teamId, fetchLimits]);
 
   // Log a swap event
   const logSwap = useCallback(async (

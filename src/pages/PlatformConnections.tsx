@@ -110,9 +110,13 @@ export default function PlatformConnections() {
   const [syncProgressDialogOpen, setSyncProgressDialogOpen] = useState(false);
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
+  const fetchConnectedPlatformsRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // Ad account limits and swap tracking - pass activeWorkspaceId
   const adAccountLimits = useAdAccountLimits(activeWorkspaceId);
+  const adAccountLimitsRefetchRef = useRef(adAccountLimits.refetch);
+  adAccountLimitsRefetchRef.current = adAccountLimits.refetch;
+  
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeModalProps, setUpgradeModalProps] = useState<{
     limitType: 'account_limit' | 'swap_limit' | 'no_multiple_accounts';
@@ -259,21 +263,11 @@ export default function PlatformConnections() {
 
     setSyncProgressPlatformId(null);
     setSyncProgressDialogOpen(false);
-    await fetchConnectedPlatforms();
+    await fetchConnectedPlatformsRef.current();
   }, [syncProgressPlatformId, triggerAdLibraryOAuth]);
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
 
-  useEffect(() => {
-    if (user && activeWorkspaceId) {
-      fetchConnectedPlatforms();
-    }
-  }, [user, activeWorkspaceId]);
-
-  const fetchConnectedPlatforms = async () => {
+  // Define fetchConnectedPlatforms before the effects that use it
+  const fetchConnectedPlatforms = useCallback(async () => {
     if (!activeWorkspaceId) return;
     
     try {
@@ -336,13 +330,32 @@ export default function PlatformConnections() {
       });
 
       setTikTokAdAccounts(enrichedTiktokAccounts);
+      
+      // Refresh ad account limits after data is fetched - use ref to avoid dep loop
+      adAccountLimitsRefetchRef.current();
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeWorkspaceId]);
+  
+  // Keep the ref in sync
+  fetchConnectedPlatformsRef.current = fetchConnectedPlatforms;
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (user && activeWorkspaceId) {
+      fetchConnectedPlatforms();
+    }
+  }, [user, activeWorkspaceId, fetchConnectedPlatforms]);
+
 
   const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string, skipLimitCheck = false) => {
     // Check limits before allowing new platform connections (not reconnects)
@@ -526,8 +539,7 @@ export default function PlatformConnections() {
         // Synchronous sync completed (TikTok or small account sets)
         toast.success("Selected ad accounts synced successfully!");
         
-        // Refresh ad account limits after syncing
-        adAccountLimits.refetch();
+        // fetchConnectedPlatforms now handles limit refresh
         setAccountSelectorOpen(false);
         setAdAccountOptions([]);
 
