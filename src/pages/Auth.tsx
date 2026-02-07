@@ -311,6 +311,15 @@ export default function Auth() {
 
   // Show email confirmation screen after signup
   if (showEmailConfirmation) {
+    const handleEscapeConfirmation = () => {
+      // Clear stale pending email that might be trapping user
+      localStorage.removeItem("actiplan_pending_signup_email");
+      setShowEmailConfirmation(false);
+      setIsLogin(true);
+      setEmail("");
+      setPassword("");
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
         <Card className="w-full max-w-md">
@@ -331,8 +340,8 @@ export default function Auth() {
             <p className="text-sm text-muted-foreground">
               Click the link in the email to confirm your account and start your free trial.
             </p>
-            <div className="pt-4 border-t">
-              <p className="text-sm text-muted-foreground mb-2">Didn't receive the email?</p>
+            <div className="pt-4 border-t space-y-3">
+              <p className="text-sm text-muted-foreground">Didn't receive the email?</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -343,6 +352,16 @@ export default function Auth() {
               >
                 Try again
               </Button>
+              <div className="text-sm text-muted-foreground">
+                Already confirmed or have an account?{" "}
+                <button
+                  type="button"
+                  onClick={handleEscapeConfirmation}
+                  className="text-primary hover:underline font-medium"
+                >
+                  Sign in instead
+                </button>
+              </div>
             </div>
             <div className="mt-4">
               <button
