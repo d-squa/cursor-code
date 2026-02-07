@@ -100,8 +100,8 @@ export const AD_ACCOUNT_LIMITS: Record<SubscriptionTier, number> = {
 
 // Monthly swap limits per tier per platform
 export const SWAP_LIMITS: Record<SubscriptionTier, number> = {
-  trial: 0,
-  basic: 0,
+  trial: 1,
+  basic: 1,
   freelancer: 1,
   enterprise: 3,
   agency: Infinity,
