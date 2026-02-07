@@ -110,6 +110,12 @@ export function useAdAccountLimits(teamId?: string | null) {
         supabase.rpc('count_swaps_this_month', { _user_id: session.user.id, _platform: 'tiktok' }),
       ]);
 
+      // IMPORTANT: don’t silently treat RLS/query errors as “0 used”, or limits won’t enforce.
+      if (metaCountRes.error) throw metaCountRes.error;
+      if (tiktokCountRes.error) throw tiktokCountRes.error;
+      if (metaSwapsRes.error) throw metaSwapsRes.error;
+      if (tiktokSwapsRes.error) throw tiktokSwapsRes.error;
+
       const metaCount = metaCountRes.count ?? 0;
       const tiktokCount = tiktokCountRes.count ?? 0;
       const metaSwaps = metaSwapsRes.data ?? 0;
