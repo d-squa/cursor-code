@@ -36,7 +36,7 @@ export interface AdAccountLimitsState {
   tier: SubscriptionTier;
 }
 
-export function useAdAccountLimits() {
+export function useAdAccountLimits(teamId?: string | null) {
   const { tier, loading: subscriptionLoading } = useSubscription();
   const [limits, setLimits] = useState<AdAccountLimitsState>({
     meta: {
@@ -67,18 +67,29 @@ export function useAdAccountLimits() {
         return;
       }
 
-      const userId = session.user.id;
+      // If no teamId provided, we can't scope properly - use user_id as fallback
+      // This happens during initial load before workspace is resolved
+      if (!teamId) {
+        setLimits(prev => ({ ...prev, loading: false }));
+        return;
+      }
 
-      // Fetch counts and swaps in parallel
+      // Count ad accounts by team_id
       const [metaCountRes, tiktokCountRes, metaSwapsRes, tiktokSwapsRes] = await Promise.all([
-        supabase.rpc('count_linked_ad_accounts', { _user_id: userId, _platform: 'meta' }),
-        supabase.rpc('count_linked_ad_accounts', { _user_id: userId, _platform: 'tiktok' }),
-        supabase.rpc('count_swaps_this_month', { _user_id: userId, _platform: 'meta' }),
-        supabase.rpc('count_swaps_this_month', { _user_id: userId, _platform: 'tiktok' }),
+        supabase
+          .from('meta_ad_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('team_id', teamId),
+        supabase
+          .from('tiktok_ad_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('team_id', teamId),
+        supabase.rpc('count_swaps_this_month', { _user_id: session.user.id, _platform: 'meta' }),
+        supabase.rpc('count_swaps_this_month', { _user_id: session.user.id, _platform: 'tiktok' }),
       ]);
 
-      const metaCount = metaCountRes.data ?? 0;
-      const tiktokCount = tiktokCountRes.data ?? 0;
+      const metaCount = metaCountRes.count ?? 0;
+      const tiktokCount = tiktokCountRes.count ?? 0;
       const metaSwaps = metaSwapsRes.data ?? 0;
       const tiktokSwaps = tiktokSwapsRes.data ?? 0;
 
@@ -109,7 +120,7 @@ export function useAdAccountLimits() {
       console.error("Error fetching ad account limits:", error);
       setLimits(prev => ({ ...prev, loading: false }));
     }
-  }, [tier]);
+  }, [tier, teamId]);
 
   useEffect(() => {
     if (!subscriptionLoading) {

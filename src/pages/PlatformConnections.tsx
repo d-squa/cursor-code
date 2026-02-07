@@ -33,6 +33,7 @@ import { usePlatformSyncProgress } from "@/hooks/useTikTokSyncProgress";
 import PlatformSyncProgressDialog from "@/components/PlatformSyncProgressDialog";
 import { useAdAccountLimits, canHaveMultipleAccounts } from "@/hooks/useAdAccountLimits";
 import AdAccountUpgradeModal from "@/components/AdAccountUpgradeModal";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 interface MetaAdAccount {
   id: string;
@@ -89,6 +90,7 @@ export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { hasAccess } = useFeatureAccess();
+  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
   const canManageClients = hasAccess("client_management");
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
@@ -109,8 +111,8 @@ export default function PlatformConnections() {
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
 
-  // Ad account limits and swap tracking
-  const adAccountLimits = useAdAccountLimits();
+  // Ad account limits and swap tracking - pass activeWorkspaceId
+  const adAccountLimits = useAdAccountLimits(activeWorkspaceId);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeModalProps, setUpgradeModalProps] = useState<{
     limitType: 'account_limit' | 'swap_limit' | 'no_multiple_accounts';
@@ -266,27 +268,39 @@ export default function PlatformConnections() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (user && activeWorkspaceId) {
       fetchConnectedPlatforms();
     }
-  }, [user]);
+  }, [user, activeWorkspaceId]);
 
   const fetchConnectedPlatforms = async () => {
+    if (!activeWorkspaceId) return;
+    
     try {
+      // Build queries with workspace filtering
+      const platformsQuery = supabase
+        .from("connected_platforms_safe")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      
+      // Filter ad accounts by team_id (workspace)
+      const metaQuery = supabase
+        .from("meta_ad_accounts")
+        .select("id, account_id, account_name, account_status, client_id, team_id, clients(id, name)")
+        .eq("team_id", activeWorkspaceId)
+        .order("account_name");
+      
+      const tiktokQuery = supabase
+        .from("tiktok_ad_accounts")
+        .select("id, account_id, account_name, advertiser_id, account_status, client_id, team_id, clients(id, name)")
+        .eq("team_id", activeWorkspaceId)
+        .order("account_name");
+      
       const [platformsRes, metaAccountsRes, tiktokAccountsRes] = await Promise.all([
-        supabase
-          .from("connected_platforms_safe")
-          .select("*")
-          .eq("is_active", true)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("meta_ad_accounts")
-          .select("id, account_id, account_name, account_status, client_id, clients(id, name)")
-          .order("account_name"),
-        supabase
-          .from("tiktok_ad_accounts")
-          .select("id, account_id, account_name, advertiser_id, account_status, client_id, clients(id, name)")
-          .order("account_name"),
+        platformsQuery,
+        metaQuery,
+        tiktokQuery,
       ]);
 
       if (platformsRes.error) throw platformsRes.error;
@@ -484,7 +498,7 @@ export default function PlatformConnections() {
   };
 
   const handleSaveAdAccounts = async (accounts: { id: string; name: string; business_center?: any }[]) => {
-    if (accounts.length === 0 || !currentPlatformId) return;
+    if (accounts.length === 0 || !currentPlatformId || !activeWorkspaceId) return;
 
     setSelectingAccount(true);
     try {
@@ -493,6 +507,7 @@ export default function PlatformConnections() {
         body: {
           selectedAccountIds: selectedIds,
           platformId: currentPlatformId,
+          teamId: activeWorkspaceId, // Pass the active workspace
         },
       });
 
@@ -828,7 +843,7 @@ export default function PlatformConnections() {
     setClientSelectorOpen(open);
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || workspaceLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
