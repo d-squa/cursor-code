@@ -852,6 +852,7 @@ export type Database = {
           platform_name: string
           platform_type: string
           refresh_token: string | null
+          team_id: string | null
           token_expires_at: string | null
           updated_at: string
           user_id: string
@@ -868,6 +869,7 @@ export type Database = {
           platform_name: string
           platform_type: string
           refresh_token?: string | null
+          team_id?: string | null
           token_expires_at?: string | null
           updated_at?: string
           user_id: string
@@ -884,11 +886,20 @@ export type Database = {
           platform_name?: string
           platform_type?: string
           refresh_token?: string | null
+          team_id?: string | null
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "connected_platforms_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       creative_assignments: {
         Row: {
@@ -1669,6 +1680,7 @@ export type Database = {
           id: string
           main_markets: Json | null
           synced_at: string
+          team_id: string | null
           user_id: string
         }
         Insert: {
@@ -1725,6 +1737,7 @@ export type Database = {
           id?: string
           main_markets?: Json | null
           synced_at?: string
+          team_id?: string | null
           user_id: string
         }
         Update: {
@@ -1781,6 +1794,7 @@ export type Database = {
           id?: string
           main_markets?: Json | null
           synced_at?: string
+          team_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1789,6 +1803,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_accounts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -2591,6 +2612,7 @@ export type Database = {
           id: string
           main_markets: Json | null
           synced_at: string
+          team_id: string | null
           timezone: string | null
           user_id: string
         }
@@ -2637,6 +2659,7 @@ export type Database = {
           id?: string
           main_markets?: Json | null
           synced_at?: string
+          team_id?: string | null
           timezone?: string | null
           user_id: string
         }
@@ -2683,6 +2706,7 @@ export type Database = {
           id?: string
           main_markets?: Json | null
           synced_at?: string
+          team_id?: string | null
           timezone?: string | null
           user_id?: string
         }
@@ -2692,6 +2716,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_ad_accounts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]

@@ -64,6 +64,7 @@ async function updateSyncProgress(
 async function syncMetaAccountsInBackground(
   supabase: any,
   userId: string,
+  teamId: string,
   platformId: string,
   selectedAccountIds: string[],
   accessToken: string
@@ -139,6 +140,7 @@ async function syncMetaAccountsInBackground(
           
           accountsToInsert.push({
             user_id: userId,
+            team_id: teamId, // Workspace scoping
             account_id: accountData.id,
             account_name: accountData.name,
             account_status: accountData.account_status,
@@ -329,12 +331,12 @@ async function syncMetaAccountsInBackground(
     currentStep = totalAccounts + 1;
     await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'ad_accounts', 'Saving ad accounts...', processedCounts);
 
-    // Delete only the accounts we're about to insert (to update them), keep others
+    // Delete only the accounts we're about to insert (to update them) - scoped by team
     const accountIdsToSync = accountsToInsert.map(acc => acc.account_id);
     await supabase
       .from("meta_ad_accounts")
       .delete()
-      .eq("user_id", userId)
+      .eq("team_id", teamId)
       .in("account_id", accountIdsToSync);
     
     const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
@@ -501,7 +503,7 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { selectedAccountIds, platformId } = await req.json();
+    const { selectedAccountIds, platformId, teamId } = await req.json();
 
     if (!Array.isArray(selectedAccountIds) || selectedAccountIds.length === 0) {
       throw new Error("No accounts selected");
@@ -513,7 +515,11 @@ serve(async (req) => {
       throw new Error("Platform ID is required");
     }
 
-    console.log(`Syncing ${selectedAccountIds.length} selected accounts for user ${user.id} from platform ${platformId}`);
+    if (!teamId) {
+      throw new Error("Team ID (workspace) is required for workspace-scoped ad accounts");
+    }
+
+    console.log(`Syncing ${selectedAccountIds.length} selected accounts for user ${user.id} from platform ${platformId} in team ${teamId}`);
 
     // Get the platform connection
     const { data: platform, error: platformError } = await supabase
@@ -555,11 +561,12 @@ serve(async (req) => {
         throw new Error("No matching TikTok accounts found");
       }
 
-      // Prepare TikTok ad accounts for insertion
+      // Prepare TikTok ad accounts for insertion with team_id
       selectedAccounts.forEach((account: any) => {
         const advertiserIdStr = String(account.advertiser_id);
         accountsToInsert.push({
           user_id: user.id,
+          team_id: teamId, // Workspace scoping
           account_id: advertiserIdStr,
           account_name: account.name,
           advertiser_id: advertiserIdStr,
@@ -570,11 +577,11 @@ serve(async (req) => {
         });
       });
 
-      // Delete existing TikTok accounts that we're about to sync (to update them)
+      // Delete existing TikTok accounts that we're about to sync (to update them) - scoped by team
       await supabase
         .from("tiktok_ad_accounts")
         .delete()
-        .eq("user_id", user.id)
+        .eq("team_id", teamId)
         .in("advertiser_id", selectedIds);
       
       const { error: insertError } = await supabase
@@ -966,13 +973,13 @@ serve(async (req) => {
     if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(
-        syncMetaAccountsInBackground(supabase, user.id, platformId, selectedIds, accessToken)
+        syncMetaAccountsInBackground(supabase, user.id, teamId, platformId, selectedIds, accessToken)
       );
     } else {
       // Fallback for environments without EdgeRuntime.waitUntil
       // Run synchronously but with a warning
       console.warn('EdgeRuntime.waitUntil not available, running sync synchronously');
-      await syncMetaAccountsInBackground(supabase, user.id, platformId, selectedIds, accessToken);
+      await syncMetaAccountsInBackground(supabase, user.id, teamId, platformId, selectedIds, accessToken);
     }
 
     // Return immediately with background sync status
