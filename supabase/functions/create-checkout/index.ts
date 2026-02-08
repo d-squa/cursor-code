@@ -24,11 +24,12 @@ const BASIC_PRICE_IDS = [
   "price_1ScnL9KrTGU4P754QirsF0Sd", // yearly
 ];
 
-// Price metadata for GTM tracking and comparison
+// Price metadata for GTM tracking and comparison (all USD)
 const PRICE_METADATA: Record<
   string,
   { amount: number; planName: string; productId: string; billingCycle: "monthly" | "yearly" }
 > = {
+  // Basic (USD)
   price_1ScnObKrTGU4P754AAJ9Q5NU: {
     amount: 3900,
     planName: "Basic",
@@ -41,40 +42,43 @@ const PRICE_METADATA: Record<
     productId: "prod_TZxJsj5K3hZ8Ku",
     billingCycle: "yearly",
   },
-  price_1SyXF5KrTGU4P7548Gb4bgd6: {
+  // Freelancer (USD)
+  price_1SyblZKrTGU4P754e0GfARV4: {
     amount: 9900,
     planName: "Freelancer",
-    productId: "prod_TZxJ4XAvny2Nnl",
+    productId: "prod_TwUlLQvTFz0efa",
     billingCycle: "monthly",
   },
-  price_1SyXYDKrTGU4P75427F7A2ge: {
+  price_1SyblbKrTGU4P754Otu9dcxm: {
     amount: 100980,
     planName: "Freelancer",
-    productId: "prod_TZxJ4XAvny2Nnl",
+    productId: "prod_TwUlLQvTFz0efa",
     billingCycle: "yearly",
   },
-  price_1SyX3xKrTGU4P754lgSWx7dq: {
+  // Enterprise (USD)
+  price_1SyblcKrTGU4P754HYOgkuIQ: {
     amount: 24900,
     planName: "Enterprise",
-    productId: "prod_TZxJTdbXy2Rlhb",
+    productId: "prod_TwUlg5cv5lkldX",
     billingCycle: "monthly",
   },
-  price_1SyX8xKrTGU4P754mXynM6Qn: {
+  price_1SybldKrTGU4P754EBnjjPos: {
     amount: 253980,
     planName: "Enterprise",
-    productId: "prod_TZxJTdbXy2Rlhb",
+    productId: "prod_TwUlg5cv5lkldX",
     billingCycle: "yearly",
   },
-  price_1SyXAnKrTGU4P754hsNny2H7: {
+  // Agency (USD)
+  price_1SyblfKrTGU4P754gwTKmrsC: {
     amount: 69900,
     planName: "Agency",
-    productId: "prod_TZxJAdnaSLNRsJ",
+    productId: "prod_TwUlIMDiwjhsq6",
     billingCycle: "monthly",
   },
-  price_1SyXD1KrTGU4P7541vWVImFY: {
+  price_1SyblfKrTGU4P754PtKbziMk: {
     amount: 712980,
     planName: "Agency",
-    productId: "prod_TZxJAdnaSLNRsJ",
+    productId: "prod_TwUlIMDiwjhsq6",
     billingCycle: "yearly",
   },
 };
@@ -177,12 +181,30 @@ serve(async (req) => {
       if (activeSub) {
         existingSubscription = activeSub;
         const currentPriceId = activeSub.items.data[0]?.price?.id;
+        const currentCurrency = activeSub.items.data[0]?.price?.currency;
 
         logStep("Existing active subscription found", {
           subscriptionId: activeSub.id,
           status: activeSub.status,
           currentPriceId,
+          currentCurrency,
         });
+
+        // Check for currency mismatch - Stripe doesn't allow mixing currencies on a customer
+        // All our new prices are USD; if user is on EUR (old prices), they must cancel first
+        if (currentCurrency && currentCurrency !== "usd") {
+          logStep("Currency mismatch detected", { currentCurrency, targetCurrency: "usd" });
+          return new Response(
+            JSON.stringify({
+              error: `Your current subscription uses ${currentCurrency.toUpperCase()}. Please cancel your current plan first, then subscribe to the new USD plan.`,
+              errorCode: "CURRENCY_MISMATCH",
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 400,
+            },
+          );
+        }
 
         // Check if already on the same price (only for active/trialing subs)
         if (currentPriceId === priceId) {

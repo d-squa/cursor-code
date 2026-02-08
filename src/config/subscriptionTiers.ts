@@ -7,22 +7,22 @@ export const PRICE_IDS = {
   basic: {
     monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
     yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
-    productId: "prod_TZxJsj5K3hZ8Ku", // ActiPlan Basic Monthly
+    productId: "prod_TZxJsj5K3hZ8Ku", // ActiPlan Basic
   },
   freelancer: {
-    monthly: "price_1SyXF5KrTGU4P7548Gb4bgd6",
-    yearly: "price_1SyXYDKrTGU4P75427F7A2ge",
-    productId: "prod_TZxJ4XAvny2Nnl", // ActiPlan Freelancer Monthly
+    monthly: "price_1SyblZKrTGU4P754e0GfARV4",
+    yearly: "price_1SyblbKrTGU4P754Otu9dcxm",
+    productId: "prod_TwUlLQvTFz0efa", // ActiPlan Freelancer (USD)
   },
   enterprise: {
-    monthly: "price_1SyX3xKrTGU4P754lgSWx7dq",
-    yearly: "price_1SyX8xKrTGU4P754mXynM6Qn",
-    productId: "prod_TZxJTdbXy2Rlhb", // ActiPlan Enterprise Monthly
+    monthly: "price_1SyblcKrTGU4P754HYOgkuIQ",
+    yearly: "price_1SybldKrTGU4P754EBnjjPos",
+    productId: "prod_TwUlg5cv5lkldX", // ActiPlan Enterprise (USD)
   },
   agency: {
-    monthly: "price_1SyXAnKrTGU4P754hsNny2H7",
-    yearly: "price_1SyXD1KrTGU4P7541vWVImFY",
-    productId: "prod_TZxJAdnaSLNRsJ", // ActiPlan Agency Monthly
+    monthly: "price_1SyblfKrTGU4P754gwTKmrsC",
+    yearly: "price_1SyblfKrTGU4P754PtKbziMk",
+    productId: "prod_TwUlIMDiwjhsq6", // ActiPlan Agency (USD)
   },
 } as const;
 
