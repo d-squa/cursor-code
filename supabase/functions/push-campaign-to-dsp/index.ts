@@ -11,7 +11,7 @@ const corsHeaders = {
 
 // Input validation schema
 const campaignInputSchema = z.object({
-  campaignId: z.string().uuid()
+  campaignId: z.string().uuid(),
 });
 
 // ============= MINIMUM BUDGET REQUIREMENTS =============
@@ -22,8 +22,8 @@ const PLATFORM_MINIMUM_BUDGETS = {
     // Meta requires minimum $1/day for daily budget, or $1 * days for lifetime
     dailyMinimum: 1,
     lifetimeMinimumPerDay: 1,
-    currency: 'USD',
-    name: 'Meta'
+    currency: "USD",
+    name: "Meta",
   },
   tiktok: {
     // TikTok requires higher minimums - ~€380 for short campaigns, scales with duration
@@ -34,9 +34,9 @@ const PLATFORM_MINIMUM_BUDGETS = {
     // For short campaigns (< 7 days), TikTok enforces a flat minimum (~€380 in EU)
     shortCampaignMinimum: 380,
     shortCampaignDays: 7,
-    currency: 'EUR',
-    name: 'TikTok'
-  }
+    currency: "EUR",
+    name: "TikTok",
+  },
 };
 
 interface BudgetValidationError {
@@ -55,53 +55,63 @@ function validatePlatformBudgets(
   campaign: any,
   platformConfig: any,
   platformName: string,
-  markets: Record<string, any>
+  markets: Record<string, any>,
 ): BudgetValidationError[] {
   const errors: BudgetValidationError[] = [];
-  const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
-                      platformName.toLowerCase().includes('tiktok') ? 'tiktok' : null;
-  
+  const platformKey = platformName.toLowerCase().includes("meta")
+    ? "meta"
+    : platformName.toLowerCase().includes("tiktok")
+      ? "tiktok"
+      : null;
+
   if (!platformKey || !PLATFORM_MINIMUM_BUDGETS[platformKey]) {
     return errors; // Skip validation for unsupported platforms
   }
-  
+
   const platformMinimums = PLATFORM_MINIMUM_BUDGETS[platformKey];
   const totalCampaignBudget = campaign.total_budget || 0;
   const platformBudgetPercentage = platformConfig.budgetPercentage || 100;
-  
+
   for (const [marketCode, market] of Object.entries(markets) as [string, any][]) {
     const marketBudgetPercentage = market.budgetPercentage || 100;
-    const phases = market.phases || [{
-      id: 'default-phase',
-      name: market.name,
-      startDate: campaign.start_date,
-      endDate: campaign.end_date,
-      budgetPercentage: 100,
-    }];
-    
+    const phases = market.phases || [
+      {
+        id: "default-phase",
+        name: market.name,
+        startDate: campaign.start_date,
+        endDate: campaign.end_date,
+        budgetPercentage: 100,
+      },
+    ];
+
     for (const phase of phases) {
       const phaseBudgetPercentage = phase.budgetPercentage || 100;
-      const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * 
-                          (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
-      
+      const phaseBudget =
+        ((totalCampaignBudget * platformBudgetPercentage) / 100) *
+        (marketBudgetPercentage / 100) *
+        (phaseBudgetPercentage / 100);
+
       const startDate = new Date(phase.startDate || campaign.start_date);
       const endDate = new Date(phase.endDate || campaign.end_date);
-      const durationDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      
-      const budgetType = phase.budgetType || 'lifetime';
-      
+      const durationDays = Math.max(
+        1,
+        Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+      );
+
+      const budgetType = phase.budgetType || "lifetime";
+
       let minimumRequired: number;
       let calculatedBudgetValue: number;
-      
-      if (budgetType === 'daily') {
+
+      if (budgetType === "daily") {
         // For daily budget, check daily minimum
         calculatedBudgetValue = phaseBudget / durationDays;
         minimumRequired = platformMinimums.dailyMinimum;
       } else {
         // For lifetime budget
         calculatedBudgetValue = phaseBudget;
-        
-        if (platformKey === 'tiktok') {
+
+        if (platformKey === "tiktok") {
           // TikTok has special rules for short campaigns
           if (durationDays <= (platformMinimums as any).shortCampaignDays) {
             minimumRequired = (platformMinimums as any).shortCampaignMinimum;
@@ -112,23 +122,23 @@ function validatePlatformBudgets(
           minimumRequired = platformMinimums.lifetimeMinimumPerDay * durationDays;
         }
       }
-      
+
       if (calculatedBudgetValue < minimumRequired) {
         errors.push({
           platform: platformMinimums.name,
           market: market.name || marketCode,
-          phase: phase.name || 'Default',
+          phase: phase.name || "Default",
           calculatedBudget: Math.round(calculatedBudgetValue * 100) / 100,
           minimumRequired: minimumRequired,
           budgetType: budgetType,
           durationDays: durationDays,
           message: `${platformMinimums.name} requires a minimum ${budgetType} budget of ${platformMinimums.currency}${minimumRequired.toFixed(2)} for ${durationDays} day(s). Current budget: ${platformMinimums.currency}${calculatedBudgetValue.toFixed(2)}`,
-          fieldPath: 'step2' // Budget allocation step
+          fieldPath: "step2", // Budget allocation step
         });
       }
     }
   }
-  
+
   return errors;
 }
 
@@ -177,55 +187,85 @@ interface TaxonomyContext {
 
 // Value shortening mappings
 const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
-  platform: { 'meta': 'META', 'tiktok': 'TT', 'google': 'GADS' },
+  platform: { meta: "META", tiktok: "TT", google: "GADS" },
   objective: {
-    'OUTCOME_AWARENESS': 'AWR', 'OUTCOME_ENGAGEMENT': 'ENG', 'OUTCOME_TRAFFIC': 'TRF',
-    'OUTCOME_LEADS': 'LED', 'OUTCOME_APP_PROMOTION': 'APP', 'OUTCOME_SALES': 'SAL',
-    'REACH': 'RCH', 'VIDEO_VIEWS': 'VV', 'TRAFFIC': 'TRF', 'CONVERSIONS': 'CVN',
-    'APP_INSTALLS': 'API', 'LEAD_GENERATION': 'LDG',
+    OUTCOME_AWARENESS: "AWR",
+    OUTCOME_ENGAGEMENT: "ENG",
+    OUTCOME_TRAFFIC: "TRF",
+    OUTCOME_LEADS: "LED",
+    OUTCOME_APP_PROMOTION: "APP",
+    OUTCOME_SALES: "SAL",
+    REACH: "RCH",
+    VIDEO_VIEWS: "VV",
+    TRAFFIC: "TRF",
+    CONVERSIONS: "CVN",
+    APP_INSTALLS: "API",
+    LEAD_GENERATION: "LDG",
   },
   optimizationGoal: {
-    'REACH': 'RCH', 'IMPRESSIONS': 'IMP', 'LINK_CLICKS': 'CLK', 'LANDING_PAGE_VIEWS': 'LPV',
-    'CONVERSIONS': 'CVN', 'VALUE': 'VAL', 'OFFSITE_CONVERSIONS': 'OCV', 'CLICK': 'CLK',
-    'CONVERT': 'CVT', 'VIDEO_VIEW': 'VV',
+    REACH: "RCH",
+    IMPRESSIONS: "IMP",
+    LINK_CLICKS: "CLK",
+    LANDING_PAGE_VIEWS: "LPV",
+    CONVERSIONS: "CVN",
+    VALUE: "VAL",
+    OFFSITE_CONVERSIONS: "OCV",
+    CLICK: "CLK",
+    CONVERT: "CVT",
+    VIDEO_VIEW: "VV",
   },
   country: {
-    'US': 'US', 'GB': 'UK', 'DE': 'DE', 'FR': 'FR', 'ES': 'ES', 'IT': 'IT',
-    'NL': 'NL', 'BE': 'BE', 'MX': 'MX', 'BR': 'BR', 'JP': 'JP', 'AU': 'AU',
+    US: "US",
+    GB: "UK",
+    DE: "DE",
+    FR: "FR",
+    ES: "ES",
+    IT: "IT",
+    NL: "NL",
+    BE: "BE",
+    MX: "MX",
+    BR: "BR",
+    JP: "JP",
+    AU: "AU",
   },
   bidStrategy: {
-    'LOWEST_COST_WITHOUT_CAP': 'LC', 'LOWEST_COST_WITH_BID_CAP': 'BC', 'COST_CAP': 'CC',
-    'LOWEST_COST': 'LC', 'BID_TYPE_NO_BID': 'NB',
+    LOWEST_COST_WITHOUT_CAP: "LC",
+    LOWEST_COST_WITH_BID_CAP: "BC",
+    COST_CAP: "CC",
+    LOWEST_COST: "LC",
+    BID_TYPE_NO_BID: "NB",
   },
-  budgetType: { 'daily': 'DLY', 'lifetime': 'LTB' },
-  placementType: { 'PLACEMENT_TYPE_AUTOMATIC': 'AUTO', 'PLACEMENT_TYPE_NORMAL': 'MAN', 'automatic': 'AUTO', 'manual': 'MAN' },
-  gender: { 'all': 'ALL', 'male': 'M', 'female': 'F', '1': 'M', '2': 'F' },
-  device: { 'mobile': 'MOB', 'desktop': 'DSK', 'all': 'ALL' },
-  targetingType: { 'native': 'NTV', 'expand': 'EXP', 'retargeting': 'RTG', 'broad': 'BRD' },
+  budgetType: { daily: "DLY", lifetime: "LTB" },
+  placementType: { PLACEMENT_TYPE_AUTOMATIC: "AUTO", PLACEMENT_TYPE_NORMAL: "MAN", automatic: "AUTO", manual: "MAN" },
+  gender: { all: "ALL", male: "M", female: "F", "1": "M", "2": "F" },
+  device: { mobile: "MOB", desktop: "DSK", all: "ALL" },
+  targetingType: { native: "NTV", expand: "EXP", retargeting: "RTG", broad: "BRD" },
 };
 
 function shortenValue(category: string, value: string): string {
-  if (!value) return '';
+  if (!value) return "";
   const mappings = VALUE_MAPPINGS[category];
   if (mappings && mappings[value]) return mappings[value];
   // Create short code from value
-  const cleaned = value.replace(/[^a-zA-Z0-9]/g, '');
+  const cleaned = value.replace(/[^a-zA-Z0-9]/g, "");
   if (cleaned.length <= 3) return cleaned.toUpperCase();
   return cleaned.substring(0, 3).toUpperCase();
 }
 
 function formatDateForTaxonomy(dateStr: string): string {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   try {
     const date = new Date(dateStr);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
     return `${day}${month}`;
-  } catch { return ''; }
+  } catch {
+    return "";
+  }
 }
 
 function formatBudgetForTaxonomy(budget: number): string {
-  if (!budget || budget === 0) return '';
+  if (!budget || budget === 0) return "";
   if (budget >= 1000000) return `${Math.round(budget / 1000000)}M`;
   if (budget >= 1000) return `${Math.round(budget / 1000)}K`;
   return Math.round(budget).toString();
@@ -233,108 +273,108 @@ function formatBudgetForTaxonomy(budget: number): string {
 
 function extractTaxonomyValues(template: TaxonomyParam[], context: TaxonomyContext): Record<string, string> {
   const values: Record<string, string> = {};
-  
+
   for (const param of template) {
     let rawValue: string | undefined;
-    
+
     switch (param.id) {
-      case 'platform':
-        values[param.id] = context.platform ? shortenValue('platform', context.platform) : '';
+      case "platform":
+        values[param.id] = context.platform ? shortenValue("platform", context.platform) : "";
         break;
-      case 'objective':
-        values[param.id] = context.objective ? shortenValue('objective', context.objective) : '';
+      case "objective":
+        values[param.id] = context.objective ? shortenValue("objective", context.objective) : "";
         break;
-      case 'optimizationGoal':
-        values[param.id] = context.optimizationGoal ? shortenValue('optimizationGoal', context.optimizationGoal) : '';
+      case "optimizationGoal":
+        values[param.id] = context.optimizationGoal ? shortenValue("optimizationGoal", context.optimizationGoal) : "";
         break;
-      case 'country':
-      case 'market':
+      case "country":
+      case "market":
         rawValue = context.country || context.market;
-        values[param.id] = rawValue ? shortenValue('country', rawValue.toUpperCase()) : '';
+        values[param.id] = rawValue ? shortenValue("country", rawValue.toUpperCase()) : "";
         break;
-      case 'location':
+      case "location":
         rawValue = context.location || context.country || context.market;
-        values[param.id] = rawValue ? shortenValue('country', rawValue.toUpperCase()) : '';
+        values[param.id] = rawValue ? shortenValue("country", rawValue.toUpperCase()) : "";
         break;
-      case 'bidStrategy':
-        values[param.id] = context.bidStrategy ? shortenValue('bidStrategy', context.bidStrategy) : '';
+      case "bidStrategy":
+        values[param.id] = context.bidStrategy ? shortenValue("bidStrategy", context.bidStrategy) : "";
         break;
-      case 'budgetType':
-        values[param.id] = context.budgetType ? shortenValue('budgetType', context.budgetType) : '';
+      case "budgetType":
+        values[param.id] = context.budgetType ? shortenValue("budgetType", context.budgetType) : "";
         break;
-      case 'placementType':
-      case 'placement':
+      case "placementType":
+      case "placement":
         if (context.advantagePlusPlacements === true) {
-          values[param.id] = 'AUTO';
+          values[param.id] = "AUTO";
         } else if (context.placementType) {
-          values[param.id] = shortenValue('placementType', context.placementType);
+          values[param.id] = shortenValue("placementType", context.placementType);
         } else {
-          values[param.id] = 'AUTO';
+          values[param.id] = "AUTO";
         }
         break;
-      case 'gender':
-        values[param.id] = context.gender ? shortenValue('gender', context.gender) : 'ALL';
+      case "gender":
+        values[param.id] = context.gender ? shortenValue("gender", context.gender) : "ALL";
         break;
-      case 'ageRange':
+      case "ageRange":
         const ageMin = context.ageMin || 18;
         const ageMax = context.ageMax || 65;
         values[param.id] = `${ageMin}${ageMax}`;
         break;
-      case 'devices':
+      case "devices":
         if (context.devices && context.devices.length > 0 && context.devices.length < 3) {
-          values[param.id] = shortenValue('device', context.devices[0]);
+          values[param.id] = shortenValue("device", context.devices[0]);
         } else {
-          values[param.id] = 'ALL';
+          values[param.id] = "ALL";
         }
         break;
-      case 'targetingType':
-        values[param.id] = context.targetingType ? shortenValue('targetingType', context.targetingType) : '';
+      case "targetingType":
+        values[param.id] = context.targetingType ? shortenValue("targetingType", context.targetingType) : "";
         break;
-      case 'activationName':
+      case "activationName":
         // Don't shorten activation name - preserve as is with special chars removed
-        values[param.id] = context.activationName?.replace(/[^a-zA-Z0-9]/g, '') || '';
+        values[param.id] = context.activationName?.replace(/[^a-zA-Z0-9]/g, "") || "";
         break;
-      case 'boNumber':
-        values[param.id] = context.boNumber?.replace(/[^a-zA-Z0-9]/g, '') || '';
+      case "boNumber":
+        values[param.id] = context.boNumber?.replace(/[^a-zA-Z0-9]/g, "") || "";
         break;
-      case 'teamName':
-        values[param.id] = context.teamName?.replace(/[^a-zA-Z0-9]/g, '') || '';
+      case "teamName":
+        values[param.id] = context.teamName?.replace(/[^a-zA-Z0-9]/g, "") || "";
         break;
-      case 'platformBudget':
-      case 'phaseBudget':
-      case 'totalBudget':
+      case "platformBudget":
+      case "phaseBudget":
+      case "totalBudget":
         const budget = context.platformBudget || context.phaseBudget || context.totalBudget;
-        values[param.id] = budget ? formatBudgetForTaxonomy(budget) : '';
+        values[param.id] = budget ? formatBudgetForTaxonomy(budget) : "";
         break;
-      case 'startDate':
-        values[param.id] = context.startDate ? formatDateForTaxonomy(context.startDate) : '';
+      case "startDate":
+        values[param.id] = context.startDate ? formatDateForTaxonomy(context.startDate) : "";
         break;
-      case 'endDate':
-        values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
+      case "endDate":
+        values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : "";
         break;
       default:
-        if (param.type === 'fixed' && param.value) {
+        if (param.type === "fixed" && param.value) {
           values[param.id] = param.value;
         }
         break;
     }
   }
-  
+
   return values;
 }
 
 function generateTaxonomyString(template: TaxonomyParam[], values: Record<string, string>): string {
   const parts: string[] = [];
-  
+
   for (const param of template) {
     if (param.required === false && !param.system) continue;
-    const value = values[param.id] || param.value || '';
+    const value = values[param.id] || param.value || "";
     if (value) {
       parts.push(value.toUpperCase());
     }
   }
-  
-  return parts.join('_');
+
+  return parts.join("_");
 }
 
 // Helper to generate taxonomy name for campaign or adset
@@ -342,68 +382,71 @@ async function generateTaxonomyName(
   supabase: any,
   userId: string,
   platformAccountId: string, // This is the platform's native ID (e.g., TikTok advertiser_id or Meta account_id)
-  platform: 'meta' | 'tiktok',
-  entityType: 'campaign' | 'adset',
+  platform: "meta" | "tiktok",
+  entityType: "campaign" | "adset",
   context: TaxonomyContext,
-  customValues?: Record<string, string>
+  customValues?: Record<string, string>,
 ): Promise<string | null> {
   try {
     // First, convert platform's native account ID to our internal UUID
     // taxonomy_templates.ad_account_id stores our internal UUIDs, not platform IDs
     let internalAdAccountId: string | null = null;
-    
-    if (platform === 'tiktok') {
+
+    if (platform === "tiktok") {
       const { data: tiktokAccount } = await supabase
-        .from('tiktok_ad_accounts')
-        .select('id')
-        .eq('advertiser_id', platformAccountId)
+        .from("tiktok_ad_accounts")
+        .select("id")
+        .eq("advertiser_id", platformAccountId)
         .maybeSingle();
       internalAdAccountId = tiktokAccount?.id;
-    } else if (platform === 'meta') {
+    } else if (platform === "meta") {
       const { data: metaAccount } = await supabase
-        .from('meta_ad_accounts')
-        .select('id')
-        .eq('account_id', platformAccountId)
+        .from("meta_ad_accounts")
+        .select("id")
+        .eq("account_id", platformAccountId)
         .maybeSingle();
       internalAdAccountId = metaAccount?.id;
     }
-    
+
     if (!internalAdAccountId) {
       console.log(`No internal account found for ${platform} account ${platformAccountId}`);
       return null;
     }
-    
+
     // Fetch taxonomy template from database using internal UUID
     const { data: templateData, error } = await supabase
-      .from('taxonomy_templates')
-      .select('template')
-      .eq('user_id', userId)
-      .eq('ad_account_id', internalAdAccountId)
-      .eq('platform', platform)
-      .eq('entity_type', entityType)
+      .from("taxonomy_templates")
+      .select("template")
+      .eq("user_id", userId)
+      .eq("ad_account_id", internalAdAccountId)
+      .eq("platform", platform)
+      .eq("entity_type", entityType)
       .maybeSingle();
-    
+
     if (error || !templateData?.template) {
-      console.log(`No taxonomy template found for ${platform} ${entityType} on account ${internalAdAccountId} (platform ID: ${platformAccountId})`);
+      console.log(
+        `No taxonomy template found for ${platform} ${entityType} on account ${internalAdAccountId} (platform ID: ${platformAccountId})`,
+      );
       return null;
     }
-    
+
     const template = templateData.template as TaxonomyParam[];
     const extractedValues = extractTaxonomyValues(template, context);
     // Merge with custom values (custom values override extracted)
     const mergedValues = { ...extractedValues, ...customValues };
     const taxonomyString = generateTaxonomyString(template, mergedValues);
-    
+
     // Append unique timestamp suffix (YYMMDDHHMMSS) to ensure uniqueness
     const now = new Date();
-    const uniqueSuffix = now.getFullYear().toString().slice(-2) +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      String(now.getDate()).padStart(2, '0') +
-      String(now.getHours()).padStart(2, '0') +
-      String(now.getMinutes()).padStart(2, '0') +
-      String(now.getSeconds()).padStart(2, '0');
+    const uniqueSuffix =
+      now.getFullYear().toString().slice(-2) +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      String(now.getDate()).padStart(2, "0") +
+      String(now.getHours()).padStart(2, "0") +
+      String(now.getMinutes()).padStart(2, "0") +
+      String(now.getSeconds()).padStart(2, "0");
     const finalTaxonomyString = `${taxonomyString}_${uniqueSuffix}`;
-    
+
     console.log(`📋 Generated ${entityType} taxonomy: ${finalTaxonomyString}`);
     return finalTaxonomyString;
   } catch (err) {
@@ -415,12 +458,14 @@ async function generateTaxonomyName(
 // Helper function to generate unique timestamp suffix (YYMMDDHHMMSS)
 function generateTimestampSuffix(): string {
   const now = new Date();
-  return now.getFullYear().toString().slice(-2) +
-    String(now.getMonth() + 1).padStart(2, '0') +
-    String(now.getDate()).padStart(2, '0') +
-    String(now.getHours()).padStart(2, '0') +
-    String(now.getMinutes()).padStart(2, '0') +
-    String(now.getSeconds()).padStart(2, '0');
+  return (
+    now.getFullYear().toString().slice(-2) +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getDate()).padStart(2, "0") +
+    String(now.getHours()).padStart(2, "0") +
+    String(now.getMinutes()).padStart(2, "0") +
+    String(now.getSeconds()).padStart(2, "0")
+  );
 }
 
 // ============= AD SET SPLIT HELPERS =============
@@ -466,21 +511,17 @@ interface AdSetConfig {
 }
 
 // Apply ad set split overrides to Meta targeting object
-function applyMetaAdSetOverrides(
-  baseTargeting: any,
-  adSet: AdSetConfig,
-  dimension: string
-): any {
+function applyMetaAdSetOverrides(baseTargeting: any, adSet: AdSetConfig, dimension: string): any {
   const targeting = { ...baseTargeting };
-  
+
   // Apply dimension-specific overrides
   switch (dimension) {
-    case 'gender':
+    case "gender":
       if (adSet.gender) {
         const genderMap: Record<string, number[]> = {
-          'male': [1],
-          'female': [2],
-          'all': [],
+          male: [1],
+          female: [2],
+          all: [],
         };
         const genders = genderMap[adSet.gender.toLowerCase()];
         if (genders && genders.length > 0) {
@@ -490,19 +531,19 @@ function applyMetaAdSetOverrides(
         }
       }
       break;
-      
-    case 'device':
+
+    case "device":
       if (adSet.devices && adSet.devices.length > 0) {
         targeting.device_platforms = adSet.devices;
       }
       break;
-      
-    case 'age':
+
+    case "age":
       if (adSet.ageMin !== undefined) targeting.age_min = adSet.ageMin;
       if (adSet.ageMax !== undefined) targeting.age_max = adSet.ageMax;
       break;
-      
-    case 'language':
+
+    case "language":
       if (adSet.languages && adSet.languages.length > 0) {
         // Convert to Meta locale IDs if needed
         const locales = adSet.languages
@@ -513,20 +554,20 @@ function applyMetaAdSetOverrides(
         }
       }
       break;
-      
-    case 'location':
+
+    case "location":
       if (adSet.countries && adSet.countries.length > 0) {
         targeting.geo_locations = { countries: adSet.countries };
       }
       break;
-      
-    case 'audience':
-    case 'audience_selection':
+
+    case "audience":
+    case "audience_selection":
       // Add custom audiences from the ad set - filter out invalid IDs
       if (adSet.audiences && adSet.audiences.length > 0) {
         const validAudiences = adSet.audiences
-          .filter(a => a.id && typeof a.id === 'string' && a.id.trim() !== '' && /^\d+$/.test(a.id.trim()))
-          .map(a => ({ id: a.id.trim() }));
+          .filter((a) => a.id && typeof a.id === "string" && a.id.trim() !== "" && /^\d+$/.test(a.id.trim()))
+          .map((a) => ({ id: a.id.trim() }));
         if (validAudiences.length > 0) {
           targeting.custom_audiences = validAudiences;
         }
@@ -534,64 +575,60 @@ function applyMetaAdSetOverrides(
       // Add excluded audiences - filter out invalid IDs
       if (adSet.excludedAudiences && adSet.excludedAudiences.length > 0) {
         const validExcluded = adSet.excludedAudiences
-          .filter(a => a.id && typeof a.id === 'string' && a.id.trim() !== '' && /^\d+$/.test(a.id.trim()))
-          .map(a => ({ id: a.id.trim() }));
+          .filter((a) => a.id && typeof a.id === "string" && a.id.trim() !== "" && /^\d+$/.test(a.id.trim()))
+          .map((a) => ({ id: a.id.trim() }));
         if (validExcluded.length > 0) {
           targeting.excluded_custom_audiences = validExcluded;
         }
       }
       break;
   }
-  
+
   return targeting;
 }
 
 // Apply ad set split overrides to TikTok targeting object
-function applyTikTokAdSetOverrides(
-  baseTargeting: any,
-  adSet: AdSetConfig,
-  dimension: string
-): any {
+function applyTikTokAdSetOverrides(baseTargeting: any, adSet: AdSetConfig, dimension: string): any {
   const targeting = { ...baseTargeting };
-  
+
   switch (dimension) {
-    case 'gender':
+    case "gender":
       if (adSet.gender) {
         // Map string values to numeric for TikTok adapter
         const genderMap: Record<string, number[]> = {
-          'male': [1],
-          'female': [2],
-          'all': [],
+          male: [1],
+          female: [2],
+          all: [],
         };
         const genders = genderMap[adSet.gender.toLowerCase()];
         targeting.genders = genders || [];
       }
       break;
-      
-    case 'device':
+
+    case "device":
       if (adSet.devices && adSet.devices.length > 0) {
         targeting.devices = adSet.devices;
       }
       break;
-      
-    case 'age':
+
+    case "age":
       if (adSet.ageMin !== undefined) targeting.age_min = adSet.ageMin;
       if (adSet.ageMax !== undefined) targeting.age_max = adSet.ageMax;
       break;
-      
-    case 'language':
+
+    case "language":
       if (adSet.languages && adSet.languages.length > 0) {
         targeting.languages = adSet.languages;
       }
       break;
-      
-    case 'location':
+
+    case "location":
       if (adSet.countries && adSet.countries.length > 0) {
         targeting.geo_locations = { countries: adSet.countries };
       }
       break;
   }
-  
+
   return targeting;
 }
 
@@ -601,15 +638,15 @@ function getMetaPlacementOverrides(adSet: AdSetConfig): {
   positions?: Record<string, string[]>;
 } {
   const overrides: { publisherPlatforms?: string[]; positions?: Record<string, string[]> } = {};
-  
+
   if (adSet.publisherPlatforms && adSet.publisherPlatforms.length > 0) {
     overrides.publisherPlatforms = adSet.publisherPlatforms;
   }
-  
+
   if (adSet.positions && Object.keys(adSet.positions).length > 0) {
     overrides.positions = adSet.positions;
   }
-  
+
   return overrides;
 }
 
@@ -621,7 +658,7 @@ function getTikTokPlacementOverrides(adSet: AdSetConfig): {
   if (adSet.tiktokPlacements && adSet.tiktokPlacements.length > 0) {
     return {
       placements: adSet.tiktokPlacements,
-      placementType: 'PLACEMENT_TYPE_NORMAL',
+      placementType: "PLACEMENT_TYPE_NORMAL",
     };
   }
   return {};
@@ -637,77 +674,86 @@ async function updateLaunchStatuses(
   campaignId: string,
   platformInput: string,
   result: any,
-  markets: any[]
+  markets: any[],
 ): Promise<void> {
   // Normalize platform name - try both TikTok and Tiktok casing for compatibility
-  const platformVariants = platformInput.toLowerCase() === 'tiktok' 
-    ? ['TikTok', 'Tiktok', 'tiktok'] 
-    : platformInput.toLowerCase() === 'meta' 
-      ? ['Meta', 'meta'] 
-      : [platformInput];
-  
+  const platformVariants =
+    platformInput.toLowerCase() === "tiktok"
+      ? ["TikTok", "Tiktok", "tiktok"]
+      : platformInput.toLowerCase() === "meta"
+        ? ["Meta", "meta"]
+        : [platformInput];
+
   try {
     const successResults = result.results || [];
     const errorResults = result.errors || [];
-    
-    console.log(`📝 updateLaunchStatuses called for ${platformInput}: ${successResults.length} successes, ${errorResults.length} errors`);
-    
+
+    console.log(
+      `📝 updateLaunchStatuses called for ${platformInput}: ${successResults.length} successes, ${errorResults.length} errors`,
+    );
+
     // Update successful entities
     for (const successItem of successResults) {
       const { market, phase, campaignId: dspCampaignId, adSetId, adGroupId } = successItem;
-      
-      console.log(`📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}`);
-      
+
+      console.log(
+        `📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}`,
+      );
+
       // Update campaign entry - try each platform variant until one works
       if (dspCampaignId) {
         for (const platformName of platformVariants) {
           const { data: campaignUpdateResult, error: campaignUpdateError } = await supabase
-            .from('campaign_launch_status')
+            .from("campaign_launch_status")
             .update({
-              status: 'pushed_to_dsp',
+              status: "pushed_to_dsp",
               dsp_entity_id: dspCampaignId,
-              dsp_status: 'PAUSED',
+              dsp_status: "PAUSED",
               error_message: null,
               error_details: null,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
-            .eq('campaign_id', campaignId)
-            .eq('platform', platformName)
-            .eq('market', market)
-            .eq('entity_type', 'campaign')
+            .eq("campaign_id", campaignId)
+            .eq("platform", platformName)
+            .eq("market", market)
+            .eq("entity_type", "campaign")
             .select();
-          
+
           if (campaignUpdateResult && campaignUpdateResult.length > 0) {
-            console.log(`✅ Updated campaign status for ${market}/${phase} with platform=${platformName}: ${campaignUpdateResult.length} rows`);
+            console.log(
+              `✅ Updated campaign status for ${market}/${phase} with platform=${platformName}: ${campaignUpdateResult.length} rows`,
+            );
             break; // Found matching rows, stop trying variants
           } else if (campaignUpdateError) {
             console.error(`❌ Error updating campaign status: ${campaignUpdateError.message}`);
           }
         }
       }
-      
+
       // Update ad set/ad group entry
       const adEntityId = adSetId || adGroupId;
       if (adEntityId) {
         for (const platformName of platformVariants) {
           const { data: adsetUpdateResult, error: adsetUpdateError } = await supabase
-            .from('campaign_launch_status')
+            .from("campaign_launch_status")
             .update({
-              status: 'pushed_to_dsp',
+              status: "pushed_to_dsp",
               dsp_entity_id: adEntityId,
-              dsp_status: 'PAUSED',
+              dsp_status: "PAUSED",
               error_message: null,
               error_details: null,
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             })
-            .eq('campaign_id', campaignId)
-            .eq('platform', platformName)
-            .eq('market', market)
-            .eq('entity_type', 'adset')
+            .eq("campaign_id", campaignId)
+            .eq("platform", platformName)
+            .eq("market", market)
+            .eq("entity_type", "adset")
             .select();
-          
+
           if (adsetUpdateResult && adsetUpdateResult.length > 0) {
-            console.log(`✅ Updated adset status for ${market}/${phase} with platform=${platformName}: ${adsetUpdateResult.length} rows`);
+            console.log(
+              `✅ Updated adset status for ${market}/${phase} with platform=${platformName}: ${adsetUpdateResult.length} rows`,
+            );
             break;
           } else if (adsetUpdateError) {
             console.error(`❌ Error updating adset status: ${adsetUpdateError.message}`);
@@ -715,51 +761,51 @@ async function updateLaunchStatuses(
         }
       }
     }
-    
+
     // Update failed entities with detailed API response
     // Use UPSERT to ensure failures are recorded even if no row exists
     for (const errorItem of errorResults) {
       const { market, phase, error, type, apiResponse } = errorItem;
-      
+
       // Build detailed error message
-      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Push failed');
+      const errorMessage = typeof error === "string" ? error : error?.message || "Push failed";
       const errorDetails = [
-        { 
-          message: errorMessage, 
-          type: type || 'api_error',
+        {
+          message: errorMessage,
+          type: type || "api_error",
           apiResponse: apiResponse || error,
           field: errorItem.field,
-          fieldPath: errorItem.fieldPath || 'step1'
-        }
+          fieldPath: errorItem.fieldPath || "step1",
+        },
       ];
-      
+
       // Determine entity type from error type
-      const typeStr = (type || '').toLowerCase();
-      let entityType = 'adset'; // Default to adset for ad group/adset errors
-      if (typeStr.includes('campaign') && !typeStr.includes('adgroup') && !typeStr.includes('adset')) {
-        entityType = 'campaign';
+      const typeStr = (type || "").toLowerCase();
+      let entityType = "adset"; // Default to adset for ad group/adset errors
+      if (typeStr.includes("campaign") && !typeStr.includes("adgroup") && !typeStr.includes("adset")) {
+        entityType = "campaign";
       }
-      
+
       // Use the first platform variant as the canonical name
       const platformName = platformVariants[0];
-      
+
       // First try to update existing row
       let updated = false;
       for (const pVariant of platformVariants) {
         let q = supabase
-          .from('campaign_launch_status')
+          .from("campaign_launch_status")
           .update({
-            status: 'push_failed',
+            status: "push_failed",
             error_message: errorMessage,
             error_details: errorDetails,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('campaign_id', campaignId)
-          .eq('platform', pVariant)
-          .eq('market', market);
+          .eq("campaign_id", campaignId)
+          .eq("platform", pVariant)
+          .eq("market", market);
 
-        if (phase) q = q.eq('phase_name', phase);
-        q = q.eq('entity_type', entityType);
+        if (phase) q = q.eq("phase_name", phase);
+        q = q.eq("entity_type", entityType);
 
         const { data: failUpdateResult } = await q.select();
 
@@ -769,26 +815,26 @@ async function updateLaunchStatuses(
           break;
         }
       }
-      
+
       // If no row was updated, INSERT a new failure row
       if (!updated) {
-        console.log(`📝 No existing ${entityType} row found for ${platformName}/${market}/${phase}, inserting new failure row`);
-        const { error: insertError } = await supabase
-          .from('campaign_launch_status')
-          .insert({
-            campaign_id: campaignId,
-            platform: platformName,
-            market: market,
-            phase_name: phase || null,
-            entity_type: entityType,
-            entity_name: `${phase || 'Default'} - ${entityType === 'adset' ? 'Ad Set' : 'Campaign'}`,
-            status: 'push_failed',
-            error_message: errorMessage,
-            error_details: errorDetails,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-        
+        console.log(
+          `📝 No existing ${entityType} row found for ${platformName}/${market}/${phase}, inserting new failure row`,
+        );
+        const { error: insertError } = await supabase.from("campaign_launch_status").insert({
+          campaign_id: campaignId,
+          platform: platformName,
+          market: market,
+          phase_name: phase || null,
+          entity_type: entityType,
+          entity_name: `${phase || "Default"} - ${entityType === "adset" ? "Ad Set" : "Campaign"}`,
+          status: "push_failed",
+          error_message: errorMessage,
+          error_details: errorDetails,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
         if (insertError) {
           console.error(`❌ Failed to insert failure row: ${insertError.message}`);
         } else {
@@ -796,10 +842,12 @@ async function updateLaunchStatuses(
         }
       }
     }
-    
-    console.log(`Updated launch statuses for ${platformInput}: ${successResults.length} success, ${errorResults.length} errors`);
+
+    console.log(
+      `Updated launch statuses for ${platformInput}: ${successResults.length} success, ${errorResults.length} errors`,
+    );
   } catch (err) {
-    console.error('Error updating launch statuses:', err);
+    console.error("Error updating launch statuses:", err);
   }
 }
 // ============= END UPDATE LAUNCH STATUS HELPER =============
@@ -811,11 +859,11 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     // Authentication check
-    const authHeader = req.headers.get('authorization');
+    const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -829,12 +877,15 @@ const handler = async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Verify user authentication
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const token = authHeader.replace("Bearer ", "");
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid authentication token' }), { 
+      return new Response(JSON.stringify({ error: "Invalid authentication token" }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -843,7 +894,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!parseResult.success) {
       return new Response(JSON.stringify({ error: "Invalid request parameters" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const { campaignId } = parseResult.data;
@@ -874,13 +925,10 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!canAccess) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: You do not have access to this campaign" }),
-        {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "Unauthorized: You do not have access to this campaign" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     console.log("Pushing campaign to DSP:", campaign.name, "for user:", user.id, "campaign owner:", campaignOwnerId);
@@ -893,17 +941,17 @@ const handler = async (req: Request): Promise<Response> => {
         yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
       },
       freelancer: {
-        monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
-        yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
+        monthly: "price_1SyXF5KrTGU4P7548Gb4bgd6",
+        yearly: "price_1SyXYDKrTGU4P75427F7A2ge",
       },
       enterprise: {
-        monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
-        yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
+        monthly: "price_1SyX3xKrTGU4P754lgSWx7dq",
+        yearly: "price_1SyX8xKrTGU4P754mXynM6Qn",
       },
       agency: {
-        monthly: "price_1ScnOeKrTGU4P75446dvndr3",
-        yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
-      }
+        monthly: "price_1SyXAnKrTGU4P754hsNny2H7",
+        yearly: "price_1SyXD1KrTGU4P7541vWVImFY",
+      },
     };
 
     const DAILY_LIMITS: Record<string, number> = {
@@ -911,52 +959,48 @@ const handler = async (req: Request): Promise<Response> => {
       basic: 1,
       freelancer: 2,
       enterprise: 5,
-      agency: Infinity
+      agency: Infinity,
     };
 
     const getTierFromPriceId = (priceId: string | null): string => {
-      if (!priceId) return 'trial';
+      if (!priceId) return "trial";
       for (const [tier, config] of Object.entries(PRICE_IDS)) {
         if (config.monthly === priceId || config.yearly === priceId) {
           return tier;
         }
       }
-      return 'trial';
+      return "trial";
     };
 
     // Get subscription tier - if campaign belongs to a team, use team owner's subscription
     // This matches the frontend useFeatureAccess logic
-    let userTier = 'trial';
+    let userTier = "trial";
     const teamId = campaign.team_id;
-    
+
     try {
       let billingUserId = user.id; // Default to current user
-      
+
       // If campaign has a team_id, get the team owner's subscription instead
       if (teamId) {
-        const { data: team } = await supabase
-          .from('teams')
-          .select('owner_id')
-          .eq('id', teamId)
-          .single();
-        
+        const { data: team } = await supabase.from("teams").select("owner_id").eq("id", teamId).single();
+
         if (team?.owner_id) {
           billingUserId = team.owner_id;
           console.log(`📊 Using team owner's subscription: ${billingUserId} (team: ${teamId})`);
         }
       }
-      
+
       const { data: billingCustomer } = await supabase
-        .from('billing_customers')
-        .select('stripe_customer_id')
-        .eq('user_id', billingUserId)
+        .from("billing_customers")
+        .select("stripe_customer_id")
+        .eq("user_id", billingUserId)
         .single();
 
       if (billingCustomer?.stripe_customer_id) {
         const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
         if (stripeKey) {
           const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-          
+
           const subscriptions = await stripe.subscriptions.list({
             customer: billingCustomer.stripe_customer_id,
             status: "all",
@@ -964,7 +1008,7 @@ const handler = async (req: Request): Promise<Response> => {
           });
 
           const activeSub = subscriptions.data.find(
-            (s: { status: string }) => s.status === "active" || s.status === "trialing"
+            (s: { status: string }) => s.status === "active" || s.status === "trialing",
           );
 
           if (activeSub) {
@@ -991,55 +1035,55 @@ const handler = async (req: Request): Promise<Response> => {
     // 'partially_pushed' campaigns do NOT count against the limit since they have failed entities
     // This ensures the limit is shared across all team members
     const now = new Date();
-    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)).toISOString();
-    const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)).toISOString();
+    const todayStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+    ).toISOString();
+    const todayEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999),
+    ).toISOString();
 
     // CRITICAL: Only fully successful pushes count against daily limit
     // 'partially_pushed' is intentionally excluded - user must retry and fully succeed
-    const pushCountStatuses = ['pushed_to_dsp', 'live'];
+    const pushCountStatuses = ["pushed_to_dsp", "live"];
 
     // teamId already declared above when checking subscription
 
     let countQuery = supabase
-      .from('campaigns')
-      .select('id')
-      .in('status', pushCountStatuses)
-      .gte('published_at', todayStart)
-      .lte('published_at', todayEnd);
+      .from("campaigns")
+      .select("id")
+      .in("status", pushCountStatuses)
+      .gte("published_at", todayStart)
+      .lte("published_at", todayEnd);
 
     // If campaign has a team_id, count by team (shared limit pool)
     // Otherwise fall back to user_id (personal workspace)
     if (teamId) {
-      countQuery = countQuery.eq('team_id', teamId);
+      countQuery = countQuery.eq("team_id", teamId);
       console.log(`📊 Counting by team_id: ${teamId}`);
     } else {
-      countQuery = countQuery.eq('user_id', user.id);
+      countQuery = countQuery.eq("user_id", user.id);
       console.log(`📊 Counting by user_id: ${user.id} (no team context)`);
     }
 
     const { data: pushedWithPublishedAt, error: publishedCountError } = await countQuery;
 
     if (publishedCountError) {
-      console.error('Error counting pushed campaigns (published_at):', publishedCountError);
+      console.error("Error counting pushed campaigns (published_at):", publishedCountError);
     }
 
     // Also check for legacy campaigns without published_at
-    let legacyQuery = supabase
-      .from('campaigns')
-      .select('id')
-      .in('status', pushCountStatuses)
-      .is('published_at', null);
+    let legacyQuery = supabase.from("campaigns").select("id").in("status", pushCountStatuses).is("published_at", null);
 
     if (teamId) {
-      legacyQuery = legacyQuery.eq('team_id', teamId);
+      legacyQuery = legacyQuery.eq("team_id", teamId);
     } else {
-      legacyQuery = legacyQuery.eq('user_id', user.id);
+      legacyQuery = legacyQuery.eq("user_id", user.id);
     }
 
     const { data: pushedWithNullPublishedAt, error: nullPublishedError } = await legacyQuery;
 
     if (nullPublishedError) {
-      console.error('Error fetching pushed campaigns with null published_at:', nullPublishedError);
+      console.error("Error fetching pushed campaigns with null published_at:", nullPublishedError);
     }
 
     const allPushedToday = new Set<string>((pushedWithPublishedAt || []).map((r: { id: string }) => r.id));
@@ -1047,16 +1091,16 @@ const handler = async (req: Request): Promise<Response> => {
     const legacyNullIds = (pushedWithNullPublishedAt || []).map((r: { id: string }) => r.id);
     if (legacyNullIds.length > 0) {
       const { data: launchRows, error: launchError } = await supabase
-        .from('campaign_launch_status')
-        .select('campaign_id')
-        .in('campaign_id', legacyNullIds)
-        .eq('entity_type', 'campaign')
-        .in('status', ['pushed_to_dsp', 'live'])
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd);
+        .from("campaign_launch_status")
+        .select("campaign_id")
+        .in("campaign_id", legacyNullIds)
+        .eq("entity_type", "campaign")
+        .in("status", ["pushed_to_dsp", "live"])
+        .gte("created_at", todayStart)
+        .lte("created_at", todayEnd);
 
       if (launchError) {
-        console.error('Error counting pushed campaigns (launch_status fallback):', launchError);
+        console.error("Error counting pushed campaigns (launch_status fallback):", launchError);
       } else {
         for (const row of (launchRows || []) as Array<{ campaign_id: string }>) {
           allPushedToday.add(row.campaign_id);
@@ -1072,22 +1116,27 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Check if this is a first-time push (not a retry)
     // Retries of partially_pushed or pushed_to_dsp campaigns don't count as new pushes
-    const isRetry = campaign.status === 'partially_pushed' || campaign.status === 'pushed_to_dsp';
-    
-    console.log(`📊 Limit check: isRetry=${isRetry}, usedToday=${usedToday}, dailyLimit=${dailyLimit}, currentStatus=${campaign.status}`);
-    
+    const isRetry = campaign.status === "partially_pushed" || campaign.status === "pushed_to_dsp";
+
+    console.log(
+      `📊 Limit check: isRetry=${isRetry}, usedToday=${usedToday}, dailyLimit=${dailyLimit}, currentStatus=${campaign.status}`,
+    );
+
     if (!isRetry && dailyLimit !== Infinity && usedToday >= dailyLimit) {
       console.log(`🚫 Daily DSP push limit reached for tier ${userTier}`);
-      return new Response(JSON.stringify({ 
-        error: `Daily DSP push limit reached (${dailyLimit} per day for ${userTier} plan). Please upgrade your subscription for more pushes.`,
-        limitReached: true,
-        tier: userTier,
-        limit: dailyLimit,
-        used: usedToday
-      }), { 
-        status: 429,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({
+          error: `Daily DSP push limit reached (${dailyLimit} per day for ${userTier} plan). Please upgrade your subscription for more pushes.`,
+          limitReached: true,
+          tier: userTier,
+          limit: dailyLimit,
+          used: usedToday,
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
     // ============= END DAILY LIMIT CHECK =============
 
@@ -1102,18 +1151,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Fetch existing launch statuses to skip already-pushed entities
     const { data: existingStatuses } = await supabase
-      .from('campaign_launch_status')
-      .select('platform, market, phase_name, entity_type, status, dsp_entity_id')
-      .eq('campaign_id', campaignId);
-    
+      .from("campaign_launch_status")
+      .select("platform, market, phase_name, entity_type, status, dsp_entity_id")
+      .eq("campaign_id", campaignId);
+
     // Create a set of already-pushed entities (market+phase combinations)
     // Include statuses that indicate an entity already exists in DSP to prevent accidental re-push on retries
     // NOTE: 'push_failed' can still have a dsp_entity_id if the DSP entity was created but a later step failed.
     const alreadyPushedSet = new Set<string>();
-    for (const status of (existingStatuses || [])) {
-      if ((status.status === 'pushed_to_dsp' || status.status === 'live' || status.status === 'push_failed') && status.dsp_entity_id) {
+    for (const status of existingStatuses || []) {
+      if (
+        (status.status === "pushed_to_dsp" || status.status === "live" || status.status === "push_failed") &&
+        status.dsp_entity_id
+      ) {
         // Key format: platform|market|phase_name
-        const key = `${status.platform?.toLowerCase()}|${status.market}|${status.phase_name || ''}`;
+        const key = `${status.platform?.toLowerCase()}|${status.market}|${status.phase_name || ""}`;
         alreadyPushedSet.add(key);
       }
     }
@@ -1123,110 +1175,128 @@ const handler = async (req: Request): Promise<Response> => {
 
     // ============= PRE-PUSH BUDGET VALIDATION =============
     // Validate minimum budget requirements for all platforms BEFORE pushing anything
-    console.log('🔍 Running pre-push budget validation...');
+    console.log("🔍 Running pre-push budget validation...");
     const allBudgetErrors: BudgetValidationError[] = [];
     const marketSplits = campaign.market_splits || {};
     const budgetAllocation = campaign.budget_allocation || {};
-    
+
     for (const [platformId, markets] of Object.entries(marketSplits)) {
       const campaignPlatform = (campaign.platforms || []).find((p: any) => p.id === platformId);
       if (!campaignPlatform) continue;
-      
+
       const platformName = campaignPlatform.name;
       const platformBudgetPercentage = budgetAllocation[platformId] || 0;
-      
+
       // Skip already-pushed markets in validation too
-      const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
-                          platformName.toLowerCase().includes('tiktok') ? 'tiktok' : platformName.toLowerCase();
-      
+      const platformKey = platformName.toLowerCase().includes("meta")
+        ? "meta"
+        : platformName.toLowerCase().includes("tiktok")
+          ? "tiktok"
+          : platformName.toLowerCase();
+
       const marketsToValidate: Record<string, any> = {};
       for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
         const phases = (marketData as any).phases || [];
         const phasesToValidate: any[] = [];
-        
+
         for (const phase of phases) {
-          const checkKey = `${platformKey}|${marketCode}|${phase.name || ''}`;
+          const checkKey = `${platformKey}|${marketCode}|${phase.name || ""}`;
           if (!alreadyPushedSet.has(checkKey)) {
             phasesToValidate.push(phase);
           }
         }
-        
+
         if (phasesToValidate.length > 0) {
           marketsToValidate[marketCode] = { ...marketData, phases: phasesToValidate };
         }
       }
-      
+
       if (Object.keys(marketsToValidate).length > 0) {
         const platformConfig = { budgetPercentage: platformBudgetPercentage };
         const budgetErrors = validatePlatformBudgets(campaign, platformConfig, platformName, marketsToValidate);
         allBudgetErrors.push(...budgetErrors);
       }
     }
-    
+
     if (allBudgetErrors.length > 0) {
       console.log(`❌ Pre-push validation failed with ${allBudgetErrors.length} budget error(s)`);
       for (const err of allBudgetErrors) {
-      console.log(`  - ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
-        
+        console.log(`  - ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
+
         // Use consistent platform casing - TikTok and Meta as stored in validate-campaign-launch
-        const platformDisplay = err.platform.toLowerCase() === 'tiktok' ? 'TikTok' : 
-                                err.platform.toLowerCase() === 'meta' ? 'Meta' : err.platform;
-        
+        const platformDisplay =
+          err.platform.toLowerCase() === "tiktok"
+            ? "TikTok"
+            : err.platform.toLowerCase() === "meta"
+              ? "Meta"
+              : err.platform;
+
         // Insert validation error status for each failed entity
-        await supabase.from('campaign_launch_status').upsert({
-          campaign_id: campaignId,
-          platform: platformDisplay,
-          market: err.market,
-          phase_name: err.phase,
-          entity_type: 'adset',
-          entity_name: `${err.market} - ${err.phase} - Ad Set`,
-          status: 'validation_error',
-          error_message: err.message,
-          error_details: [{
-            type: 'minimum_budget',
-            message: err.message,
-            calculatedBudget: err.calculatedBudget,
-            minimumRequired: err.minimumRequired,
-            budgetType: err.budgetType,
-            durationDays: err.durationDays,
-            fieldPath: err.fieldPath
-          }],
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'campaign_id,platform,market,phase_name,entity_type'
-        });
+        await supabase.from("campaign_launch_status").upsert(
+          {
+            campaign_id: campaignId,
+            platform: platformDisplay,
+            market: err.market,
+            phase_name: err.phase,
+            entity_type: "adset",
+            entity_name: `${err.market} - ${err.phase} - Ad Set`,
+            status: "validation_error",
+            error_message: err.message,
+            error_details: [
+              {
+                type: "minimum_budget",
+                message: err.message,
+                calculatedBudget: err.calculatedBudget,
+                minimumRequired: err.minimumRequired,
+                budgetType: err.budgetType,
+                durationDays: err.durationDays,
+                fieldPath: err.fieldPath,
+              },
+            ],
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "campaign_id,platform,market,phase_name,entity_type",
+          },
+        );
       }
-      
+
       // Update campaign status to validation_failed
-      await supabase.from('campaigns').update({
-        status: 'validation_failed',
-        updated_at: new Date().toISOString()
-      }).eq('id', campaignId);
-      
-      return new Response(JSON.stringify({
-        success: false,
-        validationFailed: true,
-        errors: allBudgetErrors.map(e => ({
-          platform: e.platform,
-          market: e.market,
-          phase: e.phase,
-          error: e.message,
-          type: 'minimum_budget',
-          fieldPath: e.fieldPath,
-          details: {
-            calculatedBudget: e.calculatedBudget,
-            minimumRequired: e.minimumRequired,
-            budgetType: e.budgetType,
-            durationDays: e.durationDays
-          }
-        }))
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      await supabase
+        .from("campaigns")
+        .update({
+          status: "validation_failed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", campaignId);
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          validationFailed: true,
+          errors: allBudgetErrors.map((e) => ({
+            platform: e.platform,
+            market: e.market,
+            phase: e.phase,
+            error: e.message,
+            type: "minimum_budget",
+            fieldPath: e.fieldPath,
+            details: {
+              calculatedBudget: e.calculatedBudget,
+              minimumRequired: e.minimumRequired,
+              budgetType: e.budgetType,
+              durationDays: e.durationDays,
+            },
+          })),
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
-    
-    console.log('✅ Pre-push budget validation passed');
+
+    console.log("✅ Pre-push budget validation passed");
     // ============= END PRE-PUSH BUDGET VALIDATION =============
 
     // Process each platform in the campaign
@@ -1237,23 +1307,24 @@ const handler = async (req: Request): Promise<Response> => {
         console.warn(`Platform ${platformId} not found in campaign.platforms`);
         continue;
       }
-      
+
       const platformName = campaignPlatform.name;
       const budgetAllocation = campaign.budget_allocation || {};
       const platformBudgetPercentage = budgetAllocation[platformId] || 0;
-      
+
       // Find connected platform
-      const platform = platforms.find(p => 
-        p.platform_type.toLowerCase() === platformName.toLowerCase() || 
-        (platformName.includes('Meta') && p.platform_type === 'meta')
+      const platform = platforms.find(
+        (p) =>
+          p.platform_type.toLowerCase() === platformName.toLowerCase() ||
+          (platformName.includes("Meta") && p.platform_type === "meta"),
       );
-      
+
       if (!platform) {
         console.warn(`Platform ${platformName} not connected for user`);
         results.push({
           platform: platformName,
           error: "Platform not connected",
-          markets: markets
+          markets: markets,
         });
         continue;
       }
@@ -1265,27 +1336,30 @@ const handler = async (req: Request): Promise<Response> => {
         results.push({
           platform: platformName,
           error: "Platform access token not found",
-          markets: markets
+          markets: markets,
         });
         continue;
       }
-      
+
       // Add access token to platform object for adapter use
       const platformWithToken = { ...platform, access_token: accessToken };
 
       // Create platform config structure - filter out already-pushed markets
       const filteredMarkets: Record<string, any> = {};
-      const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
-                          platformName.toLowerCase().includes('tiktok') ? 'tiktok' : platformName.toLowerCase();
-      
+      const platformKey = platformName.toLowerCase().includes("meta")
+        ? "meta"
+        : platformName.toLowerCase().includes("tiktok")
+          ? "tiktok"
+          : platformName.toLowerCase();
+
       let skippedCount = 0;
       for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
         // Check each phase in the market
         const phases = marketData.phases || [];
         const filteredPhases: any[] = [];
-        
+
         for (const phase of phases) {
-          const checkKey = `${platformKey}|${marketCode}|${phase.name || ''}`;
+          const checkKey = `${platformKey}|${marketCode}|${phase.name || ""}`;
           if (alreadyPushedSet.has(checkKey)) {
             console.log(`⏭️ Skipping already-pushed: ${platformName}/${marketCode}/${phase.name}`);
             skippedCount++;
@@ -1293,108 +1367,113 @@ const handler = async (req: Request): Promise<Response> => {
             filteredPhases.push(phase);
           }
         }
-        
+
         if (filteredPhases.length > 0) {
           filteredMarkets[marketCode] = { ...marketData, phases: filteredPhases };
         }
       }
-      
+
       if (Object.keys(filteredMarkets).length === 0) {
         console.log(`⏭️ All ${skippedCount} entities for ${platformName} already pushed, skipping platform`);
         results.push({
           platform: platformName,
           success: true,
           skipped: true,
-          message: 'All entities already pushed',
-          results: []
+          message: "All entities already pushed",
+          results: [],
         });
         continue;
       }
-      
-      console.log(`📤 Pushing ${Object.keys(filteredMarkets).length} markets for ${platformName} (skipped ${skippedCount} already-pushed)`);
+
+      console.log(
+        `📤 Pushing ${Object.keys(filteredMarkets).length} markets for ${platformName} (skipped ${skippedCount} already-pushed)`,
+      );
 
       const platformConfig = {
         id: platformId,
         name: platformName,
         budgetPercentage: platformBudgetPercentage,
-        markets: filteredMarkets
+        markets: filteredMarkets,
       };
 
-      if (platformName.includes('Meta') || platformName.includes('Facebook')) {
+      if (platformName.includes("Meta") || platformName.includes("Facebook")) {
         const result = await pushToMeta(campaign, platformConfig, platformWithToken, supabase);
         results.push(result);
-        
+
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, platformName, result, Object.values(filteredMarkets) as any[]);
-        
-      } else if (platformName.includes('Google')) {
+      } else if (platformName.includes("Google")) {
         const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken);
         results.push(result);
-      } else if (platformName.toLowerCase().includes('tiktok')) {
+      } else if (platformName.toLowerCase().includes("tiktok")) {
         const result = await pushToTikTok(campaign, platformConfig, platformWithToken);
         results.push(result);
-        
+
         // Update campaign_launch_status for each pushed entity
-        await updateLaunchStatuses(supabase, campaignId, 'TikTok', result, Object.values(filteredMarkets) as any[]);
+        await updateLaunchStatuses(supabase, campaignId, "TikTok", result, Object.values(filteredMarkets) as any[]);
       }
     }
 
     // Fetch final launch statuses to determine campaign status
     const { data: finalStatuses } = await supabase
-      .from('campaign_launch_status')
-      .select('status')
-      .eq('campaign_id', campaignId);
-    
+      .from("campaign_launch_status")
+      .select("status")
+      .eq("campaign_id", campaignId);
+
     const statusCounts = {
       pushed: 0,
       failed: 0,
-      pending: 0
+      pending: 0,
     };
-    
-    for (const s of (finalStatuses || [])) {
-      if (s.status === 'pushed_to_dsp' || s.status === 'live') statusCounts.pushed++;
-      else if (s.status === 'push_failed' || s.status === 'validation_error') statusCounts.failed++;
-      else if (s.status === 'pushing') statusCounts.pending++; // Still processing
+
+    for (const s of finalStatuses || []) {
+      if (s.status === "pushed_to_dsp" || s.status === "live") statusCounts.pushed++;
+      else if (s.status === "push_failed" || s.status === "validation_error") statusCounts.failed++;
+      else if (s.status === "pushing")
+        statusCounts.pending++; // Still processing
       else statusCounts.pending++;
     }
-    
+
     // Determine final campaign status based on ALL entity statuses
     // CRITICAL: Only campaigns where ALL entities are pushed count against daily limit
     // - pushed_to_dsp: ALL entities are pushed (no failures, no pending) → COUNTS against limit
     // - partially_pushed: SOME pushed, but some failed or still pending → DOES NOT count
     // - push_failed: ALL failed (none pushed) → DOES NOT count
     // - ready_for_push: none pushed yet, still pending → DOES NOT count
-    let finalStatus = 'ready_for_push';
+    let finalStatus = "ready_for_push";
     const totalEntities = (finalStatuses || []).length;
-    
+
     if (statusCounts.pushed === totalEntities && totalEntities > 0) {
-      finalStatus = 'pushed_to_dsp'; // All entities pushed successfully - THIS counts against limit
+      finalStatus = "pushed_to_dsp"; // All entities pushed successfully - THIS counts against limit
       console.log(`✅ All ${totalEntities} entities pushed successfully - campaign counts against daily limit`);
     } else if (statusCounts.pushed > 0 && (statusCounts.failed > 0 || statusCounts.pending > 0)) {
-      finalStatus = 'partially_pushed'; // Some pushed, some not - DOES NOT count against limit
-      console.log(`⚠️ Partial push: ${statusCounts.pushed}/${totalEntities} entities succeeded - campaign DOES NOT count against daily limit`);
+      finalStatus = "partially_pushed"; // Some pushed, some not - DOES NOT count against limit
+      console.log(
+        `⚠️ Partial push: ${statusCounts.pushed}/${totalEntities} entities succeeded - campaign DOES NOT count against daily limit`,
+      );
     } else if (statusCounts.failed > 0 && statusCounts.pushed === 0) {
-      finalStatus = 'push_failed'; // All failed - DOES NOT count against limit
+      finalStatus = "push_failed"; // All failed - DOES NOT count against limit
       console.log(`❌ All ${statusCounts.failed} entities failed - campaign DOES NOT count against daily limit`);
     }
-    
-    console.log(`📊 Launch status summary: pushed=${statusCounts.pushed}, failed=${statusCounts.failed}, pending=${statusCounts.pending} → ${finalStatus}`);
-    
+
+    console.log(
+      `📊 Launch status summary: pushed=${statusCounts.pushed}, failed=${statusCounts.failed}, pending=${statusCounts.pending} → ${finalStatus}`,
+    );
+
     const nowIso = new Date().toISOString();
     // Only set published_at for FULLY successful pushes (pushed_to_dsp or live)
     // This timestamp is used for daily limit counting
-    const shouldSetPublishedAt =
-      (finalStatus === 'pushed_to_dsp' || finalStatus === 'live') && !campaign.published_at;
+    const shouldSetPublishedAt = (finalStatus === "pushed_to_dsp" || finalStatus === "live") && !campaign.published_at;
 
     await supabase
-      .from('campaigns')
+      .from("campaigns")
       .update({
         status: finalStatus,
         updated_at: nowIso,
         ...(shouldSetPublishedAt ? { published_at: nowIso } : {}),
       })
-      .eq('id', campaignId);
-    
+      .eq("id", campaignId);
+
     console.log(`Campaign push completed. Final status: ${finalStatus}`);
 
     return new Response(
@@ -1402,237 +1481,289 @@ const handler = async (req: Request): Promise<Response> => {
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      },
     );
   } catch (error: any) {
     console.error("Error pushing campaign to DSP:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 };
 
 // Helper function to map phase names to valid Meta objectives
-function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string, optimizationGoal?: string): { objective: string; optimizationGoal: string } {
+function getMetaObjectiveFromPhase(
+  phaseName: string,
+  strategyFocus?: string,
+  optimizationGoal?: string,
+): { objective: string; optimizationGoal: string } {
   const lowerPhaseName = phaseName.toLowerCase();
-  const lowerOptGoal = optimizationGoal?.toLowerCase() || '';
-  
+  const lowerOptGoal = optimizationGoal?.toLowerCase() || "";
+
   // Handle Value optimization goal specifically for Conversions
-  if (lowerOptGoal === 'value') {
-    return { objective: 'OUTCOME_SALES', optimizationGoal: 'VALUE' };
+  if (lowerOptGoal === "value") {
+    return { objective: "OUTCOME_SALES", optimizationGoal: "VALUE" };
   }
-  
+
   // Map phase names to Meta objectives
-  if (lowerPhaseName.includes('awareness') || lowerPhaseName.includes('reach')) {
-    return { objective: 'OUTCOME_AWARENESS', optimizationGoal: 'REACH' };
+  if (lowerPhaseName.includes("awareness") || lowerPhaseName.includes("reach")) {
+    return { objective: "OUTCOME_AWARENESS", optimizationGoal: "REACH" };
   }
-  
-  if (lowerPhaseName.includes('engagement') || lowerPhaseName.includes('interest')) {
-    return { objective: 'OUTCOME_ENGAGEMENT', optimizationGoal: 'POST_ENGAGEMENT' };
+
+  if (lowerPhaseName.includes("engagement") || lowerPhaseName.includes("interest")) {
+    return { objective: "OUTCOME_ENGAGEMENT", optimizationGoal: "POST_ENGAGEMENT" };
   }
-  
-  if (lowerPhaseName.includes('consideration') || lowerPhaseName.includes('intent')) {
-    return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
+
+  if (lowerPhaseName.includes("consideration") || lowerPhaseName.includes("intent")) {
+    return { objective: "OUTCOME_TRAFFIC", optimizationGoal: "LINK_CLICKS" };
   }
-  
-  if (lowerPhaseName.includes('lead')) {
-    return { objective: 'OUTCOME_LEADS', optimizationGoal: 'LEAD_GENERATION' };
+
+  if (lowerPhaseName.includes("lead")) {
+    return { objective: "OUTCOME_LEADS", optimizationGoal: "LEAD_GENERATION" };
   }
-  
-  if (lowerPhaseName.includes('conversion') || lowerPhaseName.includes('purchase') || lowerPhaseName.includes('sales') || lowerPhaseName.includes('loyalty')) {
+
+  if (
+    lowerPhaseName.includes("conversion") ||
+    lowerPhaseName.includes("purchase") ||
+    lowerPhaseName.includes("sales") ||
+    lowerPhaseName.includes("loyalty")
+  ) {
     // Check strategy focus for more specific mapping
-    if (strategyFocus === 'purchase' || strategyFocus === 'conversions') {
-      return { objective: 'OUTCOME_SALES', optimizationGoal: 'OFFSITE_CONVERSIONS' };
+    if (strategyFocus === "purchase" || strategyFocus === "conversions") {
+      return { objective: "OUTCOME_SALES", optimizationGoal: "OFFSITE_CONVERSIONS" };
     }
-    return { objective: 'OUTCOME_SALES', optimizationGoal: 'OFFSITE_CONVERSIONS' };
+    return { objective: "OUTCOME_SALES", optimizationGoal: "OFFSITE_CONVERSIONS" };
   }
-  
-  if (lowerPhaseName.includes('app')) {
-    return { objective: 'OUTCOME_APP_PROMOTION', optimizationGoal: 'APP_INSTALLS' };
+
+  if (lowerPhaseName.includes("app")) {
+    return { objective: "OUTCOME_APP_PROMOTION", optimizationGoal: "APP_INSTALLS" };
   }
-  
+
   // Default fallback
-  return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
+  return { objective: "OUTCOME_TRAFFIC", optimizationGoal: "LINK_CLICKS" };
 }
 
 async function pushToMeta(campaign: any, platformConfig: any, platform: any, supabase: any) {
   console.log("Pushing to Meta...");
   console.log("📦 platformConfig.markets received:", JSON.stringify(platformConfig.markets, null, 2));
-  
+
   const results = [];
   const errors = [];
-  
+
   // Extract markets from the correct structure (it's an object, not array)
   const marketsObj = platformConfig.markets || {};
   console.log("📦 marketsObj keys:", Object.keys(marketsObj));
-  
+
   for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
     console.log(`📦 Processing market ${marketCode}:`, {
       name: market.name,
       pixel: market.pixel,
       conversionEvent: market.conversionEvent,
-      adAccountId: market.adAccountId
+      adAccountId: market.adAccountId,
     });
-    
+
     // Validate required fields for conversion campaigns
     // Optimization goals that REQUIRE a pixel and conversion event for Meta
-    const conversionOptGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'CONVERSIONS'];
-    
+    const conversionOptGoals = ["OFFSITE_CONVERSIONS", "VALUE", "CONVERSIONS"];
+
     const phasesWithMissingConversion: string[] = [];
-    
+
     if (market.phases) {
       for (const phase of market.phases) {
         const phaseName = phase.name?.toLowerCase() || "";
         const objective = phase.objective?.toLowerCase() || "";
         const optGoal = phase.optimizationGoal || market.optimizationGoal || "";
-        
+
         // Check if conversion event is required based on optimization goal OR phase/objective name
         const requiresConversionByOptGoal = conversionOptGoals.includes(optGoal);
-        const requiresConversionByName = (
+        const requiresConversionByName =
           phaseName.includes("conversion") ||
           phaseName.includes("purchase") ||
           phaseName.includes("sales") ||
           phaseName.includes("lead") ||
           objective.includes("conversion") ||
           objective.includes("sales") ||
-          objective.includes("lead")
-        );
-        
+          objective.includes("lead");
+
         if (requiresConversionByOptGoal || requiresConversionByName) {
           // Check phase-level first, then market-level for pixel/conversion config
           const hasPixel = phase.pixel || market.pixel;
           const hasConversionEvent = phase.conversionEvent || market.conversionEvent;
-          
+
           if (!hasPixel || !hasConversionEvent) {
-            phasesWithMissingConversion.push(phase.name || 'Default');
+            phasesWithMissingConversion.push(phase.name || "Default");
           }
         }
       }
     }
-    
+
     if (phasesWithMissingConversion.length > 0) {
       errors.push({
         market: market.name,
-        error: `Pixel and Conversion Event are required for conversion-optimized phases (${phasesWithMissingConversion.join(', ')}). Please configure them in the campaign customization.`,
-        type: 'validation_error'
+        error: `Pixel and Conversion Event are required for conversion-optimized phases (${phasesWithMissingConversion.join(", ")}). Please configure them in the campaign customization.`,
+        type: "validation_error",
       });
       continue;
     }
 
     // Get phases, or create a default phase if none exist
-    const phases = market.phases || [{
-      id: 'default-phase',
-      name: market.name,
-      startDate: campaign.start_date,
-      endDate: campaign.end_date,
-      budgetPercentage: 100,
-      objective: market.objective || campaign.objective || "OUTCOME_TRAFFIC",
-      optimizationGoal: market.optimizationGoal || "LINK_CLICKS"
-    }];
-    
+    const phases = market.phases || [
+      {
+        id: "default-phase",
+        name: market.name,
+        startDate: campaign.start_date,
+        endDate: campaign.end_date,
+        budgetPercentage: 100,
+        objective: market.objective || campaign.objective || "OUTCOME_TRAFFIC",
+        optimizationGoal: market.optimizationGoal || "LINK_CLICKS",
+      },
+    ];
+
     for (const phase of phases) {
       try {
         // Map phase objective to valid Meta objective - check forecast fields first
-        let objective = phase.objective || (market as any).phaseObjective || market.objective || campaign.objective || "OUTCOME_TRAFFIC";
-        let optimizationGoal = phase.optimizationGoal || (market as any).phaseOptimizationGoal || market.optimizationGoal || "LINK_CLICKS";
-        
+        let objective =
+          phase.objective ||
+          (market as any).phaseObjective ||
+          market.objective ||
+          campaign.objective ||
+          "OUTCOME_TRAFFIC";
+        let optimizationGoal =
+          phase.optimizationGoal || (market as any).phaseOptimizationGoal || market.optimizationGoal || "LINK_CLICKS";
+
         // If objective is "auto" or invalid, map from phase name
-        const validObjectives = ['APP_INSTALLS', 'BRAND_AWARENESS', 'EVENT_RESPONSES', 'LEAD_GENERATION', 
-          'LINK_CLICKS', 'LOCAL_AWARENESS', 'MESSAGES', 'OFFER_CLAIMS', 'PAGE_LIKES', 'POST_ENGAGEMENT', 
-          'PRODUCT_CATALOG_SALES', 'REACH', 'STORE_VISITS', 'VIDEO_VIEWS', 'OUTCOME_AWARENESS', 
-          'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION', 'CONVERSIONS'];
-        
+        const validObjectives = [
+          "APP_INSTALLS",
+          "BRAND_AWARENESS",
+          "EVENT_RESPONSES",
+          "LEAD_GENERATION",
+          "LINK_CLICKS",
+          "LOCAL_AWARENESS",
+          "MESSAGES",
+          "OFFER_CLAIMS",
+          "PAGE_LIKES",
+          "POST_ENGAGEMENT",
+          "PRODUCT_CATALOG_SALES",
+          "REACH",
+          "STORE_VISITS",
+          "VIDEO_VIEWS",
+          "OUTCOME_AWARENESS",
+          "OUTCOME_ENGAGEMENT",
+          "OUTCOME_LEADS",
+          "OUTCOME_SALES",
+          "OUTCOME_TRAFFIC",
+          "OUTCOME_APP_PROMOTION",
+          "CONVERSIONS",
+        ];
+
         if (!validObjectives.includes(objective)) {
-          const mapped = getMetaObjectiveFromPhase(phase.name, market.strategyFocus || campaign.strategy_focus, optimizationGoal);
+          const mapped = getMetaObjectiveFromPhase(
+            phase.name,
+            market.strategyFocus || campaign.strategy_focus,
+            optimizationGoal,
+          );
           objective = mapped.objective;
           optimizationGoal = mapped.optimizationGoal;
-          console.log(`Mapped phase "${phase.name}" to objective: ${objective}, optimization goal: ${optimizationGoal}`);
+          console.log(
+            `Mapped phase "${phase.name}" to objective: ${objective}, optimization goal: ${optimizationGoal}`,
+          );
         } else {
           // Still check if we need to map optimization goal for Value
-          if (optimizationGoal?.toLowerCase() === 'value') {
-            optimizationGoal = 'VALUE';
-            objective = 'OUTCOME_SALES';
+          if (optimizationGoal?.toLowerCase() === "value") {
+            optimizationGoal = "VALUE";
+            objective = "OUTCOME_SALES";
             console.log(`Mapped Value optimization to objective: ${objective}, optimization goal: ${optimizationGoal}`);
           }
         }
-        
+
         // Create campaign - try to use taxonomy name first
         const genericConfig = campaign.generic_config || {};
         const adAccountId = (market as any).adAccountId || (market as any).ad_account_id;
-        
+
         // Build context for campaign taxonomy
         const campaignTaxonomyContext: TaxonomyContext = {
-          platform: 'meta',
+          platform: "meta",
           activationName: campaign.name,
           boNumber: campaign.bo_number,
           teamName: genericConfig.teamName,
           totalBudget: campaign.total_budget,
-          platformBudget: (campaign.total_budget * (platformConfig.budgetPercentage || 100) / 100) * ((market.budgetPercentage || 100) / 100),
+          platformBudget:
+            ((campaign.total_budget * (platformConfig.budgetPercentage || 100)) / 100) *
+            ((market.budgetPercentage || 100) / 100),
           market: market.name,
           country: market.name?.substring(0, 2)?.toUpperCase(),
           objective: objective,
           optimizationGoal: optimizationGoal,
           funnelStage: phase.funnelStage,
-          placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
+          placementType: phase.advantagePlusPlacements ? "automatic" : phase.tiktokPlacementType || "manual",
           advantagePlusPlacements: phase.advantagePlusPlacements,
           publisherPlatforms: phase.publisherPlatforms,
           startDate: phase.startDate || campaign.start_date,
           endDate: phase.endDate || campaign.end_date,
         };
-        
+
         // Generate taxonomy name or fall back to default
-        const campaignTaxonomyName = adAccountId ? await generateTaxonomyName(
-          supabase, 
-          campaign.user_id, 
-          adAccountId, 
-          'meta', 
-          'campaign',
-          campaignTaxonomyContext,
-          phase.campaignTaxonomyValues
-        ) : null;
-        
-        const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}_${generateTimestampSuffix()}`;
-        
+        const campaignTaxonomyName = adAccountId
+          ? await generateTaxonomyName(
+              supabase,
+              campaign.user_id,
+              adAccountId,
+              "meta",
+              "campaign",
+              campaignTaxonomyContext,
+              phase.campaignTaxonomyValues,
+            )
+          : null;
+
+        const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}_${generateTimestampSuffix()}`;
+
         // Check if CBO (Campaign Budget Optimization) is enabled
         const useCBOEarly = phase.useCBO === true;
-        
+
         // Pre-calculate budget for CBO campaigns (budget goes on campaign, not ad sets)
         const earlyTotalBudget = campaign.total_budget || 0;
         const earlyPlatformPct = platformConfig.budgetPercentage || 100;
         const earlyMarketPct = market.budgetPercentage || 100;
         const earlyPhasePct = phase.budgetPercentage || 100;
-        const earlyPhaseBudget = (earlyTotalBudget * earlyPlatformPct / 100) * (earlyMarketPct / 100) * (earlyPhasePct / 100);
-        
+        const earlyPhaseBudget =
+          ((earlyTotalBudget * earlyPlatformPct) / 100) * (earlyMarketPct / 100) * (earlyPhasePct / 100);
+
         const earlyStartDate = new Date(phase.startDate || campaign.start_date);
         const earlyEndDate = new Date(phase.endDate || campaign.end_date);
-        const earlyDurationDays = Math.ceil((earlyEndDate.getTime() - earlyStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        const earlyBudgetType = phase.budgetType || 'lifetime';
-        
+        const earlyDurationDays =
+          Math.ceil((earlyEndDate.getTime() - earlyStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const earlyBudgetType = phase.budgetType || "lifetime";
+
         const campaignPayload: any = {
           name: campaignTaxonomyName || defaultCampaignName,
           objective: objective,
           status: "PAUSED",
           special_ad_categories: [],
         };
-        
+
         // If CBO is enabled, set budget at campaign level
         if (useCBOEarly) {
-          if (earlyBudgetType === 'lifetime') {
+          if (earlyBudgetType === "lifetime") {
             campaignPayload.lifetime_budget = Math.max(Math.round(earlyPhaseBudget * 100), 100); // in cents, min $1
           } else {
             campaignPayload.daily_budget = Math.max(Math.round((earlyPhaseBudget / earlyDurationDays) * 100), 100); // in cents, min $1/day
           }
-          console.log(`📊 CBO enabled - Campaign ${earlyBudgetType} budget: ${earlyBudgetType === 'lifetime' ? campaignPayload.lifetime_budget : campaignPayload.daily_budget} cents`);
+          console.log(
+            `📊 CBO enabled - Campaign ${earlyBudgetType} budget: ${earlyBudgetType === "lifetime" ? campaignPayload.lifetime_budget : campaignPayload.daily_budget} cents`,
+          );
         }
 
         // Resolve Meta ad account id with fallbacks and ensure proper act_ prefix
-        const resolvedAdAccount = (market as any).adAccountId || (market as any).ad_account_id || platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+        const resolvedAdAccount =
+          (market as any).adAccountId ||
+          (market as any).ad_account_id ||
+          platform.ad_account_id ||
+          Deno.env.get("META_AD_ACCOUNT_ID");
         const adAccountPath = resolvedAdAccount
-          ? (String(resolvedAdAccount).startsWith("act_") ? String(resolvedAdAccount) : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`)
+          ? String(resolvedAdAccount).startsWith("act_")
+            ? String(resolvedAdAccount)
+            : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`
           : null;
 
         if (!adAccountPath) {
@@ -1641,29 +1772,26 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             market: market.name,
             phase: phase.name,
             error: "Missing Meta ad account id",
-            type: 'validation_error'
+            type: "validation_error",
           });
           continue;
         }
 
         console.log("Creating Meta campaign on:", adAccountPath, campaignPayload);
 
-        const campaignResponse = await fetch(
-          `https://graph.facebook.com/v22.0/${adAccountPath}/campaigns`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ...campaignPayload,
-              access_token: platform.access_token,
-            }),
-          }
-        );
+        const campaignResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/campaigns`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...campaignPayload,
+            access_token: platform.access_token,
+          }),
+        });
 
         const campaignData = await campaignResponse.json();
-        
+
         if (campaignData.error) {
           console.error("Meta Campaign Creation Error:", campaignData.error);
           const errorMsg = campaignData.error.message || JSON.stringify(campaignData.error);
@@ -1671,9 +1799,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             market: market.name,
             phase: phase.name,
             error: errorMsg,
-            type: 'campaign_creation',
+            type: "campaign_creation",
             apiResponse: campaignData.error,
-            fieldPath: 'step3'
+            fieldPath: "step3",
           });
           continue;
         }
@@ -1685,44 +1813,47 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const platformBudgetPercentage = platformConfig.budgetPercentage || 100;
         const marketBudgetPercentage = market.budgetPercentage || 100;
         const phaseBudgetPercentage = phase.budgetPercentage || 100;
-        
-        const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
-        
+
+        const phaseBudget =
+          ((totalCampaignBudget * platformBudgetPercentage) / 100) *
+          (marketBudgetPercentage / 100) *
+          (phaseBudgetPercentage / 100);
+
         // Calculate duration in days (including start and end day)
         const startDate = new Date(phase.startDate || campaign.start_date);
         const endDate = new Date(phase.endDate || campaign.end_date);
         const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        
+
         // Use the phase's budget type (default to lifetime if not set)
-        const budgetType = phase.budgetType || 'lifetime';
-        const dailyBudget = budgetType === 'daily' ? Math.round(phaseBudget / durationDays * 100) : null;
-        const lifetimeBudget = budgetType === 'lifetime' ? Math.round(phaseBudget * 100) : null;
-        
+        const budgetType = phase.budgetType || "lifetime";
+        const dailyBudget = budgetType === "daily" ? Math.round((phaseBudget / durationDays) * 100) : null;
+        const lifetimeBudget = budgetType === "lifetime" ? Math.round(phaseBudget * 100) : null;
+
         // Build targeting - get from phase.targeting or campaign.generic_config.basicTargeting
         const basicTargeting = campaign.generic_config?.basicTargeting || {};
         const phaseBasicTargeting = phase.targeting || {};
-        
+
         // Use phase targeting if available, otherwise use basic targeting
-        const effectiveBasicTargeting = Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
-        
+        const effectiveBasicTargeting =
+          Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
+
         console.log("Effective basic targeting for phase:", phase.name, effectiveBasicTargeting);
-        
+
         // CRITICAL: Use market.countries if available, otherwise use market.name (ISO code)
-        const marketCountries = Array.isArray(market.countries) && market.countries.length > 0 
-          ? market.countries 
-          : [market.name]; // market.name is already the ISO code
-        
+        const marketCountries =
+          Array.isArray(market.countries) && market.countries.length > 0 ? market.countries : [market.name]; // market.name is already the ISO code
+
         const targeting: any = {
           geo_locations: {
-            countries: marketCountries
+            countries: marketCountries,
           },
           age_min: effectiveBasicTargeting.ageMin || 18,
           age_max: effectiveBasicTargeting.ageMax || 65,
         };
-        
+
         // Add gender targeting if specified (handle array of IDs like ["1", "2"])
         const genders = effectiveBasicTargeting.genders;
-        if (genders && Array.isArray(genders) && genders.length > 0 && !genders.includes('all')) {
+        if (genders && Array.isArray(genders) && genders.length > 0 && !genders.includes("all")) {
           // Convert string IDs to numbers and filter valid ones
           const genderIds = genders
             .map((g: string | number) => parseInt(String(g)))
@@ -1732,10 +1863,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             console.log("Adding gender targeting:", genderIds);
           }
         }
-        
+
         // Add language targeting if specified
         const languages = effectiveBasicTargeting.languages;
-        if (languages && Array.isArray(languages) && languages.length > 0 && !languages.includes('all')) {
+        if (languages && Array.isArray(languages) && languages.length > 0 && !languages.includes("all")) {
           const locales = languages
             .map((lang: string | number) => parseInt(String(lang)))
             .filter((l: number) => !isNaN(l));
@@ -1744,26 +1875,27 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             console.log("Adding language targeting:", locales);
           }
         }
-        
+
         // Add device targeting if specified (mobile, desktop, etc.)
         const devices = effectiveBasicTargeting.devices;
-        if (devices && Array.isArray(devices) && devices.length > 0 && !devices.includes('all')) {
+        if (devices && Array.isArray(devices) && devices.length > 0 && !devices.includes("all")) {
           targeting.device_platforms = devices;
           console.log("Adding device targeting:", devices);
         }
-        
+
         // Add OS targeting if specified (iOS, Android, etc.)
         const os = effectiveBasicTargeting.os;
-        if (os && Array.isArray(os) && os.length > 0 && !os.includes('all')) {
+        if (os && Array.isArray(os) && os.length > 0 && !os.includes("all")) {
           targeting.user_os = os;
           console.log("Adding OS targeting:", os);
         }
-        
+
         // Check for Advantage+ placements flag (Meta automatic placement optimization)
         // When enabled, don't set any publisher_platforms or positions - Meta optimizes automatically
-        const advantagePlusPlacements = phase.advantagePlusPlacements ?? (market as any).metaAdvantagePlusPlacements ?? true;
+        const advantagePlusPlacements =
+          phase.advantagePlusPlacements ?? (market as any).metaAdvantagePlusPlacements ?? true;
         console.log("📍 Advantage+ placements enabled:", advantagePlusPlacements);
-        
+
         if (advantagePlusPlacements) {
           // With Advantage+ placements, we don't specify any placement constraints
           // Meta will automatically optimize across all available placements
@@ -1776,55 +1908,66 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // Priority: phase.publisherPlatforms > market.metaPublisherPlatforms > defaults
           const publisherPlatforms = phase.publisherPlatforms || (market as any).metaPublisherPlatforms;
           console.log("📍 Raw publisherPlatforms from phase:", JSON.stringify(phase.publisherPlatforms));
-          console.log("📍 Raw metaPublisherPlatforms from market:", JSON.stringify((market as any).metaPublisherPlatforms));
+          console.log(
+            "📍 Raw metaPublisherPlatforms from market:",
+            JSON.stringify((market as any).metaPublisherPlatforms),
+          );
           console.log("📍 Resolved publisherPlatforms:", JSON.stringify(publisherPlatforms));
           if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
-            const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== 'messenger');
+            const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== "messenger");
             if (filteredPlatforms.length > 0) {
               targeting.publisher_platforms = filteredPlatforms;
               console.log("Adding publisher platforms (messenger filtered out):", filteredPlatforms);
             }
           } else {
             // If no publisher platforms specified, default to all except messenger
-            targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network'];
+            targeting.publisher_platforms = ["facebook", "instagram", "audience_network"];
             console.log("No publisherPlatforms specified, using defaults:", targeting.publisher_platforms);
           }
-          
+
           // Add placements/positions from phase or market defaults
           // Priority: phase.positions > market.metaPositions > defaults
           const positions = phase.positions || (market as any).metaPositions;
           console.log("📍 Raw positions from phase:", JSON.stringify(phase.positions));
           console.log("📍 Raw metaPositions from market:", JSON.stringify((market as any).metaPositions));
           console.log("📍 Resolved positions:", JSON.stringify(positions));
-          
+
           // Valid placements per Meta API (updated to remove deprecated ones)
           // NOTE: As of Oct 2025, ALL Messenger placements are deprecated:
           // - messenger_home: deprecated Oct 9, 2025
           // - sponsored_messages: deprecated May 2024
-          const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
-          const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
-          const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
+          const validFacebookPositions = [
+            "feed",
+            "instant_article",
+            "instream_video",
+            "marketplace",
+            "search",
+            "video_feeds",
+            "story",
+          ];
+          const validInstagramPositions = ["stream", "story", "explore", "explore_home", "reels"];
+          const validAudienceNetworkPositions = ["classic", "instream_video", "rewarded_video"];
           const validMessengerPositions: string[] = []; // Empty - all messenger placements deprecated
-          
+
           // If no positions specified or positions is empty, default to all valid positions for each publisher platform
           if (!positions || Object.keys(positions).length === 0) {
             console.log("📍 No positions specified, using all valid positions for each publisher platform");
-            if (targeting.publisher_platforms?.includes('facebook')) {
+            if (targeting.publisher_platforms?.includes("facebook")) {
               targeting.facebook_positions = validFacebookPositions;
               console.log("Adding Facebook positions (default all):", validFacebookPositions);
             }
-            if (targeting.publisher_platforms?.includes('instagram')) {
+            if (targeting.publisher_platforms?.includes("instagram")) {
               targeting.instagram_positions = validInstagramPositions;
               console.log("Adding Instagram positions (default all):", validInstagramPositions);
             }
-            if (targeting.publisher_platforms?.includes('audience_network')) {
+            if (targeting.publisher_platforms?.includes("audience_network")) {
               targeting.audience_network_positions = validAudienceNetworkPositions;
               console.log("Adding Audience Network positions (default all):", validAudienceNetworkPositions);
             }
           } else if (positions) {
             // Handle Facebook positions
             if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0) {
-              if (positions.facebook.includes('automatic')) {
+              if (positions.facebook.includes("automatic")) {
                 // When automatic, use all valid positions
                 targeting.facebook_positions = validFacebookPositions;
                 console.log("Adding Facebook positions (automatic):", validFacebookPositions);
@@ -1837,35 +1980,43 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 }
               }
             }
-            
+
             // Handle Instagram positions
             if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0) {
-              if (positions.instagram.includes('automatic')) {
+              if (positions.instagram.includes("automatic")) {
                 targeting.instagram_positions = validInstagramPositions;
                 console.log("Adding Instagram positions (automatic):", validInstagramPositions);
               } else {
-                const filteredPositions = positions.instagram.filter((p: string) => validInstagramPositions.includes(p));
+                const filteredPositions = positions.instagram.filter((p: string) =>
+                  validInstagramPositions.includes(p),
+                );
                 if (filteredPositions.length > 0) {
                   targeting.instagram_positions = filteredPositions;
                   console.log("Adding Instagram positions:", filteredPositions);
                 }
               }
             }
-            
+
             // Handle Audience Network positions
-            if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0) {
-              if (positions.audience_network.includes('automatic')) {
+            if (
+              positions.audience_network &&
+              Array.isArray(positions.audience_network) &&
+              positions.audience_network.length > 0
+            ) {
+              if (positions.audience_network.includes("automatic")) {
                 targeting.audience_network_positions = validAudienceNetworkPositions;
                 console.log("Adding Audience Network positions (automatic):", validAudienceNetworkPositions);
               } else {
-                const filteredPositions = positions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
+                const filteredPositions = positions.audience_network.filter((p: string) =>
+                  validAudienceNetworkPositions.includes(p),
+                );
                 if (filteredPositions.length > 0) {
                   targeting.audience_network_positions = filteredPositions;
                   console.log("Adding Audience Network positions:", filteredPositions);
                 }
               }
             }
-            
+
             // Handle Messenger positions - DEPRECATED: All messenger placements removed as of 2024-2025
             // messenger_home: deprecated Oct 9, 2025
             // sponsored_messages: deprecated May 2024
@@ -1877,11 +2028,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             // Do not add threads_positions field as it causes API errors
           }
         }
-        
+
         // Add detailed targeting (interests, behaviors)
         if (market.detailedTargeting && market.detailedTargeting.length > 0) {
           targeting.flexible_spec = market.detailedTargeting.map((t: any) => ({
-            [t.type]: [{ id: t.id, name: t.name }]
+            [t.type]: [{ id: t.id, name: t.name }],
           }));
         }
 
@@ -1889,50 +2040,50 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         // This ensures targeting is applied consistently across all markets in a platform
         const campaignBasicTargeting = campaign.generic_config?.basicTargeting || {};
         const phaseTargetingConfig = phase.targeting || {};
-        const effectiveTargeting = Object.keys(phaseTargetingConfig).length > 0 ? phaseTargetingConfig : campaignBasicTargeting;
-        
-        const targetingConfig = (phase.overrideTargeting && phase.targeting) 
-          ? phase.targeting 
-          : (campaign.generic_config?.targeting || {});
-        
+        const effectiveTargeting =
+          Object.keys(phaseTargetingConfig).length > 0 ? phaseTargetingConfig : campaignBasicTargeting;
+
+        const targetingConfig =
+          phase.overrideTargeting && phase.targeting ? phase.targeting : campaign.generic_config?.targeting || {};
+
         // Transform unified targeting format into Meta-specific arrays
         let metaInterests: any[] = [];
         let metaBehaviors: any[] = [];
         let metaDemographics: any[] = [];
-        
+
         // If using unified targeting (selectedItems array from UnifiedTargeting component)
         if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
           console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for Meta`);
           console.log(`📝 Sample item structure:`, JSON.stringify(effectiveTargeting.selectedItems[0], null, 2));
-          
+
           effectiveTargeting.selectedItems.forEach((item: any) => {
             // Only process items available on Meta
-            if (item.platforms && item.platforms.includes('meta')) {
+            if (item.platforms && item.platforms.includes("meta")) {
               // Extract the correct Meta ID - handle different ID formats
               let metaIdValue = item.metaId || item.id;
               // Remove prefix if present (e.g., "meta-123" -> "123")
-              if (typeof metaIdValue === 'string' && metaIdValue.startsWith('meta-')) {
+              if (typeof metaIdValue === "string" && metaIdValue.startsWith("meta-")) {
                 metaIdValue = metaIdValue.substring(5);
               }
-              if (typeof metaIdValue === 'string' && metaIdValue.startsWith('unified-')) {
+              if (typeof metaIdValue === "string" && metaIdValue.startsWith("unified-")) {
                 metaIdValue = item.metaId; // For unified items, use metaId directly
               }
-              
+
               const metaItem = {
                 id: metaIdValue,
                 name: item.name,
-                category: item.category
+                category: item.category,
               };
-              
+
               // Categorize by type (case-insensitive)
-              const categoryLower = (item.category || '').toLowerCase();
-              if (categoryLower === 'interest' || categoryLower === 'interests') {
+              const categoryLower = (item.category || "").toLowerCase();
+              if (categoryLower === "interest" || categoryLower === "interests") {
                 metaInterests.push(metaItem);
                 console.log(`  ✓ Interest: ${item.name} (${metaItem.id})`);
-              } else if (categoryLower === 'behavior' || categoryLower === 'behaviors') {
+              } else if (categoryLower === "behavior" || categoryLower === "behaviors") {
                 metaBehaviors.push(metaItem);
                 console.log(`  ✓ Behavior: ${item.name} (${metaItem.id})`);
-              } else if (categoryLower === 'demographic' || categoryLower === 'demographics') {
+              } else if (categoryLower === "demographic" || categoryLower === "demographics") {
                 metaDemographics.push(metaItem);
                 console.log(`  ✓ Demographic: ${item.name} (${metaItem.id})`);
               } else {
@@ -1940,8 +2091,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               }
             }
           });
-          
-          console.log(`📊 Transformed targeting - Interests: ${metaInterests.length}, Behaviors: ${metaBehaviors.length}, Demographics: ${metaDemographics.length}`);
+
+          console.log(
+            `📊 Transformed targeting - Interests: ${metaInterests.length}, Behaviors: ${metaBehaviors.length}, Demographics: ${metaDemographics.length}`,
+          );
         } else {
           // Fallback to legacy format
           metaInterests = effectiveTargeting.aiInterests || effectiveTargeting.interests || [];
@@ -1954,9 +2107,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`Using transformed targeting for market ${market.name}:`, {
             interests: metaInterests.length,
             behaviors: metaBehaviors.length,
-            demographics: metaDemographics.length
+            demographics: metaDemographics.length,
           });
-          
+
           // Override basic demographics with data
           if (effectiveTargeting.location && effectiveTargeting.location.length > 0) {
             targeting.geo_locations = { countries: effectiveTargeting.location };
@@ -1977,52 +2130,56 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
           // Helper function to filter out deprecated Meta targeting categories
           const isValidMetaTargeting = (item: any): boolean => {
-            const name = (item.name || '').toLowerCase();
-            const id = String(item.id || '');
-            
+            const name = (item.name || "").toLowerCase();
+            const id = String(item.id || "");
+
             // Filter out "Friends of X" categories - Meta deprecated most of these for privacy
-            if (name.includes('friends of')) {
+            if (name.includes("friends of")) {
               console.log(`  ⚠️ Filtering deprecated "Friends of" category: ${item.name}`);
               return false;
             }
-            
+
             // Filter out IDs that don't look like standard Meta targeting category IDs
             // Standard Meta targeting IDs are 13-14 digits starting with 6
             // Entity/Page IDs are often longer or start with other numbers
-            if (id.length > 14 || (id.length > 10 && !id.startsWith('6'))) {
+            if (id.length > 14 || (id.length > 10 && !id.startsWith("6"))) {
               console.log(`  ⚠️ Filtering suspicious ID (looks like entity ID, not targeting): ${item.name} (${id})`);
               return false;
             }
-            
+
             return true;
           };
 
           // Add interests from transformed targeting
           if (metaInterests.length > 0) {
-            const interests = metaInterests.map((i: any) => ({
-              id: i.id || i,
-              name: i.name || i
-            })).filter((i: any) => i.id && isValidMetaTargeting(i));
+            const interests = metaInterests
+              .map((i: any) => ({
+                id: i.id || i,
+                name: i.name || i,
+              }))
+              .filter((i: any) => i.id && isValidMetaTargeting(i));
             if (interests.length > 0) {
               targeting.flexible_spec = targeting.flexible_spec || [];
               targeting.flexible_spec.push({ interests });
-              console.log(`Adding ${interests.length} interests:`, interests.map((i: any) => i.name).join(', '));
+              console.log(`Adding ${interests.length} interests:`, interests.map((i: any) => i.name).join(", "));
             }
           }
 
           // Add behaviors from transformed targeting
           if (metaBehaviors.length > 0) {
-            const behaviors = metaBehaviors.map((b: any) => ({
-              id: b.id || b,
-              name: b.name || b
-            })).filter((b: any) => b.id && isValidMetaTargeting(b));
+            const behaviors = metaBehaviors
+              .map((b: any) => ({
+                id: b.id || b,
+                name: b.name || b,
+              }))
+              .filter((b: any) => b.id && isValidMetaTargeting(b));
             if (behaviors.length > 0) {
               targeting.flexible_spec = targeting.flexible_spec || [];
               targeting.flexible_spec.push({ behaviors });
-              console.log(`Adding ${behaviors.length} behaviors:`, behaviors.map((b: any) => b.name).join(', '));
+              console.log(`Adding ${behaviors.length} behaviors:`, behaviors.map((b: any) => b.name).join(", "));
             }
           }
-          
+
           // SKIP demographics for now - they're causing "Category No Longer Available" errors
           // Demographics from search API don't reliably map to valid targeting categories
           if (metaDemographics.length > 0) {
@@ -2033,7 +2190,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           if (effectiveTargeting.customAudiences && effectiveTargeting.customAudiences.length > 0) {
             targeting.custom_audiences = effectiveTargeting.customAudiences.map((a: any) => ({
               id: a.id,
-              name: a.name
+              name: a.name,
             }));
             console.log(`Adding ${effectiveTargeting.customAudiences.length} custom audiences`);
           }
@@ -2044,7 +2201,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             effectiveTargeting.lookalikes.forEach((la: any) => {
               targeting.custom_audiences.push({
                 id: la.id,
-                name: la.name
+                name: la.name,
               });
             });
             console.log(`Adding ${effectiveTargeting.lookalikes.length} lookalike audiences`);
@@ -2056,7 +2213,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             effectiveTargeting.customerLists.forEach((cl: any) => {
               targeting.custom_audiences.push({
                 id: cl.id,
-                name: cl.name
+                name: cl.name,
               });
             });
             console.log(`Adding ${effectiveTargeting.customerLists.length} customer lists`);
@@ -2065,15 +2222,23 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         // Process old targeting config format (legacy fallback)
         if (targetingConfig.websiteAudience) {
-          const audienceNames = targetingConfig.websiteAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
+          const audienceNames = targetingConfig.websiteAudience
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
           if (audienceNames.length > 0) {
-            console.warn("Skipping websiteAudience fallback (names only). Audience IDs are required to target custom audiences.");
+            console.warn(
+              "Skipping websiteAudience fallback (names only). Audience IDs are required to target custom audiences.",
+            );
           }
         }
 
         // Fallback to old targeting config if no AI-parsed targeting (continued)
         if (targetingConfig.lookalikeAudience) {
-          const lookalikeNames = targetingConfig.lookalikeAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
+          const lookalikeNames = targetingConfig.lookalikeAudience
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
           if (lookalikeNames.length > 0) {
             console.warn("Skipping lookalikeAudience fallback (names only). Audience IDs are required.");
           }
@@ -2081,15 +2246,23 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         // Add interests from targeting config
         if (targetingConfig.interests) {
-          const interests = targetingConfig.interests.split(',').map((s: string) => s.trim()).filter(Boolean);
+          const interests = targetingConfig.interests
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
           if (interests.length > 0) {
-            console.warn("Skipping interests fallback (names only). Use AI-parsed targeting to include valid interest IDs.");
+            console.warn(
+              "Skipping interests fallback (names only). Use AI-parsed targeting to include valid interest IDs.",
+            );
           }
         }
 
         // Add customer list (custom audiences from file)
         if (targetingConfig.customerList) {
-          const customerLists = targetingConfig.customerList.split(',').map((s: string) => s.trim()).filter(Boolean);
+          const customerLists = targetingConfig.customerList
+            .split(",")
+            .map((s: string) => s.trim())
+            .filter(Boolean);
           if (customerLists.length > 0) {
             console.warn("Skipping customerList fallback (names only). Audience IDs are required.");
           }
@@ -2101,7 +2274,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             .map((spec: any) => {
               const cleaned: any = {};
               for (const key of Object.keys(spec)) {
-                const items = Array.isArray(spec[key]) ? spec[key].filter((i: any) => i && typeof i.id === 'string' && i.id.trim() !== '') : [];
+                const items = Array.isArray(spec[key])
+                  ? spec[key].filter((i: any) => i && typeof i.id === "string" && i.id.trim() !== "")
+                  : [];
                 if (items.length > 0) cleaned[key] = items;
               }
               return cleaned;
@@ -2117,8 +2292,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           const normalized = (Array.isArray(targeting.custom_audiences) ? targeting.custom_audiences : [])
             .map((a: any) => {
               if (!a) return null;
-              if (typeof a === 'string' && /^\d+$/.test(a)) return { id: a };
-              if (typeof a === 'object' && a.id) return { id: String(a.id) };
+              if (typeof a === "string" && /^\d+$/.test(a)) return { id: a };
+              if (typeof a === "object" && a.id) return { id: String(a.id) };
               return null;
             })
             .filter(Boolean);
@@ -2133,23 +2308,31 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         // Log the FULL path of bid strategy values to trace where they come from
         console.log(`\n🎯 === BID STRATEGY DEBUG for ${market.name} / ${phase.name} ===`);
         console.log(`📥 Raw market data:`, {
-          'market.metaBidStrategy': (market as any).metaBidStrategy,
-          'market.metaBidAmount': (market as any).metaBidAmount,
+          "market.metaBidStrategy": (market as any).metaBidStrategy,
+          "market.metaBidAmount": (market as any).metaBidAmount,
         });
         console.log(`📥 Raw phase data:`, {
-          'phase.metaBidStrategy': (phase as any).metaBidStrategy,
-          'phase.metaBidAmount': (phase as any).metaBidAmount,
+          "phase.metaBidStrategy": (phase as any).metaBidStrategy,
+          "phase.metaBidAmount": (phase as any).metaBidAmount,
         });
-        
+
         // Validate bid strategy compatibility with optimization goal
         // COST_CAP, LOWEST_COST_WITH_BID_CAP, and TARGET_COST only work with specific optimization goals
-        const bidStrategyCompatibleGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'LEAD_GENERATION', 'APP_INSTALLS'];
-        
+        const bidStrategyCompatibleGoals = [
+          "OFFSITE_CONVERSIONS",
+          "VALUE",
+          "LINK_CLICKS",
+          "LANDING_PAGE_VIEWS",
+          "LEAD_GENERATION",
+          "APP_INSTALLS",
+        ];
+
         // Phase-level Meta fields take priority over market-level
-        const requestedBidStrategy = phase.metaBidStrategy || (market as any).metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
+        const requestedBidStrategy =
+          phase.metaBidStrategy || (market as any).metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
         const metaBidAmount = phase.metaBidAmount || (market as any).metaBidAmount;
         const userBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent;
-        
+
         console.log(`🔧 Resolved values (phase > market > default):`, {
           requestedBidStrategy,
           metaBidAmount,
@@ -2157,45 +2340,45 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         });
 
         const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
-        
+
         // Meta billing_event + optimization_goal compatibility mapping
         // The billing_event MUST be compatible with the optimization_goal or the API will reject.
         // NOTE: Some optimization goals allow multiple billing events (e.g. THRUPLAY can also be billed on IMPRESSIONS).
         const getBillingEventForOptimizationGoal = (optGoal: string, userEvent?: string): string => {
           // SPECIAL CASE: For new/limited Meta ad accounts, billing on THRUPLAY can be blocked.
           // Meta allows THRUPLAY optimization while billing on IMPRESSIONS, so honor the user's selection.
-          if (optGoal === 'THRUPLAY' && userEvent === 'IMPRESSIONS') {
-            return 'IMPRESSIONS';
+          if (optGoal === "THRUPLAY" && userEvent === "IMPRESSIONS") {
+            return "IMPRESSIONS";
           }
 
           // Map optimization goals to their default/required billing events
           const billingEventMap: Record<string, string> = {
             // Awareness & Reach - IMPRESSIONS only
-            'REACH': 'IMPRESSIONS',
-            'IMPRESSIONS': 'IMPRESSIONS',
-            'BRAND_AWARENESS': 'IMPRESSIONS',
-            'AD_RECALL_LIFT': 'IMPRESSIONS',
+            REACH: "IMPRESSIONS",
+            IMPRESSIONS: "IMPRESSIONS",
+            BRAND_AWARENESS: "IMPRESSIONS",
+            AD_RECALL_LIFT: "IMPRESSIONS",
             // Traffic - LINK_CLICKS or IMPRESSIONS (Meta restricts per optimization goal)
-            'LINK_CLICKS': 'LINK_CLICKS',
-            'LANDING_PAGE_VIEWS': 'IMPRESSIONS',
-            'POST_ENGAGEMENT': 'IMPRESSIONS',
-            'PAGE_LIKES': 'IMPRESSIONS',
-            'EVENT_RESPONSES': 'IMPRESSIONS',
+            LINK_CLICKS: "LINK_CLICKS",
+            LANDING_PAGE_VIEWS: "IMPRESSIONS",
+            POST_ENGAGEMENT: "IMPRESSIONS",
+            PAGE_LIKES: "IMPRESSIONS",
+            EVENT_RESPONSES: "IMPRESSIONS",
             // Video
-            'THRUPLAY': 'THRUPLAY',
-            'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS': 'IMPRESSIONS',
+            THRUPLAY: "THRUPLAY",
+            TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: "IMPRESSIONS",
             // Conversions - IMPRESSIONS only (despite the name)
-            'OFFSITE_CONVERSIONS': 'IMPRESSIONS',
-            'VALUE': 'IMPRESSIONS',
+            OFFSITE_CONVERSIONS: "IMPRESSIONS",
+            VALUE: "IMPRESSIONS",
             // App - IMPRESSIONS
-            'APP_INSTALLS': 'IMPRESSIONS',
-            'APP_EVENTS': 'IMPRESSIONS',
+            APP_INSTALLS: "IMPRESSIONS",
+            APP_EVENTS: "IMPRESSIONS",
             // Lead Gen - IMPRESSIONS
-            'LEAD_GENERATION': 'IMPRESSIONS',
-            'QUALITY_LEAD': 'IMPRESSIONS',
+            LEAD_GENERATION: "IMPRESSIONS",
+            QUALITY_LEAD: "IMPRESSIONS",
             // Messaging - IMPRESSIONS or REPLIES
-            'CONVERSATIONS': 'IMPRESSIONS',
-            'REPLIES': 'IMPRESSIONS',
+            CONVERSATIONS: "IMPRESSIONS",
+            REPLIES: "IMPRESSIONS",
           };
 
           const requiredEvent = billingEventMap[optGoal];
@@ -2206,76 +2389,88 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             return requiredEvent;
           }
           // Default fallback
-          return userEvent || 'IMPRESSIONS';
+          return userEvent || "IMPRESSIONS";
         };
-        
 
         const metaBillingEvent = getBillingEventForOptimizationGoal(optimizationGoal, userBillingEvent);
-        const rawMetaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
-        
+        const rawMetaOptimizationLocation =
+          phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
+
         // Map internal destination values to Meta's exact API enum values
         const metaDestinationTypeMap: Record<string, string> = {
-          'WEBSITE': 'WEBSITE',
-          'website': 'WEBSITE',
-          'Website': 'WEBSITE',
-          'APP': 'APP',
-          'app': 'APP',
-          'App': 'APP',
-          'MESSAGING_APPS': 'MESSENGER',
-          'Messaging Apps': 'MESSENGER',
-          'MESSENGER': 'MESSENGER',
-          'CALLS': 'ON_AD',
-          'Calls': 'ON_AD',
-          'SHOP': 'SHOP_AUTOMATIC',
-          'Shop': 'SHOP_AUTOMATIC',
+          WEBSITE: "WEBSITE",
+          website: "WEBSITE",
+          Website: "WEBSITE",
+          APP: "APP",
+          app: "APP",
+          App: "APP",
+          MESSAGING_APPS: "MESSENGER",
+          "Messaging Apps": "MESSENGER",
+          MESSENGER: "MESSENGER",
+          CALLS: "ON_AD",
+          Calls: "ON_AD",
+          SHOP: "SHOP_AUTOMATIC",
+          Shop: "SHOP_AUTOMATIC",
         };
-        const metaOptimizationLocation = metaDestinationTypeMap[rawMetaOptimizationLocation] || rawMetaOptimizationLocation.toUpperCase();
-        
+        const metaOptimizationLocation =
+          metaDestinationTypeMap[rawMetaOptimizationLocation] || rawMetaOptimizationLocation.toUpperCase();
+
         // Attribution window validation - Meta enforces STRICT attribution window rules
         // Valid combinations are ONLY: (1,0), (1,1), (7,0), (7,1) for (click_through, view_through)
         // Click-through: only 1 or 7 days allowed
         // View-through: only 0 or 1 days allowed
         // Extended windows (28 days click, 7 days view) are NOT supported in 2024+ API
-        const trueConversionObjectives = ['OUTCOME_SALES', 'CONVERSIONS'];
-        const trueConversionGoals = ['OFFSITE_CONVERSIONS', 'VALUE'];
-        const hasFullAttribution = trueConversionObjectives.includes(objective) && trueConversionGoals.includes(optimizationGoal);
-        
+        const trueConversionObjectives = ["OUTCOME_SALES", "CONVERSIONS"];
+        const trueConversionGoals = ["OFFSITE_CONVERSIONS", "VALUE"];
+        const hasFullAttribution =
+          trueConversionObjectives.includes(objective) && trueConversionGoals.includes(optimizationGoal);
+
         // Get raw configured values
         const rawClickWindow = phase.metaClickWindow || (market as any).metaClickWindow;
         const rawViewWindow = phase.metaViewWindow || (market as any).metaViewWindow;
-        
+
         let metaClickWindow: number;
         let metaViewWindow: number;
-        
+
         if (hasFullAttribution) {
           // Conversion objectives can use 7-day click window
           // But MUST clamp click to 1 or 7, view to 0 or 1
-          metaClickWindow = (rawClickWindow === 1) ? 1 : 7; // Default to 7 for conversions
-          metaViewWindow = (rawViewWindow === 0) ? 0 : 1;   // Default to 1 for conversions
-          console.log(`✅ ${objective}/${optimizationGoal} supports full attribution. Using click=${metaClickWindow}d, view=${metaViewWindow}d (raw: ${rawClickWindow}, ${rawViewWindow})`);
+          metaClickWindow = rawClickWindow === 1 ? 1 : 7; // Default to 7 for conversions
+          metaViewWindow = rawViewWindow === 0 ? 0 : 1; // Default to 1 for conversions
+          console.log(
+            `✅ ${objective}/${optimizationGoal} supports full attribution. Using click=${metaClickWindow}d, view=${metaViewWindow}d (raw: ${rawClickWindow}, ${rawViewWindow})`,
+          );
         } else {
           // Force (1, 0) for all other objectives - Meta only supports this combination
           metaClickWindow = 1;
           metaViewWindow = 0;
-          console.log(`⚠️ ${objective}/${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d (configured was: ${rawClickWindow}, ${rawViewWindow})`);
+          console.log(
+            `⚠️ ${objective}/${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d (configured was: ${rawClickWindow}, ${rawViewWindow})`,
+          );
         }
-        
+
         // ============= BID STRATEGY COMPATIBILITY CHECK =============
-        const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || requestedBidStrategy === 'TARGET_COST';
+        const requiresBidCap =
+          requestedBidStrategy === "COST_CAP" ||
+          requestedBidStrategy === "LOWEST_COST_WITH_BID_CAP" ||
+          requestedBidStrategy === "TARGET_COST";
         const isCompatible = bidStrategyCompatibleGoals.includes(optimizationGoal);
-        
+
         let finalBidStrategy = requestedBidStrategy;
         if (requiresBidCap && !isCompatible) {
-          console.warn(`⚠️ Bid strategy ${requestedBidStrategy} is not compatible with optimization goal ${optimizationGoal}`);
+          console.warn(
+            `⚠️ Bid strategy ${requestedBidStrategy} is not compatible with optimization goal ${optimizationGoal}`,
+          );
           console.warn(`Falling back to LOWEST_COST_WITHOUT_CAP for ${optimizationGoal}`);
           finalBidStrategy = "LOWEST_COST_WITHOUT_CAP";
         }
-        
+
         console.log(`📊 Bid Strategy Decision:`, {
           requestedBidStrategy,
           finalBidStrategy,
           wasOverridden: requestedBidStrategy !== finalBidStrategy,
-          reasonForOverride: requiresBidCap && !isCompatible ? `${requestedBidStrategy} incompatible with ${optimizationGoal}` : 'none',
+          reasonForOverride:
+            requiresBidCap && !isCompatible ? `${requestedBidStrategy} incompatible with ${optimizationGoal}` : "none",
           metaBidAmount,
           optimizationGoal,
           isCompatibleWithBidCap: isCompatible,
@@ -2284,21 +2479,33 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         // ============= AD SET SPLIT SUPPORT =============
         // If phase has adSets defined (split), iterate over each ad set
         // Otherwise, create a single ad set for the phase
-        const adSetSplitDimension = phase.adSetSplitDimension || 'none';
-        const adSetsToCreate: Array<AdSetConfig & { adSetBudget: number; adSetLifetimeBudget: number | null; adSetDailyBudget: number | null }> = [];
+        const adSetSplitDimension = phase.adSetSplitDimension || "none";
+        const adSetsToCreate: Array<
+          AdSetConfig & { adSetBudget: number; adSetLifetimeBudget: number | null; adSetDailyBudget: number | null }
+        > = [];
         const useCBO = phase.useCBO === true; // Campaign Budget Optimization
-        
-        if (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0 && adSetSplitDimension !== 'none') {
-          console.log(`📦 AD SET SPLIT DETECTED: ${phase.adSets.length} ad sets with dimension '${adSetSplitDimension}'`);
-          console.log(`📦 CBO mode: ${useCBO ? 'ON (platform distributes budget)' : 'OFF (manual budget per ad set)'}`);
-          
+
+        if (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0 && adSetSplitDimension !== "none") {
+          console.log(
+            `📦 AD SET SPLIT DETECTED: ${phase.adSets.length} ad sets with dimension '${adSetSplitDimension}'`,
+          );
+          console.log(`📦 CBO mode: ${useCBO ? "ON (platform distributes budget)" : "OFF (manual budget per ad set)"}`);
+
           for (const adSetConfig of phase.adSets as AdSetConfig[]) {
             // Calculate budget for this ad set based on percentage
-            const adSetBudgetPercentage = adSetConfig.budgetPercentage || (100 / phase.adSets.length);
-            const adSetBudget = useCBO ? phaseBudget : (phaseBudget * adSetBudgetPercentage / 100);
-            const adSetLifetimeBudget = useCBO ? null : (budgetType === 'lifetime' ? Math.round(adSetBudget * 100) : null);
-            const adSetDailyBudget = useCBO ? null : (budgetType === 'daily' ? Math.round(adSetBudget / durationDays * 100) : null);
-            
+            const adSetBudgetPercentage = adSetConfig.budgetPercentage || 100 / phase.adSets.length;
+            const adSetBudget = useCBO ? phaseBudget : (phaseBudget * adSetBudgetPercentage) / 100;
+            const adSetLifetimeBudget = useCBO
+              ? null
+              : budgetType === "lifetime"
+                ? Math.round(adSetBudget * 100)
+                : null;
+            const adSetDailyBudget = useCBO
+              ? null
+              : budgetType === "daily"
+                ? Math.round((adSetBudget / durationDays) * 100)
+                : null;
+
             adSetsToCreate.push({
               ...adSetConfig,
               adSetBudget,
@@ -2309,33 +2516,33 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         } else {
           // No split - create single ad set with full phase budget
           adSetsToCreate.push({
-            id: 'default',
+            id: "default",
             name: phase.name,
-            dimensionValue: '',
+            dimensionValue: "",
             budgetPercentage: 100,
             adSetBudget: phaseBudget,
             adSetLifetimeBudget: lifetimeBudget,
             adSetDailyBudget: dailyBudget,
           });
         }
-        
+
         // Create each ad set
         for (let adSetIdx = 0; adSetIdx < adSetsToCreate.length; adSetIdx++) {
           const adSetConfig = adSetsToCreate[adSetIdx];
-          
+
           // Apply targeting overrides from ad set split
           let adSetTargeting = { ...targeting };
-          if (adSetSplitDimension !== 'none' && adSetConfig.id !== 'default') {
+          if (adSetSplitDimension !== "none" && adSetConfig.id !== "default") {
             adSetTargeting = applyMetaAdSetOverrides(adSetTargeting, adSetConfig, adSetSplitDimension);
             console.log(`📦 Applied ${adSetSplitDimension} targeting override for ad set ${adSetConfig.name}`);
           }
-          
+
           // Apply placement overrides from ad set split (placement dimension)
           let adSetPublisherPlatforms = phase.publisherPlatforms || (market as any).metaPublisherPlatforms;
           let adSetPositions = phase.positions || (market as any).metaPositions;
           let adSetAdvantagePlus = advantagePlusPlacements;
-          
-          if (adSetSplitDimension === 'placement' && adSetConfig.id !== 'default') {
+
+          if (adSetSplitDimension === "placement" && adSetConfig.id !== "default") {
             const placementOverrides = getMetaPlacementOverrides(adSetConfig);
             if (placementOverrides.publisherPlatforms && placementOverrides.publisherPlatforms.length > 0) {
               adSetPublisherPlatforms = placementOverrides.publisherPlatforms;
@@ -2344,22 +2551,32 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             if (placementOverrides.positions) {
               adSetPositions = placementOverrides.positions;
             }
-            console.log(`📦 Placement split override: publishers=${JSON.stringify(adSetPublisherPlatforms)}, positions=${JSON.stringify(adSetPositions)}`);
+            console.log(
+              `📦 Placement split override: publishers=${JSON.stringify(adSetPublisherPlatforms)}, positions=${JSON.stringify(adSetPositions)}`,
+            );
           }
-          
+
           // Apply placement targeting to ad set targeting object
           if (!adSetAdvantagePlus && adSetPublisherPlatforms && Array.isArray(adSetPublisherPlatforms)) {
-            const filteredPlatforms = adSetPublisherPlatforms.filter((p: string) => p !== 'messenger');
+            const filteredPlatforms = adSetPublisherPlatforms.filter((p: string) => p !== "messenger");
             if (filteredPlatforms.length > 0) {
               adSetTargeting.publisher_platforms = filteredPlatforms;
             }
-            
+
             // Apply positions
             if (adSetPositions && Object.keys(adSetPositions).length > 0) {
-              const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
-              const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
-              const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
-              
+              const validFacebookPositions = [
+                "feed",
+                "instant_article",
+                "instream_video",
+                "marketplace",
+                "search",
+                "video_feeds",
+                "story",
+              ];
+              const validInstagramPositions = ["stream", "story", "explore", "explore_home", "reels"];
+              const validAudienceNetworkPositions = ["classic", "instream_video", "rewarded_video"];
+
               if (adSetPositions.facebook && adSetPositions.facebook.length > 0) {
                 const filtered = adSetPositions.facebook.filter((p: string) => validFacebookPositions.includes(p));
                 if (filtered.length > 0) adSetTargeting.facebook_positions = filtered;
@@ -2369,15 +2586,17 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 if (filtered.length > 0) adSetTargeting.instagram_positions = filtered;
               }
               if (adSetPositions.audience_network && adSetPositions.audience_network.length > 0) {
-                const filtered = adSetPositions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
+                const filtered = adSetPositions.audience_network.filter((p: string) =>
+                  validAudienceNetworkPositions.includes(p),
+                );
                 if (filtered.length > 0) adSetTargeting.audience_network_positions = filtered;
               }
             }
           }
-          
+
           // Build ad set taxonomy context
           const adsetTaxonomyContext: TaxonomyContext = {
-            platform: 'meta',
+            platform: "meta",
             objective: objective,
             optimizationGoal: adSetConfig.optimizationGoal || optimizationGoal,
             phaseBudget: adSetConfig.adSetBudget,
@@ -2388,44 +2607,49 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             location: adSetConfig.countries?.[0] || market.name,
             devices: adSetConfig.devices || effectiveBasicTargeting.devices,
             languages: adSetConfig.languages || effectiveBasicTargeting.languages,
-            placementType: adSetAdvantagePlus ? 'automatic' : 'manual',
+            placementType: adSetAdvantagePlus ? "automatic" : "manual",
             advantagePlusPlacements: adSetAdvantagePlus,
-            targetingType: effectiveBasicTargeting.targetingExpansion ? 'expand' : 'native',
+            targetingType: effectiveBasicTargeting.targetingExpansion ? "expand" : "native",
             startDate: phase.startDate || campaign.start_date,
             endDate: phase.endDate || campaign.end_date,
           };
-          
-          const adsetTaxonomyName = adAccountId ? await generateTaxonomyName(
-            supabase,
-            campaign.user_id,
-            adAccountId,
-            'meta',
-            'adset',
-            adsetTaxonomyContext,
-            phase.adsetTaxonomyValues
-          ) : null;
-          
+
+          const adsetTaxonomyName = adAccountId
+            ? await generateTaxonomyName(
+                supabase,
+                campaign.user_id,
+                adAccountId,
+                "meta",
+                "adset",
+                adsetTaxonomyContext,
+                phase.adsetTaxonomyValues,
+              )
+            : null;
+
           // Generate ad set name with split info
-          const splitSuffix = adSetConfig.id !== 'default' ? `_${adSetConfig.name}` : '';
+          const splitSuffix = adSetConfig.id !== "default" ? `_${adSetConfig.name}` : "";
           const defaultAdSetName = `${phase.name}${splitSuffix} - Ad Set_${generateTimestampSuffix()}`;
-          
+
           // CRITICAL: Each ad set may have its own optimization goal, so billing event must match
           const adSetOptimizationGoal = adSetConfig.optimizationGoal || optimizationGoal;
-          const adSetBillingEvent = getBillingEventForOptimizationGoal(adSetOptimizationGoal, adSetConfig.billingEvent || userBillingEvent);
-          
+          const adSetBillingEvent = getBillingEventForOptimizationGoal(
+            adSetOptimizationGoal,
+            adSetConfig.billingEvent || userBillingEvent,
+          );
+
           // CRITICAL: Each ad set may have its own bid strategy and bid amount (especially for optimization_goal splits)
           const adSetBidStrategy = adSetConfig.bidStrategy || finalBidStrategy;
           const adSetBidAmount = adSetConfig.bidAmount ?? metaBidAmount;
-          
+
           // ============= AD SET LEVEL BID STRATEGY LOGGING =============
           console.log(`\n💼 === AD SET BID STRATEGY for "${adSetConfig.name}" ===`);
-          console.log(`📥 adSetConfig.bidStrategy: ${adSetConfig.bidStrategy ?? '(not set)'}`);
-          console.log(`📥 adSetConfig.bidAmount: ${adSetConfig.bidAmount ?? '(not set)'}`);
+          console.log(`📥 adSetConfig.bidStrategy: ${adSetConfig.bidStrategy ?? "(not set)"}`);
+          console.log(`📥 adSetConfig.bidAmount: ${adSetConfig.bidAmount ?? "(not set)"}`);
           console.log(`📤 Using finalBidStrategy from phase: ${finalBidStrategy}`);
-          console.log(`📤 Using metaBidAmount from phase: ${metaBidAmount ?? '(not set)'}`);
+          console.log(`📤 Using metaBidAmount from phase: ${metaBidAmount ?? "(not set)"}`);
           console.log(`🎯 FINAL adSetBidStrategy: ${adSetBidStrategy}`);
-          console.log(`🎯 FINAL adSetBidAmount: ${adSetBidAmount ?? '(not set)'}`);
-          
+          console.log(`🎯 FINAL adSetBidAmount: ${adSetBidAmount ?? "(not set)"}`);
+
           const adSetPayload: any = {
             name: adsetTaxonomyName || defaultAdSetName,
             campaign_id: campaignData.id,
@@ -2441,30 +2665,39 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // Add attribution settings
           adSetPayload.attribution_spec = [
             { event_type: "CLICK_THROUGH", window_days: metaClickWindow },
-            { event_type: "VIEW_THROUGH", window_days: metaViewWindow }
+            { event_type: "VIEW_THROUGH", window_days: metaViewWindow },
           ];
-          
+
           // Add destination URL for traffic campaigns
-          if (metaLandingPageUrl && (adSetPayload.optimization_goal === 'LINK_CLICKS' || adSetPayload.optimization_goal === 'LANDING_PAGE_VIEWS')) {
+          if (
+            metaLandingPageUrl &&
+            (adSetPayload.optimization_goal === "LINK_CLICKS" ||
+              adSetPayload.optimization_goal === "LANDING_PAGE_VIEWS")
+          ) {
             adSetPayload.destination_type = metaOptimizationLocation;
           }
 
           // DSA compliance
           adSetPayload.dsa_beneficiary = campaign.name || "Advertiser";
           adSetPayload.dsa_payor = campaign.name || "Advertiser";
-          
+
           // Add bid amount if required by the ad set's bid strategy
           // CRITICAL: LOWEST_COST_WITH_BID_CAP, COST_CAP, and TARGET_COST REQUIRE a bid_amount
           // CRITICAL: LOWEST_COST_WITHOUT_CAP must NOT have bid_amount in payload at all
-          const requiresBidAmount = adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP' || adSetBidStrategy === 'TARGET_COST';
+          const requiresBidAmount =
+            adSetBidStrategy === "LOWEST_COST_WITH_BID_CAP" ||
+            adSetBidStrategy === "COST_CAP" ||
+            adSetBidStrategy === "TARGET_COST";
           if (requiresBidAmount) {
             if (adSetBidAmount && adSetBidAmount > 0) {
               adSetPayload.bid_amount = Math.round(adSetBidAmount * 100);
               console.log(`💰 Bid amount set: ${adSetPayload.bid_amount} cents for strategy ${adSetBidStrategy}`);
             } else {
               // FALLBACK: If bid strategy requires amount but none provided, fall back to LOWEST_COST_WITHOUT_CAP
-              console.warn(`⚠️ Bid strategy ${adSetBidStrategy} requires bid_amount but none provided. Falling back to LOWEST_COST_WITHOUT_CAP`);
-              adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+              console.warn(
+                `⚠️ Bid strategy ${adSetBidStrategy} requires bid_amount but none provided. Falling back to LOWEST_COST_WITHOUT_CAP`,
+              );
+              adSetPayload.bid_strategy = "LOWEST_COST_WITHOUT_CAP";
               // Ensure bid_amount is NOT in the payload for LOWEST_COST_WITHOUT_CAP
               delete adSetPayload.bid_amount;
             }
@@ -2473,41 +2706,71 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             // ensure bid_amount is NOT included in the payload at all - Meta rejects it
             delete adSetPayload.bid_amount;
           }
-          
+
           // Add conversion tracking
           const effectivePixel = phase.pixel || market.pixel;
           const effectiveConversionEvent = phase.conversionEvent || market.conversionEvent;
-          
-          if (effectivePixel && effectiveConversionEvent && 
-              (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
+
+          if (
+            effectivePixel &&
+            effectiveConversionEvent &&
+            (adSetPayload.optimization_goal === "OFFSITE_CONVERSIONS" || adSetPayload.optimization_goal === "VALUE")
+          ) {
             const validEventTypes = [
-              'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
-              'DONATE', 'FIND_LOCATION', 'SCHEDULE', 'START_TRIAL', 'SUBMIT_APPLICATION', 
-              'SUBSCRIBE', 'ADD_TO_CART', 'ADD_TO_WISHLIST', 'INITIATED_CHECKOUT', 
-              'ADD_PAYMENT_INFO', 'PURCHASE', 'LEAD', 'COMPLETE_REGISTRATION', 'CONTENT_VIEW', 
-              'SEARCH', 'SERVICE_BOOKING_REQUEST', 'MESSAGING_CONVERSATION_STARTED_7D', 
-              'LEVEL_ACHIEVED', 'ACHIEVEMENT_UNLOCKED', 'SPENT_CREDITS', 'LISTING_INTERACTION', 
-              'D2_RETENTION', 'D7_RETENTION', 'OTHER'
+              "AD_IMPRESSION",
+              "RATE",
+              "TUTORIAL_COMPLETION",
+              "CONTACT",
+              "CUSTOMIZE_PRODUCT",
+              "DONATE",
+              "FIND_LOCATION",
+              "SCHEDULE",
+              "START_TRIAL",
+              "SUBMIT_APPLICATION",
+              "SUBSCRIBE",
+              "ADD_TO_CART",
+              "ADD_TO_WISHLIST",
+              "INITIATED_CHECKOUT",
+              "ADD_PAYMENT_INFO",
+              "PURCHASE",
+              "LEAD",
+              "COMPLETE_REGISTRATION",
+              "CONTENT_VIEW",
+              "SEARCH",
+              "SERVICE_BOOKING_REQUEST",
+              "MESSAGING_CONVERSATION_STARTED_7D",
+              "LEVEL_ACHIEVED",
+              "ACHIEVEMENT_UNLOCKED",
+              "SPENT_CREDITS",
+              "LISTING_INTERACTION",
+              "D2_RETENTION",
+              "D7_RETENTION",
+              "OTHER",
             ];
             const normalizedEvent = effectiveConversionEvent.toUpperCase().trim();
-            const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : 'OTHER';
+            const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : "OTHER";
             adSetPayload.promoted_object = { pixel_id: effectivePixel, custom_event_type: eventType };
           }
-          
+
           // Set budget (only if not CBO - when CBO is on, budget is at campaign level)
           if (!useCBO) {
             // CRITICAL: Meta requires either daily_budget OR lifetime_budget for non-CBO ad sets
             // If budgetType is 'lifetime', set lifetime_budget; otherwise set daily_budget
             // Ensure minimum of 100 cents ($1) to avoid "Missing Daily Budget" errors
-            if (budgetType === 'lifetime') {
+            if (budgetType === "lifetime") {
               const lifetimeBudgetCents = adSetConfig.adSetLifetimeBudget || Math.round(adSetConfig.adSetBudget * 100);
               adSetPayload.lifetime_budget = Math.max(lifetimeBudgetCents, 100); // Min $1
-              console.log(`📊 Ad set lifetime budget: ${adSetPayload.lifetime_budget} cents (from ${adSetConfig.adSetLifetimeBudget || 'calculated'})`);
+              console.log(
+                `📊 Ad set lifetime budget: ${adSetPayload.lifetime_budget} cents (from ${adSetConfig.adSetLifetimeBudget || "calculated"})`,
+              );
             } else {
               // Daily budget
-              const dailyBudgetCents = adSetConfig.adSetDailyBudget || Math.round((adSetConfig.adSetBudget / durationDays) * 100);
+              const dailyBudgetCents =
+                adSetConfig.adSetDailyBudget || Math.round((adSetConfig.adSetBudget / durationDays) * 100);
               adSetPayload.daily_budget = Math.max(dailyBudgetCents, 100); // Min $1/day
-              console.log(`📊 Ad set daily budget: ${adSetPayload.daily_budget} cents (from ${adSetConfig.adSetDailyBudget || 'calculated'})`);
+              console.log(
+                `📊 Ad set daily budget: ${adSetPayload.daily_budget} cents (from ${adSetConfig.adSetDailyBudget || "calculated"})`,
+              );
             }
           } else {
             // With CBO, budget is set at campaign level - but Meta API may still require a budget field
@@ -2519,42 +2782,37 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`Creating Meta ad set [${adSetIdx + 1}/${adSetsToCreate.length}]:`, adSetPayload.name);
           console.log("📤 Meta ad set payload (bidding):", {
             bid_strategy: adSetPayload.bid_strategy,
-            bid_amount: adSetPayload.bid_amount ?? '(not set)',
+            bid_amount: adSetPayload.bid_amount ?? "(not set)",
             optimization_goal: adSetPayload.optimization_goal,
             billing_event: adSetPayload.billing_event,
-            has_bid_amount_field: 'bid_amount' in adSetPayload,
+            has_bid_amount_field: "bid_amount" in adSetPayload,
           });
 
-          const adSetResponse = await fetch(
-            `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
-            {
+          const adSetResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adsets`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+          });
+
+          let adSetData = await adSetResponse.json();
+
+          // Handle VALUE optimization errors with fallback
+          const valueOptErrorCodes = [2446368, 2446146, 1815117];
+          const isValueOptError =
+            adSetData.error &&
+            valueOptErrorCodes.includes(adSetData.error.error_subcode) &&
+            adSetPayload.optimization_goal === "VALUE";
+
+          if (isValueOptError) {
+            console.warn(`VALUE optimization error, retrying with OFFSITE_CONVERSIONS...`);
+            adSetPayload.optimization_goal = "OFFSITE_CONVERSIONS";
+            adSetPayload.billing_event = "IMPRESSIONS";
+
+            const retryResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adsets`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
-            }
-          );
-
-          let adSetData = await adSetResponse.json();
-          
-          // Handle VALUE optimization errors with fallback
-          const valueOptErrorCodes = [2446368, 2446146, 1815117];
-          const isValueOptError = adSetData.error && 
-            valueOptErrorCodes.includes(adSetData.error.error_subcode) && 
-            adSetPayload.optimization_goal === 'VALUE';
-          
-          if (isValueOptError) {
-            console.warn(`VALUE optimization error, retrying with OFFSITE_CONVERSIONS...`);
-            adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
-            adSetPayload.billing_event = 'IMPRESSIONS';
-            
-            const retryResponse = await fetch(
-              `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
-              }
-            );
+            });
             adSetData = await retryResponse.json();
           }
 
@@ -2565,13 +2823,15 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             const attempted = {
               bid_strategy: adSetPayload.bid_strategy,
               bid_amount: adSetPayload.bid_amount,
-              has_bid_amount_field: 'bid_amount' in adSetPayload,
+              has_bid_amount_field: "bid_amount" in adSetPayload,
               optimization_goal: adSetPayload.optimization_goal,
               billing_event: adSetPayload.billing_event,
             };
 
-            const attemptedStrategy = String(adSetPayload.bid_strategy || '');
-            const attemptedRequiresAmount = ['LOWEST_COST_WITH_BID_CAP', 'COST_CAP', 'TARGET_COST'].includes(attemptedStrategy);
+            const attemptedStrategy = String(adSetPayload.bid_strategy || "");
+            const attemptedRequiresAmount = ["LOWEST_COST_WITH_BID_CAP", "COST_CAP", "TARGET_COST"].includes(
+              attemptedStrategy,
+            );
             const attemptedBidAmount = Number(adSetPayload.bid_amount);
             const hasPositiveBidAmount = Number.isFinite(attemptedBidAmount) && attemptedBidAmount > 0;
 
@@ -2584,49 +2844,50 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               delete adSetPayload.bid_amount;
               delete adSetPayload.bid_strategy;
 
-              const retryResponse = await fetch(
-                `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
-                }
-              );
+              const retryResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adsets`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+              });
               adSetData = await retryResponse.json();
             } else {
               // If the strategy really requires an amount, do NOT override the user's intent.
               // Let the error bubble so we can surface the true configuration issue.
               if (!hasPositiveBidAmount) {
-                console.warn(`Not retrying 1815857 because ${attemptedStrategy} requires a positive bid_amount, but none was provided.`);
+                console.warn(
+                  `Not retrying 1815857 because ${attemptedStrategy} requires a positive bid_amount, but none was provided.`,
+                );
               } else {
-                console.warn(`Not retrying 1815857 because ${attemptedStrategy} already had bid_amount set; keeping original error for diagnosis.`);
+                console.warn(
+                  `Not retrying 1815857 because ${attemptedStrategy} already had bid_amount set; keeping original error for diagnosis.`,
+                );
               }
             }
           }
-          
+
           // Handle deprecated targeting interests error (subcode 1870247)
           const isDeprecatedTargetingError = adSetData.error?.error_subcode === 1870247;
           if (isDeprecatedTargetingError && adSetPayload.targeting?.flexible_spec) {
             console.warn(`⚠️ Deprecated targeting interests detected (subcode 1870247). Filtering and retrying...`);
-            
+
             // Parse the error message to extract deprecated interest IDs
-            const errorMsg = adSetData.error?.error_user_msg || '';
+            const errorMsg = adSetData.error?.error_user_msg || "";
             const deprecatedIds = new Set<string>();
-            
+
             // Extract deprecated_interest_id values from the error message
             const deprecatedMatches = errorMsg.matchAll(/"deprecated_interest_id":"(\d+)"/g);
             for (const match of deprecatedMatches) {
               deprecatedIds.add(match[1]);
               console.log(`  🚫 Marking deprecated: ${match[1]}`);
             }
-            
+
             if (deprecatedIds.size > 0) {
               // Filter out deprecated interests from flexible_spec
               adSetPayload.targeting.flexible_spec = adSetPayload.targeting.flexible_spec
                 .map((spec: any) => {
                   const cleaned: any = {};
                   for (const key of Object.keys(spec)) {
-                    if (key === 'interests' && Array.isArray(spec[key])) {
+                    if (key === "interests" && Array.isArray(spec[key])) {
                       const filteredInterests = spec[key].filter((interest: any) => {
                         const interestId = String(interest.id);
                         if (deprecatedIds.has(interestId)) {
@@ -2645,28 +2906,27 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                   return Object.keys(cleaned).length > 0 ? cleaned : null;
                 })
                 .filter(Boolean);
-              
+
               // Remove flexible_spec entirely if empty after filtering
               if (adSetPayload.targeting.flexible_spec.length === 0) {
                 delete adSetPayload.targeting.flexible_spec;
                 console.log(`  ℹ️ All interests were deprecated - proceeding with broad targeting`);
               } else {
-                console.log(`  ✅ Retrying with ${adSetPayload.targeting.flexible_spec.reduce((acc: number, s: any) => acc + (s.interests?.length || 0), 0)} remaining interests`);
+                console.log(
+                  `  ✅ Retrying with ${adSetPayload.targeting.flexible_spec.reduce((acc: number, s: any) => acc + (s.interests?.length || 0), 0)} remaining interests`,
+                );
               }
-              
+
               // Retry the request
-              const retryResponse = await fetch(
-                `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
-                }
-              );
+              const retryResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adsets`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+              });
               adSetData = await retryResponse.json();
             }
           }
-          
+
           if (adSetData.error) {
             console.error("Meta Ad Set Creation Error:", {
               error: adSetData.error,
@@ -2681,10 +2941,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               market: market.name,
               phase: phase.name,
               error: adSetData.error.message || JSON.stringify(adSetData.error),
-              type: 'adset_creation',
+              type: "adset_creation",
               campaignId: campaignData.id,
               apiResponse: adSetData.error,
-              fieldPath: 'step3'
+              fieldPath: "step3",
             });
             continue; // Continue to next ad set
           }
@@ -2694,10 +2954,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // ============= CREATE ADS FROM ASSIGNED CREATIVES =============
           // Query creative_assignments for this campaign/platform/market/phase
           console.log(`🎨 Checking for assigned creatives for ${market.name}/${phase.name}...`);
-          
+
           const { data: assignments, error: assignmentError } = await supabase
-            .from('creative_assignments')
-            .select(`
+            .from("creative_assignments")
+            .select(
+              `
               id,
               creative_id,
               position,
@@ -2712,253 +2973,261 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 media_urls,
                 thumbnail_url
               )
-            `)
-            .eq('campaign_id', campaign.id)
-            .eq('platform', 'meta')
-            .eq('market', market.name)
-            .eq('phase_name', phase.name)
-            .order('position');
-          
+            `,
+            )
+            .eq("campaign_id", campaign.id)
+            .eq("platform", "meta")
+            .eq("market", market.name)
+            .eq("phase_name", phase.name)
+            .order("position");
+
           if (assignmentError) {
             console.error(`Error fetching creative assignments:`, assignmentError);
           } else if (assignments && assignments.length > 0) {
             console.log(`📦 Found ${assignments.length} assigned creatives for this ad set`);
-            
+
             // ============= BATCHED CREATIVE PROCESSING =============
             // Process creatives in small batches to avoid memory exhaustion
             const CREATIVE_BATCH_SIZE = 3;
             const CREATIVE_BATCH_DELAY_MS = 1000; // Allow GC between batches
-            
+
             // Filter to only pending assignments to skip already-processed ones
-            const pendingAssignments = assignments.filter((a: any) => 
-              a.status !== 'pushed' && a.status !== 'error'
+            const pendingAssignments = assignments.filter((a: any) => a.status !== "pushed" && a.status !== "error");
+
+            console.log(
+              `📦 Processing ${pendingAssignments.length} pending assignments in batches of ${CREATIVE_BATCH_SIZE}`,
             );
-            
-            console.log(`📦 Processing ${pendingAssignments.length} pending assignments in batches of ${CREATIVE_BATCH_SIZE}`);
-            
+
             for (let batchStart = 0; batchStart < pendingAssignments.length; batchStart += CREATIVE_BATCH_SIZE) {
               const batchEnd = Math.min(batchStart + CREATIVE_BATCH_SIZE, pendingAssignments.length);
               const batch = pendingAssignments.slice(batchStart, batchEnd);
-              
-              console.log(`📦 Processing creative batch ${Math.floor(batchStart / CREATIVE_BATCH_SIZE) + 1}/${Math.ceil(pendingAssignments.length / CREATIVE_BATCH_SIZE)} (${batch.length} items)`);
-              
+
+              console.log(
+                `📦 Processing creative batch ${Math.floor(batchStart / CREATIVE_BATCH_SIZE) + 1}/${Math.ceil(pendingAssignments.length / CREATIVE_BATCH_SIZE)} (${batch.length} items)`,
+              );
+
               // Process each creative in the batch sequentially to manage memory
               for (const assignment of batch) {
-              let creative = assignment.creative as any;
-              if (!creative) {
-                console.warn(`⚠️ Creative not found for assignment ${assignment.id}`);
-                continue;
-              }
-              
-              // ============= CHECK CREATIVE UPLOAD STATUS =============
-              // IMPORTANT: We no longer do inline uploads to avoid memory exhaustion.
-              // Creatives must be pre-uploaded via the 'upload-creative-to-meta' edge function.
-              // If creative is missing Meta asset, mark it for deferred upload and skip.
-              let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
-              
-              if (!hasMetaAsset) {
-                console.log(`⏭️ Creative ${creative.name} missing Meta asset - requires pre-upload via upload-creative-to-meta function`);
-                
-                // Mark assignment as pending upload - user needs to upload creatives first
-                await supabase
-                  .from('creative_assignments')
-                  .update({
-                    status: 'pending_upload',
-                    error_message: 'Creative needs to be uploaded to Meta first. Please use the Upload to Meta feature in Creative Library.',
-                  })
-                  .eq('id', assignment.id);
-                continue;
-              }
-              // ============= END UPLOAD CHECK =============
-              
-              // Final check after upload attempt
-              if (!hasMetaAsset) {
-                const missingFields = [
-                  !creative.platform_image_hash ? 'platform_image_hash' : null,
-                  !creative.platform_video_id ? 'platform_video_id' : null,
-                ].filter(Boolean);
+                let creative = assignment.creative as any;
+                if (!creative) {
+                  console.warn(`⚠️ Creative not found for assignment ${assignment.id}`);
+                  continue;
+                }
 
-                console.warn(`⚠️ Meta creative still missing uploaded asset identifiers after upload attempt`, {
+                // ============= CHECK CREATIVE UPLOAD STATUS =============
+                // IMPORTANT: We no longer do inline uploads to avoid memory exhaustion.
+                // Creatives must be pre-uploaded via the 'upload-creative-to-meta' edge function.
+                // If creative is missing Meta asset, mark it for deferred upload and skip.
+                let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
+
+                if (!hasMetaAsset) {
+                  console.log(
+                    `⏭️ Creative ${creative.name} missing Meta asset - requires pre-upload via upload-creative-to-meta function`,
+                  );
+
+                  // Mark assignment as pending upload - user needs to upload creatives first
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "pending_upload",
+                      error_message:
+                        "Creative needs to be uploaded to Meta first. Please use the Upload to Meta feature in Creative Library.",
+                    })
+                    .eq("id", assignment.id);
+                  continue;
+                }
+                // ============= END UPLOAD CHECK =============
+
+                // Final check after upload attempt
+                if (!hasMetaAsset) {
+                  const missingFields = [
+                    !creative.platform_image_hash ? "platform_image_hash" : null,
+                    !creative.platform_video_id ? "platform_video_id" : null,
+                  ].filter(Boolean);
+
+                  console.warn(`⚠️ Meta creative still missing uploaded asset identifiers after upload attempt`, {
+                    assignmentId: assignment.id,
+                    creativeId: creative.id,
+                    creativeName: creative.name,
+                  });
+
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: `Creative not uploaded to Meta (missing ${missingFields.join(" & ")})`,
+                    })
+                    .eq("id", assignment.id);
+                  continue;
+                }
+
+                // Build ad creative payload
+                const adName = `${creative.name}_${generateTimestampSuffix()}`;
+                const pageId = creative.external_page_id || (market as any).metaPageId || (market as any).defaultPageId;
+
+                if (!pageId) {
+                  console.warn(`⚠️ No Facebook Page ID configured for creative ${creative.name}`);
+                  await supabase
+                    .from("creative_assignments")
+                    .update({ status: "error", error_message: "No Facebook Page ID configured" })
+                    .eq("id", assignment.id);
+                  continue;
+                }
+
+                // First create the ad creative
+                const creativePayload: any = {
+                  name: `Creative_${adName}`,
+                  object_story_spec: {
+                    page_id: pageId,
+                  },
+                };
+
+                // Determine creative type and build appropriate payload
+                const isVideo = creative.media_type === "video" || creative.creative_type === "video";
+
+                if (isVideo && creative.platform_video_id) {
+                  // Video creative
+                  creativePayload.object_story_spec.video_data = {
+                    video_id: creative.platform_video_id,
+                    title: creative.headline || creative.name,
+                    message: creative.primary_text || "",
+                    call_to_action: creative.call_to_action
+                      ? {
+                          type: creative.call_to_action,
+                          value: {
+                            link: creative.destination_url || metaLandingPageUrl || "https://example.com",
+                          },
+                        }
+                      : undefined,
+                  };
+                  if (creative.platform_thumbnail_id) {
+                    creativePayload.object_story_spec.video_data.image_hash = creative.platform_thumbnail_id;
+                  }
+                } else if (creative.platform_image_hash) {
+                  // Image creative
+                  creativePayload.object_story_spec.link_data = {
+                    image_hash: creative.platform_image_hash,
+                    link: creative.destination_url || metaLandingPageUrl || "https://example.com",
+                    message: creative.primary_text || "",
+                    name: creative.headline || "",
+                    description: creative.description || "",
+                    call_to_action: creative.call_to_action
+                      ? {
+                          type: creative.call_to_action,
+                        }
+                      : undefined,
+                  };
+                }
+
+                // Add URL parameters if present
+                if (creative.url_parameters) {
+                  if (creativePayload.object_story_spec.video_data?.call_to_action?.value?.link) {
+                    const url = new URL(creativePayload.object_story_spec.video_data.call_to_action.value.link);
+                    url.search = url.search
+                      ? `${url.search}&${creative.url_parameters}`
+                      : `?${creative.url_parameters}`;
+                    creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
+                  } else if (creativePayload.object_story_spec.link_data?.link) {
+                    const url = new URL(creativePayload.object_story_spec.link_data.link);
+                    url.search = url.search
+                      ? `${url.search}&${creative.url_parameters}`
+                      : `?${creative.url_parameters}`;
+                    creativePayload.object_story_spec.link_data.link = url.toString();
+                  }
+                }
+
+                console.log(`📤 Creating Meta ad creative for ${creative.name}...`, {
                   assignmentId: assignment.id,
                   creativeId: creative.id,
-                  creativeName: creative.name,
+                  isVideo,
+                  hasVideoId: !!creative.platform_video_id,
+                  hasImageHash: !!creative.platform_image_hash,
+                  pageId,
                 });
 
-                await supabase
-                  .from('creative_assignments')
-                  .update({
-                    status: 'error',
-                    error_message: `Creative not uploaded to Meta (missing ${missingFields.join(' & ')})`,
-                  })
-                  .eq('id', assignment.id);
-                continue;
-              }
-              
-              // Build ad creative payload
-              const adName = `${creative.name}_${generateTimestampSuffix()}`;
-              const pageId = creative.external_page_id || (market as any).metaPageId || (market as any).defaultPageId;
-              
-              if (!pageId) {
-                console.warn(`⚠️ No Facebook Page ID configured for creative ${creative.name}`);
-                await supabase
-                  .from('creative_assignments')
-                  .update({ status: 'error', error_message: 'No Facebook Page ID configured' })
-                  .eq('id', assignment.id);
-                continue;
-              }
-              
-              // First create the ad creative
-              const creativePayload: any = {
-                name: `Creative_${adName}`,
-                object_story_spec: {
-                  page_id: pageId,
-                },
-              };
-              
-              // Determine creative type and build appropriate payload
-              const isVideo = creative.media_type === 'video' || creative.creative_type === 'video';
-              
-              if (isVideo && creative.platform_video_id) {
-                // Video creative
-                creativePayload.object_story_spec.video_data = {
-                  video_id: creative.platform_video_id,
-                  title: creative.headline || creative.name,
-                  message: creative.primary_text || '',
-                  call_to_action: creative.call_to_action ? {
-                    type: creative.call_to_action,
-                    value: {
-                      link: creative.destination_url || metaLandingPageUrl || 'https://example.com',
-                    },
-                  } : undefined,
-                };
-                if (creative.platform_thumbnail_id) {
-                  creativePayload.object_story_spec.video_data.image_hash = creative.platform_thumbnail_id;
-                }
-              } else if (creative.platform_image_hash) {
-                // Image creative
-                creativePayload.object_story_spec.link_data = {
-                  image_hash: creative.platform_image_hash,
-                  link: creative.destination_url || metaLandingPageUrl || 'https://example.com',
-                  message: creative.primary_text || '',
-                  name: creative.headline || '',
-                  description: creative.description || '',
-                  call_to_action: creative.call_to_action ? {
-                    type: creative.call_to_action,
-                  } : undefined,
-                };
-              }
-              
-              // Add URL parameters if present
-              if (creative.url_parameters) {
-                if (creativePayload.object_story_spec.video_data?.call_to_action?.value?.link) {
-                  const url = new URL(creativePayload.object_story_spec.video_data.call_to_action.value.link);
-                  url.search = url.search ? `${url.search}&${creative.url_parameters}` : `?${creative.url_parameters}`;
-                  creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
-                } else if (creativePayload.object_story_spec.link_data?.link) {
-                  const url = new URL(creativePayload.object_story_spec.link_data.link);
-                  url.search = url.search ? `${url.search}&${creative.url_parameters}` : `?${creative.url_parameters}`;
-                  creativePayload.object_story_spec.link_data.link = url.toString();
-                }
-              }
-              
-              console.log(`📤 Creating Meta ad creative for ${creative.name}...`, {
-                assignmentId: assignment.id,
-                creativeId: creative.id,
-                isVideo,
-                hasVideoId: !!creative.platform_video_id,
-                hasImageHash: !!creative.platform_image_hash,
-                pageId,
-              });
-              
-              const creativeResponse = await fetch(
-                `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`,
-                {
+                const creativeResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ ...creativePayload, access_token: platform.access_token }),
+                });
+
+                const creativeData = await creativeResponse.json();
+
+                if (creativeData.error) {
+                  console.error(`❌ Failed to create Meta ad creative`, {
+                    assignmentId: assignment.id,
+                    creativeId: creative.id,
+                    creativeName: creative.name,
+                    isVideo,
+                    error: creativeData.error,
+                  });
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: creativeData.error.message || "Failed to create ad creative",
+                    })
+                    .eq("id", assignment.id);
+                  continue;
                 }
-              );
-              
-              const creativeData = await creativeResponse.json();
-              
-              if (creativeData.error) {
-                console.error(`❌ Failed to create Meta ad creative`, {
+                const adPayload = {
+                  name: adName,
+                  adset_id: adSetData.id,
+                  creative: { creative_id: creativeData.id },
+                  status: "PAUSED",
+                };
+
+                console.log(`📤 Creating Meta ad...`, {
                   assignmentId: assignment.id,
                   creativeId: creative.id,
-                  creativeName: creative.name,
-                  isVideo,
-                  error: creativeData.error,
+                  adsetId: adSetData.id,
+                  adCreativeId: creativeData.id,
                 });
-                await supabase
-                  .from('creative_assignments')
-                  .update({ 
-                    status: 'error', 
-                    error_message: creativeData.error.message || 'Failed to create ad creative' 
-                  })
-                  .eq('id', assignment.id);
-                continue;
-              }
-              const adPayload = {
-                name: adName,
-                adset_id: adSetData.id,
-                creative: { creative_id: creativeData.id },
-                status: 'PAUSED',
-              };
-              
-              console.log(`📤 Creating Meta ad...`, {
-                assignmentId: assignment.id,
-                creativeId: creative.id,
-                adsetId: adSetData.id,
-                adCreativeId: creativeData.id,
-              });
-              
-              const adResponse = await fetch(
-                `https://graph.facebook.com/v22.0/${adAccountPath}/ads`,
-                {
+
+                const adResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/ads`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ ...adPayload, access_token: platform.access_token }),
-                }
-              );
-              
-              const adData = await adResponse.json();
-              
-              if (adData.error) {
-                console.error(`❌ Failed to create Meta ad`, {
-                  assignmentId: assignment.id,
-                  creativeId: creative.id,
-                  creativeName: creative.name,
-                  adsetId: adSetData.id,
-                  adCreativeId: creativeData.id,
-                  error: adData.error,
                 });
+
+                const adData = await adResponse.json();
+
+                if (adData.error) {
+                  console.error(`❌ Failed to create Meta ad`, {
+                    assignmentId: assignment.id,
+                    creativeId: creative.id,
+                    creativeName: creative.name,
+                    adsetId: adSetData.id,
+                    adCreativeId: creativeData.id,
+                    error: adData.error,
+                  });
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: adData.error.message || "Failed to create ad",
+                    })
+                    .eq("id", assignment.id);
+                  continue;
+                }
+
+                console.log(`✅ Meta ad created: ${adData.id} for creative ${creative.name}`);
+
+                // Update assignment with success
                 await supabase
-                  .from('creative_assignments')
-                  .update({ 
-                    status: 'error', 
-                    error_message: adData.error.message || 'Failed to create ad' 
+                  .from("creative_assignments")
+                  .update({
+                    status: "pushed",
+                    dsp_creative_id: adData.id,
+                    error_message: null,
                   })
-                  .eq('id', assignment.id);
-                continue;
-              }
-              
-              console.log(`✅ Meta ad created: ${adData.id} for creative ${creative.name}`);
-              
-              // Update assignment with success
-              await supabase
-                .from('creative_assignments')
-                .update({ 
-                  status: 'pushed',
-                  dsp_creative_id: adData.id,
-                  error_message: null,
-                })
-                .eq('id', assignment.id);
+                  .eq("id", assignment.id);
               } // End of assignment loop within batch
-              
+
               // Delay between batches to allow garbage collection
               if (batchEnd < pendingAssignments.length) {
                 console.log(`⏳ Waiting ${CREATIVE_BATCH_DELAY_MS}ms before next batch...`);
-                await new Promise(resolve => setTimeout(resolve, CREATIVE_BATCH_DELAY_MS));
+                await new Promise((resolve) => setTimeout(resolve, CREATIVE_BATCH_DELAY_MS));
               }
             } // End of batch loop
           } else {
@@ -2975,21 +3244,22 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             adSetName: adSetPayload.name,
             budget: adSetConfig.adSetBudget,
             budgetType: budgetType,
-            splitDimension: adSetSplitDimension !== 'none' ? adSetSplitDimension : undefined,
-            adsCreated: assignments?.filter((a: any) => a.creative?.platform_image_hash || a.creative?.platform_video_id).length || 0,
+            splitDimension: adSetSplitDimension !== "none" ? adSetSplitDimension : undefined,
+            adsCreated:
+              assignments?.filter((a: any) => a.creative?.platform_image_hash || a.creative?.platform_video_id)
+                .length || 0,
           });
         }
         // ============= END AD SET SPLIT SUPPORT =============
-        
       } catch (error: any) {
         console.error(`Error processing market ${market.name}, phase ${phase.name}:`, error);
         errors.push({
           market: market.name,
           phase: phase.name,
-          error: error.message || 'Unexpected error during Meta campaign creation',
-          type: 'processing_error',
+          error: error.message || "Unexpected error during Meta campaign creation",
+          type: "processing_error",
           apiResponse: error.stack || error.toString(),
-          fieldPath: 'step3'
+          fieldPath: "step3",
         });
       }
     }
@@ -3000,10 +3270,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
 async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to Google Ads...");
-  
+
   // Google Ads API implementation would go here
   // This is a placeholder for the actual implementation
-  
+
   return {
     platform: "Google Ads",
     status: "Not implemented yet",
@@ -3013,92 +3283,96 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 // TikTok campaign publishing
 async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to TikTok...");
-  
+
   // Check for conversion campaigns and log automatic fallback warning
   const marketsObj = platformConfig.markets || {};
   const hasConversionCampaigns = Object.values(marketsObj).some((market: any) =>
     market.phases?.some((phase: any) => {
-      const objective = (phase.objective || '').toLowerCase();
-      const optimizationGoal = (phase.optimizationGoal || '').toLowerCase();
-      return objective.includes('conversion') || optimizationGoal.includes('convert');
-    })
+      const objective = (phase.objective || "").toLowerCase();
+      const optimizationGoal = (phase.optimizationGoal || "").toLowerCase();
+      return objective.includes("conversion") || optimizationGoal.includes("convert");
+    }),
   );
-  
+
   if (hasConversionCampaigns) {
     console.warn("⚠️⚠️⚠️ TIKTOK CONVERSION CAMPAIGN DETECTED ⚠️⚠️⚠️");
     console.warn("TikTok requires conversion events to have 90+ days of historical data");
     console.warn("System will AUTOMATICALLY fallback to TRAFFIC objective with CLICK optimization");
     console.warn("This ensures ad groups can be created successfully without pixel data requirements");
   }
-  
+
   const results = [];
   const errors = [];
-  
+
   // Import adapters
   const { ObjectiveMapper } = await import("../_shared/objective-mapper.ts");
   const { getPlatformAdapter } = await import("../_shared/platform-adapter.ts");
-  
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
-  
+
   const mapper = new ObjectiveMapper(supabaseUrl, supabaseKey);
   const tiktokAdapter = getPlatformAdapter("tiktok");
-  
+
   for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
     // Get TikTok advertiser ID from market config
     const advertiserId = market.adAccountId || platform.metadata?.advertiser_ids?.[0];
-    
+
     if (!advertiserId) {
       errors.push({
         market: market.name,
         error: "Missing TikTok advertiser ID",
-        type: 'validation_error'
+        type: "validation_error",
       });
       continue;
     }
-    
-    const phases = market.phases || [{
-      id: 'default-phase',
-      name: market.name,
-      startDate: campaign.start_date,
-      endDate: campaign.end_date,
-      budgetPercentage: 100,
-      objective: market.objective || campaign.objective || "TRAFFIC"
-    }];
-    
+
+    const phases = market.phases || [
+      {
+        id: "default-phase",
+        name: market.name,
+        startDate: campaign.start_date,
+        endDate: campaign.end_date,
+        budgetPercentage: 100,
+        objective: market.objective || campaign.objective || "TRAFFIC",
+      },
+    ];
+
     for (const phase of phases) {
       try {
         // Map Meta objective to TikTok objective
         const objectiveMapping = await mapper.mapObjective(
           phase.objective || market.objective || campaign.objective,
           "meta",
-          "tiktok"
+          "tiktok",
         );
-        
+
         console.log(`Mapped objective: ${objectiveMapping.sourceObjective} -> ${objectiveMapping.targetObjective}`);
-        
+
         // Calculate budget
         const totalCampaignBudget = campaign.total_budget || 0;
         const platformBudgetPercentage = platformConfig.budgetPercentage || 100;
         const marketBudgetPercentage = market.budgetPercentage || 100;
         const phaseBudgetPercentage = phase.budgetPercentage || 100;
-        
-        const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * 
-                           (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
-        
+
+        const phaseBudget =
+          ((totalCampaignBudget * platformBudgetPercentage) / 100) *
+          (marketBudgetPercentage / 100) *
+          (phaseBudgetPercentage / 100);
+
         // Calculate duration
         const startDate = new Date(phase.startDate || campaign.start_date);
         const endDate = new Date(phase.endDate || campaign.end_date);
         const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        
-        const budgetType = phase.budgetType || 'lifetime';
-        const campaignBudget = budgetType === 'daily' ? phaseBudget / durationDays : phaseBudget;
-        
+
+        const budgetType = phase.budgetType || "lifetime";
+        const campaignBudget = budgetType === "daily" ? phaseBudget / durationDays : phaseBudget;
+
         // Build context for TikTok campaign taxonomy
         const genericConfig = campaign.generic_config || {};
         const tiktokCampaignTaxonomyContext: TaxonomyContext = {
-          platform: 'tiktok',
+          platform: "tiktok",
           activationName: campaign.name,
           boNumber: campaign.bo_number,
           teamName: genericConfig.teamName,
@@ -3108,23 +3382,25 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           country: market.name?.substring(0, 2)?.toUpperCase(),
           objective: objectiveMapping.targetObjective,
           funnelStage: phase.funnelStage,
-          placementType: phase.tiktokPlacementType || 'automatic',
+          placementType: phase.tiktokPlacementType || "automatic",
           startDate: phase.startDate || campaign.start_date,
           endDate: phase.endDate || campaign.end_date,
         };
-        
-        const tiktokCampaignTaxonomyName = advertiserId ? await generateTaxonomyName(
-          supabase,
-          campaign.user_id,
-          advertiserId,
-          'tiktok',
-          'campaign',
-          tiktokCampaignTaxonomyContext,
-          phase.campaignTaxonomyValues
-        ) : null;
-        
-        const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}_${generateTimestampSuffix()}`;
-        
+
+        const tiktokCampaignTaxonomyName = advertiserId
+          ? await generateTaxonomyName(
+              supabase,
+              campaign.user_id,
+              advertiserId,
+              "tiktok",
+              "campaign",
+              tiktokCampaignTaxonomyContext,
+              phase.campaignTaxonomyValues,
+            )
+          : null;
+
+        const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}_${generateTimestampSuffix()}`;
+
         // Create TikTok campaign
         const campaignResult = await tiktokAdapter.createCampaign({
           accountId: advertiserId,
@@ -3133,29 +3409,27 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           objective: objectiveMapping.targetObjective,
           budget: campaignBudget,
           budgetMode: budgetType,
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0],
+          startDate: startDate.toISOString().split("T")[0],
+          endDate: endDate.toISOString().split("T")[0],
           status: "PAUSED",
         });
-        
+
         if (!campaignResult.success) {
           const errData = (campaignResult as any).error;
-          const errorMsg = typeof errData === 'string' 
-            ? errData 
-            : (errData?.message || JSON.stringify(errData));
+          const errorMsg = typeof errData === "string" ? errData : errData?.message || JSON.stringify(errData);
           errors.push({
             market: market.name,
             phase: phase.name,
             error: errorMsg,
-            type: 'campaign_creation',
+            type: "campaign_creation",
             apiResponse: errData,
-            fieldPath: 'step3'
+            fieldPath: "step3",
           });
           continue;
         }
-        
+
         console.log("TikTok campaign created:", campaignResult.campaignId);
-        
+
         // Store campaign in database
         await supabase.from("tiktok_campaigns").insert({
           user_id: campaign.user_id,
@@ -3168,77 +3442,86 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           budget: campaignBudget,
           status: "PAUSED",
         });
-        
+
         // Get placement settings from phase, market, or use defaults
         const placementType = phase.tiktokPlacementType || market.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC";
         let tiktokPlacements: string[];
-        
+
         if (placementType === "PLACEMENT_TYPE_NORMAL") {
           // Use manual placements from phase or market
           const configuredPlacements = phase.tiktokPlacements || market.tiktokPlacements;
-          tiktokPlacements = Array.isArray(configuredPlacements) && configuredPlacements.length > 0 
-            ? configuredPlacements 
-            : ["PLACEMENT_TIKTOK"];
-          console.log(`📍 Using MANUAL placements: ${tiktokPlacements.join(', ')}`);
+          tiktokPlacements =
+            Array.isArray(configuredPlacements) && configuredPlacements.length > 0
+              ? configuredPlacements
+              : ["PLACEMENT_TIKTOK"];
+          console.log(`📍 Using MANUAL placements: ${tiktokPlacements.join(", ")}`);
         } else {
           // Automatic placement - TikTok will optimize
           tiktokPlacements = ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
           console.log(`📍 Using AUTOMATIC placements (all positions enabled)`);
         }
-        
+
         console.log(`📍 Placement type: ${placementType}, Placements: ${JSON.stringify(tiktokPlacements)}`);
-        
+
         // Build targeting
         const basicTargeting = campaign.generic_config?.basicTargeting || {};
         const phaseBasicTargeting = phase.targeting || {};
         const effectiveTargeting = Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
-        
+
         console.log("📊 RAW Effective targeting for TikTok ad group:", JSON.stringify(effectiveTargeting, null, 2));
-        
+
         // Transform unified targeting format into platform-specific arrays
         let tiktokInterests: any[] = [];
         let tiktokBehaviors: any[] = [];
         let tiktokDemographics: any[] = [];
-        
+
         // If using unified targeting (selectedItems array from UnifiedTargeting component)
         if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
           console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for TikTok`);
           console.log(`📝 All items:`, JSON.stringify(effectiveTargeting.selectedItems, null, 2));
-          
+
           effectiveTargeting.selectedItems.forEach((item: any, index: number) => {
-            console.log(`📝 Item ${index}: platforms=${JSON.stringify(item.platforms)}, category='${item.category}', name='${item.name}'`);
-            
+            console.log(
+              `📝 Item ${index}: platforms=${JSON.stringify(item.platforms)}, category='${item.category}', name='${item.name}'`,
+            );
+
             // Only process items available on TikTok
-            if (item.platforms && item.platforms.includes('tiktok')) {
+            if (item.platforms && item.platforms.includes("tiktok")) {
               // Extract the correct TikTok ID - handle different ID formats
               let tiktokIdValue = item.tiktokId || item.id;
               // Remove prefix if present (e.g., "tiktok-123" -> "123")
-              if (typeof tiktokIdValue === 'string' && tiktokIdValue.startsWith('tiktok-')) {
+              if (typeof tiktokIdValue === "string" && tiktokIdValue.startsWith("tiktok-")) {
                 tiktokIdValue = tiktokIdValue.substring(7);
               }
-              if (typeof tiktokIdValue === 'string' && tiktokIdValue.startsWith('unified-')) {
+              if (typeof tiktokIdValue === "string" && tiktokIdValue.startsWith("unified-")) {
                 tiktokIdValue = item.tiktokId; // For unified items, use tiktokId directly
               }
-              
+
               const tiktokItem = {
                 id: tiktokIdValue,
                 name: item.name,
-                category: item.category
+                category: item.category,
               };
-              
+
               // Categorize by type (case-insensitive) - be more inclusive
-              const categoryLower = (item.category || '').toLowerCase();
-              if (categoryLower === 'interest' || categoryLower === 'interests') {
+              const categoryLower = (item.category || "").toLowerCase();
+              if (categoryLower === "interest" || categoryLower === "interests") {
                 tiktokInterests.push(tiktokItem);
                 console.log(`  ✓ Interest: ${item.name} (${tiktokItem.id})`);
-              } else if (categoryLower === 'behavior' || categoryLower === 'behaviors' || 
-                         categoryLower === 'action' || categoryLower === 'actions' ||
-                         categoryLower === 'purchase_intention' || categoryLower === 'video_interaction' ||
-                         categoryLower === 'creator_interaction' || categoryLower === 'hashtag_interaction') {
+              } else if (
+                categoryLower === "behavior" ||
+                categoryLower === "behaviors" ||
+                categoryLower === "action" ||
+                categoryLower === "actions" ||
+                categoryLower === "purchase_intention" ||
+                categoryLower === "video_interaction" ||
+                categoryLower === "creator_interaction" ||
+                categoryLower === "hashtag_interaction"
+              ) {
                 // All action-based categories map to behaviors
                 tiktokBehaviors.push(tiktokItem);
                 console.log(`  ✓ Behavior/Action: ${item.name} (${tiktokItem.id}) [category: ${item.category}]`);
-              } else if (categoryLower === 'demographic' || categoryLower === 'demographics') {
+              } else if (categoryLower === "demographic" || categoryLower === "demographics") {
                 tiktokDemographics.push(tiktokItem);
                 console.log(`  ✓ Demographic: ${item.name} (${tiktokItem.id})`);
               } else {
@@ -3250,8 +3533,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
               console.log(`  ⏭️ Skipping item (not TikTok): ${item.name}`);
             }
           });
-          
-          console.log(`📊 Transformed targeting - Interests: ${tiktokInterests.length}, Behaviors: ${tiktokBehaviors.length}, Demographics: ${tiktokDemographics.length}`);
+
+          console.log(
+            `📊 Transformed targeting - Interests: ${tiktokInterests.length}, Behaviors: ${tiktokBehaviors.length}, Demographics: ${tiktokDemographics.length}`,
+          );
         } else {
           // Fallback to legacy format (direct arrays)
           tiktokInterests = effectiveTargeting.tiktokInterests || [];
@@ -3259,20 +3544,21 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           tiktokDemographics = effectiveTargeting.tiktokDemographics || [];
           console.log("📊 Using legacy targeting format (direct arrays)");
         }
-        
+
         // Map field names properly - handle both camelCase and snake_case from different sources
         // CRITICAL: Use market.countries if available, otherwise derive from market.name
         // market.name is an ISO 2-letter country code (e.g., "FR", "GB", "DE")
-        const marketCountries = Array.isArray(market.countries) && market.countries.length > 0 
-          ? market.countries 
-          : [market.name]; // market.name is already the ISO code
-        
+        const marketCountries =
+          Array.isArray(market.countries) && market.countries.length > 0 ? market.countries : [market.name]; // market.name is already the ISO code
+
         // Log the countries resolution for debugging
-        console.log(`🌍 Market ${market.name}: countries=${JSON.stringify(marketCountries)} (source: ${Array.isArray(market.countries) && market.countries.length > 0 ? 'market.countries' : 'market.name'})`);
-        
+        console.log(
+          `🌍 Market ${market.name}: countries=${JSON.stringify(marketCountries)} (source: ${Array.isArray(market.countries) && market.countries.length > 0 ? "market.countries" : "market.name"})`,
+        );
+
         const targeting: any = {
           geo_locations: {
-            countries: marketCountries
+            countries: marketCountries,
           },
           age_min: effectiveTargeting.ageMin || effectiveTargeting.age_min || effectiveTargeting.minAge || 18,
           age_max: effectiveTargeting.ageMax || effectiveTargeting.age_max || effectiveTargeting.maxAge || 65,
@@ -3285,25 +3571,25 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           tiktokBehaviors: tiktokBehaviors,
           tiktokDemographics: tiktokDemographics,
         };
-        
+
         console.log("📊 RAW effectiveTargeting keys:", Object.keys(effectiveTargeting));
         console.log("📊 Constructed targeting with all fields:", JSON.stringify(targeting, null, 2));
-        
+
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
         // IMPORTANT: Use the ACTUAL objective from campaign creation result, not the mapped objective
         // because the adapter may apply fallbacks (e.g., CONVERSIONS → TRAFFIC)
         let tiktokOptGoal: string;
         const originalMappedObjective = objectiveMapping.targetObjective;
-        
+
         // Check if campaign creation applied an objective fallback
         const actualObjective = campaignResult.metadata?.actual_objective || originalMappedObjective;
         const objectiveFallbackApplied = campaignResult.metadata?.objective_fallback_applied || false;
-        
+
         if (objectiveFallbackApplied) {
           console.warn(`⚠️ Objective fallback was applied: ${originalMappedObjective} → ${actualObjective}`);
         }
-        
+
         // Use the ACTUAL objective for optimization goal mapping
         if (actualObjective === "CONVERSIONS") {
           // CONVERSIONS objective always uses CONVERT optimization goal
@@ -3335,43 +3621,47 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           // Default fallback
           tiktokOptGoal = "CLICK";
         }
-        
-        console.log(`Mapped optimization goal for objective ${actualObjective}: ${tiktokOptGoal} (original mapped: ${originalMappedObjective}, phase optimization goal: ${phase.optimizationGoal})`);
+
+        console.log(
+          `Mapped optimization goal for objective ${actualObjective}: ${tiktokOptGoal} (original mapped: ${originalMappedObjective}, phase optimization goal: ${phase.optimizationGoal})`,
+        );
 
         // Map billing event based on objective + optimization goal combination
         // TikTok has strict billing event requirements per objective
         // NOTE: TRAFFIC objective with CLICK optimization requires CPC (confirmed via API error "Only CPC is supported")
         const billingEventMap: Record<string, Record<string, string>> = {
-          "TRAFFIC": {
-            "CLICK": "CPC",  // CLICK supports CPC (API confirmed)
-            "TRAFFIC_LANDING_PAGE_VIEW": "OCPM", // Landing page view often requires OCPM (API confirmed)
-            "LANDING_PAGE": "OCPM",
+          TRAFFIC: {
+            CLICK: "CPC", // CLICK supports CPC (API confirmed)
+            TRAFFIC_LANDING_PAGE_VIEW: "OCPM", // Landing page view often requires OCPM (API confirmed)
+            LANDING_PAGE: "OCPM",
           },
-          "CONVERSIONS": {
-            "CONVERT": "OCPM",
+          CONVERSIONS: {
+            CONVERT: "OCPM",
           },
-          "REACH": {
-            "REACH": "CPM",  // REACH is an exception that still supports CPM
+          REACH: {
+            REACH: "CPM", // REACH is an exception that still supports CPM
           },
-          "VIDEO_VIEW": {
-            "VIDEO_VIEW": "OCPM",  // VIDEO_VIEW now uses OCPM
-            "FOCUSED_VIEW": "OCPM",
+          VIDEO_VIEW: {
+            VIDEO_VIEW: "OCPM", // VIDEO_VIEW now uses OCPM
+            FOCUSED_VIEW: "OCPM",
           },
-          "APP_INSTALL": {
-            "INSTALL": "OCPM",
+          APP_INSTALL: {
+            INSTALL: "OCPM",
           },
-          "LEAD_GENERATION": {
-            "FORM_SUBMIT": "OCPM",
+          LEAD_GENERATION: {
+            FORM_SUBMIT: "OCPM",
           },
         };
-        
+
         // Determine billing event based on objective and optimization goal
-        console.log(`DEBUG: Looking up billing event for objective: ${actualObjective}, optimization goal: ${tiktokOptGoal}`);
+        console.log(
+          `DEBUG: Looking up billing event for objective: ${actualObjective}, optimization goal: ${tiktokOptGoal}`,
+        );
         console.log(`DEBUG: Available objectives in billingEventMap:`, Object.keys(billingEventMap));
-        
+
         let billingEvent = billingEventMap[actualObjective]?.[tiktokOptGoal];
         console.log(`DEBUG: Billing event from map: ${billingEvent}`);
-        
+
         // If no specific mapping, fetch from account defaults
         if (!billingEvent) {
           console.log(`DEBUG: No billing event mapping found, fetching from account defaults`);
@@ -3381,25 +3671,32 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             .eq("advertiser_id", advertiserId)
             .eq("user_id", campaign.user_id)
             .single();
-          
+
           billingEvent = tiktokAccount?.default_billing_event || "OCPM";
           console.log(`DEBUG: Billing event from account defaults: ${billingEvent}`);
         }
-        
-        console.log(`Using billing event: ${billingEvent} for objective ${actualObjective}, optimization goal ${tiktokOptGoal}`);
-        
+
+        console.log(
+          `Using billing event: ${billingEvent} for objective ${actualObjective}, optimization goal ${tiktokOptGoal}`,
+        );
+
         // Get pixel ID for conversion campaigns
         // Note: Check both actual and original objective - user may want conversion tracking even with fallback
         let pixelId: string | undefined;
-        if (tiktokOptGoal === 'CONVERT' || actualObjective === 'CONVERSIONS' || originalMappedObjective === 'CONVERSIONS') {
+        if (
+          tiktokOptGoal === "CONVERT" ||
+          actualObjective === "CONVERSIONS" ||
+          originalMappedObjective === "CONVERSIONS"
+        ) {
           pixelId = market.tiktokPixel || market.pixelId || market.tiktokPixelId;
           console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
         }
-        
+
         // Get landing page URL from market defaults or use placeholder
-        const landingPageUrl = market.tiktokLandingPageUrl || market.websiteUrl || campaign.website_url || "https://example.com";
+        const landingPageUrl =
+          market.tiktokLandingPageUrl || market.websiteUrl || campaign.website_url || "https://example.com";
         console.log(`Using landing page URL: ${landingPageUrl}`);
-        
+
         // Get bid amount from market defaults or phase overrides
         const bidAmount = phase.tiktokBidAmount || market.tiktokBidAmount || undefined;
         if (bidAmount) {
@@ -3407,103 +3704,113 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         } else {
           console.warn(`⚠️ No bid amount configured - TikTok may require bid amount for CPC/CPM billing events`);
         }
-        
+
         // Get optimization location
         // Default to Website unless LEAD_GENERATION (defaults to Instant Form)
         let optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
         if (!optimizationLocation) {
-          optimizationLocation = actualObjective === 'LEAD_GENERATION' ? 'Instant Form' : 'Website';
+          optimizationLocation = actualObjective === "LEAD_GENERATION" ? "Instant Form" : "Website";
         }
         // Get app details for app campaigns
         const appName = phase.tiktokAppName || market.tiktokAppName;
         const appId = phase.tiktokAppId || market.tiktokAppId;
-        
+
         // Get attribution windows
         const clickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
         const viewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
-        
+
         // Get frequency settings (required for REACH campaigns)
         const frequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
         console.log(`📊 Frequency schedule for ${phase.name}: ${frequencySchedule}`);
-        
-        // Get feature toggles
-        const eventCountEnabled = phase.tiktokEventCountEnabled !== undefined ? phase.tiktokEventCountEnabled : market.tiktokEventCountEnabled;
-        const smartPlusEnabled = phase.tiktokSmartPlusEnabled !== undefined ? phase.tiktokSmartPlusEnabled : market.tiktokSmartPlusEnabled;
-        const searchEnabled = phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : market.tiktokSearchEnabled;
-        
-        // Create ad group
-          // Retrieve TikTok-specific parameters from phase or market defaults
-          const tiktokOptimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
-          const tiktokAppName = phase.tiktokAppName || market.tiktokAppName;
-          const tiktokAppId = phase.tiktokAppId || market.tiktokAppId;
-          const tiktokBidStrategy = phase.tiktokBidStrategy || market.tiktokBidStrategy;
-          const tiktokBidAmount = phase.tiktokBidAmount || market.tiktokBidAmount;
-          const tiktokClickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
-          const tiktokViewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
-          const tiktokFrequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
-          const tiktokEventCount = phase.tiktokEventCount || market.tiktokEventCount;
-          const tiktokSmartPlusEnabled = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled;
 
-          console.log(`📋 TikTok phase config for ${phase.name}:`, {
-            raw_phase_frequencySchedule: phase.tiktokFrequencySchedule,
-            raw_market_frequencySchedule: market.tiktokFrequencySchedule,
-            resolved_frequencySchedule: tiktokFrequencySchedule,
-            optimizationLocation: tiktokOptimizationLocation,
-            appName: tiktokAppName,
-            appId: tiktokAppId,
-            bidStrategy: tiktokBidStrategy,
-            bidAmount: tiktokBidAmount,
-            clickWindow: tiktokClickWindow,
-            viewWindow: tiktokViewWindow,
-            eventCount: tiktokEventCount,
-            smartPlusEnabled: tiktokSmartPlusEnabled,
-          });
+        // Get feature toggles
+        const eventCountEnabled =
+          phase.tiktokEventCountEnabled !== undefined ? phase.tiktokEventCountEnabled : market.tiktokEventCountEnabled;
+        const smartPlusEnabled =
+          phase.tiktokSmartPlusEnabled !== undefined ? phase.tiktokSmartPlusEnabled : market.tiktokSmartPlusEnabled;
+        const searchEnabled =
+          phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : market.tiktokSearchEnabled;
+
+        // Create ad group
+        // Retrieve TikTok-specific parameters from phase or market defaults
+        const tiktokOptimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
+        const tiktokAppName = phase.tiktokAppName || market.tiktokAppName;
+        const tiktokAppId = phase.tiktokAppId || market.tiktokAppId;
+        const tiktokBidStrategy = phase.tiktokBidStrategy || market.tiktokBidStrategy;
+        const tiktokBidAmount = phase.tiktokBidAmount || market.tiktokBidAmount;
+        const tiktokClickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
+        const tiktokViewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
+        const tiktokFrequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
+        const tiktokEventCount = phase.tiktokEventCount || market.tiktokEventCount;
+        const tiktokSmartPlusEnabled = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled;
+
+        console.log(`📋 TikTok phase config for ${phase.name}:`, {
+          raw_phase_frequencySchedule: phase.tiktokFrequencySchedule,
+          raw_market_frequencySchedule: market.tiktokFrequencySchedule,
+          resolved_frequencySchedule: tiktokFrequencySchedule,
+          optimizationLocation: tiktokOptimizationLocation,
+          appName: tiktokAppName,
+          appId: tiktokAppId,
+          bidStrategy: tiktokBidStrategy,
+          bidAmount: tiktokBidAmount,
+          clickWindow: tiktokClickWindow,
+          viewWindow: tiktokViewWindow,
+          eventCount: tiktokEventCount,
+          smartPlusEnabled: tiktokSmartPlusEnabled,
+        });
 
         console.log(`🚀 CALLING tiktokAdapter.createAdGroup for ${phase.name}...`);
         console.log(`📍 campaignId: ${campaignResult.campaignId}, advertiserId: ${advertiserId}`);
-        
+
         // ============= AD SET SPLITS FOR TIKTOK =============
         // Determine if we have ad set splits defined
-        const tiktokAdSets: AdSetConfig[] = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
-          ? phase.adSets
-          : [{ id: 'default', name: phase.name, dimensionValue: '', budgetPercentage: 100 }];
-        
+        const tiktokAdSets: AdSetConfig[] =
+          phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
+            ? phase.adSets
+            : [{ id: "default", name: phase.name, dimensionValue: "", budgetPercentage: 100 }];
+
         const tiktokSplitDimension = phase.adSetSplitDimension || null;
-        const isTiktokCBO = budgetType === 'BUDGET_MODE_DAY' || budgetType === 'BUDGET_MODE_TOTAL';
-        
-        console.log(`📊 TikTok Ad Group Splits: ${tiktokAdSets.length} ad groups, dimension: ${tiktokSplitDimension || 'none'}, CBO: ${isTiktokCBO}`);
-        
+        const isTiktokCBO = budgetType === "BUDGET_MODE_DAY" || budgetType === "BUDGET_MODE_TOTAL";
+
+        console.log(
+          `📊 TikTok Ad Group Splits: ${tiktokAdSets.length} ad groups, dimension: ${tiktokSplitDimension || "none"}, CBO: ${isTiktokCBO}`,
+        );
+
         for (const tiktokAdSet of tiktokAdSets) {
           // Calculate budget for this ad group
           let adGroupBudget = campaignBudget;
           if (!isTiktokCBO && tiktokAdSet.budgetPercentage && tiktokAdSet.budgetPercentage < 100) {
             adGroupBudget = Math.round(campaignBudget * (tiktokAdSet.budgetPercentage / 100) * 100) / 100;
           }
-          console.log(`📊 TikTok Ad Group "${tiktokAdSet.name}" budget: €${adGroupBudget} (${tiktokAdSet.budgetPercentage}% of phase budget, CBO: ${isTiktokCBO})`);
-          
+          console.log(
+            `📊 TikTok Ad Group "${tiktokAdSet.name}" budget: €${adGroupBudget} (${tiktokAdSet.budgetPercentage}% of phase budget, CBO: ${isTiktokCBO})`,
+          );
+
           // Build targeting with split overrides
           let adGroupTargeting = { ...targeting };
-          
+
           // Apply dimension-specific overrides for TikTok
-          if (tiktokSplitDimension && tiktokAdSet.id !== 'default') {
+          if (tiktokSplitDimension && tiktokAdSet.id !== "default") {
             adGroupTargeting = applyTikTokAdSetOverrides(adGroupTargeting, tiktokAdSet, tiktokSplitDimension);
           }
-          
+
           // Get placement overrides for this ad set
           let adGroupPlacements = tiktokPlacements;
           let adGroupPlacementType = placementType;
-          if (tiktokSplitDimension === 'placement' || tiktokSplitDimension === 'publisherPlatforms') {
+          if (tiktokSplitDimension === "placement" || tiktokSplitDimension === "publisherPlatforms") {
             const placementOverrides = getTikTokPlacementOverrides(tiktokAdSet);
             if (placementOverrides.placements) {
               adGroupPlacements = placementOverrides.placements;
-              adGroupPlacementType = placementOverrides.placementType || 'PLACEMENT_TYPE_NORMAL';
-              console.log(`📍 TikTok Ad Group "${tiktokAdSet.name}" using custom placements: ${adGroupPlacements.join(', ')}`);
+              adGroupPlacementType = placementOverrides.placementType || "PLACEMENT_TYPE_NORMAL";
+              console.log(
+                `📍 TikTok Ad Group "${tiktokAdSet.name}" using custom placements: ${adGroupPlacements.join(", ")}`,
+              );
             }
           }
-        
+
           // Build context for TikTok ad group taxonomy
           const tiktokAdgroupTaxonomyContext: TaxonomyContext = {
-            platform: 'tiktok',
+            platform: "tiktok",
             objective: objectiveMapping.targetObjective,
             optimizationGoal: tiktokOptGoal,
             phaseBudget: adGroupBudget,
@@ -3514,24 +3821,26 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             location: market.name,
             devices: adGroupTargeting.devices,
             placementType: adGroupPlacementType,
-            targetingType: effectiveTargeting.targetingExpansion ? 'expand' : 'native',
+            targetingType: effectiveTargeting.targetingExpansion ? "expand" : "native",
             startDate: phase.startDate || campaign.start_date,
             endDate: phase.endDate || campaign.end_date,
           };
-          
-          const tiktokAdgroupTaxonomyName = advertiserId ? await generateTaxonomyName(
-            supabase,
-            campaign.user_id,
-            advertiserId,
-            'tiktok',
-            'adset',
-            tiktokAdgroupTaxonomyContext,
-            phase.adsetTaxonomyValues
-          ) : null;
-          
-          const adGroupSuffix = tiktokAdSet.id !== 'default' ? ` - ${tiktokAdSet.name}` : '';
+
+          const tiktokAdgroupTaxonomyName = advertiserId
+            ? await generateTaxonomyName(
+                supabase,
+                campaign.user_id,
+                advertiserId,
+                "tiktok",
+                "adset",
+                tiktokAdgroupTaxonomyContext,
+                phase.adsetTaxonomyValues,
+              )
+            : null;
+
+          const adGroupSuffix = tiktokAdSet.id !== "default" ? ` - ${tiktokAdSet.name}` : "";
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
-          
+
           const adGroupResult = await tiktokAdapter.createAdGroup({
             accountId: advertiserId,
             accessToken: platform.access_token,
@@ -3563,23 +3872,21 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
           if (!adGroupResult.success) {
             const errData = (adGroupResult as any).error;
-            const errorMsg = typeof errData === 'string' 
-              ? errData 
-              : (errData?.message || JSON.stringify(errData));
+            const errorMsg = typeof errData === "string" ? errData : errData?.message || JSON.stringify(errData);
             errors.push({
               market: market.name,
               phase: phase.name,
               adSet: tiktokAdSet.name,
               error: errorMsg,
-              type: 'adgroup_creation',
+              type: "adgroup_creation",
               apiResponse: errData,
-              fieldPath: 'step3'
+              fieldPath: "step3",
             });
             continue;
           }
-          
+
           console.log(`✅ TikTok ad group created: ${adGroupResult.adGroupId} (${tiktokAdSet.name})`);
-          
+
           // Store ad group in database
           await supabase.from("tiktok_ad_groups").insert({
             user_id: campaign.user_id,
@@ -3595,13 +3902,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             optimization_goal: tiktokOptGoal,
             status: "PAUSED",
           });
-          
+
           // ============= CREATE ADS FROM ASSIGNED CREATIVES (TikTok) =============
           console.log(`🎨 Checking for assigned creatives for TikTok ${market.name}/${phase.name}...`);
-          
+
           const { data: tiktokAssignments, error: tiktokAssignmentError } = await supabase
-            .from('creative_assignments')
-            .select(`
+            .from("creative_assignments")
+            .select(
+              `
               id,
               creative_id,
               position,
@@ -3614,76 +3922,82 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
                 tiktok_identity_id, tiktok_display_name, tiktok_ad_format,
                 dsp_upload_status, brand_name, app_link
               )
-            `)
-            .eq('campaign_id', campaign.id)
-            .eq('platform', 'tiktok')
-            .eq('market', market.name)
-            .eq('phase_name', phase.name)
-            .order('position');
-          
+            `,
+            )
+            .eq("campaign_id", campaign.id)
+            .eq("platform", "tiktok")
+            .eq("market", market.name)
+            .eq("phase_name", phase.name)
+            .order("position");
+
           let adsCreated = 0;
-          
+
           if (tiktokAssignmentError) {
             console.error(`Error fetching TikTok creative assignments:`, tiktokAssignmentError);
           } else if (tiktokAssignments && tiktokAssignments.length > 0) {
             console.log(`📦 Found ${tiktokAssignments.length} assigned creatives for this TikTok ad group`);
-            
+
             for (const assignment of tiktokAssignments) {
               const creative = assignment.creative as any;
               if (!creative) {
                 console.warn(`⚠️ Creative not found for assignment ${assignment.id}`);
                 continue;
               }
-              
+
               // Check if creative has been uploaded to TikTok
               const hasTikTokAsset = creative.platform_video_id || creative.platform_image_hash;
               if (!hasTikTokAsset) {
-                console.log(`⏭️ TikTok creative ${creative.name} missing platform asset - requires upload before ad creation`);
-                
+                console.log(
+                  `⏭️ TikTok creative ${creative.name} missing platform asset - requires upload before ad creation`,
+                );
+
                 // Mark assignment as pending upload - creatives need to be uploaded first via Push Creatives to DSP
                 await supabase
-                  .from('creative_assignments')
+                  .from("creative_assignments")
                   .update({
-                    status: 'pending_upload',
-                    error_message: 'Creative needs to be uploaded to TikTok first. Please use "Push Creatives to DSP" from the Launch Status page.',
+                    status: "pending_upload",
+                    error_message:
+                      'Creative needs to be uploaded to TikTok first. Please use "Push Creatives to DSP" from the Launch Status page.',
                   })
-                  .eq('id', assignment.id);
+                  .eq("id", assignment.id);
                 continue;
               }
-              
+
               // Get identity ID for TikTok (required for ads)
               const identityId = creative.tiktok_identity_id || market.tiktokIdentityId || market.defaultIdentityId;
               if (!identityId) {
                 console.warn(`⚠️ No TikTok Identity ID configured for creative ${creative.name}`);
                 await supabase
-                  .from('creative_assignments')
-                  .update({ status: 'error', error_message: 'No TikTok Identity ID configured' })
-                  .eq('id', assignment.id);
+                  .from("creative_assignments")
+                  .update({ status: "error", error_message: "No TikTok Identity ID configured" })
+                  .eq("id", assignment.id);
                 continue;
               }
-              
+
               // Build TikTok ad payload
               const adName = `${creative.name}_${generateTimestampSuffix()}`;
-              const isVideo = creative.media_type === 'video' || creative.creative_type === 'video';
-              
+              const isVideo = creative.media_type === "video" || creative.creative_type === "video";
+
               const tiktokAdPayload: any = {
                 advertiser_id: advertiserId,
                 adgroup_id: adGroupResult.adGroupId,
-                creatives: [{
-                  ad_name: adName,
-                  ad_format: creative.tiktok_ad_format || (isVideo ? 'SINGLE_VIDEO' : 'SINGLE_IMAGE'),
-                  identity_id: identityId,
-                  identity_type: 'CUSTOMIZED_USER',
-                  ad_text: creative.primary_text || creative.headline || '',
-                  call_to_action: creative.call_to_action || 'LEARN_MORE',
-                  landing_page_url: creative.destination_url || landingPageUrl,
-                }],
+                creatives: [
+                  {
+                    ad_name: adName,
+                    ad_format: creative.tiktok_ad_format || (isVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
+                    identity_id: identityId,
+                    identity_type: "CUSTOMIZED_USER",
+                    ad_text: creative.primary_text || creative.headline || "",
+                    call_to_action: creative.call_to_action || "LEARN_MORE",
+                    landing_page_url: creative.destination_url || landingPageUrl,
+                  },
+                ],
               };
-              
+
               // Add video or image - TikTok REQUIRES thumbnail (image_ids) for non-Spark video ads
               if (isVideo && creative.platform_video_id) {
                 tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
-                
+
                 // Non-Spark video ads REQUIRE a thumbnail - check if one exists
                 if (creative.platform_thumbnail_id) {
                   tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
@@ -3691,75 +4005,73 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
                   // No thumbnail - this will fail, mark as error
                   console.warn(`⚠️ TikTok video ad ${creative.name} missing required thumbnail`);
                   await supabase
-                    .from('creative_assignments')
-                    .update({ 
-                      status: 'error', 
-                      error_message: 'TikTok video ads require a thumbnail image. Please upload a thumbnail for this creative.' 
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message:
+                        "TikTok video ads require a thumbnail image. Please upload a thumbnail for this creative.",
                     })
-                    .eq('id', assignment.id);
+                    .eq("id", assignment.id);
                   continue;
                 }
               } else if (creative.platform_image_hash) {
                 tiktokAdPayload.creatives[0].image_ids = [creative.platform_image_hash];
               }
-              
+
               // Add display name if present
               if (creative.tiktok_display_name || creative.brand_name) {
                 tiktokAdPayload.creatives[0].display_name = creative.tiktok_display_name || creative.brand_name;
               }
-              
+
               // Add app link if present (for app campaigns)
               if (creative.app_link) {
                 tiktokAdPayload.creatives[0].app_name = appName;
                 tiktokAdPayload.creatives[0].download_url = creative.app_link;
               }
-              
+
               console.log(`📤 Creating TikTok ad for ${creative.name}...`);
-              
-              const tiktokAdResponse = await fetch(
-                'https://business-api.tiktok.com/open_api/v1.3/ad/create/',
-                {
-                  method: 'POST',
-                  headers: {
-                    'Access-Token': platform.access_token,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(tiktokAdPayload),
-                }
-              );
-              
+
+              const tiktokAdResponse = await fetch("https://business-api.tiktok.com/open_api/v1.3/ad/create/", {
+                method: "POST",
+                headers: {
+                  "Access-Token": platform.access_token,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(tiktokAdPayload),
+              });
+
               const tiktokAdData = await tiktokAdResponse.json();
-              
+
               if (tiktokAdData.code !== 0 || !tiktokAdData.data?.ad_ids?.[0]) {
                 console.error(`❌ Failed to create TikTok ad:`, tiktokAdData);
                 await supabase
-                  .from('creative_assignments')
-                  .update({ 
-                    status: 'error', 
-                    error_message: tiktokAdData.message || 'Failed to create TikTok ad' 
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: tiktokAdData.message || "Failed to create TikTok ad",
                   })
-                  .eq('id', assignment.id);
+                  .eq("id", assignment.id);
                 continue;
               }
-              
+
               console.log(`✅ TikTok ad created: ${tiktokAdData.data.ad_ids[0]} for creative ${creative.name}`);
               adsCreated++;
-              
+
               // Update assignment with success
               await supabase
-                .from('creative_assignments')
-                .update({ 
-                  status: 'pushed',
+                .from("creative_assignments")
+                .update({
+                  status: "pushed",
                   dsp_creative_id: tiktokAdData.data.ad_ids[0],
                   error_message: null,
                 })
-                .eq('id', assignment.id);
+                .eq("id", assignment.id);
             }
           } else {
             console.log(`ℹ️ No creatives assigned for TikTok ${market.name}/${phase.name}`);
           }
           // ============= END TIKTOK AD CREATION =============
-          
+
           results.push({
             market: market.name,
             phase: phase.name,
@@ -3770,23 +4082,22 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             adsCreated: adsCreated,
           });
         } // End of ad set splits loop
-        
       } catch (error: any) {
         console.error("Error creating TikTok campaign/ad group:", error);
         errors.push({
           market: market.name,
           phase: phase.name,
-          error: error.message || 'Unexpected error during TikTok campaign creation',
-          type: 'unexpected_error',
+          error: error.message || "Unexpected error during TikTok campaign creation",
+          type: "unexpected_error",
           apiResponse: error.stack || error.toString(),
-          fieldPath: 'step3'
+          fieldPath: "step3",
         });
       }
     }
   }
-  
+
   return {
-    platform: 'TikTok',
+    platform: "TikTok",
     results,
     errors,
     success: errors.length === 0,

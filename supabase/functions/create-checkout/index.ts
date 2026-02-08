@@ -9,31 +9,74 @@ const corsHeaders = {
 };
 
 const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
 // Input validation schema
 const checkoutInputSchema = z.object({
-  priceId: z.string().regex(/^price_[a-zA-Z0-9]+$/, "Invalid price ID format")
+  priceId: z.string().regex(/^price_[a-zA-Z0-9]+$/, "Invalid price ID format"),
 });
 
 // Basic plan price IDs - these get 30-day trial for NEW subscriptions only
 const BASIC_PRICE_IDS = [
   "price_1ScnObKrTGU4P754AAJ9Q5NU", // monthly
-  "price_1ScnL9KrTGU4P754QirsF0Sd"  // yearly
+  "price_1ScnL9KrTGU4P754QirsF0Sd", // yearly
 ];
 
 // Price metadata for GTM tracking and comparison
-const PRICE_METADATA: Record<string, { amount: number; planName: string; productId: string; billingCycle: 'monthly' | 'yearly' }> = {
-  "price_1ScnObKrTGU4P754AAJ9Q5NU": { amount: 3900, planName: "Basic", productId: "prod_TZxJsj5K3hZ8Ku", billingCycle: "monthly" },
-  "price_1ScnL9KrTGU4P754QirsF0Sd": { amount: 39780, planName: "Basic", productId: "prod_TZxJsj5K3hZ8Ku", billingCycle: "yearly" },
-  "price_1ScnOcKrTGU4P754y5pmh5jf": { amount: 8900, planName: "Freelancer", productId: "prod_TZxJ4XAvny2Nnl", billingCycle: "monthly" },
-  "price_1ScnNYKrTGU4P754hbyoSjdc": { amount: 90780, planName: "Freelancer", productId: "prod_TZxJ4XAvny2Nnl", billingCycle: "yearly" },
-  "price_1ScnOdKrTGU4P7542mtt9uyC": { amount: 18900, planName: "Enterprise", productId: "prod_TZxJTdbXy2Rlhb", billingCycle: "monthly" },
-  "price_1ScnOOKrTGU4P754r7bdJ94j": { amount: 192780, planName: "Enterprise", productId: "prod_TZxJTdbXy2Rlhb", billingCycle: "yearly" },
-  "price_1ScnOeKrTGU4P75446dvndr3": { amount: 99900, planName: "Agency", productId: "prod_TZxJAdnaSLNRsJ", billingCycle: "monthly" },
-  "price_1ScnOPKrTGU4P754sNgouHiL": { amount: 1018980, planName: "Agency", productId: "prod_TZxJAdnaSLNRsJ", billingCycle: "yearly" },
+const PRICE_METADATA: Record<
+  string,
+  { amount: number; planName: string; productId: string; billingCycle: "monthly" | "yearly" }
+> = {
+  price_1ScnObKrTGU4P754AAJ9Q5NU: {
+    amount: 3900,
+    planName: "Basic",
+    productId: "prod_TZxJsj5K3hZ8Ku",
+    billingCycle: "monthly",
+  },
+  price_1ScnL9KrTGU4P754QirsF0Sd: {
+    amount: 39780,
+    planName: "Basic",
+    productId: "prod_TZxJsj5K3hZ8Ku",
+    billingCycle: "yearly",
+  },
+  price_1SyXF5KrTGU4P7548Gb4bgd6: {
+    amount: 9900,
+    planName: "Freelancer",
+    productId: "prod_TZxJ4XAvny2Nnl",
+    billingCycle: "monthly",
+  },
+  price_1SyXYDKrTGU4P75427F7A2ge: {
+    amount: 100980,
+    planName: "Freelancer",
+    productId: "prod_TZxJ4XAvny2Nnl",
+    billingCycle: "yearly",
+  },
+  price_1SyX3xKrTGU4P754lgSWx7dq: {
+    amount: 24900,
+    planName: "Enterprise",
+    productId: "prod_TZxJTdbXy2Rlhb",
+    billingCycle: "monthly",
+  },
+  price_1SyX8xKrTGU4P754mXynM6Qn: {
+    amount: 253980,
+    planName: "Enterprise",
+    productId: "prod_TZxJTdbXy2Rlhb",
+    billingCycle: "yearly",
+  },
+  price_1SyXAnKrTGU4P754hsNny2H7: {
+    amount: 69900,
+    planName: "Agency",
+    productId: "prod_TZxJAdnaSLNRsJ",
+    billingCycle: "monthly",
+  },
+  price_1SyXD1KrTGU4P7541vWVImFY: {
+    amount: 712980,
+    planName: "Agency",
+    productId: "prod_TZxJAdnaSLNRsJ",
+    billingCycle: "yearly",
+  },
 };
 
 serve(async (req) => {
@@ -43,7 +86,7 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
   try {
@@ -88,24 +131,22 @@ serve(async (req) => {
     } else {
       // No mapping exists - create a new Stripe customer
       logStep("No billing_customers mapping, creating new Stripe customer");
-      
+
       const newCustomer = await stripe.customers.create({
         email: user.email,
         metadata: {
-          supabase_user_id: user.id
-        }
+          supabase_user_id: user.id,
+        },
       });
       customerId = newCustomer.id;
       logStep("Created new Stripe customer", { customerId });
 
       // Store the mapping in billing_customers
-      const { error: insertError } = await supabaseClient
-        .from("billing_customers")
-        .insert({
-          user_id: user.id,
-          email: user.email,
-          stripe_customer_id: customerId
-        });
+      const { error: insertError } = await supabaseClient.from("billing_customers").insert({
+        user_id: user.id,
+        email: user.email,
+        stripe_customer_id: customerId,
+      });
 
       if (insertError) {
         logStep("Warning: Failed to store billing_customers mapping", { error: insertError.message });
@@ -130,59 +171,62 @@ serve(async (req) => {
 
       // Only look for truly active/trialing subscriptions - cancelled subscriptions should NOT block new purchases
       const activeSub = subscriptions.data.find(
-        (s: Stripe.Subscription) => s.status === "active" || s.status === "trialing"
+        (s: Stripe.Subscription) => s.status === "active" || s.status === "trialing",
       );
 
       if (activeSub) {
         existingSubscription = activeSub;
         const currentPriceId = activeSub.items.data[0]?.price?.id;
-        
-        logStep("Existing active subscription found", { 
-          subscriptionId: activeSub.id, 
+
+        logStep("Existing active subscription found", {
+          subscriptionId: activeSub.id,
           status: activeSub.status,
-          currentPriceId
+          currentPriceId,
         });
 
         // Check if already on the same price (only for active/trialing subs)
         if (currentPriceId === priceId) {
-          return new Response(JSON.stringify({ 
-            error: "You are already subscribed to this plan" 
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 400,
-          });
+          return new Response(
+            JSON.stringify({
+              error: "You are already subscribed to this plan",
+            }),
+            {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 400,
+            },
+          );
         }
 
         // Determine if this is a downgrade or upgrade
-        const currentAmount = PRICE_METADATA[currentPriceId || '']?.amount || 0;
+        const currentAmount = PRICE_METADATA[currentPriceId || ""]?.amount || 0;
         const newAmount = PRICE_METADATA[priceId]?.amount || 0;
         const isDowngrade = newAmount < currentAmount;
         const isUpgrade = newAmount > currentAmount;
         const isTrialing = activeSub.status === "trialing";
 
-        logStep("Plan change detected", { 
-          oldPriceId: currentPriceId, 
+        logStep("Plan change detected", {
+          oldPriceId: currentPriceId,
           newPriceId: priceId,
           currentAmount,
           newAmount,
           isDowngrade,
           isUpgrade,
-          isTrialing
+          isTrialing,
         });
 
         // For UPGRADES: Use Stripe's subscription update with proration
         // This charges only the prorated difference, not the full new price
         if (isUpgrade && !isTrialing) {
           logStep("Processing upgrade with proration");
-          
+
           try {
             // Get the subscription item ID
             const subscriptionItemId = activeSub.items.data[0]?.id;
-            
+
             if (!subscriptionItemId) {
               throw new Error("Could not find subscription item to update");
             }
-            
+
             // Update the subscription in-place with proration
             // Stripe will automatically calculate and charge the prorated difference
             const updatedSubscription = await stripe.subscriptions.update(activeSub.id, {
@@ -192,16 +236,16 @@ serve(async (req) => {
                   price: priceId,
                 },
               ],
-              proration_behavior: 'create_prorations', // Create prorated invoice items
-              payment_behavior: 'pending_if_incomplete', // Allow payment to be collected
+              proration_behavior: "create_prorations", // Create prorated invoice items
+              payment_behavior: "pending_if_incomplete", // Allow payment to be collected
             });
-            
+
             logStep("Subscription upgraded successfully with proration", {
               subscriptionId: updatedSubscription.id,
               newPriceId: priceId,
-              status: updatedSubscription.status
+              status: updatedSubscription.status,
             });
-            
+
             // Create an invoice immediately to collect the prorated amount
             try {
               const invoice = await stripe.invoices.create({
@@ -209,46 +253,50 @@ serve(async (req) => {
                 subscription: activeSub.id,
                 auto_advance: true, // Automatically finalize and attempt payment
               });
-              
-              if (invoice.status === 'draft') {
+
+              if (invoice.status === "draft") {
                 await stripe.invoices.finalizeInvoice(invoice.id);
                 await stripe.invoices.pay(invoice.id);
               }
-              
-              logStep("Prorated invoice created and paid", { 
+
+              logStep("Prorated invoice created and paid", {
                 invoiceId: invoice.id,
-                amount: invoice.amount_due 
+                amount: invoice.amount_due,
               });
             } catch (invoiceError) {
               // Invoice may already be created/paid by proration, that's fine
-              logStep("Invoice handling note", { 
+              logStep("Invoice handling note", {
                 note: "Proration may have been applied to next billing cycle",
-                error: invoiceError instanceof Error ? invoiceError.message : String(invoiceError)
+                error: invoiceError instanceof Error ? invoiceError.message : String(invoiceError),
               });
             }
-            
+
             const priceInfo = PRICE_METADATA[priceId];
-            
+
             // Redirect to success page directly (no checkout needed for upgrades)
-            const successUrl = `${origin}/settings/plans?success=true&upgraded=true` +
+            const successUrl =
+              `${origin}/settings/plans?success=true&upgraded=true` +
               `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
               `&stripe_price_id=${encodeURIComponent(priceId)}` +
               `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
               `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}`;
-            
-            return new Response(JSON.stringify({
-              url: successUrl,
-              type: 'upgrade_complete',
-              message: `Successfully upgraded to ${priceInfo?.planName}! Prorated charges have been applied.`
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
+
+            return new Response(
+              JSON.stringify({
+                url: successUrl,
+                type: "upgrade_complete",
+                message: `Successfully upgraded to ${priceInfo?.planName}! Prorated charges have been applied.`,
+              }),
+              {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+              },
+            );
           } catch (upgradeError) {
-            logStep("Error during upgrade", { 
-              error: upgradeError instanceof Error ? upgradeError.message : String(upgradeError) 
+            logStep("Error during upgrade", {
+              error: upgradeError instanceof Error ? upgradeError.message : String(upgradeError),
             });
-            
+
             // Fall back to checkout if direct upgrade fails
             logStep("Falling back to checkout for upgrade");
           }
@@ -259,53 +307,53 @@ serve(async (req) => {
         if (isDowngrade && !isTrialing) {
           try {
             const now = Math.floor(Date.now() / 1000);
-            
+
             // Get the latest paid invoice - the line items contain the actual billing period
             const invoices = await stripe.invoices.list({
               subscription: activeSub.id,
               limit: 1,
-              status: 'paid',
+              status: "paid",
             });
-            
+
             if (invoices.data.length > 0) {
               const latestInvoice = invoices.data[0];
               const paidAmount = latestInvoice.amount_paid;
-              
+
               // Get period from invoice line items (more reliable for canceled subs)
               const lineItem = latestInvoice.lines?.data?.[0];
               const periodStart = lineItem?.period?.start || activeSub.current_period_start;
               const periodEnd = lineItem?.period?.end || activeSub.current_period_end;
-              
-              logStep("Invoice-based refund calculation", { 
+
+              logStep("Invoice-based refund calculation", {
                 invoiceId: latestInvoice.id,
                 subscriptionId: activeSub.id,
                 periodStart,
                 periodEnd,
                 now,
                 paidAmount,
-                lineItemPeriod: lineItem?.period
+                lineItemPeriod: lineItem?.period,
               });
-              
+
               if (periodStart && periodEnd) {
                 const totalPeriodSeconds = periodEnd - periodStart;
                 const unusedSeconds = periodEnd - now;
-                
+
                 if (unusedSeconds > 0 && totalPeriodSeconds > 0 && paidAmount > 0) {
                   const unusedRatio = unusedSeconds / totalPeriodSeconds;
                   refundAmount = Math.floor(paidAmount * unusedRatio);
-                  
-                  logStep("Calculated prorated refund", { 
+
+                  logStep("Calculated prorated refund", {
                     totalPeriodSeconds,
                     unusedSeconds,
                     unusedRatio: unusedRatio.toFixed(4),
                     paidAmount,
-                    refundAmount
+                    refundAmount,
                   });
                 } else {
-                  logStep("Refund conditions not met", { 
+                  logStep("Refund conditions not met", {
                     unusedSeconds,
                     totalPeriodSeconds,
-                    paidAmount
+                    paidAmount,
                   });
                 }
               } else {
@@ -315,8 +363,8 @@ serve(async (req) => {
               logStep("No paid invoice found for subscription");
             }
           } catch (refundCalcError) {
-            logStep("Error calculating refund", { 
-              error: refundCalcError instanceof Error ? refundCalcError.message : String(refundCalcError) 
+            logStep("Error calculating refund", {
+              error: refundCalcError instanceof Error ? refundCalcError.message : String(refundCalcError),
             });
           }
         }
@@ -325,7 +373,8 @@ serve(async (req) => {
         // Store previous subscription ID in metadata - will be canceled AFTER checkout completes
         const priceInfo = PRICE_METADATA[priceId];
         const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
-        const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
+        const successUrl =
+          `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
           `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
           `&stripe_price_id=${encodeURIComponent(priceId)}` +
           `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
@@ -367,16 +416,19 @@ serve(async (req) => {
           url: session.url,
           previousSubscriptionId: activeSub.id,
           refundAmount,
-          isDowngrade
+          isDowngrade,
         });
 
-        return new Response(JSON.stringify({
-          url: session.url,
-          type: 'checkout'
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        });
+        return new Response(
+          JSON.stringify({
+            url: session.url,
+            type: "checkout",
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
       }
     }
 
@@ -387,7 +439,7 @@ serve(async (req) => {
     logStep("Creating checkout for new subscription", {
       isBasicPlan,
       hasExistingCustomer: !!customerId,
-      hasTrialPeriod: shouldHaveTrial
+      hasTrialPeriod: shouldHaveTrial,
     });
 
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {};
@@ -399,7 +451,8 @@ serve(async (req) => {
 
     const priceInfo = PRICE_METADATA[priceId];
     const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
-    const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
+    const successUrl =
+      `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
       `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
       `&stripe_price_id=${encodeURIComponent(priceId)}` +
       `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
@@ -431,19 +484,22 @@ serve(async (req) => {
       cancel_url: `${origin}/settings/plans?canceled=true`,
     });
 
-    logStep("Checkout session created", { 
-      sessionId: session.id, 
-      url: session.url, 
-      hasTrialPeriod: shouldHaveTrial
+    logStep("Checkout session created", {
+      sessionId: session.id,
+      url: session.url,
+      hasTrialPeriod: shouldHaveTrial,
     });
 
-    return new Response(JSON.stringify({ 
-      url: session.url,
-      type: 'checkout'
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        url: session.url,
+        type: "checkout",
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });

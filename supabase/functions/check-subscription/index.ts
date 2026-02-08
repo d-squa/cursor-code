@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const logStep = (step: string, details?: any) => {
-  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
@@ -20,7 +20,7 @@ serve(async (req) => {
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    { auth: { persistSession: false } }
+    { auth: { persistSession: false } },
   );
 
   try {
@@ -46,7 +46,7 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     logStep("Authenticating user with token");
-    
+
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
     const user = userData.user;
@@ -69,9 +69,9 @@ serve(async (req) => {
         return null;
       }
 
-      logStep("Found billing_customers mapping", { 
-        userId, 
-        stripeCustomerId: billingCustomer.stripe_customer_id 
+      logStep("Found billing_customers mapping", {
+        userId,
+        stripeCustomerId: billingCustomer.stripe_customer_id,
       });
       return billingCustomer.stripe_customer_id;
     };
@@ -118,9 +118,9 @@ serve(async (req) => {
 
         // Find active or trialing subscription
         const activeSub = subscriptions.data.find(
-          (s: { status: string }) => s.status === "active" || s.status === "trialing"
+          (s: { status: string }) => s.status === "active" || s.status === "trialing",
         );
-        
+
         if (activeSub) {
           let subscriptionStart: string | null = null;
           let subscriptionEnd: string | null = null;
@@ -129,18 +129,18 @@ serve(async (req) => {
           // In Stripe API 2025+, current_period_start/end are on subscription items, not root
           // Also check root level for older API compatibility
           const subAny = activeSub as any;
-          
+
           // Try subscription root level first (older API)
           let periodStart = subAny.current_period_start;
           let periodEnd = subAny.current_period_end;
-          
+
           // If not on root, try subscription items (newer API 2025+)
           if (!periodStart && activeSub.items?.data?.[0]) {
             const firstItem = activeSub.items.data[0] as any;
             periodStart = firstItem.current_period_start;
             periodEnd = firstItem.current_period_end;
           }
-          
+
           // Fallback to billing_cycle_anchor and start_date
           if (!periodStart && subAny.billing_cycle_anchor) {
             periodStart = subAny.billing_cycle_anchor;
@@ -148,8 +148,8 @@ serve(async (req) => {
           if (!periodStart && subAny.start_date) {
             periodStart = subAny.start_date;
           }
-          
-          logStep("Period dates extraction", { 
+
+          logStep("Period dates extraction", {
             rootPeriodStart: subAny.current_period_start,
             rootPeriodEnd: subAny.current_period_end,
             itemPeriodStart: activeSub.items?.data?.[0] ? (activeSub.items.data[0] as any).current_period_start : null,
@@ -157,7 +157,7 @@ serve(async (req) => {
             billingCycleAnchor: subAny.billing_cycle_anchor,
             startDate: subAny.start_date,
             finalPeriodStart: periodStart,
-            finalPeriodEnd: periodEnd
+            finalPeriodEnd: periodEnd,
           });
 
           // Convert to ISO strings
@@ -178,7 +178,7 @@ serve(async (req) => {
           if (trialEndVal && typeof trialEndVal === "number") {
             trialEnd = new Date(trialEndVal * 1000).toISOString();
           }
-          
+
           logStep("Parsed subscription dates", { subscriptionStart, subscriptionEnd, trialEnd });
 
           const priceItem = activeSub.items.data[0]?.price;
@@ -215,7 +215,7 @@ serve(async (req) => {
             {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
               status: 200,
-            }
+            },
           );
         }
       }
@@ -237,7 +237,7 @@ serve(async (req) => {
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
-        }
+        },
       );
     }
 
@@ -263,12 +263,12 @@ serve(async (req) => {
         // NOTE: The Stripe list can contain multiple active/trialing subscriptions.
         // We must choose the best eligible one (agency > enterprise).
         const enterprisePriceIds = [
-          "price_1ScnOdKrTGU4P7542mtt9uyC", // enterprise monthly
-          "price_1ScnOOKrTGU4P754r7bdJ94j", // enterprise yearly
+          "price_1SyX3xKrTGU4P754lgSWx7dq", // enterprise monthly
+          "price_1SyX8xKrTGU4P754mXynM6Qn", // enterprise yearly
         ];
         const agencyPriceIds = [
-          "price_1ScnOeKrTGU4P75446dvndr3", // agency monthly
-          "price_1ScnOPKrTGU4P754sNgouHiL", // agency yearly
+          "price_1SyXAnKrTGU4P754hsNny2H7", // agency monthly
+          "price_1SyXD1KrTGU4P7541vWVImFY", // agency yearly
         ];
 
         const getSubPriceId = (sub: any): string | null => sub?.items?.data?.[0]?.price?.id ?? null;
@@ -285,10 +285,7 @@ serve(async (req) => {
           });
 
         if (!ownerEligibleSub) {
-          const activePrices = ownerSubscriptions.data
-            .filter(isActiveOrTrialing)
-            .map(getSubPriceId)
-            .filter(Boolean);
+          const activePrices = ownerSubscriptions.data.filter(isActiveOrTrialing).map(getSubPriceId).filter(Boolean);
 
           logStep("No eligible team subscription found", {
             teamId: team.id,
@@ -306,18 +303,18 @@ serve(async (req) => {
 
           // In Stripe API 2025+, current_period_start/end are on subscription items, not root
           const subAny = ownerEligibleSub as any;
-          
+
           // Try subscription root level first (older API)
           let periodStart = subAny.current_period_start;
           let periodEnd = subAny.current_period_end;
-          
+
           // If not on root, try subscription items (newer API 2025+)
           if (!periodStart && ownerEligibleSub.items?.data?.[0]) {
             const firstItem = ownerEligibleSub.items.data[0] as any;
             periodStart = firstItem.current_period_start;
             periodEnd = firstItem.current_period_end;
           }
-          
+
           // Fallback to billing_cycle_anchor and start_date
           if (!periodStart && subAny.billing_cycle_anchor) {
             periodStart = subAny.billing_cycle_anchor;
@@ -333,7 +330,7 @@ serve(async (req) => {
           if (periodEnd && typeof periodEnd === "number") {
             subscriptionEnd = new Date(periodEnd * 1000).toISOString();
           }
-          
+
           // Handle trial_end
           const trialEndVal = subAny.trial_end;
           if (trialEndVal && typeof trialEndVal === "number") {
@@ -371,29 +368,30 @@ serve(async (req) => {
             {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
               status: 200,
-            }
+            },
           );
         }
-
       } else {
         logStep("Team owner has no Stripe customer mapping", { teamOwnerId });
       }
     }
 
     logStep("No subscription found (personal or team)");
-    return new Response(JSON.stringify({ 
-      subscribed: false,
-      onTrial: false,
-      productId: null,
-      priceId: null,
-      billingPeriod: null,
-      subscriptionEnd: null,
-      trialEnd: null
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
-
+    return new Response(
+      JSON.stringify({
+        subscribed: false,
+        onTrial: false,
+        productId: null,
+        priceId: null,
+        billingPeriod: null,
+        subscriptionEnd: null,
+        trialEnd: null,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR in check-subscription", { message: errorMessage });
