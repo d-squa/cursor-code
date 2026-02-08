@@ -53,7 +53,13 @@ const features = [
     icon: Globe,
     title: "Bulk Cross-Platform Activation",
     description:
-      "Plan, launch and monitor your paid media campaigns across all major ad platforms from one centralized activation tool.",
+      "Plan, launch and monitor your paid media campaigns across all major ad platforms from one intuitive centralized activation tool.",
+  },
+  {
+    icon: Switch,
+    title: "Creative Meshing",
+    description:
+      "Upload creatives from different platforms in bulk and ActiPlan will assign them automatically to your campaign shell.",
   },
   {
     icon: Zap,
@@ -69,19 +75,25 @@ const features = [
   },
   {
     icon: Shield,
-    title: "Media Plan Approval",
+    title: "Media Plan Approvals",
     description:
       "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop.",
   },
   {
-    icon: TrendingUp,
-    title: "HawkView Performance",
+    icon: Link,
+    title: "Client Portfolio Management",
     description:
-      "Monitor real-time, multi-channel performance from a single view that combines the planner's perspective with the performance executive's view.",
+      "Organize your client ad accounts under one portfolio allowing higher performance & planning accuracy, maximum control and minimal mistakes",
+  },
+  {
+    icon: Switch,
+    title: "Portfolio Governance & Preferences",
+    description:
+      "Set client preferences, customize and auto-load the most important ad account and campaign configurations such as campaign taxonomy, campaign parameters, UTM tracking",
   },
   {
     icon: Layers,
-    title: "AI-Powered Knowledge",
+    title: "AI-Powered Knowledge Base",
     description:
       "Ask ActiPlan's AI Knowledge Base anything from digital marketing concepts to optimization tips and get instant, expert answers.",
   },
