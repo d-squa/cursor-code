@@ -236,93 +236,10 @@ serve(async (req) => {
           isTrialing,
         });
 
-        // For UPGRADES: Use Stripe's subscription update with proration
-        // This charges only the prorated difference, not the full new price
-        if (isUpgrade && !isTrialing) {
-          logStep("Processing upgrade with proration");
-
-          try {
-            // Get the subscription item ID
-            const subscriptionItemId = activeSub.items.data[0]?.id;
-
-            if (!subscriptionItemId) {
-              throw new Error("Could not find subscription item to update");
-            }
-
-            // Update the subscription in-place with proration
-            // Stripe will automatically calculate and charge the prorated difference
-            const updatedSubscription = await stripe.subscriptions.update(activeSub.id, {
-              items: [
-                {
-                  id: subscriptionItemId,
-                  price: priceId,
-                },
-              ],
-              proration_behavior: "create_prorations", // Create prorated invoice items
-              payment_behavior: "pending_if_incomplete", // Allow payment to be collected
-            });
-
-            logStep("Subscription upgraded successfully with proration", {
-              subscriptionId: updatedSubscription.id,
-              newPriceId: priceId,
-              status: updatedSubscription.status,
-            });
-
-            // Create an invoice immediately to collect the prorated amount
-            try {
-              const invoice = await stripe.invoices.create({
-                customer: customerId,
-                subscription: activeSub.id,
-                auto_advance: true, // Automatically finalize and attempt payment
-              });
-
-              if (invoice.status === "draft") {
-                await stripe.invoices.finalizeInvoice(invoice.id);
-                await stripe.invoices.pay(invoice.id);
-              }
-
-              logStep("Prorated invoice created and paid", {
-                invoiceId: invoice.id,
-                amount: invoice.amount_due,
-              });
-            } catch (invoiceError) {
-              // Invoice may already be created/paid by proration, that's fine
-              logStep("Invoice handling note", {
-                note: "Proration may have been applied to next billing cycle",
-                error: invoiceError instanceof Error ? invoiceError.message : String(invoiceError),
-              });
-            }
-
-            const priceInfo = PRICE_METADATA[priceId];
-
-            // Redirect to success page directly (no checkout needed for upgrades)
-            const successUrl =
-              `${origin}/settings/plans?success=true&upgraded=true` +
-              `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
-              `&stripe_price_id=${encodeURIComponent(priceId)}` +
-              `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
-              `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}`;
-
-            return new Response(
-              JSON.stringify({
-                url: successUrl,
-                type: "upgrade_complete",
-                message: `Successfully upgraded to ${priceInfo?.planName}! Prorated charges have been applied.`,
-              }),
-              {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                status: 200,
-              },
-            );
-          } catch (upgradeError) {
-            logStep("Error during upgrade", {
-              error: upgradeError instanceof Error ? upgradeError.message : String(upgradeError),
-            });
-
-            // Fall back to checkout if direct upgrade fails
-            logStep("Falling back to checkout for upgrade");
-          }
-        }
+        // ALL plan changes (upgrades and downgrades) go through Stripe Checkout
+        // This ensures user explicitly reviews and confirms any payment changes
+        // Per the "no silent payment" principle - nothing payment-related should happen without checkout
+        logStep("Plan change requires checkout confirmation", { isUpgrade, isDowngrade });
 
         // Calculate prorated refund for downgrades (non-trial)
         let refundAmount = 0;
