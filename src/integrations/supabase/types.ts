@@ -132,31 +132,45 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          metadata: Json | null
           new_account_id: string
           platform: string
           previous_account_id: string
           swap_type: string
+          team_id: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
+          metadata?: Json | null
           new_account_id: string
           platform: string
           previous_account_id: string
           swap_type?: string
+          team_id?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
+          metadata?: Json | null
           new_account_id?: string
           platform?: string
           previous_account_id?: string
           swap_type?: string
+          team_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ad_account_swap_logs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ad_push_configurations: {
         Row: {
@@ -3281,10 +3295,12 @@ export type Database = {
         Args: { _platform: string; _user_id: string }
         Returns: number
       }
-      count_swaps_this_month: {
-        Args: { _platform: string; _user_id: string }
-        Returns: number
-      }
+      count_swaps_this_month:
+        | { Args: { _platform: string; _user_id: string }; Returns: number }
+        | {
+            Args: { _platform: string; _team_id?: string; _user_id: string }
+            Returns: number
+          }
       ensure_user_workspace: { Args: never; Returns: string }
       get_adlibrary_token: { Args: { user_id_param: string }; Returns: string }
       get_platform_token: {

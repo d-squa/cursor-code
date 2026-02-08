@@ -8,6 +8,169 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Subscription tier limits for swaps per month per platform
+const SWAP_LIMITS: Record<string, number> = {
+  trial: 1,
+  basic: 1,
+  freelancer: 3,
+  enterprise: 3,
+  agency: 6,
+};
+
+// Ad account limits per tier per platform
+const AD_ACCOUNT_LIMITS: Record<string, number> = {
+  trial: 1,
+  basic: 1,
+  freelancer: 3,
+  enterprise: 150,
+  agency: 300,
+};
+
+// Helper to get user's subscription tier
+async function getUserTier(supabase: any, userId: string): Promise<string> {
+  try {
+    // First get the billing customer for this user
+    const { data: billingCustomer } = await supabase
+      .from('billing_customers')
+      .select('stripe_customer_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!billingCustomer?.stripe_customer_id) {
+      return 'trial';
+    }
+
+    // Check for active subscription via subscriptions table
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('price_id, status')
+      .eq('user_id', userId)
+      .in('status', ['active', 'trialing'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!subscription?.price_id) {
+      return 'trial';
+    }
+
+    // Map price IDs to tiers
+    const priceToTier: Record<string, string> = {
+      'price_1ScnObKrTGU4P754AAJ9Q5NU': 'basic',
+      'price_1ScnL9KrTGU4P754QirsF0Sd': 'basic',
+      'price_1SyblZKrTGU4P754e0GfARV4': 'freelancer',
+      'price_1SyblbKrTGU4P754Otu9dcxm': 'freelancer',
+      'price_1SyblcKrTGU4P754HYOgkuIQ': 'enterprise',
+      'price_1SybldKrTGU4P754EBnjjPos': 'enterprise',
+      'price_1SyblfKrTGU4P754gwTKmrsC': 'agency',
+      'price_1SyblfKrTGU4P754PtKbziMk': 'agency',
+    };
+
+    return priceToTier[subscription.price_id] || 'trial';
+  } catch (error) {
+    console.error('Error getting user tier:', error);
+    return 'trial';
+  }
+}
+
+// Helper to detect and log swaps
+// Returns { allowed: boolean, swapsNeeded: number, error?: string }
+async function detectAndLogSwaps(
+  supabase: any,
+  userId: string,
+  teamId: string,
+  platform: 'meta' | 'tiktok',
+  newAccountIds: string[],
+  existingAccounts: Array<{ account_id: string; account_name: string }>
+): Promise<{ allowed: boolean; swapsNeeded: number; error?: string }> {
+  const existingIds = new Set(existingAccounts.map(a => a.account_id));
+  const newIds = new Set(newAccountIds);
+  
+  // Find accounts being removed (were in existing, not in new)
+  const removedIds = [...existingIds].filter(id => !newIds.has(id));
+  // Find accounts being added (in new, not in existing)
+  const addedIds = [...newIds].filter(id => !existingIds.has(id));
+  
+  console.log(`[SWAP-DETECTION] Platform: ${platform}, Team: ${teamId}`);
+  console.log(`[SWAP-DETECTION] Existing: ${existingAccounts.length}, New selection: ${newAccountIds.length}`);
+  console.log(`[SWAP-DETECTION] Removed: ${removedIds.length}, Added: ${addedIds.length}`);
+  
+  // A swap occurs when accounts are removed AND replaced with different accounts
+  // The number of swaps = min(removed, added) because each swap is a remove+add pair
+  const swapsNeeded = Math.min(removedIds.length, addedIds.length);
+  
+  if (swapsNeeded === 0) {
+    console.log('[SWAP-DETECTION] No swaps needed');
+    return { allowed: true, swapsNeeded: 0 };
+  }
+  
+  // Get user's tier and check swap limit
+  const tier = await getUserTier(supabase, userId);
+  const maxSwaps = SWAP_LIMITS[tier] ?? 1;
+  
+  // Count swaps already used this month for this team
+  const { data: swapsThisMonth, error: countError } = await supabase
+    .rpc('count_swaps_this_month', { 
+      _user_id: userId, 
+      _platform: platform, 
+      _team_id: teamId 
+    });
+  
+  if (countError) {
+    console.error('[SWAP-DETECTION] Error counting swaps:', countError);
+    return { allowed: false, swapsNeeded, error: 'Failed to check swap limits' };
+  }
+  
+  const usedSwaps = swapsThisMonth ?? 0;
+  const remainingSwaps = maxSwaps - usedSwaps;
+  
+  console.log(`[SWAP-DETECTION] Tier: ${tier}, Max swaps: ${maxSwaps}, Used: ${usedSwaps}, Remaining: ${remainingSwaps}, Needed: ${swapsNeeded}`);
+  
+  if (swapsNeeded > remainingSwaps) {
+    return { 
+      allowed: false, 
+      swapsNeeded,
+      error: `This change requires ${swapsNeeded} swap(s), but you only have ${remainingSwaps} remaining this month. Upgrade your plan for more swaps.`
+    };
+  }
+  
+  // Log each swap
+  const swapsToLog = [];
+  for (let i = 0; i < swapsNeeded; i++) {
+    const removedId = removedIds[i];
+    const addedId = addedIds[i];
+    const removedAccount = existingAccounts.find(a => a.account_id === removedId);
+    
+    swapsToLog.push({
+      user_id: userId,
+      team_id: teamId,
+      platform,
+      previous_account_id: removedId,
+      new_account_id: addedId,
+      swap_type: 'swap',
+      metadata: {
+        previous_account_name: removedAccount?.account_name || removedId,
+        swapped_at: new Date().toISOString(),
+      }
+    });
+  }
+  
+  if (swapsToLog.length > 0) {
+    const { error: insertError } = await supabase
+      .from('ad_account_swap_logs')
+      .insert(swapsToLog);
+    
+    if (insertError) {
+      console.error('[SWAP-DETECTION] Error logging swaps:', insertError);
+      // Don't block the sync, just log the error
+    } else {
+      console.log(`[SWAP-DETECTION] Logged ${swapsToLog.length} swap(s)`);
+    }
+  }
+  
+  return { allowed: true, swapsNeeded };
+}
+
 // Helper to update sync progress
 async function updateSyncProgress(
   supabase: any,
@@ -548,6 +711,41 @@ serve(async (req) => {
 
     if (platform.platform_type === "tiktok") {
       // Handle TikTok account syncing (synchronous - typically fewer accounts)
+      
+      // SWAP DETECTION: Get existing TikTok accounts for this team
+      const { data: existingTiktokAccounts, error: existingError } = await supabase
+        .from('tiktok_ad_accounts')
+        .select('account_id, account_name')
+        .eq('team_id', teamId);
+      
+      if (existingError) {
+        console.error('Error fetching existing TikTok accounts:', existingError);
+      }
+      
+      // Check and log swaps
+      const swapResult = await detectAndLogSwaps(
+        supabase,
+        user.id,
+        teamId,
+        'tiktok',
+        selectedIds,
+        existingTiktokAccounts || []
+      );
+      
+      if (!swapResult.allowed) {
+        return new Response(
+          JSON.stringify({ 
+            error: swapResult.error,
+            swapLimitExceeded: true,
+            swapsNeeded: swapResult.swapsNeeded
+          }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      
       const accountsToInsert: any[] = [];
       const advertiserIds = platform.metadata?.advertiser_ids || [];
       const accountsInfo = platform.metadata?.accounts || [];
@@ -960,6 +1158,40 @@ serve(async (req) => {
     // Handle Meta account syncing - use background processing for large account sets
     if (platform.platform_type !== "meta") {
       throw new Error("Unsupported platform type");
+    }
+
+    // SWAP DETECTION: Get existing Meta accounts for this team
+    const { data: existingMetaAccounts, error: existingMetaError } = await supabase
+      .from('meta_ad_accounts')
+      .select('account_id, account_name')
+      .eq('team_id', teamId);
+    
+    if (existingMetaError) {
+      console.error('Error fetching existing Meta accounts:', existingMetaError);
+    }
+    
+    // Check and log swaps
+    const metaSwapResult = await detectAndLogSwaps(
+      supabase,
+      user.id,
+      teamId,
+      'meta',
+      selectedIds,
+      existingMetaAccounts || []
+    );
+    
+    if (!metaSwapResult.allowed) {
+      return new Response(
+        JSON.stringify({ 
+          error: metaSwapResult.error,
+          swapLimitExceeded: true,
+          swapsNeeded: metaSwapResult.swapsNeeded
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // For Meta, always use background processing to handle large account sets

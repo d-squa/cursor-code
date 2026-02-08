@@ -20,6 +20,7 @@ import {
   Plug,
   Lock,
   BarChart3,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +91,13 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
     icon: BarChart3,
     description: "View operations analytics across all clients",
     feature: "operations_analytics"
+  },
+  {
+    title: "Usage Monitoring",
+    href: "/settings/usage",
+    icon: Activity,
+    description: "Track workspace usage, swaps, and limits",
+    roleRequirement: 'admin' // Admins and owners can see this
   }
 ];
 

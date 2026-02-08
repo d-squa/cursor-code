@@ -28,6 +28,7 @@ import LaunchStatus from "./pages/LaunchStatus";
 import InsightsRecommendations from "./pages/InsightsRecommendations";
 import OperationsAnalytics from "./pages/OperationsAnalytics";
 import OperationsReports from "./pages/settings/OperationsReports";
+import UsageMonitoring from "./components/settings/UsageMonitoring";
 import CreativeLibrary from "./pages/CreativeLibrary";
 import CreativeMatching from "./pages/CreativeMatching";
 import TaskManagement from "./pages/TaskManagement";
@@ -83,6 +84,7 @@ const App = () => (
               <Route path="plans" element={<PlanManagement />} />
               <Route path="billing" element={<BillingManagement />} />
               <Route path="operations-reports" element={<OperationsReports />} />
+              <Route path="usage" element={<UsageMonitoring />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
