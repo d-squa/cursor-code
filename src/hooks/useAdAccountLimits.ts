@@ -96,7 +96,7 @@ export function useAdAccountLimits(teamId?: string | null) {
         return;
       }
 
-      // Count ad accounts by team_id
+      // Count ad accounts by team_id and swaps by team
       const [metaCountRes, tiktokCountRes, metaSwapsRes, tiktokSwapsRes] = await Promise.all([
         supabase
           .from('meta_ad_accounts')
@@ -106,8 +106,17 @@ export function useAdAccountLimits(teamId?: string | null) {
           .from('tiktok_ad_accounts')
           .select('id', { count: 'exact', head: true })
           .eq('team_id', teamId),
-        supabase.rpc('count_swaps_this_month', { _user_id: session.user.id, _platform: 'meta' }),
-        supabase.rpc('count_swaps_this_month', { _user_id: session.user.id, _platform: 'tiktok' }),
+        // Use team-scoped swap counting
+        supabase.rpc('count_swaps_this_month', { 
+          _user_id: session.user.id, 
+          _platform: 'meta',
+          _team_id: teamId 
+        }),
+        supabase.rpc('count_swaps_this_month', { 
+          _user_id: session.user.id, 
+          _platform: 'tiktok',
+          _team_id: teamId 
+        }),
       ]);
 
       // IMPORTANT: don’t silently treat RLS/query errors as “0 used”, or limits won’t enforce.
