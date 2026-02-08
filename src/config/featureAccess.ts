@@ -179,18 +179,18 @@ export type Feature =
 
 // Minimum tier required for each feature
 const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
-  // Campaign/ActiPlan Management
+  // Campaign/ActiPlan Management - Available to all tiers
   create_actiplans: 'trial',
   edit_actiplans: 'trial',
   delete_actiplans: 'trial',
-  duplicate_actiplans: 'basic',
-  approve_actiplans: 'freelancer',
-  reject_actiplans: 'freelancer',
+  duplicate_actiplans: 'freelancer', // "All-levels duplication" starts at Enterprise, but basic duplication at Freelancer
+  approve_actiplans: 'enterprise',
+  reject_actiplans: 'enterprise',
   campaign_status_tracking: 'trial',
-  change_history_dialog: 'freelancer',
+  change_history_dialog: 'enterprise',
   
-  // Media Plan Creation
-  guided_media_plan_wizard: 'freelancer',
+  // Media Plan Creation - Core features available to all
+  guided_media_plan_wizard: 'trial',
   ai_auto_generate_strategy: 'trial',
   total_budget_allocation: 'trial',
   platform_budget_splits: 'trial',
@@ -198,43 +198,43 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   phase_budget_splits: 'trial',
   hierarchical_timeline_scheduler: 'trial',
   
-  // Platform Integrations
+  // Platform Integrations - Available to all tiers
   meta_oauth_connection: 'trial',
   tiktok_oauth_connection: 'trial',
-  multiple_connections_per_platform: 'enterprise',
+  multiple_connections_per_platform: 'enterprise', // 3+ user connections
   ad_account_syncing: 'trial',
   google_ads_forecast: 'trial',
   
-  // Client Management
-  client_management: 'enterprise',
-  assign_clients_to_teams: 'enterprise',
-  client_default_targeting: 'enterprise',
-  link_multiple_ad_accounts: 'enterprise',
-  client_market_configuration: 'enterprise',
-  client_platform_selection: 'enterprise',
+  // Client Management - Agency only
+  client_management: 'agency',
+  assign_clients_to_teams: 'agency',
+  client_default_targeting: 'agency',
+  link_multiple_ad_accounts: 'agency',
+  client_market_configuration: 'agency',
+  client_platform_selection: 'agency',
   
-  // Ad Account Defaults Configuration
-  bid_strategy_defaults: 'enterprise',
-  budget_type_defaults: 'enterprise',
-  optimization_location_defaults: 'enterprise',
-  pixel_event_defaults: 'enterprise',
-  page_instagram_defaults: 'enterprise',
-  app_defaults: 'enterprise',
-  catalog_product_set_defaults: 'enterprise',
-  placement_defaults: 'enterprise',
-  conversion_window_defaults: 'enterprise',
-  billing_event_defaults: 'enterprise',
-  attribution_window_defaults: 'enterprise',
-  messaging_channel_defaults: 'enterprise',
+  // Ad Account Defaults Configuration - Agency only
+  bid_strategy_defaults: 'agency',
+  budget_type_defaults: 'agency',
+  optimization_location_defaults: 'agency',
+  pixel_event_defaults: 'agency',
+  page_instagram_defaults: 'agency',
+  app_defaults: 'agency',
+  catalog_product_set_defaults: 'agency',
+  placement_defaults: 'agency',
+  conversion_window_defaults: 'agency',
+  billing_event_defaults: 'agency',
+  attribution_window_defaults: 'agency',
+  messaging_channel_defaults: 'agency',
   
-  // Taxonomy System
-  taxonomy_templates: 'enterprise',
-  custom_taxonomy_building: 'enterprise',
+  // Taxonomy System - Agency for unified taxonomy
+  taxonomy_templates: 'agency',
+  custom_taxonomy_building: 'agency',
   auto_generated_taxonomy_names: 'trial',
   taxonomy_timestamp_suffix: 'trial',
   taxonomy_preview: 'trial',
   
-  // Targeting Features
+  // Targeting Features - Available to all
   unified_targeting_search: 'trial',
   basic_targeting: 'trial',
   interest_targeting: 'trial',
@@ -244,20 +244,20 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   bulk_targeting_selection: 'trial',
   targeting_type_auto_detection: 'trial',
   
-  // Audience Features
+  // Audience Features - Available to all
   retargeting_audience: 'trial',
   lookalike_audience: 'trial',
   custom_audience: 'trial',
   audience_recommendation_preview: 'trial',
   
-  // Forecasting
+  // Forecasting - Available to all
   meta_rf_prediction: 'trial',
   tiktok_rf_forecast: 'trial',
   google_ads_forecast_feature: 'trial',
   benchmark_forecasting: 'freelancer',
   forecast_data_display: 'trial',
   
-  // Campaign Activation
+  // Campaign Activation - Available to all
   pre_push_validation: 'trial',
   push_to_meta: 'trial',
   push_to_tiktok: 'trial',
@@ -267,18 +267,18 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   partially_pushed_tracking: 'trial',
   
   // Performance Reporting
-  performance_dashboard: 'trial',
+  performance_dashboard: 'trial', // Visual Dashboard for all
   metric_scorecards: 'trial',
   period_comparison: 'trial',
-  time_series_charts: 'enterprise',
+  time_series_charts: 'enterprise', // Advanced performance dashboard
   budget_pacing_chart: 'enterprise',
   coverage_evolution_chart: 'enterprise',
   dimension_breakdown_charts: 'trial',
   cost_rate_metrics: 'trial',
   multi_dimensional_filtering: 'enterprise',
-  download_charts_csv: 'enterprise',
+  download_charts_csv: 'enterprise', // Export & Share
   
-  // Approval Workflow
+  // Approval Workflow - Enterprise and above
   request_modifications: 'enterprise',
   modification_request_dialog: 'enterprise',
   modification_status_tracking: 'enterprise',
@@ -286,64 +286,64 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   email_notifications_approvers: 'enterprise',
   assigned_approvers_selection: 'enterprise',
   
-  // Team Management
+  // Team Management - Enterprise (5 members), Agency (10 members)
   team_management: 'enterprise',
   team_descriptions: 'enterprise',
   assign_clients_teams: 'enterprise',
   view_team_campaigns: 'enterprise',
   
-  // User/ActiPlanner Management
+  // User/ActiPlanner Management - Enterprise and above
   user_management: 'enterprise',
   invite_team_members: 'enterprise',
   role_assignment: 'enterprise',
   accept_invitation: 'enterprise',
   remove_team_members: 'enterprise',
   
-  // Billing & Subscription
+  // Billing & Subscription - Available to all
   plan_selection: 'trial',
   monthly_yearly_toggle: 'trial',
   stripe_checkout: 'trial',
   customer_portal: 'trial',
   plan_upgrade_downgrade: 'trial',
   
-  // Account Settings
+  // Account Settings - Available to all
   company_name_config: 'trial',
   account_deletion: 'trial',
   billing_management: 'trial',
   
-  // Bug Reporting
+  // Bug Reporting - Available to all
   bug_report_button: 'trial',
   bug_report_navbar: 'trial',
   screenshot_capture: 'trial',
   description_input: 'trial',
   email_submission: 'trial',
   
-  // Onboarding
+  // Onboarding - Available to all
   onboarding_survey: 'trial',
   company_role_collection: 'trial',
   familiarity_assessment: 'trial',
   discovery_tracking: 'trial',
   
-  // ActiPlan Deliverables
+  // ActiPlan Deliverables - Enterprise and above
   pdf_export: 'enterprise',
   excel_export: 'enterprise',
   
   // Insights & Recommendations
-  insights_recommendations: 'trial',
+  insights_recommendations: 'trial', // Live insights for all
   cross_platform_insights: 'enterprise',
   save_insights_analysis: 'trial',
   unlimited_insights_saves: 'enterprise',
   share_insights_email: 'enterprise',
   unlimited_segment_usage: 'enterprise',
   
-  // Operations Measurements
-  operations_analytics: 'enterprise',
-  operations_measurements: 'enterprise',
+  // Operations Measurements - Agency only (Operations statistics)
+  operations_analytics: 'agency',
+  operations_measurements: 'agency',
   
-  // Task Management
+  // Task Management - Enterprise and above
   task_management: 'enterprise',
   
-  // Creative Library Features
+  // Creative Library Features - Enterprise and above (Creative meshing)
   creative_library: 'enterprise',
   creative_upload: 'enterprise',
   creative_assignment: 'enterprise',

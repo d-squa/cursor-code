@@ -80,7 +80,7 @@ export function tierHasAccess(userTier: SubscriptionTier, requiredTier: Subscrip
   return TIER_HIERARCHY[userTier] >= TIER_HIERARCHY[requiredTier];
 }
 
-// Daily ActiPlan limits per tier
+// Daily ActiPlan limits per tier (DSP pushes per day)
 export const ACTIPLAN_DAILY_LIMITS: Record<SubscriptionTier, number> = {
   trial: 1,
   basic: 1,
@@ -94,26 +94,35 @@ export const AD_ACCOUNT_LIMITS: Record<SubscriptionTier, number> = {
   trial: 1,
   basic: 1,
   freelancer: 3,
-  enterprise: 30,
-  agency: Infinity,
+  enterprise: 150,
+  agency: 300,
 };
 
 // Monthly swap limits per tier per platform
 export const SWAP_LIMITS: Record<SubscriptionTier, number> = {
   trial: 1,
   basic: 1,
-  freelancer: 1,
+  freelancer: 3,
   enterprise: 3,
-  agency: Infinity,
+  agency: 6,
 };
 
-// Team member limits per tier
+// OAuth connection limits per tier per platform (number of users who can connect)
+export const OAUTH_CONNECTION_LIMITS: Record<SubscriptionTier, number> = {
+  trial: 1,
+  basic: 1,
+  freelancer: 1,
+  enterprise: 3,
+  agency: 6,
+};
+
+// Team member limits per tier (total team size = owners + admins + members)
 export const TEAM_MEMBER_LIMITS: Record<SubscriptionTier, { owners: number; admins: number; members: number }> = {
   trial: { owners: 1, admins: 0, members: 0 },
   basic: { owners: 1, admins: 0, members: 0 },
   freelancer: { owners: 1, admins: 0, members: 0 },
-  enterprise: { owners: 1, admins: 0, members: 4 },
-  agency: { owners: 1, admins: 1, members: 8 },
+  enterprise: { owners: 1, admins: 1, members: 3 }, // 5 total
+  agency: { owners: 1, admins: 2, members: 7 }, // 10 total
 };
 
 // Tier display names

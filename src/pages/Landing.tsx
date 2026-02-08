@@ -80,7 +80,7 @@ const features = [
       "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop.",
   },
   {
-    icon: Link,
+    icon: Globe,
     title: "Client Portfolio Management",
     description:
       "Organize your client ad accounts under one portfolio allowing higher performance & planning accuracy, maximum control and minimal mistakes",
@@ -146,34 +146,16 @@ const pricingTiers = [
     ],
     limitations: [
       "Priority support",
-
       "Advanced reporting",
-      "Guaranteed planning",
-
-      "Advanced performance dashboard (planned vs actual)",
-
-      "Approval workflows",
-
-      "Requests workflows",
-
-      "Task Management",
-
-      "Change history",
-
-      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
-
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
       "Creative meshing",
       "Client portfolio management",
-
-      "Client default preferences & safeguards",
-
-      "AI knowledge base",
-
       "Operations statistics",
-
-      "Cross-platform unified taxonomy",
     ],
-    operationalLimits: "1 ActiPlan/Day & 1 Owner",
+    operationalLimits: "1 ActiPlan/Day • 1 Owner",
     cta: "Start Free Trial",
     popular: false,
     note: "Credit card required. Cancel anytime!",
@@ -198,149 +180,102 @@ const pricingTiers = [
     ],
     limitations: [
       "Priority support",
-
       "Advanced reporting",
-      "Guaranteed planning",
-
-      "Advanced performance dashboard (planned vs actual)",
-
-      "Approval workflows",
-
-      "Requests workflows",
-
-      "Task Management",
-
-      "Change history",
-
-      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
-
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
       "Creative meshing",
       "Client portfolio management",
-
-      "Client default preferences & safeguards",
-
-      "AI knowledge base",
-
       "Operations statistics",
-
-      "Cross-platform unified taxonomy",
     ],
-    operationalLimits: "1 ActiPlan/Day & 1 Owner, 1 platform per ActiPlan at a time",
+    operationalLimits: "1 ActiPlan/Day • 1 Owner • 1 ad account/platform",
     cta: "Get Started",
     popular: false,
   },
   {
     key: "freelancer",
     name: "Freelancer",
-    monthlyPrice: 89,
-    yearlyPrice: 907.8,
-    yearlyMonthly: 75.65,
-    yearlyTotal: 907.8,
+    monthlyPrice: 99,
+    yearlyPrice: 1009.8,
+    yearlyMonthly: 84.15,
+    yearlyTotal: 1009.8,
     period: "/month",
     description: "For growing professionals",
     features: [
       "2 ActiPlans per day",
-      "2 integrated media platforms (Meta & Tiktok)",
       "1 user connection per platform",
-      "3 ad account per platform",
-      "2 platforms per ActiPlan at a time",
-      "3 ad account swaps per platform every month",
-      "Everything in Basic plan",
+      "3 ad accounts per platform",
+      "3 ad account swaps/month",
+      "Everything in Basic",
       "Priority support",
       "Advanced reporting",
     ],
     limitations: [
-      "Guaranteed planning",
-
-      "Advanced performance dashboard (planned vs actual)",
-
-      "Approval workflows",
-
-      "Requests workflows",
-
-      "Task Management",
-
-      "Change history",
-
-      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
-
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
       "Creative meshing",
       "Client portfolio management",
-
-      "Client default preferences & safeguards",
-
-      "AI knowledge base",
-
       "Operations statistics",
-
-      "Cross-platform unified taxonomy",
     ],
-    operationalLimits: "2 ActiPlans/Day & 1 Owner, 3 ad accounts per platform",
+    operationalLimits: "2 ActiPlans/Day • 1 Owner • 3 ad accounts/platform",
     cta: "Get Started",
     popular: true,
   },
   {
     key: "enterprise",
     name: "Enterprise",
-    monthlyPrice: 189,
-    yearlyPrice: 1927.8,
-    yearlyMonthly: 160.65,
-    yearlyTotal: 1927.8,
+    monthlyPrice: 249,
+    yearlyPrice: 2539.8,
+    yearlyMonthly: 211.65,
+    yearlyTotal: 2539.8,
     period: "/month",
     description: "For teams and growing agencies",
     features: [
       "5 ActiPlans per day",
-      "2 integrated media platforms (Meta & Tiktok)",
       "3 user connections per platform",
-      "150 ad account per platform",
-      "2 platforms per ActiPlan at a time",
-      "3 ad account swaps per platform every month",
+      "150 ad accounts per platform",
+      "3 ad account swaps/month",
       "Everything in Freelancer",
       "Guaranteed planning",
-      "All-levels duplication (ActiPlan, Platform & Market)",
-      "Advanced performance dashboard (planned vs actual)",
-      "Approval workflows",
-      "Requests workflows",
-      "Task Management",
-      "Change history",
-      "Export & Share in excel & pdf formats the media plans, insights & recommendations and advanced performance reports",
+      "All-levels duplication",
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
       "Creative meshing",
       "5 team members",
     ],
     limitations: [
       "Client portfolio management",
-
-      "Client default preferences & safeguards",
-
+      "Client preferences & safeguards",
       "AI knowledge base",
-
       "Operations statistics",
-
-      "Cross-platform unified taxonomy",
+      "Cross-platform taxonomy",
     ],
-    operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
+    operationalLimits: "5 ActiPlans/Day • 5 team members • 150 ad accounts",
     cta: "Get Started",
     popular: false,
   },
   {
     key: "agency",
     name: "Agency",
-    monthlyPrice: 999,
-    yearlyPrice: 10189.8,
-    yearlyMonthly: 849.15,
-    yearlyTotal: 10189.8,
+    monthlyPrice: 699,
+    yearlyPrice: 7129.8,
+    yearlyMonthly: 594.15,
+    yearlyTotal: 7129.8,
     period: "/month",
     description: "For large agencies with dedicated support",
     features: [
       "Unlimited ActiPlans per day",
-      "2 integrated media platforms (Meta & Tiktok)",
-      "6 user connection per platform",
-      "300 ad account per platform",
-      "2 platforms per ActiPlan at a time",
-      "6 ad account swaps per platform every month",
+      "6 user connections per platform",
+      "300 ad accounts per platform",
+      "6 ad account swaps/month",
       "Everything in Enterprise",
       "Client portfolio management",
-      "Client default preferences & safeguards",
+      "Client preferences & safeguards",
       "AI knowledge base",
       "Operations statistics",
       "Cross-platform unified taxonomy",
@@ -349,7 +284,7 @@ const pricingTiers = [
       "Platform onboarding included",
     ],
     limitations: [],
-    operationalLimits: "Unlimited ActiPlans, 1 Owner, 1 Admin & 8 Team Members",
+    operationalLimits: "Unlimited • 10 team members • 300 ad accounts",
     cta: "Get Started",
     popular: false,
   },
