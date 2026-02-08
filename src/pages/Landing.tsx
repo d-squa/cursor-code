@@ -160,10 +160,6 @@ const pricingTiers = [
       "Operations statistics",
 
       "Cross-platform unified taxonomy",
-
-      "10 team members",
-
-      "Dedicated support",
     ],
     operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Start Free Trial",
@@ -216,10 +212,6 @@ const pricingTiers = [
       "Operations statistics",
 
       "Cross-platform unified taxonomy",
-
-      "10 team members",
-
-      "Dedicated support",
     ],
     operationalLimits: "1 ActiPlan/Day & 1 Owner, 1 platform per ActiPlan at a time",
     cta: "Get Started",
@@ -270,10 +262,6 @@ const pricingTiers = [
       "Operations statistics",
 
       "Cross-platform unified taxonomy",
-
-      "10 team members",
-
-      "Dedicated support",
     ],
     operationalLimits: "2 ActiPlans/Day & 1 Owner, 3 ad accounts per platform",
     cta: "Get Started",
@@ -317,10 +305,6 @@ const pricingTiers = [
       "Operations statistics",
 
       "Cross-platform unified taxonomy",
-
-      "10 team members",
-
-      "Dedicated support",
     ],
     operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
     cta: "Get Started",
