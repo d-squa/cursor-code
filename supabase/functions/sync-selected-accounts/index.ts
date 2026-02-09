@@ -114,6 +114,7 @@ async function getUserSubscriptionInfo(supabase: any, userId: string, teamId: st
       'price_1SybldKrTGU4P754EBnjjPos': 'enterprise', // enterprise yearly
       'price_1SyblfKrTGU4P754gwTKmrsC': 'agency',     // agency monthly
       'price_1SyblfKrTGU4P754PtKbziMk': 'agency',     // agency yearly
+      'price_1ScnOeKrTGU4P75446dvndr3': 'agency',     // legacy agency monthly
     };
 
     const tier = priceToTier[priceId] || 'trial';

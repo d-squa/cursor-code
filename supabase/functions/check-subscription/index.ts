@@ -269,6 +269,7 @@ serve(async (req) => {
         const agencyPriceIds = [
           "price_1SyblfKrTGU4P754gwTKmrsC", // agency monthly (USD)
           "price_1SyblfKrTGU4P754PtKbziMk", // agency yearly (USD)
+          "price_1ScnOeKrTGU4P75446dvndr3", // legacy agency monthly (USD)
         ];
 
         const getSubPriceId = (sub: any): string | null => sub?.items?.data?.[0]?.price?.id ?? null;

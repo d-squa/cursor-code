@@ -26,6 +26,16 @@ export const PRICE_IDS = {
   },
 } as const;
 
+// Legacy price IDs that should still map to their respective tiers
+// These are older prices created before the USD-standardized pricing was introduced
+export const LEGACY_PRICE_IDS: Record<string, SubscriptionTier> = {
+  "price_1ScnOeKrTGU4P75446dvndr3": "agency", // Legacy ActiPlan Agency Monthly ($999 USD)
+};
+
+export const LEGACY_PRODUCT_IDS: Record<string, SubscriptionTier> = {
+  "prod_TZxJAdnaSLNRsJ": "agency", // Legacy ActiPlan Agency Monthly
+};
+
 // Get billing period from price ID
 export function getBillingPeriodFromPriceId(priceId: string | null): "monthly" | "yearly" | null {
   if (!priceId) return null;
@@ -48,6 +58,11 @@ export function getTierFromPriceId(priceId: string | null): SubscriptionTier {
     }
   }
 
+  // Check legacy price IDs
+  if (LEGACY_PRICE_IDS[priceId]) {
+    return LEGACY_PRICE_IDS[priceId];
+  }
+
   // Default to trial if price ID not recognized
   return "trial";
 }
@@ -60,6 +75,11 @@ export function getTierFromProductId(productId: string | null): SubscriptionTier
     if (config.productId === productId) {
       return tier as SubscriptionTier;
     }
+  }
+
+  // Check legacy product IDs
+  if (LEGACY_PRODUCT_IDS[productId]) {
+    return LEGACY_PRODUCT_IDS[productId];
   }
 
   // Default to trial if product ID not recognized
