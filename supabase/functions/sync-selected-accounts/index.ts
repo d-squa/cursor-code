@@ -547,13 +547,11 @@ async function syncMetaAccountsInBackground(
     currentStep = totalAccounts + 1;
     await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'ad_accounts', 'Saving ad accounts...', processedCounts);
 
-    // Delete only the accounts we're about to insert (to update them) - scoped by team
-    const accountIdsToSync = accountsToInsert.map(acc => acc.account_id);
+    // Replace the team's synced Meta account set with the new selection
     await supabase
       .from("meta_ad_accounts")
       .delete()
-      .eq("team_id", teamId)
-      .in("account_id", accountIdsToSync);
+      .eq("team_id", teamId);
     
     const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
     
@@ -828,12 +826,11 @@ serve(async (req) => {
         });
       });
 
-      // Delete existing TikTok accounts that we're about to sync (to update them) - scoped by team
+      // Replace the team's synced TikTok account set with the new selection
       await supabase
         .from("tiktok_ad_accounts")
         .delete()
-        .eq("team_id", teamId)
-        .in("advertiser_id", selectedIds);
+        .eq("team_id", teamId);
       
       const { error: insertError } = await supabase
         .from("tiktok_ad_accounts")

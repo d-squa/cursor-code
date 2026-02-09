@@ -57,11 +57,20 @@ export default function PlatformAdAccountSelector({
   const platformName = platformType === 'tiktok' ? 'TikTok' : 'Meta';
   const accountLabel = platformType === 'tiktok' ? 'advertiser account' : 'ad account';
 
-  // Calculate how many new accounts can be added
+  const maxSelectable = platformLimits.maxAllowed;
+
+  // Calculate how many *additional* accounts can be added without replacing existing ones
   const maxNewAccounts = useMemo(() => {
-    const remaining = platformLimits.maxAllowed - platformLimits.currentCount;
+    const remaining = maxSelectable - platformLimits.currentCount;
     return Math.max(0, remaining);
-  }, [platformLimits.currentCount, platformLimits.maxAllowed]);
+  }, [maxSelectable, platformLimits.currentCount]);
+
+  const isSingleAccountPlan = maxSelectable === 1;
+
+  const swapsRemaining = useMemo(() => {
+    if (platformLimits.swapsAllowed === Infinity) return Infinity;
+    return Math.max(0, platformLimits.swapsAllowed - platformLimits.swapsUsed);
+  }, [platformLimits.swapsAllowed, platformLimits.swapsUsed]);
 
   // Check which accounts are already linked (reconnect case)
   const reconnectAccountIds = useMemo(() => {
@@ -105,36 +114,57 @@ export default function PlatformAdAccountSelector({
 
   const handleToggle = (id: string, checked: boolean) => {
     const isReconnect = reconnectAccountIds.has(id);
-    
+
     if (checked) {
-      // Check if this would exceed the limit (only for new accounts)
-      if (!isReconnect && newAccountsSelected.length >= maxNewAccounts) {
-        // Show upgrade modal
+      // Single-account tiers behave like a radio group: selecting a new account replaces the old one.
+      if (isSingleAccountPlan) {
+        const isSwitching = selectedIds.size > 0 && !selectedIds.has(id);
+        const wouldConsumeSwap =
+          isSwitching && platformLimits.currentCount >= maxSelectable && !isReconnect;
+
+        if (wouldConsumeSwap && !platformLimits.canSwap) {
+          setUpgradeModalProps({
+            limitType: 'swap_limit',
+            swapsUsed: platformLimits.swapsUsed,
+          });
+          setUpgradeModalOpen(true);
+          return;
+        }
+
+        setSelectedIds(new Set([id]));
+        return;
+      }
+
+      // Multi-account tiers: enforce the max selectable accounts.
+      if (selectedIds.size >= maxSelectable) {
         setUpgradeModalProps({
-          limitType: maxNewAccounts === 0 ? 'no_multiple_accounts' : 'account_limit',
+          limitType: 'account_limit',
           currentCount: platformLimits.currentCount,
         });
         setUpgradeModalOpen(true);
         return;
       }
-      
-      setSelectedIds(prev => new Set([...prev, id]));
-    } else {
-      setSelectedIds(prev => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
+
+      setSelectedIds((prev) => new Set([...prev, id]));
+      return;
     }
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   const handleSelectAll = () => {
-    // If can select all, select up to limit
     const reconnects = Array.from(reconnectAccountIds);
-    const nonReconnects = adAccounts.filter(acc => !reconnectAccountIds.has(acc.id)).map(acc => acc.id);
-    
-    // Always include reconnects, then add new accounts up to limit
-    const newSelections = nonReconnects.slice(0, maxNewAccounts);
+    const nonReconnects = adAccounts
+      .filter((acc) => !reconnectAccountIds.has(acc.id))
+      .map((acc) => acc.id);
+
+    // Always include reconnects, then add accounts up to the overall selection limit
+    const availableSlots = Math.max(0, maxSelectable - reconnects.length);
+    const newSelections = nonReconnects.slice(0, availableSlots);
     setSelectedIds(new Set([...reconnects, ...newSelections]));
   };
 
@@ -151,9 +181,10 @@ export default function PlatformAdAccountSelector({
     onSelect(selectedAccounts);
   };
 
-  const isAtLimit = newAccountsSelected.length >= maxNewAccounts;
-  const showLimitWarning = isAtLimit && maxNewAccounts > 0;
-  const showNoMultipleWarning = maxNewAccounts === 0 && platformLimits.currentCount > 0;
+  const selectionAtLimit = selectedIds.size >= maxSelectable;
+  const showLimitWarning = !isSingleAccountPlan && selectionAtLimit && maxSelectable > 0;
+  const showNoMultipleWarning = isSingleAccountPlan && platformLimits.currentCount > 0;
+  const showSwapLimitReached = showNoMultipleWarning && !platformLimits.canSwap;
 
   return (
     <>
@@ -180,28 +211,41 @@ export default function PlatformAdAccountSelector({
               {platformLimits.currentCount} / {platformLimits.maxAllowed} accounts used
             </Badge>
             <Badge variant="outline" className="gap-1">
-              {platformLimits.swapsUsed} / {platformLimits.swapsAllowed === Infinity ? '∞' : platformLimits.swapsAllowed} swaps this month
+              {platformLimits.swapsUsed} / {platformLimits.swapsAllowed === Infinity ? '∞' : platformLimits.swapsAllowed} swaps this period
             </Badge>
           </div>
 
-          {showNoMultipleWarning && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                You've reached your limit of {platformLimits.maxAllowed} ad account{platformLimits.maxAllowed !== 1 ? 's' : ''} per platform. Upgrade to link more accounts.
-              </AlertDescription>
-            </Alert>
-          )}
+           {showNoMultipleWarning && (
+             <Alert variant={showSwapLimitReached ? "destructive" : undefined}>
+               {showSwapLimitReached ? (
+                 <AlertCircle className="h-4 w-4" />
+               ) : (
+                 <Info className="h-4 w-4" />
+               )}
+               <AlertDescription>
+                 {showSwapLimitReached ? (
+                   <>
+                     You’ve used all your swaps for this billing period. You can’t switch to a new {accountLabel} until it resets
+                     or you upgrade.
+                   </>
+                 ) : (
+                   <>
+                     Your plan allows <strong>{maxSelectable}</strong> {accountLabel} at a time. Select a different {accountLabel} to swap
+                     (uses 1 swap). Upgrade to link multiple accounts.
+                   </>
+                 )}
+               </AlertDescription>
+             </Alert>
+           )}
 
-          {showLimitWarning && (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                You've selected the maximum number of new accounts ({maxNewAccounts}). 
-                Upgrade to link more.
-              </AlertDescription>
-            </Alert>
-          )}
+           {showLimitWarning && (
+             <Alert>
+               <Info className="h-4 w-4" />
+               <AlertDescription>
+                 You can select up to {maxSelectable} account{maxSelectable !== 1 ? "s" : ""}. Deselect one to choose another.
+               </AlertDescription>
+             </Alert>
+           )}
 
           <div className="flex items-center justify-between pb-2">
             <div className="text-sm text-muted-foreground">
@@ -222,20 +266,32 @@ export default function PlatformAdAccountSelector({
               {adAccounts.map((acc) => {
                 const isReconnect = reconnectAccountIds.has(acc.id);
                 const isSelected = selectedIds.has(acc.id);
-                const wouldExceedLimit = !isSelected && !isReconnect && newAccountsSelected.length >= maxNewAccounts;
-                
+
+                const wouldExceedSelectionLimit =
+                  !isSingleAccountPlan && !isSelected && selectedIds.size >= maxSelectable;
+
+                const swapSelectionLocked =
+                  isSingleAccountPlan &&
+                  !isSelected &&
+                  platformLimits.currentCount >= maxSelectable &&
+                  !isReconnect &&
+                  !platformLimits.canSwap;
+
+                const rowMuted = swapSelectionLocked || wouldExceedSelectionLimit;
+
                 return (
                   <label 
                     key={acc.id} 
-                    className={`flex items-start space-x-3 p-3 rounded-lg border bg-card cursor-pointer transition-colors
-                      ${wouldExceedLimit ? 'opacity-50' : 'hover:bg-muted/50'}
+                    className={`flex items-start space-x-3 p-3 rounded-lg border bg-card transition-colors
+                      ${rowMuted ? 'opacity-50' : 'hover:bg-muted/50'}
+                      ${swapSelectionLocked ? 'cursor-not-allowed' : 'cursor-pointer'}
                       ${isReconnect ? 'border-primary/30 bg-primary/5' : ''}
                     `}
                   >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={(val) => handleToggle(acc.id, Boolean(val))}
-                      disabled={loading}
+                      disabled={loading || swapSelectionLocked}
                     />
                     <div className="flex-1 text-sm space-y-1">
                       <div className="flex items-center gap-2">
