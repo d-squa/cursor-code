@@ -1,41 +1,33 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { differenceInDays, differenceInHours } from "date-fns";
-import { getNextBillingReset } from "@/hooks/useAdAccountLimits";
+import { differenceInDays } from "date-fns";
 
 interface SwapCounterBadgeProps {
   label: string;
   used: number;
   allowed: number;
-  subscriptionStart?: string | null;
+  subscriptionEnd?: string | null;
 }
 
 /**
- * Returns time until the next reset based on billing cycle
+ * Returns days until the subscription renewal/reset.
+ * Uses subscriptionEnd directly so it matches the billing timeline exactly.
  */
-function getTimeUntilReset(subscriptionStart: string | null): string {
-  const nextReset = getNextBillingReset(subscriptionStart);
-  const now = new Date();
-  
-  const daysRemaining = differenceInDays(nextReset, now);
-  const hoursRemaining = differenceInHours(nextReset, now) % 24;
-  
-  if (daysRemaining > 1) {
-    return `${daysRemaining} days`;
-  } else if (daysRemaining === 1) {
-    return `1 day, ${hoursRemaining} hours`;
-  } else if (hoursRemaining > 0) {
-    return `${hoursRemaining} hours`;
-  } else {
-    return "less than 1 hour";
+function getDaysUntilReset(subscriptionEnd: string | null): number {
+  if (!subscriptionEnd) {
+    // Fallback: 1st of next month
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return Math.max(0, differenceInDays(nextMonth, now));
   }
+  return Math.max(0, differenceInDays(new Date(subscriptionEnd), new Date()));
 }
 
 export default function SwapCounterBadge({
   label,
   used,
   allowed,
-  subscriptionStart,
+  subscriptionEnd,
 }: SwapCounterBadgeProps) {
   const displayAllowed = allowed === Infinity ? '∞' : allowed;
   const isAtLimit = used >= allowed && allowed !== Infinity;
@@ -44,7 +36,8 @@ export default function SwapCounterBadge({
   // Determine badge variant based on status
   const variant = isAtLimit ? 'destructive' : hasNoSwaps ? 'secondary' : 'outline';
   
-  const timeUntilReset = getTimeUntilReset(subscriptionStart ?? null);
+  const daysUntilReset = getDaysUntilReset(subscriptionEnd ?? null);
+  const timeUntilReset = daysUntilReset === 0 ? "less than 1 day" : daysUntilReset === 1 ? "1 day" : `${daysUntilReset} days`;
   
   const tooltipContent = hasNoSwaps 
     ? `Your current plan doesn't include swaps. Upgrade to Freelancer+ for swap allowance.`

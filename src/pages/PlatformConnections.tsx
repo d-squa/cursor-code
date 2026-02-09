@@ -120,7 +120,7 @@ export default function PlatformConnections() {
   adAccountLimitsRefetchRef.current = adAccountLimits.refetch;
   
   // Get subscription info for billing cycle reset date
-  const { subscriptionStart } = useSubscription();
+  const { subscriptionEnd } = useSubscription();
   
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeModalProps, setUpgradeModalProps] = useState<{
@@ -1071,7 +1071,7 @@ export default function PlatformConnections() {
                   label="Meta Swaps"
                   used={adAccountLimits.meta.swapsUsed}
                   allowed={adAccountLimits.meta.swapsAllowed}
-                  subscriptionStart={subscriptionStart}
+                  subscriptionEnd={subscriptionEnd}
                 />
                 <Badge variant="outline" className="gap-1">
                   TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
@@ -1080,7 +1080,7 @@ export default function PlatformConnections() {
                   label="TikTok Swaps"
                   used={adAccountLimits.tiktok.swapsUsed}
                   allowed={adAccountLimits.tiktok.swapsAllowed}
-                  subscriptionStart={subscriptionStart}
+                  subscriptionEnd={subscriptionEnd}
                 />
               </div>
             </div>
