@@ -10,6 +10,40 @@ import {
 // Re-export for convenience
 export { AD_ACCOUNT_LIMITS, SWAP_LIMITS };
 
+// Helper to calculate next billing cycle reset date
+export function getNextBillingReset(subscriptionStart: string | null): Date {
+  if (!subscriptionStart) {
+    // Fallback to calendar month (1st of next month)
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  }
+  
+  const anchorDate = new Date(subscriptionStart);
+  const anchorDay = anchorDate.getUTCDate();
+  const now = new Date();
+  
+  // Calculate the anchor date in the current month
+  let currentMonthAnchor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), anchorDay));
+  
+  // Handle months with fewer days
+  const daysInCurrentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  if (anchorDay > daysInCurrentMonth) {
+    currentMonthAnchor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), daysInCurrentMonth));
+  }
+  
+  // If we're past the anchor day this month, the next reset is next month
+  if (now >= currentMonthAnchor) {
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, anchorDay));
+    const daysInNextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0)).getUTCDate();
+    if (anchorDay > daysInNextMonth) {
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, daysInNextMonth));
+    }
+    return nextMonth;
+  }
+  
+  return currentMonthAnchor;
+}
+
 // Check if tier can have multiple ad accounts per platform
 export function canHaveMultipleAccounts(tier: SubscriptionTier): boolean {
   return AD_ACCOUNT_LIMITS[tier] > 1;
@@ -37,7 +71,7 @@ export interface AdAccountLimitsState {
 }
 
 export function useAdAccountLimits(teamId?: string | null) {
-  const { tier, loading: subscriptionLoading } = useSubscription();
+  const { tier, loading: subscriptionLoading, subscriptionStart } = useSubscription();
   const [limits, setLimits] = useState<AdAccountLimitsState>(() => ({
     meta: {
       currentCount: 0,
@@ -96,7 +130,7 @@ export function useAdAccountLimits(teamId?: string | null) {
         return;
       }
 
-      // Count ad accounts by team_id and swaps by team
+      // Count ad accounts by team_id and swaps by team using billing cycle
       const [metaCountRes, tiktokCountRes, metaSwapsRes, tiktokSwapsRes] = await Promise.all([
         supabase
           .from('meta_ad_accounts')
@@ -106,16 +140,18 @@ export function useAdAccountLimits(teamId?: string | null) {
           .from('tiktok_ad_accounts')
           .select('id', { count: 'exact', head: true })
           .eq('team_id', teamId),
-        // Use team-scoped swap counting
-        supabase.rpc('count_swaps_this_month', { 
+        // Use billing-cycle-scoped swap counting
+        supabase.rpc('count_swaps_in_billing_period', { 
           _user_id: session.user.id, 
           _platform: 'meta',
-          _team_id: teamId 
+          _team_id: teamId,
+          _billing_anchor_date: subscriptionStart || null
         }),
-        supabase.rpc('count_swaps_this_month', { 
+        supabase.rpc('count_swaps_in_billing_period', { 
           _user_id: session.user.id, 
           _platform: 'tiktok',
-          _team_id: teamId 
+          _team_id: teamId,
+          _billing_anchor_date: subscriptionStart || null
         }),
       ]);
 
@@ -157,7 +193,7 @@ export function useAdAccountLimits(teamId?: string | null) {
       console.error("Error fetching ad account limits:", error);
       setLimits(prev => ({ ...prev, loading: false }));
     }
-  }, [tier, teamId]);
+  }, [tier, teamId, subscriptionStart]);
 
   useEffect(() => {
     if (!subscriptionLoading && teamId) {
