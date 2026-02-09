@@ -120,7 +120,7 @@ export default function PlatformConnections() {
   adAccountLimitsRefetchRef.current = adAccountLimits.refetch;
   
   // Get subscription info for billing cycle reset date
-  const { subscriptionEnd } = useSubscription();
+  const { subscriptionEnd, loading: subscriptionLoading } = useSubscription();
   
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeModalProps, setUpgradeModalProps] = useState<{
