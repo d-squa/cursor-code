@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { AlertCircle, Info } from "lucide-react";
 import { useAdAccountLimits, AD_ACCOUNT_LIMITS, SWAP_LIMITS } from "@/hooks/useAdAccountLimits";
 import AdAccountUpgradeModal from "@/components/AdAccountUpgradeModal";
@@ -73,27 +73,34 @@ export default function PlatformAdAccountSelector({
     return Array.from(selectedIds).filter(id => !reconnectAccountIds.has(id));
   }, [selectedIds, reconnectAccountIds]);
 
+  // Track if dialog just opened (false -> true transition)
+  const wasOpenRef = useRef(false);
+
   // When dialog opens, select reconnecting accounts by default
+  // IMPORTANT: Only initialize state on the open transition, not on prop changes while open
   useEffect(() => {
-    if (open) {
-      // Start with reconnecting accounts pre-selected
-      const defaultSelected = new Set<string>();
-      adAccounts.forEach(acc => {
-        if (existingAccountIds.includes(acc.id)) {
-          defaultSelected.add(acc.id);
-        }
-      });
-      
-      // If no existing accounts, and we can add accounts, select first one
-      if (defaultSelected.size === 0 && maxNewAccounts > 0 && adAccounts.length > 0) {
-        // Don't auto-select for trial/basic tiers if they already have an account
-        if (platformLimits.currentCount === 0) {
-          defaultSelected.add(adAccounts[0].id);
-        }
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    
+    if (!justOpened) return;
+    
+    // Start with reconnecting accounts pre-selected
+    const defaultSelected = new Set<string>();
+    adAccounts.forEach(acc => {
+      if (existingAccountIds.includes(acc.id)) {
+        defaultSelected.add(acc.id);
       }
-      
-      setSelectedIds(defaultSelected);
+    });
+    
+    // If no existing accounts, and we can add accounts, select first one
+    if (defaultSelected.size === 0 && maxNewAccounts > 0 && adAccounts.length > 0) {
+      // Don't auto-select for trial/basic tiers if they already have an account
+      if (platformLimits.currentCount === 0) {
+        defaultSelected.add(adAccounts[0].id);
+      }
     }
+    
+    setSelectedIds(defaultSelected);
   }, [open, adAccounts, existingAccountIds, maxNewAccounts, platformLimits.currentCount]);
 
   const handleToggle = (id: string, checked: boolean) => {

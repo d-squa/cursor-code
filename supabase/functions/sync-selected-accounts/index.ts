@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import Stripe from "https://esm.sh/stripe@18.5.0";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
@@ -26,49 +27,80 @@ const AD_ACCOUNT_LIMITS: Record<string, number> = {
   agency: 300,
 };
 
-// Helper to get user's subscription tier
-async function getUserTier(supabase: any, userId: string): Promise<string> {
+// Helper to get user's subscription tier - queries Stripe directly for accuracy
+async function getUserTier(supabase: any, userId: string, teamId: string): Promise<string> {
   try {
-    // First get the billing customer for this user
-    const { data: billingCustomer } = await supabase
-      .from('billing_customers')
-      .select('stripe_customer_id')
-      .eq('user_id', userId)
-      .single();
-
-    if (!billingCustomer?.stripe_customer_id) {
+    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!stripeKey) {
+      console.log('[TIER] No STRIPE_SECRET_KEY, defaulting to trial');
       return 'trial';
     }
 
-    // Check for active subscription via subscriptions table
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('price_id, status')
-      .eq('user_id', userId)
-      .in('status', ['active', 'trialing'])
-      .order('created_at', { ascending: false })
-      .limit(1)
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
+    // Get the team to determine if we should use team owner's subscription
+    const { data: team } = await supabase
+      .from('teams')
+      .select('id, owner_id')
+      .eq('id', teamId)
       .single();
 
-    if (!subscription?.price_id) {
+    // Determine which user's subscription to check (team owner or the user)
+    const subscriptionUserId = team?.owner_id || userId;
+    console.log(`[TIER] Checking subscription for user ${subscriptionUserId} (team owner: ${team?.owner_id === subscriptionUserId})`);
+
+    // Get the billing customer mapping
+    const { data: billingCustomer } = await supabase
+      .from('billing_customers')
+      .select('stripe_customer_id')
+      .eq('user_id', subscriptionUserId)
+      .single();
+
+    if (!billingCustomer?.stripe_customer_id) {
+      console.log('[TIER] No billing customer mapping found, returning trial');
+      return 'trial';
+    }
+
+    // Get active subscriptions from Stripe
+    const subscriptions = await stripe.subscriptions.list({
+      customer: billingCustomer.stripe_customer_id,
+      status: 'all',
+      limit: 10,
+    });
+
+    // Find active or trialing subscription
+    const activeSub = subscriptions.data.find(
+      (s: { status: string }) => s.status === "active" || s.status === "trialing"
+    );
+
+    if (!activeSub) {
+      console.log('[TIER] No active subscription found, returning trial');
+      return 'trial';
+    }
+
+    const priceId = activeSub.items?.data?.[0]?.price?.id;
+    if (!priceId) {
+      console.log('[TIER] No price ID found in subscription, returning trial');
       return 'trial';
     }
 
     // Map price IDs to tiers
     const priceToTier: Record<string, string> = {
-      'price_1ScnObKrTGU4P754AAJ9Q5NU': 'basic',
-      'price_1ScnL9KrTGU4P754QirsF0Sd': 'basic',
-      'price_1SyblZKrTGU4P754e0GfARV4': 'freelancer',
-      'price_1SyblbKrTGU4P754Otu9dcxm': 'freelancer',
-      'price_1SyblcKrTGU4P754HYOgkuIQ': 'enterprise',
-      'price_1SybldKrTGU4P754EBnjjPos': 'enterprise',
-      'price_1SyblfKrTGU4P754gwTKmrsC': 'agency',
-      'price_1SyblfKrTGU4P754PtKbziMk': 'agency',
+      'price_1ScnObKrTGU4P754AAJ9Q5NU': 'basic',      // basic monthly
+      'price_1ScnL9KrTGU4P754QirsF0Sd': 'basic',      // basic yearly
+      'price_1SyblZKrTGU4P754e0GfARV4': 'freelancer', // freelancer monthly
+      'price_1SyblbKrTGU4P754Otu9dcxm': 'freelancer', // freelancer yearly
+      'price_1SyblcKrTGU4P754HYOgkuIQ': 'enterprise', // enterprise monthly
+      'price_1SybldKrTGU4P754EBnjjPos': 'enterprise', // enterprise yearly
+      'price_1SyblfKrTGU4P754gwTKmrsC': 'agency',     // agency monthly
+      'price_1SyblfKrTGU4P754PtKbziMk': 'agency',     // agency yearly
     };
 
-    return priceToTier[subscription.price_id] || 'trial';
+    const tier = priceToTier[priceId] || 'trial';
+    console.log(`[TIER] Found subscription with price ${priceId}, tier: ${tier}`);
+    return tier;
   } catch (error) {
-    console.error('Error getting user tier:', error);
+    console.error('[TIER] Error getting user tier:', error);
     return 'trial';
   }
 }
@@ -105,7 +137,7 @@ async function detectAndLogSwaps(
   }
   
   // Get user's tier and check swap limit
-  const tier = await getUserTier(supabase, userId);
+  const tier = await getUserTier(supabase, userId, teamId);
   const maxSwaps = SWAP_LIMITS[tier] ?? 1;
   
   // Count swaps already used this month for this team
