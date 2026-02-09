@@ -34,6 +34,7 @@ import PlatformSyncProgressDialog from "@/components/PlatformSyncProgressDialog"
 import { useAdAccountLimits, canHaveMultipleAccounts } from "@/hooks/useAdAccountLimits";
 import AdAccountUpgradeModal from "@/components/AdAccountUpgradeModal";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useSubscription } from "@/hooks/useSubscription";
 import SwapCounterBadge from "@/components/SwapCounterBadge";
 
 interface MetaAdAccount {
@@ -117,6 +118,9 @@ export default function PlatformConnections() {
   const adAccountLimits = useAdAccountLimits(activeWorkspaceId);
   const adAccountLimitsRefetchRef = useRef(adAccountLimits.refetch);
   adAccountLimitsRefetchRef.current = adAccountLimits.refetch;
+  
+  // Get subscription info for billing cycle reset date
+  const { subscriptionStart } = useSubscription();
   
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeModalProps, setUpgradeModalProps] = useState<{
@@ -1067,7 +1071,7 @@ export default function PlatformConnections() {
                   label="Meta Swaps"
                   used={adAccountLimits.meta.swapsUsed}
                   allowed={adAccountLimits.meta.swapsAllowed}
-                  resetPeriod="monthly"
+                  subscriptionStart={subscriptionStart}
                 />
                 <Badge variant="outline" className="gap-1">
                   TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
@@ -1076,7 +1080,7 @@ export default function PlatformConnections() {
                   label="TikTok Swaps"
                   used={adAccountLimits.tiktok.swapsUsed}
                   allowed={adAccountLimits.tiktok.swapsAllowed}
-                  resetPeriod="monthly"
+                  subscriptionStart={subscriptionStart}
                 />
               </div>
             </div>

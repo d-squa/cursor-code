@@ -27,13 +27,13 @@ const AD_ACCOUNT_LIMITS: Record<string, number> = {
   agency: 300,
 };
 
-// Helper to get user's subscription tier - queries Stripe directly for accuracy
-async function getUserTier(supabase: any, userId: string, teamId: string): Promise<string> {
+// Helper to get user's subscription tier and billing anchor - queries Stripe directly for accuracy
+async function getUserSubscriptionInfo(supabase: any, userId: string, teamId: string): Promise<{ tier: string; billingAnchor: string | null }> {
   try {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
       console.log('[TIER] No STRIPE_SECRET_KEY, defaulting to trial');
-      return 'trial';
+      return { tier: 'trial', billingAnchor: null };
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -58,7 +58,7 @@ async function getUserTier(supabase: any, userId: string, teamId: string): Promi
 
     if (!billingCustomer?.stripe_customer_id) {
       console.log('[TIER] No billing customer mapping found, returning trial');
-      return 'trial';
+      return { tier: 'trial', billingAnchor: null };
     }
 
     // Get active subscriptions from Stripe
@@ -75,13 +75,33 @@ async function getUserTier(supabase: any, userId: string, teamId: string): Promi
 
     if (!activeSub) {
       console.log('[TIER] No active subscription found, returning trial');
-      return 'trial';
+      return { tier: 'trial', billingAnchor: null };
+    }
+
+    // Extract billing anchor date from subscription
+    const subAny = activeSub as any;
+    let billingAnchor: string | null = null;
+    
+    // Try different sources for the billing period start
+    let periodStart = subAny.current_period_start;
+    if (!periodStart && activeSub.items?.data?.[0]) {
+      periodStart = (activeSub.items.data[0] as any).current_period_start;
+    }
+    if (!periodStart && subAny.billing_cycle_anchor) {
+      periodStart = subAny.billing_cycle_anchor;
+    }
+    if (!periodStart && subAny.start_date) {
+      periodStart = subAny.start_date;
+    }
+    
+    if (periodStart && typeof periodStart === 'number') {
+      billingAnchor = new Date(periodStart * 1000).toISOString();
     }
 
     const priceId = activeSub.items?.data?.[0]?.price?.id;
     if (!priceId) {
       console.log('[TIER] No price ID found in subscription, returning trial');
-      return 'trial';
+      return { tier: 'trial', billingAnchor };
     }
 
     // Map price IDs to tiers
@@ -97,11 +117,11 @@ async function getUserTier(supabase: any, userId: string, teamId: string): Promi
     };
 
     const tier = priceToTier[priceId] || 'trial';
-    console.log(`[TIER] Found subscription with price ${priceId}, tier: ${tier}`);
-    return tier;
+    console.log(`[TIER] Found subscription with price ${priceId}, tier: ${tier}, billingAnchor: ${billingAnchor}`);
+    return { tier, billingAnchor };
   } catch (error) {
-    console.error('[TIER] Error getting user tier:', error);
-    return 'trial';
+    console.error('[TIER] Error getting user subscription info:', error);
+    return { tier: 'trial', billingAnchor: null };
   }
 }
 
@@ -136,16 +156,17 @@ async function detectAndLogSwaps(
     return { allowed: true, swapsNeeded: 0 };
   }
   
-  // Get user's tier and check swap limit
-  const tier = await getUserTier(supabase, userId, teamId);
+  // Get user's tier and billing anchor, then check swap limit
+  const { tier, billingAnchor } = await getUserSubscriptionInfo(supabase, userId, teamId);
   const maxSwaps = SWAP_LIMITS[tier] ?? 1;
   
-  // Count swaps already used this month for this team
-  const { data: swapsThisMonth, error: countError } = await supabase
-    .rpc('count_swaps_this_month', { 
+  // Count swaps already used this billing period for this team
+  const { data: swapsThisPeriod, error: countError } = await supabase
+    .rpc('count_swaps_in_billing_period', { 
       _user_id: userId, 
       _platform: platform, 
-      _team_id: teamId 
+      _team_id: teamId,
+      _billing_anchor_date: billingAnchor
     });
   
   if (countError) {
@@ -153,16 +174,16 @@ async function detectAndLogSwaps(
     return { allowed: false, swapsNeeded, error: 'Failed to check swap limits' };
   }
   
-  const usedSwaps = swapsThisMonth ?? 0;
+  const usedSwaps = swapsThisPeriod ?? 0;
   const remainingSwaps = maxSwaps - usedSwaps;
   
-  console.log(`[SWAP-DETECTION] Tier: ${tier}, Max swaps: ${maxSwaps}, Used: ${usedSwaps}, Remaining: ${remainingSwaps}, Needed: ${swapsNeeded}`);
+  console.log(`[SWAP-DETECTION] Tier: ${tier}, Max swaps: ${maxSwaps}, Used: ${usedSwaps}, Remaining: ${remainingSwaps}, Needed: ${swapsNeeded}, BillingAnchor: ${billingAnchor}`);
   
   if (swapsNeeded > remainingSwaps) {
     return { 
       allowed: false, 
       swapsNeeded,
-      error: `This change requires ${swapsNeeded} swap(s), but you only have ${remainingSwaps} remaining this month. Upgrade your plan for more swaps.`
+      error: `This change requires ${swapsNeeded} swap(s), but you only have ${remainingSwaps} remaining this billing period. Upgrade your plan for more swaps.`
     };
   }
   

@@ -3295,12 +3295,19 @@ export type Database = {
         Args: { _platform: string; _user_id: string }
         Returns: number
       }
-      count_swaps_this_month:
-        | { Args: { _platform: string; _user_id: string }; Returns: number }
-        | {
-            Args: { _platform: string; _team_id?: string; _user_id: string }
-            Returns: number
-          }
+      count_swaps_in_billing_period: {
+        Args: {
+          _billing_anchor_date?: string
+          _platform: string
+          _team_id?: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      count_swaps_this_month: {
+        Args: { _platform: string; _team_id?: string; _user_id: string }
+        Returns: number
+      }
       ensure_user_workspace: { Args: never; Returns: string }
       get_adlibrary_token: { Args: { user_id_param: string }; Returns: string }
       get_platform_token: {
