@@ -181,7 +181,7 @@ export default function PlatformAdAccountSelector({
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Your plan only allows 1 ad account per platform. Upgrade to link more accounts.
+                You've reached your limit of {platformLimits.maxAllowed} ad account{platformLimits.maxAllowed !== 1 ? 's' : ''} per platform. Upgrade to link more accounts.
               </AlertDescription>
             </Alert>
           )}
