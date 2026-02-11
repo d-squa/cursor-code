@@ -375,6 +375,19 @@ const Landing = () => {
             ActiPlan is an AI-powered media planning and buying platform designed to help you efficiently manage
             cross-platform paid media campaigns at scale.
           </p>
+          <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto mb-8 text-left">
+            {[
+              "Predict campaign delivery before launch",
+              "Activate ads across platforms in one workflow",
+              "Replace spreadsheets with AI-driven planning",
+              "Built for agencies & performance teams",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
               Start Free Trial <ArrowRight className="h-4 w-4" />
