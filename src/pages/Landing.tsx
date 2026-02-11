@@ -3,6 +3,7 @@ import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -475,20 +476,28 @@ const Landing = () => {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {features.map((feature) => (
-                <Card key={feature.title} className="bg-card hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                      <feature.icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle className="text-lg">{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription>{feature.description}</CardDescription>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="relative px-12">
+              <Carousel opts={{ align: "start", loop: true }} className="w-full">
+                <CarouselContent>
+                  {features.map((feature) => (
+                    <CarouselItem key={feature.title} className="md:basis-1/2 lg:basis-1/4">
+                      <Card className="bg-card hover:shadow-lg transition-shadow h-full">
+                        <CardHeader>
+                          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                            <feature.icon className="h-6 w-6 text-primary" />
+                          </div>
+                          <CardTitle className="text-lg">{feature.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <CardDescription>{feature.description}</CardDescription>
+                        </CardContent>
+                      </Card>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious />
+                <CarouselNext />
+              </Carousel>
             </div>
           </div>
         </section>
