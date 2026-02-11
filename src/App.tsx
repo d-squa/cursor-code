@@ -4,6 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
+import LandingB from "./pages/LandingB";
+import LandingC from "./pages/LandingC";
+import LandingD from "./pages/LandingD";
+import LandingE from "./pages/LandingE";
 import BookDemo from "./pages/BookDemo";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -52,6 +56,10 @@ const App = () => (
             <Route path="/book-demo" element={<BookDemo />} />
             <Route path="/terms" element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/landing-b" element={<LandingB />} />
+            <Route path="/landing-c" element={<LandingC />} />
+            <Route path="/landing-d" element={<LandingD />} />
+            <Route path="/landing-e" element={<LandingE />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
