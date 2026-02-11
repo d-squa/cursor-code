@@ -483,7 +483,7 @@ const Landing = () => {
               </p>
             </div>
 
-            <div className="relative px-4 md:px-12">
+            <div className="relative px-4 md:px-16 overflow-hidden">
               <Carousel
                 opts={{ align: "start", loop: true, dragFree: false }}
                 plugins={[Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true })]}
@@ -506,8 +506,8 @@ const Landing = () => {
                     </CarouselItem>
                   ))}
                 </CarouselContent>
-                <CarouselPrevious />
-                <CarouselNext />
+                <CarouselPrevious className="hidden md:inline-flex -left-6" />
+                <CarouselNext className="hidden md:inline-flex -right-6" />
               </Carousel>
             </div>
           </div>
@@ -547,7 +547,7 @@ const Landing = () => {
             </div>
 
             {/* Mobile: Carousel */}
-            <div className="md:hidden relative px-4">
+            <div className="md:hidden relative px-4 overflow-hidden">
               <Carousel
                 opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
                 className="w-full"
@@ -559,7 +559,7 @@ const Landing = () => {
                         className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                       >
                         {tier.popular && (
-                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
+                          <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">Most Popular</Badge>
                         )}
                         <CardHeader className="pb-4">
                           <CardTitle>{tier.name}</CardTitle>
@@ -649,7 +649,7 @@ const Landing = () => {
                   className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                 >
                   {tier.popular && (
-                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
+                    <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">Most Popular</Badge>
                   )}
                   <CardHeader className="pb-4">
                     <CardTitle className="text-base">{tier.name}</CardTitle>
