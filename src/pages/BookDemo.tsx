@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
@@ -15,6 +16,10 @@ const CALENDLY_URL = "https://calendly.com/dsquad-theagency/30min";
 
 const BookDemo = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const fireConversionPixels = () => {
     if (window.fbq) {
