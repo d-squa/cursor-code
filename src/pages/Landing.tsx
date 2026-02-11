@@ -19,6 +19,12 @@ import {
   Globe,
   Sparkles,
   X,
+  Puzzle,
+  Lightbulb,
+  Briefcase,
+  SlidersHorizontal,
+  Brain,
+  Users,
 } from "lucide-react";
 
 const benefits = [
@@ -58,13 +64,13 @@ const features = [
       "Plan, launch and monitor your paid media campaigns across all major ad platforms from one intuitive centralized activation tool.",
   },
   {
-    icon: Switch,
+    icon: Puzzle,
     title: "Creative Meshing",
     description:
       "Upload creatives from different platforms in bulk and ActiPlan will assign them automatically to your campaign shell.",
   },
   {
-    icon: Zap,
+    icon: Lightbulb,
     title: "Live Insights & Recommendations",
     description:
       "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools.",
@@ -82,25 +88,25 @@ const features = [
       "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop.",
   },
   {
-    icon: Globe,
+    icon: Briefcase,
     title: "Client Portfolio Management",
     description:
       "Organize your client ad accounts under one portfolio allowing higher performance & planning accuracy, maximum control and minimal mistakes",
   },
   {
-    icon: Switch,
+    icon: SlidersHorizontal,
     title: "Portfolio Governance & Preferences",
     description:
       "Set client preferences, customize and auto-load the most important ad account and campaign configurations such as campaign taxonomy, campaign parameters, UTM tracking",
   },
   {
-    icon: Layers,
+    icon: Brain,
     title: "AI-Powered Knowledge Base",
     description:
       "Ask ActiPlan's AI Knowledge Base anything from digital marketing concepts to optimization tips and get instant, expert answers.",
   },
   {
-    icon: Target,
+    icon: Users,
     title: "Team Management",
     description:
       "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders.",
