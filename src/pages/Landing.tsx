@@ -547,19 +547,19 @@ const Landing = () => {
             </div>
 
             {/* Mobile: Carousel */}
-            <div className="md:hidden relative px-4 overflow-x-hidden overflow-y-visible pt-4">
+            <div className="md:hidden relative px-4 overflow-hidden">
               <Carousel
                 opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
                 className="w-full"
               >
                 <CarouselContent className="-ml-2">
                   {pricingTiers.map((tier) => (
-                    <CarouselItem key={tier.name} className="basis-[90%] pl-2">
+                    <CarouselItem key={tier.name} className="basis-[90%] pl-2 pt-3">
                       <Card
                         className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                       >
                         {tier.popular && (
-                          <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">Most Popular</Badge>
+                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary z-10">Most Popular</Badge>
                         )}
                         <CardHeader className="pb-4">
                           <CardTitle>{tier.name}</CardTitle>
