@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -322,6 +323,12 @@ const Landing = () => {
   };
 
   return (
+    <>
+      <SEO
+        title="ActiPlan: AI-Powered Paid Media Campaign Manager That Scales Businesses"
+        description="From a single unified platform, ActiPlan helps media planners & digital marketers managing their paid media campaigns across different platforms."
+        keywords="campaign management, paid advertising, Meta ads, Google Ads, LinkedIn ads, TikTok ads, social media marketing, media planning tool, media buying tool"
+      />
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -652,6 +659,7 @@ const Landing = () => {
         </div>
       </footer>
     </div>
+    </>
   );
 };
 
