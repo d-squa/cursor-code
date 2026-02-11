@@ -546,14 +546,15 @@ const Landing = () => {
               </div>
             </div>
 
-            <div className="relative px-4 md:px-12 max-w-7xl mx-auto">
+            {/* Mobile: Carousel */}
+            <div className="md:hidden relative px-4">
               <Carousel
                 opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
                 className="w-full"
               >
-                <CarouselContent className="-ml-2 md:-ml-4">
+                <CarouselContent className="-ml-2">
                   {pricingTiers.map((tier) => (
-                    <CarouselItem key={tier.name} className="basis-[90%] pl-2 md:pl-4 md:basis-[60%] lg:basis-[35%]">
+                    <CarouselItem key={tier.name} className="basis-[90%] pl-2">
                       <Card
                         className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                       >
@@ -562,8 +563,6 @@ const Landing = () => {
                         )}
                         <CardHeader className="pb-4">
                           <CardTitle>{tier.name}</CardTitle>
-
-                          {/* Pricing Display */}
                           <div className="mt-2">
                             {tier.monthlyPrice === 0 ? (
                               <div>
@@ -576,10 +575,7 @@ const Landing = () => {
                                   <span className="text-lg text-muted-foreground line-through">
                                     ${formatPrice(tier.monthlyPrice)}
                                   </span>
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                                  >
+                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
                                     -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                                   </Badge>
                                 </div>
@@ -599,15 +595,12 @@ const Landing = () => {
                               </div>
                             )}
                           </div>
-
                           <CardDescription className="mt-2">{tier.description}</CardDescription>
                         </CardHeader>
-
                         <CardContent className="flex-1 flex flex-col">
                           <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm">
                             <span className="font-medium">{tier.operationalLimits}</span>
                           </div>
-
                           <ul className="space-y-2 mb-4 flex-1">
                             {tier.features.map((feature) => (
                               <li key={feature} className="flex items-start gap-2 text-sm">
@@ -622,9 +615,7 @@ const Landing = () => {
                               </li>
                             ))}
                           </ul>
-
                           {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>}
-
                           <Button
                             className="w-full mt-auto"
                             variant={tier.popular ? "default" : "outline"}
@@ -632,11 +623,9 @@ const Landing = () => {
                           >
                             {tier.cta}
                           </Button>
-                          {(tier.key === "enterprise" || tier.key === "agency") && (
-                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
-                              Book a Demo
-                            </Button>
-                          )}
+                          <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
+                            Compare Plans
+                          </Button>
                         </CardContent>
                       </Card>
                     </CarouselItem>
@@ -645,6 +634,71 @@ const Landing = () => {
                 <CarouselPrevious />
                 <CarouselNext />
               </Carousel>
+            </div>
+
+            {/* Desktop: Grid */}
+            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-5 gap-4 max-w-7xl mx-auto px-4">
+              {pricingTiers.map((tier) => (
+                <Card
+                  key={tier.name}
+                  className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
+                >
+                  {tier.popular && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
+                  )}
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-base">{tier.name}</CardTitle>
+                    <div className="mt-2">
+                      {tier.monthlyPrice === 0 ? (
+                        <div>
+                          <span className="text-2xl font-bold">Free</span>
+                          <span className="text-muted-foreground text-sm ml-1">{tier.period}</span>
+                        </div>
+                      ) : isYearly ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-muted-foreground line-through">
+                              ${formatPrice(tier.monthlyPrice)}
+                            </span>
+                            <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                              -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="text-2xl font-bold">${formatPrice(tier.yearlyMonthly)}</span>
+                            <span className="text-muted-foreground text-sm">/mo</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground pt-1 border-t mt-1">
+                            ${formatPrice(tier.yearlyTotal)} billed yearly
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-2xl font-bold">${formatPrice(tier.monthlyPrice)}</span>
+                          <span className="text-muted-foreground text-sm">/mo</span>
+                        </div>
+                      )}
+                    </div>
+                    <CardDescription className="mt-2 text-xs">{tier.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col">
+                    <div className="bg-muted/50 rounded-lg p-2 mb-3 text-xs">
+                      <span className="font-medium">{tier.operationalLimits}</span>
+                    </div>
+                    <Button
+                      className="w-full"
+                      size="sm"
+                      variant={tier.popular ? "default" : "outline"}
+                      onClick={() => navigate("/auth?mode=signup")}
+                    >
+                      {tier.cta}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
+                      Compare Plans
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             <p className="text-center text-sm text-muted-foreground mt-8">

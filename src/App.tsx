@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
+import ComparePlans from "./pages/ComparePlans";
 import LandingB from "./pages/LandingB";
 import LandingC from "./pages/LandingC";
 import LandingD from "./pages/LandingD";
@@ -53,6 +54,7 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
+            <Route path="/compare-plans" element={<ComparePlans />} />
             <Route path="/book-demo" element={<BookDemo />} />
             <Route path="/terms" element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
