@@ -56,10 +56,10 @@ const App = () => (
             <Route path="/book-demo" element={<BookDemo />} />
             <Route path="/terms" element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/landing-b" element={<LandingB />} />
-            <Route path="/landing-c" element={<LandingC />} />
-            <Route path="/landing-d" element={<LandingD />} />
-            <Route path="/landing-e" element={<LandingE />} />
+            <Route path="/media-buying-software" element={<LandingB />} />
+            <Route path="/media-planning-software" element={<LandingC />} />
+            <Route path="/ai-media-buying-software" element={<LandingD />} />
+            <Route path="/cross-platform-ad-management-software" element={<LandingE />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
