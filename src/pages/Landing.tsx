@@ -381,7 +381,7 @@ const Landing = () => {
           <h1 className="text-3xl sm:text-4xl mb-4 md:mb-6 leading-tight font-extrabold md:text-4xl">
             Plan, Forecast & Launch
             <br />
-            <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <span className="bg-[length:200%_auto] animate-gradient-x bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
               Cross-Platform Paid Media
             </span>
             <br />
