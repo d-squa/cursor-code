@@ -355,7 +355,7 @@ const Landing = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-12 md:py-32">
+      <section className="container mx-auto px-4 md:py-32 py-[60px]">
         <div className="max-w-4xl mx-auto text-center">
           <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm">
             <Sparkles className="h-3 w-3 mr-1" />
@@ -588,14 +588,14 @@ const Landing = () => {
 
                     {tier.cta}
                   </Button>
-                  {(tier.key === "enterprise" || tier.key === "agency") && (
-                    <Button
-                      variant="ghost"
-                      className="w-full mt-2"
-                      onClick={() => navigate("/book-demo")}>
+                  {(tier.key === "enterprise" || tier.key === "agency") &&
+                <Button
+                  variant="ghost"
+                  className="w-full mt-2"
+                  onClick={() => navigate("/book-demo")}>
                       Book a Demo
                     </Button>
-                  )}
+                }
                 </CardContent>
               </Card>
             )}
