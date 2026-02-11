@@ -547,7 +547,7 @@ const Landing = () => {
             </div>
 
             {/* Mobile: Carousel */}
-            <div className="md:hidden relative px-4 overflow-hidden">
+            <div className="md:hidden relative px-4 overflow-x-hidden overflow-y-visible pt-4">
               <Carousel
                 opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
                 className="w-full"
