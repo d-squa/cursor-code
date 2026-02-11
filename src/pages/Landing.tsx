@@ -43,19 +43,20 @@ const benefits = [
 ];
 const supportingbullets = [
   {
-    icon: Label,
-    title: "Predict campaign delivery before launch",
-  },
-  {
-    icon: Label,
-    title: "Activate ads across platforms in one workflow",
-  {
-    icon: Label,
-    title: "Replace spreadsheets with AI-driven planning",
+    icon: TrendingUp,
+    title: "Predict campaign delivery before launch.",
   },
   {
     icon: TrendingUp,
-    title: "Built by agency veterans for agencies & performance teams",
+    title: "Activate ads across platforms in one workflow.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Replace spreadsheets with AI-driven planning.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Built by agency veterans for agencies & performance teams.",
   },
 ];
 
@@ -376,7 +377,9 @@ const Landing = () => {
         <div className="max-w-4xl mx-auto text-center">
           <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm">
             <Sparkles className="h-3 w-3 mr-1" />
-            <span className="hidden sm:inline">AI-Powered Media Planning & Buying Software for Cross-Platform Paid Ads Activations</span>
+            <span className="hidden sm:inline">
+              AI-Powered Media Planning & Buying Software for Cross-Platform Paid Ads Activations
+            </span>
           </Badge>
           <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4 md:mb-6 leading-tight">
             Plan, Forecast & Launch
@@ -388,7 +391,8 @@ const Landing = () => {
             From One Unified Workspace in Minutes
           </h1>
           <p className="text-base md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-2">
-            ActiPlan is Built for professional media buyers managing Meta, TikTok, Google, LinkedIn, Snapchat, Pinterest & more at scale.
+            ActiPlan is Built for professional media buyers managing Meta, TikTok, Google, LinkedIn, Snapchat, Pinterest
+            & more at scale.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
@@ -400,18 +404,18 @@ const Landing = () => {
           </div>
         </div>
         {/* supporting bullets */}
-         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {supportingbullets.map((supportingbullet) => (
-              <Card key={supportingbullet.title} className="bg-card hover:shadow-lg transition-shadow text-center">
-                <CardHeader>
-                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                    <benefit.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <CardTitle className="text-lg">{supportingbullet.title}</CardTitle>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+          {supportingbullets.map((supportingbullets) => (
+            <Card key={supportingbullets.title} className="bg-card hover:shadow-lg transition-shadow text-center">
+              <CardHeader>
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+                  <benefit.icon className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle className="text-lg">{benefit.title}</CardTitle>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
           {[
