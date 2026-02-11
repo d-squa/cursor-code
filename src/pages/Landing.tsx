@@ -553,7 +553,7 @@ const Landing = () => {
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
                   {pricingTiers.map((tier) => (
-                    <CarouselItem key={tier.name} className="basis-[85%] pl-2 md:pl-4 md:basis-1/2 lg:basis-[20%]">
+                    <CarouselItem key={tier.name} className="basis-[90%] pl-2 md:pl-4 md:basis-[60%] lg:basis-[35%]">
                       <Card
                         className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                       >
