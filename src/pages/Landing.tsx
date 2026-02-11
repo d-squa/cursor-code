@@ -1,5 +1,4 @@
 import { useState } from "react";
-import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,96 +19,287 @@ import {
   X,
 } from "lucide-react";
 
-// Updated benefits
 const benefits = [
   {
     icon: Zap,
     title: "Faster Execution",
-    description: "Create once, activate everywhere — spend minutes, not hours.",
+    description: "From plan to launch in just a few minutes",
   },
   {
     icon: Layers,
     title: "Centralized Clarity",
-    description: "One blueprint. One dashboard. Zero confusion across platforms.",
+    description: "One dashboard. Zero chaos.",
   },
   {
     icon: Target,
     title: "Standardized Creation",
-    description: "Maintain consistency with a single workflow for all campaigns.",
+    description: "Consistent workflow for every team.",
   },
   {
     icon: TrendingUp,
     title: "Scale Easily",
-    description: "Launch multiple campaigns across multiple networks effortlessly.",
+    description: "ActiPlan flexes with your team.",
   },
 ];
 
-// Updated features
 const features = [
   {
     icon: Sparkles,
-    title: "AI-Assisted Planning",
+    title: "Ready-To-Run Planning",
     description:
-      "Define objectives, budget, creatives, and KPIs once. Let ActiPlan generate a campaign blueprint ready for cross-platform activation.",
+      "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes.",
   },
   {
     icon: Globe,
-    title: "Bulk Cross-Platform Deployment",
+    title: "Bulk Cross-Platform Activation",
     description:
-      "Select your platforms, and your blueprint is automatically applied to each ad account with native optimization intact.",
+      "Plan, launch and monitor your paid media campaigns across all major ad platforms from one intuitive centralized activation tool.",
   },
   {
     icon: Switch,
     title: "Creative Meshing",
     description:
-      "Upload creatives in bulk, and ActiPlan assigns them to your blueprint automatically across all selected networks.",
+      "Upload creatives from different platforms in bulk and ActiPlan will assign them automatically to your campaign shell.",
   },
   {
     icon: Zap,
-    title: "Real-Time Insights & Recommendations",
+    title: "Live Insights & Recommendations",
     description:
-      "Track performance of all platform activations from one dashboard, and receive AI-driven optimization suggestions.",
+      "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools.",
   },
   {
     icon: BarChart3,
-    title: "Unified Performance Dashboard",
+    title: "Real-time Performance Dashboard",
     description:
-      "Monitor your blueprint’s deployment across platforms with real-time metrics, comparisons, and KPIs in one view.",
+      "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results.",
   },
   {
     icon: Shield,
-    title: "Approval Workflows",
+    title: "Media Plan Approvals",
     description:
-      "Ensure your blueprint meets team standards before deployment using built-in approval and request workflows.",
+      "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop.",
   },
   {
     icon: Globe,
     title: "Client Portfolio Management",
     description:
-      "Organize multiple client campaigns under one blueprint-driven workflow for consistency, control, and efficiency.",
+      "Organize your client ad accounts under one portfolio allowing higher performance & planning accuracy, maximum control and minimal mistakes",
   },
   {
     icon: Switch,
     title: "Portfolio Governance & Preferences",
     description:
-      "Customize and auto-load campaign configurations, taxonomies, and tracking for each client and platform automatically.",
+      "Set client preferences, customize and auto-load the most important ad account and campaign configurations such as campaign taxonomy, campaign parameters, UTM tracking",
   },
   {
     icon: Layers,
-    title: "AI Knowledge Base",
+    title: "AI-Powered Knowledge Base",
     description:
-      "Ask ActiPlan’s AI Knowledge Base for campaign guidance, optimization tips, and platform best practices instantly.",
+      "Ask ActiPlan's AI Knowledge Base anything from digital marketing concepts to optimization tips and get instant, expert answers.",
   },
   {
     icon: Target,
     title: "Team Management",
     description:
-      "Define roles and permissions to collaborate efficiently on blueprint creation and platform activations.",
+      "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders.",
   },
 ];
 
-// Pricing section, CTA, header, hero, and all structure remain unchanged
-// Only text inside hero, benefits, features, and small phrases updated to highlight "Blueprint"
+// Stripe Price IDs
+const PRICE_IDS = {
+  basic: {
+    monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
+    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
+  },
+  freelancer: {
+    monthly: "price_1SyXF5KrTGU4P7548Gb4bgd6",
+    yearly: "price_1SyXYDKrTGU4P75427F7A2ge",
+  },
+  enterprise: {
+    monthly: "price_1SyX3xKrTGU4P754lgSWx7dq",
+    yearly: "price_1SyX8xKrTGU4P754mXynM6Qn",
+  },
+  agency: {
+    monthly: "price_1SyXAnKrTGU4P754hsNny2H7",
+    yearly: "price_1SyXD1KrTGU4P7541vWVImFY",
+  },
+};
+
+const pricingTiers = [
+  {
+    key: "trial",
+    name: "Trial",
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    yearlyMonthly: 0,
+    yearlyTotal: 0,
+    period: "30 days free",
+    description: "Perfect for exploring ActiPlan capabilities",
+    features: [
+      "1 ActiPlan per day",
+      "Intuitive Campaign creator",
+      "Media plan creator",
+      "Visual Dashboard",
+      "Bulk cross-platform activation",
+      "Live insights & recommendations",
+      "Email support",
+    ],
+
+    limitations: [
+      "Priority support",
+      "Advanced reporting",
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
+      "Creative meshing",
+      "Client portfolio management",
+      "Operations statistics",
+    ],
+
+    operationalLimits: "1 ActiPlan/Day • 1 Owner",
+    cta: "Start 30-Day Free Trial",
+    popular: false,
+    note: "Credit card required. Cancel anytime!",
+  },
+  {
+    key: "basic",
+    name: "Basic",
+    monthlyPrice: 39,
+    yearlyPrice: 397.8,
+    yearlyMonthly: 33.15,
+    yearlyTotal: 397.8,
+    period: "/month",
+    description: "For individual media buyers getting started",
+    features: [
+      "1 ActiPlan per day",
+      "Intuitive Campaign creator",
+      "Media plan creator",
+      "Visual Dashboard",
+      "Bulk cross-platform activation",
+      "Live insights & recommendations",
+      "Email support",
+    ],
+
+    limitations: [
+      "Priority support",
+      "Advanced reporting",
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
+      "Creative meshing",
+      "Client portfolio management",
+      "Operations statistics",
+    ],
+
+    operationalLimits: "1 ActiPlan/Day • 1 Owner • 1 ad account/platform",
+    cta: "Start 30-Day Free Trial",
+    popular: false,
+  },
+  {
+    key: "freelancer",
+    name: "Freelancer",
+    monthlyPrice: 99,
+    yearlyPrice: 1009.8,
+    yearlyMonthly: 84.15,
+    yearlyTotal: 1009.8,
+    period: "/month",
+    description: "For growing professionals",
+    features: [
+      "2 ActiPlans per day",
+      "1 user connection per platform",
+      "3 ad accounts per platform",
+      "3 ad account swaps/month",
+      "Everything in Basic",
+      "Priority support",
+      "Advanced reporting",
+    ],
+
+    limitations: [
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
+      "Creative meshing",
+      "Client portfolio management",
+      "Operations statistics",
+    ],
+
+    operationalLimits: "2 ActiPlans/Day • 1 Owner • 3 ad accounts/platform",
+    cta: "Get Started",
+    popular: true,
+  },
+  {
+    key: "enterprise",
+    name: "Enterprise",
+    monthlyPrice: 249,
+    yearlyPrice: 2539.8,
+    yearlyMonthly: 211.65,
+    yearlyTotal: 2539.8,
+    period: "/month",
+    description: "For teams and growing agencies",
+    features: [
+      "5 ActiPlans per day",
+      "3 user connections per platform",
+      "150 ad accounts per platform",
+      "3 ad account swaps/month",
+      "Everything in Freelancer",
+      "Guaranteed planning",
+      "All-levels duplication",
+      "Advanced performance dashboard",
+      "Approval & Requests workflows",
+      "Task Management & Change history",
+      "Export & Share",
+      "Creative meshing",
+      "5 team members",
+    ],
+
+    limitations: [
+      "Client portfolio management",
+      "Client preferences & safeguards",
+      "AI knowledge base",
+      "Operations statistics",
+      "Cross-platform taxonomy",
+    ],
+
+    operationalLimits: "5 ActiPlans/Day • 5 team members • 150 ad accounts",
+    cta: "Get Started",
+    popular: false,
+  },
+  {
+    key: "agency",
+    name: "Agency",
+    monthlyPrice: 699,
+    yearlyPrice: 7129.8,
+    yearlyMonthly: 594.15,
+    yearlyTotal: 7129.8,
+    period: "/month",
+    description: "For large agencies with dedicated support",
+    features: [
+      "Unlimited ActiPlans per day",
+      "6 user connections per platform",
+      "300 ad accounts per platform",
+      "6 ad account swaps/month",
+      "Everything in Enterprise",
+      "Client portfolio management",
+      "Client preferences & safeguards",
+      "AI knowledge base",
+      "Operations statistics",
+      "Cross-platform unified taxonomy",
+      "10 team members",
+      "Dedicated support",
+      "Platform onboarding included",
+    ],
+
+    limitations: [],
+    operationalLimits: "Unlimited • 10 team members • 300 ad accounts",
+    cta: "Get Started",
+    popular: false,
+  },
+];
+
+// Removed - using benefits array instead
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -133,15 +323,6 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background">
-     <SEO
-  title="ActiPlan: Create One Campaign Blueprint & Activate Across All Platforms"
-  description="ActiPlan lets media planners and agencies create a single campaign blueprint and automatically deploy it across multiple platforms like Meta, TikTok, Google, LinkedIn, Pinterest & more. Save time, reduce duplication, and scale campaigns efficiently."
-  keywords="cross-platform campaign, AI media planning, paid media automation, campaign blueprint, media planning tool, media buying platform, bulk ad deployment, digital marketing software"
-  ogTitle="ActiPlan: Create One Campaign Blueprint & Activate Across All Platforms"
-  ogDescription="Create a single campaign blueprint in ActiPlan and deploy it automatically across multiple platforms. Save time, reduce duplication, and scale campaigns efficiently."
-  ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-/>
-
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-2">
@@ -191,17 +372,17 @@ const Landing = () => {
             <span className="sm:hidden">AI Media Planning & Buying Software</span>
           </Badge>
           <h1 className="text-3xl sm:text-4xl mb-4 md:mb-6 leading-tight font-extrabold md:text-4xl">
-            Build Your Campaign Once
+            Plan, Forecast & Launch
             <br />
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Activate Across All Platforms
+              Cross-Platform Paid Media
             </span>
             <br />
-            In Minutes with a Single Blueprint!
+            From One Unified Workspace in Minutes!
           </h1>
           <p className="text-base md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-2">
-            With ActiPlan, create a single campaign blueprint and automatically deploy it to Meta, TikTok, Google,
-            LinkedIn, Pinterest, Snapchat, and more — saving time and avoiding repetitive work.
+            ActiPlan is Built for professional media planners & buyers managing omnichannel activations on Meta, TikTok,
+            Google, Snapchat, Pinterest, LinkedIn & more at scale.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
@@ -213,10 +394,10 @@ const Landing = () => {
           </div>
           <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto text-left mb-0 px-0 py-[20px]">
             {[
-              "Define your campaign once, replicate everywhere",
-              "Eliminate multi-platform setup duplication",
-              "Forecast and plan results before launch",
-              "AI-driven guidance built for agencies & performance teams",
+              "Predict campaign delivery before launch",
+              "Activate ads across platforms in one workflow",
+              "Replace spreadsheets with AI-driven planning",
+              "Built by agency gurus for agencies & performance teams",
             ].map((item) => (
               <li key={item} className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
@@ -279,7 +460,7 @@ const Landing = () => {
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               ActiPlan is an AI-powered media planning and buying platform that lets you create ready-to-run media
               plans, launch cross-platform campaigns, track real-time performance, get actionable insights, manage
-              approvals, and collaborate with your team — all from a single blueprint.
+              approvals, and collaborate with your team — all in one centralized dashboard.
             </p>
           </div>
 
@@ -300,7 +481,176 @@ const Landing = () => {
           </div>
         </div>
       </section>
-{/* Pricing Section */} <section id="pricing" className="py-20 bg-muted/50"> <div className="container mx-auto px-4"> <div className="text-center mb-12"> <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2> <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8"> Start with a 30-day free trial on Basic Monthly. Upgrade anytime to unlock more features. </p> {/* Billing Toggle */} <div className="flex items-center justify-center gap-4 mb-4"> <span className={text-sm font-medium ${!isYearly ? "text-foreground" : "text-muted-foreground"}}> Monthly </span> <div className="relative"> <Switch checked={isYearly} onCheckedChange={setIsYearly} className="data-[state=checked]:bg-primary" /> </div> <span className={text-sm font-medium ${isYearly ? "text-foreground" : "text-muted-foreground"}}> Yearly </span> </div> {/* Savings Banner */} <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full"> <Sparkles className="h-4 w-4" /> <span className="font-semibold">Save 15% with yearly billing!</span> </div> </div> <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto"> {pricingTiers.map((tier) => ( <Card key={tier.name} className={relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}} > {tier.popular && ( <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge> )} <CardHeader className="pb-4"> <CardTitle>{tier.name}</CardTitle> {/* Pricing Display */} <div className="mt-2"> {tier.monthlyPrice === 0 ? ( <div> <span className="text-3xl font-bold">Free</span> <span className="text-muted-foreground ml-1">{tier.period}</span> </div> ) : isYearly ? ( <div className="space-y-1"> {/* Strikethrough monthly price */} <div className="flex items-center gap-2"> <span className="text-lg text-muted-foreground line-through"> ${formatPrice(tier.monthlyPrice)} </span> <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" > -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}% </Badge> </div> {/* Yearly equivalent monthly price */} <div> <span className="text-3xl font-bold">${formatPrice(tier.yearlyMonthly)}</span> <span className="text-muted-foreground">/month</span> </div> {/* Total yearly commitment */} <div className="text-sm text-muted-foreground pt-1 border-t mt-2"> <span className="font-medium text-foreground">${formatPrice(tier.yearlyTotal)}</span> <span> billed yearly</span> </div> </div> ) : ( <div> <span className="text-3xl font-bold">${formatPrice(tier.monthlyPrice)}</span> <span className="text-muted-foreground">/month</span> </div> )} </div> <CardDescription className="mt-2">{tier.description}</CardDescription> </CardHeader> <CardContent className="flex-1 flex flex-col"> {/* Operational Limits */} <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm"> <span className="font-medium">{tier.operationalLimits}</span> </div> {/* Features */} <ul className="space-y-2 mb-4 flex-1"> {tier.features.map((feature) => ( <li key={feature} className="flex items-start gap-2 text-sm"> <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" /> <span>{feature}</span> </li> ))} {tier.limitations.map((limit) => ( <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground"> <X className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-50" /> <span>{limit}</span> </li> ))} </ul> {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>} <Button className="w-full mt-auto" variant={tier.popular ? "default" : "outline"} onClick={() => navigate("/auth?mode=signup")} > {tier.cta} </Button> {(tier.key === "enterprise" || tier.key === "agency") && ( <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}> Book a Demo </Button> )} </CardContent> </Card> ))} </div> <p className="text-center text-sm text-muted-foreground mt-8"> All signups start with a 30-day free trial on Basic Monthly. Credit card required. Cancel anytime! </p> </div> </section> {/* CTA Section */} <section className="py-20"> <div className="container mx-auto px-4"> <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20"> <CardContent className="p-8 md:p-12 text-center"> <h2 className="text-2xl md:text-3xl font-bold mb-4"> Ready to Transform Your Media Team To ActiPlanners? </h2> <p className="text-muted-foreground mb-8 max-w-xl mx-auto"> Start your 30-day free trial today and experience the power of cross-platform activation management. </p> <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2"> Start Free Trial <ArrowRight className="h-4 w-4" /> </Button> </CardContent> </Card> </div> </section> {/* Footer */} <footer className="py-12 border-t bg-muted/30"> <div className="container mx-auto px-4"> <div className="flex flex-col md:flex-row items-center justify-between gap-4"> <div className="flex items-center gap-3"> <img src="/logo.png" alt="ActiPlan" className="h-8 w-auto" /> </div> <div className="flex items-center gap-6 text-sm text-muted-foreground"> <Link to="/terms" className="hover:text-foreground transition-colors"> Terms & Conditions </Link> <Link to="/privacy" className="hover:text-foreground transition-colors"> Privacy Policy </Link> </div> <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} ActiPlan. All rights reserved.</p> </div> </div> </footer>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-20 bg-muted/50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
+              Start with a 30-day free trial on Basic Monthly. Upgrade anytime to unlock more features.
+            </p>
+
+            {/* Billing Toggle */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <span className={`text-sm font-medium ${!isYearly ? "text-foreground" : "text-muted-foreground"}`}>
+                Monthly
+              </span>
+              <div className="relative">
+                <Switch checked={isYearly} onCheckedChange={setIsYearly} className="data-[state=checked]:bg-primary" />
+              </div>
+              <span className={`text-sm font-medium ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
+                Yearly
+              </span>
+            </div>
+
+            {/* Savings Banner */}
+            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full">
+              <Sparkles className="h-4 w-4" />
+              <span className="font-semibold">Save 15% with yearly billing!</span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
+            {pricingTiers.map((tier) => (
+              <Card
+                key={tier.name}
+                className={`relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}`}
+              >
+                {tier.popular && (
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
+                )}
+                <CardHeader className="pb-4">
+                  <CardTitle>{tier.name}</CardTitle>
+
+                  {/* Pricing Display */}
+                  <div className="mt-2">
+                    {tier.monthlyPrice === 0 ? (
+                      <div>
+                        <span className="text-3xl font-bold">Free</span>
+                        <span className="text-muted-foreground ml-1">{tier.period}</span>
+                      </div>
+                    ) : isYearly ? (
+                      <div className="space-y-1">
+                        {/* Strikethrough monthly price */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg text-muted-foreground line-through">
+                            ${formatPrice(tier.monthlyPrice)}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                          >
+                            -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
+                          </Badge>
+                        </div>
+                        {/* Yearly equivalent monthly price */}
+                        <div>
+                          <span className="text-3xl font-bold">${formatPrice(tier.yearlyMonthly)}</span>
+                          <span className="text-muted-foreground">/month</span>
+                        </div>
+                        {/* Total yearly commitment */}
+                        <div className="text-sm text-muted-foreground pt-1 border-t mt-2">
+                          <span className="font-medium text-foreground">${formatPrice(tier.yearlyTotal)}</span>
+                          <span> billed yearly</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-3xl font-bold">${formatPrice(tier.monthlyPrice)}</span>
+                        <span className="text-muted-foreground">/month</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <CardDescription className="mt-2">{tier.description}</CardDescription>
+                </CardHeader>
+
+                <CardContent className="flex-1 flex flex-col">
+                  {/* Operational Limits */}
+                  <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm">
+                    <span className="font-medium">{tier.operationalLimits}</span>
+                  </div>
+
+                  {/* Features */}
+                  <ul className="space-y-2 mb-4 flex-1">
+                    {tier.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                    {tier.limitations.map((limit) => (
+                      <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <X className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-50" />
+                        <span>{limit}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>}
+
+                  <Button
+                    className="w-full mt-auto"
+                    variant={tier.popular ? "default" : "outline"}
+                    onClick={() => navigate("/auth?mode=signup")}
+                  >
+                    {tier.cta}
+                  </Button>
+                  {(tier.key === "enterprise" || tier.key === "agency") && (
+                    <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
+                      Book a Demo
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-8">
+            All signups start with a 30-day free trial on Basic Monthly. Credit card required. Cancel anytime!
+          </p>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
+            <CardContent className="p-8 md:p-12 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">
+                Ready to Transform Your Media Team To ActiPlanners?
+              </h2>
+              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+                Start your 30-day free trial today and experience the power of cross-platform activation management.
+              </p>
+              <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
+                Start Free Trial <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-12 border-t bg-muted/30">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="ActiPlan" className="h-8 w-auto" />
+            </div>
+            <div className="flex items-center gap-6 text-sm text-muted-foreground">
+              <Link to="/terms" className="hover:text-foreground transition-colors">
+                Terms & Conditions
+              </Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">
+                Privacy Policy
+              </Link>
+            </div>
+            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} ActiPlan. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
