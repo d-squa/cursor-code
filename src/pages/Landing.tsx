@@ -548,8 +548,7 @@ const Landing = () => {
 
             <div className="relative px-4 md:px-12 max-w-7xl mx-auto">
               <Carousel
-                opts={{ align: "start", loop: true, dragFree: false }}
-                plugins={[Autoplay({ delay: 4000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true })]}
+                opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
                 className="w-full"
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
