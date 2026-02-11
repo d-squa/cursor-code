@@ -144,6 +144,7 @@ const pricingTiers = [
   "Live insights & recommendations",
   "Email support"],
 
+
   limitations: [
   "Priority support",
   "Advanced reporting",
@@ -155,8 +156,9 @@ const pricingTiers = [
   "Client portfolio management",
   "Operations statistics"],
 
+
   operationalLimits: "1 ActiPlan/Day • 1 Owner",
-  cta: "Start Free Trial",
+  cta: "Start 30-Day Free Trial",
   popular: false,
   note: "Credit card required. Cancel anytime!"
 },
@@ -178,6 +180,7 @@ const pricingTiers = [
   "Live insights & recommendations",
   "Email support"],
 
+
   limitations: [
   "Priority support",
   "Advanced reporting",
@@ -189,8 +192,9 @@ const pricingTiers = [
   "Client portfolio management",
   "Operations statistics"],
 
+
   operationalLimits: "1 ActiPlan/Day • 1 Owner • 1 ad account/platform",
-  cta: "Get Started",
+  cta: "Start 30-Day Free Trial",
   popular: false
 },
 {
@@ -211,6 +215,7 @@ const pricingTiers = [
   "Priority support",
   "Advanced reporting"],
 
+
   limitations: [
   "Advanced performance dashboard",
   "Approval & Requests workflows",
@@ -219,6 +224,7 @@ const pricingTiers = [
   "Creative meshing",
   "Client portfolio management",
   "Operations statistics"],
+
 
   operationalLimits: "2 ActiPlans/Day • 1 Owner • 3 ad accounts/platform",
   cta: "Get Started",
@@ -248,12 +254,14 @@ const pricingTiers = [
   "Creative meshing",
   "5 team members"],
 
+
   limitations: [
   "Client portfolio management",
   "Client preferences & safeguards",
   "AI knowledge base",
   "Operations statistics",
   "Cross-platform taxonomy"],
+
 
   operationalLimits: "5 ActiPlans/Day • 5 team members • 150 ad accounts",
   cta: "Get Started",
@@ -282,6 +290,7 @@ const pricingTiers = [
   "10 team members",
   "Dedicated support",
   "Platform onboarding included"],
+
 
   limitations: [],
   operationalLimits: "Unlimited • 10 team members • 300 ad accounts",
@@ -359,25 +368,25 @@ const Landing = () => {
         <div className="max-w-4xl mx-auto text-center">
           <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm">
             <Sparkles className="h-3 w-3 mr-1" />
-            <span className="hidden sm:inline">AI-Powered Cross-Platform Paid Media Campaign Manager</span>
-            <span className="sm:hidden">AI-Powered Media Manager</span>
+            <span className="hidden sm:inline">AI-Powered Media Planning & Buying Platform for Paid Ads</span>
+            <span className="sm:hidden">AI-Powered Campaign Manager</span>
           </Badge>
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4 md:mb-6 leading-tight">
-            Plan & Launch
+          <h1 className="text-3xl sm:text-4xl mb-4 md:mb-6 leading-tight font-extrabold md:text-4xl">
+            Plan, Forecast & Launch
             <br />
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Cross-Platform Activations
+              Cross-Platform Paid Media
             </span>
             <br />
-            in Minutes
+            From One Unified Workspace in Minutes!
           </h1>
           <p className="text-base md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-2">
-            ActiPlan is an AI-powered media planning and buying platform designed to help you efficiently manage
-            cross-platform paid media campaigns at scale.
+            ActiPlan is Built for professional media planners & buyers managing omnichannel activations on Meta, TikTok,
+            Google, Snapchat, Pinterest, LinkedIn & more at scale.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
-              Start Free Trial <ArrowRight className="h-4 w-4" />
+              Start 30-Day Free Trial <ArrowRight className="h-4 w-4" />
             </Button>
             <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")}>
               See Capabilities
@@ -388,7 +397,7 @@ const Landing = () => {
             "Predict campaign delivery before launch",
             "Activate ads across platforms in one workflow",
             "Replace spreadsheets with AI-driven planning",
-            "Built for agencies & performance teams"].
+            "Built by agency gurus for agencies & performance teams"].
             map((item) =>
             <li key={item} className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
@@ -589,10 +598,7 @@ const Landing = () => {
                     {tier.cta}
                   </Button>
                   {(tier.key === "enterprise" || tier.key === "agency") &&
-                <Button
-                  variant="ghost"
-                  className="w-full mt-2"
-                  onClick={() => navigate("/book-demo")}>
+                <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
                       Book a Demo
                     </Button>
                 }
