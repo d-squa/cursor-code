@@ -623,6 +623,11 @@ const Landing = () => {
                           >
                             {tier.cta}
                           </Button>
+                          {(tier.key === "enterprise" || tier.key === "agency") && (
+                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
+                              Book a Demo
+                            </Button>
+                          )}
                           <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
                             Compare Plans
                           </Button>
@@ -693,6 +698,11 @@ const Landing = () => {
                     >
                       {tier.cta}
                     </Button>
+                    {(tier.key === "enterprise" || tier.key === "agency") && (
+                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/book-demo")}>
+                        Book a Demo
+                      </Button>
+                    )}
                     <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
                       Compare Plans
                     </Button>

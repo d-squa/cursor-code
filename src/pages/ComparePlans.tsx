@@ -251,6 +251,11 @@ export default function ComparePlans() {
                         >
                           {tier.cta}
                         </Button>
+                        {(tier.key === "enterprise" || tier.key === "agency") && (
+                          <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => navigate("/book-demo")}>
+                            Book a Demo
+                          </Button>
+                        )}
                       </div>
                     </th>
                   ))}
