@@ -588,6 +588,14 @@ const Landing = () => {
 
                     {tier.cta}
                   </Button>
+                  {(tier.key === "enterprise" || tier.key === "agency") && (
+                    <Button
+                      variant="ghost"
+                      className="w-full mt-2"
+                      onClick={() => navigate("/book-demo")}>
+                      Book a Demo
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )}
