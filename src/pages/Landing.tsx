@@ -375,6 +375,14 @@ const Landing = () => {
             ActiPlan is an AI-powered media planning and buying platform designed to help you efficiently manage
             cross-platform paid media campaigns at scale.
           </p>
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
+            <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
+              Start Free Trial <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")}>
+              See Capabilities
+            </Button>
+          </div>
           <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto mb-8 text-left">
             {[
               "Predict campaign delivery before launch",
@@ -388,14 +396,6 @@ const Landing = () => {
               </li>
             ))}
           </ul>
-          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
-            <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
-              Start Free Trial <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")}>
-              See Capabilities
-            </Button>
-          </div>
         </div>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
