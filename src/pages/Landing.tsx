@@ -401,13 +401,13 @@ const Landing = () => {
         </div>
         {/* supporting bullets */}
          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {supportingbullets.map((supportingbullets) => (
-              <Card key={supportingbullets.title} className="bg-card hover:shadow-lg transition-shadow text-center">
+            {supportingbullets.map((supportingbullet) => (
+              <Card key={supportingbullet.title} className="bg-card hover:shadow-lg transition-shadow text-center">
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 mx-auto">
                     <benefit.icon className="h-6 w-6 text-primary" />
                   </div>
-                  <CardTitle className="text-lg">{benefit.title}</CardTitle>
+                  <CardTitle className="text-lg">{supportingbullet.title}</CardTitle>
                 </CardHeader>
               </Card>
             ))}
