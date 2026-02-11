@@ -4,10 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
-import MediaBuyingSoftware from "./pages/MediaBuyingSoftware";
-import MediaPlanningSoftware from "./pages/MediaPlanningSoftware";
-import AiMediaBuyingSoftware from "./pages/AiMediaBuyingSoftware";
-import CrossPlatformAdManagement from "./pages/CrossPlatformAdManagement";
+import LandingB from "./pages/LandingB";
+import LandingC from "./pages/LandingC";
+import LandingD from "./pages/LandingD";
+import LandingE from "./pages/LandingE";
 import BookDemo from "./pages/BookDemo";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -56,10 +56,10 @@ const App = () => (
             <Route path="/book-demo" element={<BookDemo />} />
             <Route path="/terms" element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/media-buying-software" element={<MediaBuyingSoftware />} />
-            <Route path="/media-planning-software" element={<MediaPlanningSoftware />} />
-            <Route path="/ai-media-buying-software" element={<AiMediaBuyingSoftware />} />
-            <Route path="/cross-platform-ad-management-software" element={<CrossPlatformAdManagement />} />
+            <Route path="/media-buying-software" element={<LandingB />} />
+            <Route path="/media-planning-software" element={<LandingC />} />
+            <Route path="/ai-media-buying-software" element={<LandingD />} />
+            <Route path="/cross-platform-ad-management-software" element={<LandingE />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
