@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Autoplay from "embla-carousel-autoplay";
 import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -483,7 +484,11 @@ const Landing = () => {
             </div>
 
             <div className="relative px-12">
-              <Carousel opts={{ align: "start", loop: true }} className="w-full">
+              <Carousel
+                opts={{ align: "start", loop: true, dragFree: false }}
+                plugins={[Autoplay({ delay: 3000, stopOnInteraction: true, stopOnMouseEnter: true })]}
+                className="w-full"
+              >
                 <CarouselContent>
                   {features.map((feature) => (
                     <CarouselItem key={feature.title} className="md:basis-1/2 lg:basis-1/4">
