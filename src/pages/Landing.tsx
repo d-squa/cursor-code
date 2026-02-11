@@ -546,100 +546,106 @@ const Landing = () => {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
-              {pricingTiers.map((tier) => (
-                <Card
-                  key={tier.name}
-                  className={`relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}`}
-                >
-                  {tier.popular && (
-                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
-                  )}
-                  <CardHeader className="pb-4">
-                    <CardTitle>{tier.name}</CardTitle>
+            <div className="relative px-4 md:px-12 max-w-7xl mx-auto">
+              <Carousel
+                opts={{ align: "start", loop: true, dragFree: false }}
+                plugins={[Autoplay({ delay: 4000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true })]}
+                className="w-full"
+              >
+                <CarouselContent className="-ml-2 md:-ml-4">
+                  {pricingTiers.map((tier) => (
+                    <CarouselItem key={tier.name} className="basis-[85%] pl-2 md:pl-4 md:basis-1/2 lg:basis-[20%]">
+                      <Card
+                        className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
+                      >
+                        {tier.popular && (
+                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
+                        )}
+                        <CardHeader className="pb-4">
+                          <CardTitle>{tier.name}</CardTitle>
 
-                    {/* Pricing Display */}
-                    <div className="mt-2">
-                      {tier.monthlyPrice === 0 ? (
-                        <div>
-                          <span className="text-3xl font-bold">Free</span>
-                          <span className="text-muted-foreground ml-1">{tier.period}</span>
-                        </div>
-                      ) : isYearly ? (
-                        <div className="space-y-1">
-                          {/* Strikethrough monthly price */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg text-muted-foreground line-through">
-                              ${formatPrice(tier.monthlyPrice)}
-                            </span>
-                            <Badge
-                              variant="secondary"
-                              className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                            >
-                              -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
-                            </Badge>
+                          {/* Pricing Display */}
+                          <div className="mt-2">
+                            {tier.monthlyPrice === 0 ? (
+                              <div>
+                                <span className="text-3xl font-bold">Free</span>
+                                <span className="text-muted-foreground ml-1">{tier.period}</span>
+                              </div>
+                            ) : isYearly ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg text-muted-foreground line-through">
+                                    ${formatPrice(tier.monthlyPrice)}
+                                  </span>
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                  >
+                                    -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <span className="text-3xl font-bold">${formatPrice(tier.yearlyMonthly)}</span>
+                                  <span className="text-muted-foreground">/month</span>
+                                </div>
+                                <div className="text-sm text-muted-foreground pt-1 border-t mt-2">
+                                  <span className="font-medium text-foreground">${formatPrice(tier.yearlyTotal)}</span>
+                                  <span> billed yearly</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-3xl font-bold">${formatPrice(tier.monthlyPrice)}</span>
+                                <span className="text-muted-foreground">/month</span>
+                              </div>
+                            )}
                           </div>
-                          {/* Yearly equivalent monthly price */}
-                          <div>
-                            <span className="text-3xl font-bold">${formatPrice(tier.yearlyMonthly)}</span>
-                            <span className="text-muted-foreground">/month</span>
+
+                          <CardDescription className="mt-2">{tier.description}</CardDescription>
+                        </CardHeader>
+
+                        <CardContent className="flex-1 flex flex-col">
+                          <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm">
+                            <span className="font-medium">{tier.operationalLimits}</span>
                           </div>
-                          {/* Total yearly commitment */}
-                          <div className="text-sm text-muted-foreground pt-1 border-t mt-2">
-                            <span className="font-medium text-foreground">${formatPrice(tier.yearlyTotal)}</span>
-                            <span> billed yearly</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <span className="text-3xl font-bold">${formatPrice(tier.monthlyPrice)}</span>
-                          <span className="text-muted-foreground">/month</span>
-                        </div>
-                      )}
-                    </div>
 
-                    <CardDescription className="mt-2">{tier.description}</CardDescription>
-                  </CardHeader>
+                          <ul className="space-y-2 mb-4 flex-1">
+                            {tier.features.map((feature) => (
+                              <li key={feature} className="flex items-start gap-2 text-sm">
+                                <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                                <span>{feature}</span>
+                              </li>
+                            ))}
+                            {tier.limitations.map((limit) => (
+                              <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                <X className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-50" />
+                                <span>{limit}</span>
+                              </li>
+                            ))}
+                          </ul>
 
-                  <CardContent className="flex-1 flex flex-col">
-                    {/* Operational Limits */}
-                    <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm">
-                      <span className="font-medium">{tier.operationalLimits}</span>
-                    </div>
+                          {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>}
 
-                    {/* Features */}
-                    <ul className="space-y-2 mb-4 flex-1">
-                      {tier.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-2 text-sm">
-                          <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                      {tier.limitations.map((limit) => (
-                        <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <X className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-50" />
-                          <span>{limit}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>}
-
-                    <Button
-                      className="w-full mt-auto"
-                      variant={tier.popular ? "default" : "outline"}
-                      onClick={() => navigate("/auth?mode=signup")}
-                    >
-                      {tier.cta}
-                    </Button>
-                    {(tier.key === "enterprise" || tier.key === "agency") && (
-                      <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
-                        Book a Demo
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                          <Button
+                            className="w-full mt-auto"
+                            variant={tier.popular ? "default" : "outline"}
+                            onClick={() => navigate("/auth?mode=signup")}
+                          >
+                            {tier.cta}
+                          </Button>
+                          {(tier.key === "enterprise" || tier.key === "agency") && (
+                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
+                              Book a Demo
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious />
+                <CarouselNext />
+              </Carousel>
             </div>
 
             <p className="text-center text-sm text-muted-foreground mt-8">
