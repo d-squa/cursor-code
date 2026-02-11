@@ -16,279 +16,279 @@ import {
   Layers,
   Globe,
   Sparkles,
-  X,
-} from "lucide-react";
+  X } from
+"lucide-react";
 
 const benefits = [
-  {
-    icon: Zap,
-    title: "Faster Execution",
-    description: "From plan to launch in just a few minutes",
-  },
-  {
-    icon: Layers,
-    title: "Centralized Clarity",
-    description: "One dashboard. Zero chaos.",
-  },
-  {
-    icon: Target,
-    title: "Standardized Creation",
-    description: "Consistent workflow for every team.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Scale Easily",
-    description: "ActiPlan flexes with your team.",
-  },
-];
+{
+  icon: Zap,
+  title: "Faster Execution",
+  description: "From plan to launch in just a few minutes"
+},
+{
+  icon: Layers,
+  title: "Centralized Clarity",
+  description: "One dashboard. Zero chaos."
+},
+{
+  icon: Target,
+  title: "Standardized Creation",
+  description: "Consistent workflow for every team."
+},
+{
+  icon: TrendingUp,
+  title: "Scale Easily",
+  description: "ActiPlan flexes with your team."
+}];
+
 
 const features = [
-  {
-    icon: Sparkles,
-    title: "Ready-To-Run Planning",
-    description:
-      "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes.",
-  },
-  {
-    icon: Globe,
-    title: "Bulk Cross-Platform Activation",
-    description:
-      "Plan, launch and monitor your paid media campaigns across all major ad platforms from one intuitive centralized activation tool.",
-  },
-  {
-    icon: Switch,
-    title: "Creative Meshing",
-    description:
-      "Upload creatives from different platforms in bulk and ActiPlan will assign them automatically to your campaign shell.",
-  },
-  {
-    icon: Zap,
-    title: "Live Insights & Recommendations",
-    description:
-      "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools.",
-  },
-  {
-    icon: BarChart3,
-    title: "Real-time Performance Dashboard",
-    description:
-      "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results.",
-  },
-  {
-    icon: Shield,
-    title: "Media Plan Approvals",
-    description:
-      "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop.",
-  },
-  {
-    icon: Globe,
-    title: "Client Portfolio Management",
-    description:
-      "Organize your client ad accounts under one portfolio allowing higher performance & planning accuracy, maximum control and minimal mistakes",
-  },
-  {
-    icon: Switch,
-    title: "Portfolio Governance & Preferences",
-    description:
-      "Set client preferences, customize and auto-load the most important ad account and campaign configurations such as campaign taxonomy, campaign parameters, UTM tracking",
-  },
-  {
-    icon: Layers,
-    title: "AI-Powered Knowledge Base",
-    description:
-      "Ask ActiPlan's AI Knowledge Base anything from digital marketing concepts to optimization tips and get instant, expert answers.",
-  },
-  {
-    icon: Target,
-    title: "Team Management",
-    description:
-      "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders.",
-  },
-];
+{
+  icon: Sparkles,
+  title: "Ready-To-Run Planning",
+  description:
+  "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes."
+},
+{
+  icon: Globe,
+  title: "Bulk Cross-Platform Activation",
+  description:
+  "Plan, launch and monitor your paid media campaigns across all major ad platforms from one intuitive centralized activation tool."
+},
+{
+  icon: Switch,
+  title: "Creative Meshing",
+  description:
+  "Upload creatives from different platforms in bulk and ActiPlan will assign them automatically to your campaign shell."
+},
+{
+  icon: Zap,
+  title: "Live Insights & Recommendations",
+  description:
+  "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools."
+},
+{
+  icon: BarChart3,
+  title: "Real-time Performance Dashboard",
+  description:
+  "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results."
+},
+{
+  icon: Shield,
+  title: "Media Plan Approvals",
+  description:
+  "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop."
+},
+{
+  icon: Globe,
+  title: "Client Portfolio Management",
+  description:
+  "Organize your client ad accounts under one portfolio allowing higher performance & planning accuracy, maximum control and minimal mistakes"
+},
+{
+  icon: Switch,
+  title: "Portfolio Governance & Preferences",
+  description:
+  "Set client preferences, customize and auto-load the most important ad account and campaign configurations such as campaign taxonomy, campaign parameters, UTM tracking"
+},
+{
+  icon: Layers,
+  title: "AI-Powered Knowledge Base",
+  description:
+  "Ask ActiPlan's AI Knowledge Base anything from digital marketing concepts to optimization tips and get instant, expert answers."
+},
+{
+  icon: Target,
+  title: "Team Management",
+  description:
+  "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders."
+}];
+
 
 // Stripe Price IDs
 const PRICE_IDS = {
   basic: {
     monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
-    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
+    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd"
   },
   freelancer: {
     monthly: "price_1SyXF5KrTGU4P7548Gb4bgd6",
-    yearly: "price_1SyXYDKrTGU4P75427F7A2ge",
+    yearly: "price_1SyXYDKrTGU4P75427F7A2ge"
   },
   enterprise: {
     monthly: "price_1SyX3xKrTGU4P754lgSWx7dq",
-    yearly: "price_1SyX8xKrTGU4P754mXynM6Qn",
+    yearly: "price_1SyX8xKrTGU4P754mXynM6Qn"
   },
   agency: {
     monthly: "price_1SyXAnKrTGU4P754hsNny2H7",
-    yearly: "price_1SyXD1KrTGU4P7541vWVImFY",
-  },
+    yearly: "price_1SyXD1KrTGU4P7541vWVImFY"
+  }
 };
 
 const pricingTiers = [
-  {
-    key: "trial",
-    name: "Trial",
-    monthlyPrice: 0,
-    yearlyPrice: 0,
-    yearlyMonthly: 0,
-    yearlyTotal: 0,
-    period: "30 days free",
-    description: "Perfect for exploring ActiPlan capabilities",
-    features: [
-      "1 ActiPlan per day",
-      "Intuitive Campaign creator",
-      "Media plan creator",
-      "Visual Dashboard",
-      "Bulk cross-platform activation",
-      "Live insights & recommendations",
-      "Email support",
-    ],
-    limitations: [
-      "Priority support",
-      "Advanced reporting",
-      "Advanced performance dashboard",
-      "Approval & Requests workflows",
-      "Task Management & Change history",
-      "Export & Share",
-      "Creative meshing",
-      "Client portfolio management",
-      "Operations statistics",
-    ],
-    operationalLimits: "1 ActiPlan/Day • 1 Owner",
-    cta: "Start Free Trial",
-    popular: false,
-    note: "Credit card required. Cancel anytime!",
-  },
-  {
-    key: "basic",
-    name: "Basic",
-    monthlyPrice: 39,
-    yearlyPrice: 397.8,
-    yearlyMonthly: 33.15,
-    yearlyTotal: 397.8,
-    period: "/month",
-    description: "For individual media buyers getting started",
-    features: [
-      "1 ActiPlan per day",
-      "Intuitive Campaign creator",
-      "Media plan creator",
-      "Visual Dashboard",
-      "Bulk cross-platform activation",
-      "Live insights & recommendations",
-      "Email support",
-    ],
-    limitations: [
-      "Priority support",
-      "Advanced reporting",
-      "Advanced performance dashboard",
-      "Approval & Requests workflows",
-      "Task Management & Change history",
-      "Export & Share",
-      "Creative meshing",
-      "Client portfolio management",
-      "Operations statistics",
-    ],
-    operationalLimits: "1 ActiPlan/Day • 1 Owner • 1 ad account/platform",
-    cta: "Get Started",
-    popular: false,
-  },
-  {
-    key: "freelancer",
-    name: "Freelancer",
-    monthlyPrice: 99,
-    yearlyPrice: 1009.8,
-    yearlyMonthly: 84.15,
-    yearlyTotal: 1009.8,
-    period: "/month",
-    description: "For growing professionals",
-    features: [
-      "2 ActiPlans per day",
-      "1 user connection per platform",
-      "3 ad accounts per platform",
-      "3 ad account swaps/month",
-      "Everything in Basic",
-      "Priority support",
-      "Advanced reporting",
-    ],
-    limitations: [
-      "Advanced performance dashboard",
-      "Approval & Requests workflows",
-      "Task Management & Change history",
-      "Export & Share",
-      "Creative meshing",
-      "Client portfolio management",
-      "Operations statistics",
-    ],
-    operationalLimits: "2 ActiPlans/Day • 1 Owner • 3 ad accounts/platform",
-    cta: "Get Started",
-    popular: true,
-  },
-  {
-    key: "enterprise",
-    name: "Enterprise",
-    monthlyPrice: 249,
-    yearlyPrice: 2539.8,
-    yearlyMonthly: 211.65,
-    yearlyTotal: 2539.8,
-    period: "/month",
-    description: "For teams and growing agencies",
-    features: [
-      "5 ActiPlans per day",
-      "3 user connections per platform",
-      "150 ad accounts per platform",
-      "3 ad account swaps/month",
-      "Everything in Freelancer",
-      "Guaranteed planning",
-      "All-levels duplication",
-      "Advanced performance dashboard",
-      "Approval & Requests workflows",
-      "Task Management & Change history",
-      "Export & Share",
-      "Creative meshing",
-      "5 team members",
-    ],
-    limitations: [
-      "Client portfolio management",
-      "Client preferences & safeguards",
-      "AI knowledge base",
-      "Operations statistics",
-      "Cross-platform taxonomy",
-    ],
-    operationalLimits: "5 ActiPlans/Day • 5 team members • 150 ad accounts",
-    cta: "Get Started",
-    popular: false,
-  },
-  {
-    key: "agency",
-    name: "Agency",
-    monthlyPrice: 699,
-    yearlyPrice: 7129.8,
-    yearlyMonthly: 594.15,
-    yearlyTotal: 7129.8,
-    period: "/month",
-    description: "For large agencies with dedicated support",
-    features: [
-      "Unlimited ActiPlans per day",
-      "6 user connections per platform",
-      "300 ad accounts per platform",
-      "6 ad account swaps/month",
-      "Everything in Enterprise",
-      "Client portfolio management",
-      "Client preferences & safeguards",
-      "AI knowledge base",
-      "Operations statistics",
-      "Cross-platform unified taxonomy",
-      "10 team members",
-      "Dedicated support",
-      "Platform onboarding included",
-    ],
-    limitations: [],
-    operationalLimits: "Unlimited • 10 team members • 300 ad accounts",
-    cta: "Get Started",
-    popular: false,
-  },
-];
+{
+  key: "trial",
+  name: "Trial",
+  monthlyPrice: 0,
+  yearlyPrice: 0,
+  yearlyMonthly: 0,
+  yearlyTotal: 0,
+  period: "30 days free",
+  description: "Perfect for exploring ActiPlan capabilities",
+  features: [
+  "1 ActiPlan per day",
+  "Intuitive Campaign creator",
+  "Media plan creator",
+  "Visual Dashboard",
+  "Bulk cross-platform activation",
+  "Live insights & recommendations",
+  "Email support"],
+
+  limitations: [
+  "Priority support",
+  "Advanced reporting",
+  "Advanced performance dashboard",
+  "Approval & Requests workflows",
+  "Task Management & Change history",
+  "Export & Share",
+  "Creative meshing",
+  "Client portfolio management",
+  "Operations statistics"],
+
+  operationalLimits: "1 ActiPlan/Day • 1 Owner",
+  cta: "Start Free Trial",
+  popular: false,
+  note: "Credit card required. Cancel anytime!"
+},
+{
+  key: "basic",
+  name: "Basic",
+  monthlyPrice: 39,
+  yearlyPrice: 397.8,
+  yearlyMonthly: 33.15,
+  yearlyTotal: 397.8,
+  period: "/month",
+  description: "For individual media buyers getting started",
+  features: [
+  "1 ActiPlan per day",
+  "Intuitive Campaign creator",
+  "Media plan creator",
+  "Visual Dashboard",
+  "Bulk cross-platform activation",
+  "Live insights & recommendations",
+  "Email support"],
+
+  limitations: [
+  "Priority support",
+  "Advanced reporting",
+  "Advanced performance dashboard",
+  "Approval & Requests workflows",
+  "Task Management & Change history",
+  "Export & Share",
+  "Creative meshing",
+  "Client portfolio management",
+  "Operations statistics"],
+
+  operationalLimits: "1 ActiPlan/Day • 1 Owner • 1 ad account/platform",
+  cta: "Get Started",
+  popular: false
+},
+{
+  key: "freelancer",
+  name: "Freelancer",
+  monthlyPrice: 99,
+  yearlyPrice: 1009.8,
+  yearlyMonthly: 84.15,
+  yearlyTotal: 1009.8,
+  period: "/month",
+  description: "For growing professionals",
+  features: [
+  "2 ActiPlans per day",
+  "1 user connection per platform",
+  "3 ad accounts per platform",
+  "3 ad account swaps/month",
+  "Everything in Basic",
+  "Priority support",
+  "Advanced reporting"],
+
+  limitations: [
+  "Advanced performance dashboard",
+  "Approval & Requests workflows",
+  "Task Management & Change history",
+  "Export & Share",
+  "Creative meshing",
+  "Client portfolio management",
+  "Operations statistics"],
+
+  operationalLimits: "2 ActiPlans/Day • 1 Owner • 3 ad accounts/platform",
+  cta: "Get Started",
+  popular: true
+},
+{
+  key: "enterprise",
+  name: "Enterprise",
+  monthlyPrice: 249,
+  yearlyPrice: 2539.8,
+  yearlyMonthly: 211.65,
+  yearlyTotal: 2539.8,
+  period: "/month",
+  description: "For teams and growing agencies",
+  features: [
+  "5 ActiPlans per day",
+  "3 user connections per platform",
+  "150 ad accounts per platform",
+  "3 ad account swaps/month",
+  "Everything in Freelancer",
+  "Guaranteed planning",
+  "All-levels duplication",
+  "Advanced performance dashboard",
+  "Approval & Requests workflows",
+  "Task Management & Change history",
+  "Export & Share",
+  "Creative meshing",
+  "5 team members"],
+
+  limitations: [
+  "Client portfolio management",
+  "Client preferences & safeguards",
+  "AI knowledge base",
+  "Operations statistics",
+  "Cross-platform taxonomy"],
+
+  operationalLimits: "5 ActiPlans/Day • 5 team members • 150 ad accounts",
+  cta: "Get Started",
+  popular: false
+},
+{
+  key: "agency",
+  name: "Agency",
+  monthlyPrice: 699,
+  yearlyPrice: 7129.8,
+  yearlyMonthly: 594.15,
+  yearlyTotal: 7129.8,
+  period: "/month",
+  description: "For large agencies with dedicated support",
+  features: [
+  "Unlimited ActiPlans per day",
+  "6 user connections per platform",
+  "300 ad accounts per platform",
+  "6 ad account swaps/month",
+  "Everything in Enterprise",
+  "Client portfolio management",
+  "Client preferences & safeguards",
+  "AI knowledge base",
+  "Operations statistics",
+  "Cross-platform unified taxonomy",
+  "10 team members",
+  "Dedicated support",
+  "Platform onboarding included"],
+
+  limitations: [],
+  operationalLimits: "Unlimited • 10 team members • 300 ad accounts",
+  cta: "Get Started",
+  popular: false
+}];
+
 
 // Removed - using benefits array instead
 
@@ -303,13 +303,13 @@ const Landing = () => {
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(price);
   };
 
   const getSavingsPercentage = (monthly: number, yearlyMonthly: number) => {
     if (monthly === 0) return 0;
-    return Math.round(((monthly - yearlyMonthly) / monthly) * 100);
+    return Math.round((monthly - yearlyMonthly) / monthly * 100);
   };
 
   return (
@@ -323,14 +323,14 @@ const Landing = () => {
           <div className="hidden md:flex items-center gap-6">
             <button
               onClick={() => scrollToSection("capabilities")}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+
               Capabilities
             </button>
             <button
               onClick={() => scrollToSection("pricing")}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+
               Pricing
             </button>
           </div>
@@ -339,15 +339,15 @@ const Landing = () => {
               onClick={() => navigate("/auth")}
               variant="outline"
               size="sm"
-              className="text-xs md:text-sm px-2 md:px-4"
-            >
+              className="text-xs md:text-sm px-2 md:px-4">
+
               Sign In
             </Button>
             <Button
               onClick={() => navigate("/auth?mode=signup")}
               size="sm"
-              className="text-xs md:text-sm px-2 md:px-4 whitespace-nowrap"
-            >
+              className="text-xs md:text-sm px-2 md:px-4 whitespace-nowrap">
+
               Start Trial
             </Button>
           </div>
@@ -383,33 +383,33 @@ const Landing = () => {
               See Capabilities
             </Button>
           </div>
-          <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto mb-8 text-left">
+          <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto text-left mb-0 px-0 py-[20px]">
             {[
-              "Predict campaign delivery before launch",
-              "Activate ads across platforms in one workflow",
-              "Replace spreadsheets with AI-driven planning",
-              "Built for agencies & performance teams",
-            ].map((item) => (
-              <li key={item} className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
+            "Predict campaign delivery before launch",
+            "Activate ads across platforms in one workflow",
+            "Replace spreadsheets with AI-driven planning",
+            "Built for agencies & performance teams"].
+            map((item) =>
+            <li key={item} className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
                 <span>{item}</span>
               </li>
-            ))}
+            )}
           </ul>
         </div>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
           {[
-            { value: "60%", label: "Cost Reduction" },
-            { value: "5x", label: "Faster Launches" },
-            { value: "80%", label: "Incident Reduction" },
-            { value: "5+", label: "Platforms" },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center">
+          { value: "60%", label: "Cost Reduction" },
+          { value: "5x", label: "Faster Launches" },
+          { value: "80%", label: "Incident Reduction" },
+          { value: "5+", label: "Platforms" }].
+          map((stat) =>
+          <div key={stat.label} className="text-center">
               <div className="text-3xl md:text-4xl font-bold text-primary">{stat.value}</div>
               <div className="text-sm text-muted-foreground">{stat.label}</div>
             </div>
-          ))}
+          )}
         </div>
       </section>
 
@@ -424,8 +424,8 @@ const Landing = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-            {benefits.map((benefit) => (
-              <Card key={benefit.title} className="bg-card hover:shadow-lg transition-shadow text-center">
+            {benefits.map((benefit) =>
+            <Card key={benefit.title} className="bg-card hover:shadow-lg transition-shadow text-center">
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 mx-auto">
                     <benefit.icon className="h-6 w-6 text-primary" />
@@ -436,7 +436,7 @@ const Landing = () => {
                   <CardDescription>{benefit.description}</CardDescription>
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
         </div>
       </section>
@@ -456,8 +456,8 @@ const Landing = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature) => (
-              <Card key={feature.title} className="bg-card hover:shadow-lg transition-shadow">
+            {features.map((feature) =>
+            <Card key={feature.title} className="bg-card hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                     <feature.icon className="h-6 w-6 text-primary" />
@@ -468,7 +468,7 @@ const Landing = () => {
                   <CardDescription>{feature.description}</CardDescription>
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
         </div>
       </section>
@@ -503,35 +503,35 @@ const Landing = () => {
           </div>
 
           <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
-            {pricingTiers.map((tier) => (
-              <Card
-                key={tier.name}
-                className={`relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}`}
-              >
-                {tier.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
-                )}
+            {pricingTiers.map((tier) =>
+            <Card
+              key={tier.name}
+              className={`relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}`}>
+
+                {tier.popular &&
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
+              }
                 <CardHeader className="pb-4">
                   <CardTitle>{tier.name}</CardTitle>
 
                   {/* Pricing Display */}
                   <div className="mt-2">
-                    {tier.monthlyPrice === 0 ? (
-                      <div>
+                    {tier.monthlyPrice === 0 ?
+                  <div>
                         <span className="text-3xl font-bold">Free</span>
                         <span className="text-muted-foreground ml-1">{tier.period}</span>
-                      </div>
-                    ) : isYearly ? (
-                      <div className="space-y-1">
+                      </div> :
+                  isYearly ?
+                  <div className="space-y-1">
                         {/* Strikethrough monthly price */}
                         <div className="flex items-center gap-2">
                           <span className="text-lg text-muted-foreground line-through">
                             ${formatPrice(tier.monthlyPrice)}
                           </span>
                           <Badge
-                            variant="secondary"
-                            className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                          >
+                        variant="secondary"
+                        className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+
                             -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                           </Badge>
                         </div>
@@ -545,13 +545,13 @@ const Landing = () => {
                           <span className="font-medium text-foreground">${formatPrice(tier.yearlyTotal)}</span>
                           <span> billed yearly</span>
                         </div>
-                      </div>
-                    ) : (
-                      <div>
+                      </div> :
+
+                  <div>
                         <span className="text-3xl font-bold">${formatPrice(tier.monthlyPrice)}</span>
                         <span className="text-muted-foreground">/month</span>
                       </div>
-                    )}
+                  }
                   </div>
 
                   <CardDescription className="mt-2">{tier.description}</CardDescription>
@@ -565,32 +565,32 @@ const Landing = () => {
 
                   {/* Features */}
                   <ul className="space-y-2 mb-4 flex-1">
-                    {tier.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2 text-sm">
+                    {tier.features.map((feature) =>
+                  <li key={feature} className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
                         <span>{feature}</span>
                       </li>
-                    ))}
-                    {tier.limitations.map((limit) => (
-                      <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground">
+                  )}
+                    {tier.limitations.map((limit) =>
+                  <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground">
                         <X className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-50" />
                         <span>{limit}</span>
                       </li>
-                    ))}
+                  )}
                   </ul>
 
                   {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>}
 
                   <Button
-                    className="w-full mt-auto"
-                    variant={tier.popular ? "default" : "outline"}
-                    onClick={() => navigate("/auth?mode=signup")}
-                  >
+                  className="w-full mt-auto"
+                  variant={tier.popular ? "default" : "outline"}
+                  onClick={() => navigate("/auth?mode=signup")}>
+
                     {tier.cta}
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
@@ -637,8 +637,8 @@ const Landing = () => {
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>);
+
 };
 
 export default Landing;
