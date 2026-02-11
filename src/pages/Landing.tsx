@@ -483,15 +483,15 @@ const Landing = () => {
               </p>
             </div>
 
-            <div className="relative px-12">
+            <div className="relative px-4 md:px-12">
               <Carousel
                 opts={{ align: "start", loop: true, dragFree: false }}
-                plugins={[Autoplay({ delay: 3000, stopOnInteraction: true, stopOnMouseEnter: true })]}
+                plugins={[Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true })]}
                 className="w-full"
               >
-                <CarouselContent>
+                <CarouselContent className="-ml-2 md:-ml-4">
                   {features.map((feature) => (
-                    <CarouselItem key={feature.title} className="md:basis-1/2 lg:basis-1/4">
+                    <CarouselItem key={feature.title} className="basis-[85%] pl-2 md:pl-4 md:basis-1/2 lg:basis-[24%]">
                       <Card className="bg-card hover:shadow-lg transition-shadow h-full">
                         <CardHeader>
                           <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
