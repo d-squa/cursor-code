@@ -9,7 +9,7 @@ import LandingB from "./pages/LandingB";
 import LandingC from "./pages/LandingC";
 import LandingD from "./pages/LandingD";
 import LandingE from "./pages/LandingE";
-
+import BookDemo from "./pages/BookDemo";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import AppHome from "./pages/AppHome";
@@ -55,7 +55,7 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
             <Route path="/compare-plans" element={<ComparePlans />} />
-            
+            <Route path="/book-demo" element={<BookDemo />} />
             <Route path="/terms" element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/media-buying-software" element={<LandingB />} />

@@ -252,8 +252,8 @@ export default function ComparePlans() {
                           {tier.cta}
                         </Button>
                         {(tier.key === "enterprise" || tier.key === "agency") && (
-                          <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" asChild>
-                            <a href="https://calendly.com/dsquad-theagency/30min" target="_blank" rel="noopener noreferrer">Book a Demo</a>
+                          <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => navigate("/book-demo")}>
+                            Book a Demo
                           </Button>
                         )}
                       </div>

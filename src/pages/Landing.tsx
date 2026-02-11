@@ -624,8 +624,8 @@ const Landing = () => {
                             {tier.cta}
                           </Button>
                           {(tier.key === "enterprise" || tier.key === "agency") && (
-                            <Button variant="ghost" className="w-full mt-2" asChild>
-                              <a href="https://calendly.com/dsquad-theagency/30min" target="_blank" rel="noopener noreferrer">Book a Demo</a>
+                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
+                              Book a Demo
                             </Button>
                           )}
                           <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
@@ -699,8 +699,8 @@ const Landing = () => {
                       {tier.cta}
                     </Button>
                     {(tier.key === "enterprise" || tier.key === "agency") && (
-                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" asChild>
-                        <a href="https://calendly.com/dsquad-theagency/30min" target="_blank" rel="noopener noreferrer">Book a Demo</a>
+                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/book-demo")}>
+                        Book a Demo
                       </Button>
                     )}
                     <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
