@@ -1,5 +1,4 @@
 import { useState } from "react";
-import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,14 +132,6 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <SEO
-        title="ActiPlan: AI-Powered Paid Media Campaign Manager"
-        description="From a single unified platform, ActiPlan helps media planners & digital marketers manage their paid media campaigns across different platforms."
-        keywords="campaign management, paid advertising, Meta ads, Google Ads, LinkedIn ads, TikTok ads, social media marketing, media planning tool, media buying tool"
-        ogTitle="ActiPlan: AI-Powered Paid Media Campaign Manager That Scales Businesses"
-        ogDescription="From a single unified platform, ActiPlan helps media planners & digital marketers managing their paid media campaigns across different platforms."
-        ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-      />
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-2">
