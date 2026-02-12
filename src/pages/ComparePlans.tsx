@@ -146,6 +146,10 @@ export default function ComparePlans() {
       <SEO
         title="Compare Plans - ActiPlan Pricing"
         description="Compare ActiPlan pricing plans side by side. Find the perfect plan for your media planning and buying needs."
+        keywords="ActiPlan pricing, media buying plans, campaign management pricing, compare plans"
+        canonicalUrl="https://actiplan-blueprint-creation.lovable.app/compare-plans"
+        ogTitle="Compare Plans - ActiPlan Pricing"
+        ogDescription="Compare ActiPlan pricing plans side by side. Find the perfect plan for your media planning and buying needs."
       />
 
       <div className="min-h-screen bg-background">
