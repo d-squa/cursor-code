@@ -333,15 +333,14 @@ const LandingF = () => {
   return (
     <>
       <SEO
-  title="Cross-Platform Ad Management Software | Unified Campaign Control | ActiPlan"
-  description="ActiPlan is a cross-platform ad management software that unifies campaign planning, activation, and reporting across Meta, Google, TikTok, LinkedIn, and more."
-  keywords="cross-platform ad management software, unified advertising platform, multi-channel campaign management, omnichannel ad tool, centralized media management"
-  ogTitle="ActiPlan | Cross-Platform Ad Management Software"
-  ogDescription="Manage all your paid campaigns across Meta, Google, TikTok, LinkedIn and more from one unified platform."
-  ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-  canonical="https://actiplan-blueprint-creation.lovable.app/cross-platform-ad-management-software"
-/>
-
+        title="Cross-Platform Ad Management Software | Unified Campaign Dashboard | ActiPlan"
+        description="Manage and optimize ads across Meta, Google, TikTok, LinkedIn, and more from one centralized dashboard using ActiPlan’s cross-platform ad management software."
+        keywords="cross-platform ad management software, multi-channel ad management, paid campaign dashboard, omnichannel advertising software"
+        ogTitle="ActiPlan | Cross-Platform Advertising Management"
+        ogDescription="Control all your paid media campaigns across platforms from one unified management system."
+        ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
+        canonical="https://yourdomain.com/cross-platform-ad-management-software"
+      />
       <div className="min-h-screen bg-background">
         {/* Navigation */}
         <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -392,35 +391,46 @@ const LandingF = () => {
           <div className="max-w-4xl mx-auto text-center">
             <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm">
               <Sparkles className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">AI Media Buying Automation Platform</span>
-              <span className="sm:hidden">AI Media Buying Automation Platform</span>
+              <span className="hidden sm:inline">Cross-Platform Ad Management Software</span>
+              <span className="sm:hidden">Cross-Platform Ad Management Software</span>
             </Badge>
             <h1 className="text-3xl sm:text-4xl mb-4 md:mb-6 leading-tight font-extrabold md:text-4xl">
-              Automate Media Buying
+              Manage All Paid Ads
               <br />
               <span className="bg-[length:200%_auto] animate-gradient-x bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
-                With AI-Powered
+                From One Central Dashboard
               </span>
               <br />
-             Cross-Platform Intelligence
+              Across Paid Platforms
             </h1>
             <p className="text-base md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-2">
-              ActiPlan uses AI to generate campaign blueprints, forecast delivery, automate cross-platform activation, and deliver real-time optimization insights.
+              ActiPlan consolidates campaign management, activation, performance tracking, and optimization across every
+              major advertising platform into one unified workspace.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
-              <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="hero-start-trial">
+              <Button
+                size="lg"
+                onClick={() => navigate("/auth?mode=signup")}
+                className="gap-2"
+                data-gtm="hero-start-trial"
+              >
                 Start 30-Day Free Trial <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")} data-gtm="hero-see-capabilities">
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => scrollToSection("capabilities")}
+                data-gtm="hero-see-capabilities"
+              >
                 See Capabilities
               </Button>
             </div>
             <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto text-left mb-0 px-0 py-[20px]">
               {[
-               "AI-generated campaign blueprints",
-"Automated cross-platform deployment",
-"Real-time AI optimization insights",
-"Built for scalable performance teams",
+                "Control Meta, Google, TikTok & LinkedIn in one view",
+                "Monitor performance from one dashboard",
+                "Standardize workflows across channels",
+                "Designed for omnichannel media teams",
               ].map((item) => (
                 <li key={item} className="flex items-center gap-2 text-sm md:text-base text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
@@ -490,7 +500,9 @@ const LandingF = () => {
             <div className="relative px-4 md:px-16 overflow-hidden">
               <Carousel
                 opts={{ align: "start", loop: true, dragFree: false }}
-                plugins={[Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true })]}
+                plugins={[
+                  Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true }),
+                ]}
                 className="w-full"
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
@@ -553,10 +565,7 @@ const LandingF = () => {
 
             {/* Mobile: Carousel */}
             <div className="md:hidden relative px-4 overflow-hidden">
-              <Carousel
-                opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
-                className="w-full"
-              >
+              <Carousel opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }} className="w-full">
                 <CarouselContent className="-ml-2">
                   {pricingTiers.map((tier) => (
                     <CarouselItem key={tier.name} className="basis-[90%] pl-2 pt-3">
@@ -564,7 +573,9 @@ const LandingF = () => {
                         className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                       >
                         {tier.popular && (
-                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary z-10">Most Popular</Badge>
+                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary z-10">
+                            Most Popular
+                          </Badge>
                         )}
                         <CardHeader className="pb-4">
                           <CardTitle>{tier.name}</CardTitle>
@@ -580,7 +591,10 @@ const LandingF = () => {
                                   <span className="text-lg text-muted-foreground line-through">
                                     ${formatPrice(tier.monthlyPrice)}
                                   </span>
-                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                  >
                                     -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                                   </Badge>
                                 </div>
@@ -630,11 +644,21 @@ const LandingF = () => {
                             {tier.cta}
                           </Button>
                           {(tier.key === "enterprise" || tier.key === "agency") && (
-                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")} data-gtm={`pricing-book-demo-${tier.key}`}>
+                            <Button
+                              variant="ghost"
+                              className="w-full mt-2"
+                              onClick={() => navigate("/book-demo")}
+                              data-gtm={`pricing-book-demo-${tier.key}`}
+                            >
                               Book a Demo
                             </Button>
                           )}
-                          <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")} data-gtm={`pricing-compare-${tier.key}`}>
+                          <Button
+                            variant="ghost"
+                            className="w-full mt-2 text-xs"
+                            onClick={() => navigate("/compare-plans")}
+                            data-gtm={`pricing-compare-${tier.key}`}
+                          >
                             Compare Plans
                           </Button>
                         </CardContent>
@@ -655,7 +679,9 @@ const LandingF = () => {
                   className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                 >
                   {tier.popular && (
-                    <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">Most Popular</Badge>
+                    <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">
+                      Most Popular
+                    </Badge>
                   )}
                   <CardHeader className="pb-4">
                     <CardTitle className="text-base">{tier.name}</CardTitle>
@@ -671,7 +697,10 @@ const LandingF = () => {
                             <span className="text-sm text-muted-foreground line-through">
                               ${formatPrice(tier.monthlyPrice)}
                             </span>
-                            <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                            >
                               -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                             </Badge>
                           </div>
@@ -706,11 +735,23 @@ const LandingF = () => {
                       {tier.cta}
                     </Button>
                     {(tier.key === "enterprise" || tier.key === "agency") && (
-                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/book-demo")} data-gtm={`pricing-book-demo-${tier.key}`}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-2 text-xs"
+                        onClick={() => navigate("/book-demo")}
+                        data-gtm={`pricing-book-demo-${tier.key}`}
+                      >
                         Book a Demo
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")} data-gtm={`pricing-compare-${tier.key}`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2 text-xs"
+                      onClick={() => navigate("/compare-plans")}
+                      data-gtm={`pricing-compare-${tier.key}`}
+                    >
                       Compare Plans
                     </Button>
                   </CardContent>
@@ -735,7 +776,12 @@ const LandingF = () => {
                 <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
                   Start your 30-day free trial today and experience the power of cross-platform activation management.
                 </p>
-                <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="cta-bottom-start-trial">
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/auth?mode=signup")}
+                  className="gap-2"
+                  data-gtm="cta-bottom-start-trial"
+                >
                   Start Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>

@@ -31,33 +31,32 @@ import {
 const benefits = [
   {
     icon: Zap,
-    title: "Faster Execution",
-    description: "Create once, activate everywhere — spend minutes, not hours.",
+    title: "Launch Faster Across Platforms",
+    description: "Eliminate repetitive campaign setup with one consolidated buying workflow.",
   },
   {
     icon: Layers,
-    title: "Centralized Clarity",
-    description: "One blueprint. One dashboard. Zero confusion across platforms.",
+    title: "Centralized Media Buying",
+    description: "Manage multiple ad platforms from one buying interface.",
   },
   {
     icon: Target,
-    title: "Standardized Creation",
-    description: "Maintain consistency with a single workflow for all campaigns.",
+    title: "Reduce Manual Errors",
+    description: "Standardized campaign structures minimize duplication mistakes.",
   },
   {
     icon: TrendingUp,
-    title: "Scale Easily",
-    description: "Launch multiple campaigns across multiple networks effortlessly.",
+    title: "Scale Ad Spend Efficiently",
+    description: "Increase campaign volume without increasing operational workload.",
   },
 ];
-
 // Updated features
 const features = [
   {
     icon: Sparkles,
-    title: "AI-Assisted Planning",
+    title: "Cross-Platform Campaign Activation",
     description:
-      "Define objectives, budget, creatives, and KPIs once. Let ActiPlan generate a campaign blueprint ready for cross-platform activation.",
+      "Create your campaign once and automatically deploy it across selected ad platforms without rebuilding structures manually.,
   },
   {
     icon: Globe,
@@ -67,9 +66,9 @@ const features = [
   },
   {
     icon: Switch,
-    title: "Creative Meshing",
+    title: "Creative Bulk Assignment",
     description:
-      "Upload creatives in bulk, and ActiPlan assigns them to your blueprint automatically across all selected networks.",
+      "Upload creatives once and let ActiPlan distribute and match them across ad sets automatically.",
   },
   {
     icon: Zap,
