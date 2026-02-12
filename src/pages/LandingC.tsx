@@ -7,9 +7,6 @@ const LandingC = () => {
         title="Media Planning Software | ActiPlan"
         description="Plan, budget and optimize your paid media campaigns with ActiPlan's intelligent media planning software. Cross-platform support included."
         keywords="media planning software, media plan tool, campaign planning, budget planning, media strategy"
-        canonicalUrl="https://actiplan-blueprint-creation.lovable.app/media-planning-software"
-        ogTitle="Media Planning Software | ActiPlan"
-        ogDescription="Plan, budget and optimize your paid media campaigns with ActiPlan's intelligent media planning software. Cross-platform support included."
       />
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <h1 className="text-4xl font-bold">Media Planning Software</h1>

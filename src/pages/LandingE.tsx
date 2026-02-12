@@ -7,9 +7,6 @@ const LandingE = () => {
         title="Cross-Platform Ad Management Software | ActiPlan"
         description="Manage Meta, Google, TikTok & LinkedIn ads from one unified platform. ActiPlan simplifies cross-platform campaign management at scale."
         keywords="cross-platform ad management, multi-channel advertising, unified ad platform, omnichannel ads"
-        canonicalUrl="https://actiplan-blueprint-creation.lovable.app/cross-platform-ad-management-software"
-        ogTitle="Cross-Platform Ad Management Software | ActiPlan"
-        ogDescription="Manage Meta, Google, TikTok & LinkedIn ads from one unified platform. ActiPlan simplifies cross-platform campaign management at scale."
       />
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <h1 className="text-4xl font-bold">Cross-Platform Ad Management Software</h1>
