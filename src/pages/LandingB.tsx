@@ -340,7 +340,7 @@ const Landing = () => {
   ogTitle="ActiPlan | AI Media Planning & Buying Platform"
   ogDescription="Plan, forecast, and activate paid campaigns across Meta, Google, TikTok, LinkedIn & more from one centralized workspace."
   ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-  canonical="https://yourdomain.com/"
+  canonical="https://actiplan-blueprint-creation.lovable.app/generic"
 />
 
 

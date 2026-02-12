@@ -310,7 +310,7 @@ const pricingTiers = [
 
 // Removed - using benefits array instead
 
-const Landing = () => {
+const LandingF = () => {
   const navigate = useNavigate();
   const [isYearly, setIsYearly] = useState(true);
 
@@ -333,13 +333,13 @@ const Landing = () => {
   return (
     <>
       <SEO
-  title="AI Media Buying Software | Automated Campaign Management | ActiPlan"
-  description="ActiPlan is an AI media buying software that automates campaign planning, cross-platform deployment, and performance optimization from a single dashboard."
-  keywords="AI media buying software, automated ad management, AI campaign optimization tool, cross-platform automation, intelligent media buying"
-  ogTitle="ActiPlan | AI-Powered Media Buying Automation"
-  ogDescription="Use AI to automate campaign planning, activation, and optimization across all major ad platforms."
+  title="Cross-Platform Ad Management Software | Unified Campaign Control | ActiPlan"
+  description="ActiPlan is a cross-platform ad management software that unifies campaign planning, activation, and reporting across Meta, Google, TikTok, LinkedIn, and more."
+  keywords="cross-platform ad management software, unified advertising platform, multi-channel campaign management, omnichannel ad tool, centralized media management"
+  ogTitle="ActiPlan | Cross-Platform Ad Management Software"
+  ogDescription="Manage all your paid campaigns across Meta, Google, TikTok, LinkedIn and more from one unified platform."
   ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-  canonical="https://actiplan-blueprint-creation.lovable.app/ai-media-buying-software"
+  canonical="https://actiplan-blueprint-creation.lovable.app/cross-platform-ad-management-software"
 />
 
       <div className="min-h-screen bg-background">
@@ -769,4 +769,4 @@ const Landing = () => {
   );
 };
 
-export default Landing;
+export default LandingF;

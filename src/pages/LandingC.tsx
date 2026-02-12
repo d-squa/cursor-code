@@ -339,7 +339,7 @@ const Landing = () => {
   ogTitle="ActiPlan | Media Buying Software for Performance Teams"
   ogDescription="Launch and manage paid media campaigns across platforms using one centralized buying workflow."
   ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-  canonical="https://yourdomain.com/media-buying-software"
+  canonical="https://actiplan-blueprint-creation.lovable.app/media-buying-software"
 />
 
       <div className="min-h-screen bg-background">
