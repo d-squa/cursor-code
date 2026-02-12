@@ -20,8 +20,10 @@ const checkoutInputSchema = z.object({
 
 // Basic plan price IDs - these get 30-day trial for NEW subscriptions only
 const BASIC_PRICE_IDS = [
-  "price_1ScnObKrTGU4P754AAJ9Q5NU", // monthly
-  "price_1ScnL9KrTGU4P754QirsF0Sd", // yearly
+  "price_1ScnObKrTGU4P754AAJ9Q5NU", // legacy monthly
+  "price_1ScnL9KrTGU4P754QirsF0Sd", // legacy yearly
+  "price_1SydZ7KrTGU4P754jqI2guPI", // current monthly (USD)
+  "price_1SydZEKrTGU4P754aNJHK8pc", // current yearly (USD)
 ];
 
 // Price metadata for GTM tracking and comparison (all USD)
@@ -29,7 +31,20 @@ const PRICE_METADATA: Record<
   string,
   { amount: number; planName: string; productId: string; billingCycle: "monthly" | "yearly" }
 > = {
-  // Basic (USD)
+  // Basic (current USD)
+  price_1SydZ7KrTGU4P754jqI2guPI: {
+    amount: 3900,
+    planName: "Basic",
+    productId: "prod_TwWcmKdhIOpj2s",
+    billingCycle: "monthly",
+  },
+  price_1SydZEKrTGU4P754aNJHK8pc: {
+    amount: 39780,
+    planName: "Basic",
+    productId: "prod_TwWcQkm8fqfqaO",
+    billingCycle: "yearly",
+  },
+  // Basic (legacy)
   price_1ScnObKrTGU4P754AAJ9Q5NU: {
     amount: 3900,
     planName: "Basic",
@@ -42,7 +57,20 @@ const PRICE_METADATA: Record<
     productId: "prod_TZxJsj5K3hZ8Ku",
     billingCycle: "yearly",
   },
-  // Freelancer (USD)
+  // Freelancer (current USD)
+  price_1SydVjKrTGU4P754mZJJWvAq: {
+    amount: 9900,
+    planName: "Freelancer",
+    productId: "prod_TwWYJSunEeVqiq",
+    billingCycle: "monthly",
+  },
+  price_1SydVuKrTGU4P754zRmad5iJ: {
+    amount: 100980,
+    planName: "Freelancer",
+    productId: "prod_TwWYJSunEeVqiq",
+    billingCycle: "yearly",
+  },
+  // Freelancer (legacy)
   price_1SyblZKrTGU4P754e0GfARV4: {
     amount: 9900,
     planName: "Freelancer",
@@ -55,7 +83,20 @@ const PRICE_METADATA: Record<
     productId: "prod_TwUlLQvTFz0efa",
     billingCycle: "yearly",
   },
-  // Enterprise (USD)
+  // Enterprise (current USD)
+  price_1SydW1KrTGU4P754aeyvSJP8: {
+    amount: 24900,
+    planName: "Enterprise",
+    productId: "prod_TwWZ9ID4ZXtZDA",
+    billingCycle: "monthly",
+  },
+  price_1SydW3KrTGU4P754G3iA7VZM: {
+    amount: 253980,
+    planName: "Enterprise",
+    productId: "prod_TwWZVDvQQ5cYE7",
+    billingCycle: "yearly",
+  },
+  // Enterprise (legacy)
   price_1SyblcKrTGU4P754HYOgkuIQ: {
     amount: 24900,
     planName: "Enterprise",
@@ -68,7 +109,20 @@ const PRICE_METADATA: Record<
     productId: "prod_TwUlg5cv5lkldX",
     billingCycle: "yearly",
   },
-  // Agency (USD)
+  // Agency (current USD)
+  price_1SydW5KrTGU4P754vsPg9hWw: {
+    amount: 69900,
+    planName: "Agency",
+    productId: "prod_TwWZww84JxfY9y",
+    billingCycle: "monthly",
+  },
+  price_1SydW8KrTGU4P754AEitLX2A: {
+    amount: 712980,
+    planName: "Agency",
+    productId: "prod_TwWZDJv1p9us5v",
+    billingCycle: "yearly",
+  },
+  // Agency (legacy)
   price_1SyblfKrTGU4P754gwTKmrsC: {
     amount: 69900,
     planName: "Agency",
@@ -80,6 +134,13 @@ const PRICE_METADATA: Record<
     planName: "Agency",
     productId: "prod_TwUlIMDiwjhsq6",
     billingCycle: "yearly",
+  },
+  // Legacy Agency
+  price_1ScnOeKrTGU4P75446dvndr3: {
+    amount: 99900,
+    planName: "Agency",
+    productId: "prod_TZxJAdnaSLNRsJ",
+    billingCycle: "monthly",
   },
 };
 
