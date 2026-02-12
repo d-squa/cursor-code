@@ -153,16 +153,16 @@ export default function ComparePlans() {
         <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <nav className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="shrink-0" data-gtm="compare-back">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <img src="/logo.png" alt="ActiPlan" className="h-8 md:h-10 w-auto" />
             </div>
             <div className="flex items-center gap-2 md:gap-3">
-              <Button onClick={() => navigate("/auth")} variant="outline" size="sm">
+              <Button onClick={() => navigate("/auth")} variant="outline" size="sm" data-gtm="compare-nav-sign-in">
                 Sign In
               </Button>
-              <Button onClick={() => navigate("/auth?mode=signup")} size="sm">
+              <Button onClick={() => navigate("/auth?mode=signup")} size="sm" data-gtm="compare-nav-start-trial">
                 Start Trial
               </Button>
             </div>
@@ -182,7 +182,7 @@ export default function ComparePlans() {
               <span className={`text-sm font-medium ${!isYearly ? "text-foreground" : "text-muted-foreground"}`}>
                 Monthly
               </span>
-              <Switch checked={isYearly} onCheckedChange={setIsYearly} className="data-[state=checked]:bg-primary" />
+              <Switch checked={isYearly} onCheckedChange={setIsYearly} className="data-[state=checked]:bg-primary" data-gtm="compare-billing-toggle" />
               <span className={`text-sm font-medium ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
                 Yearly
               </span>
@@ -248,11 +248,12 @@ export default function ComparePlans() {
                           className="w-full mt-2"
                           variant={tier.popular ? "default" : "outline"}
                           onClick={() => navigate("/auth?mode=signup")}
+                          data-gtm={`compare-cta-${tier.key}`}
                         >
                           {tier.cta}
                         </Button>
                         {(tier.key === "enterprise" || tier.key === "agency") && (
-                          <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => navigate("/book-demo")}>
+                          <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => navigate("/book-demo")} data-gtm={`compare-book-demo-${tier.key}`}>
                             Book a Demo
                           </Button>
                         )}
@@ -307,7 +308,7 @@ export default function ComparePlans() {
             <p className="text-sm text-muted-foreground mb-6">
               All signups start with a 30-day free trial on Basic Monthly. Credit card required. Cancel anytime!
             </p>
-            <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
+            <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="compare-bottom-start-trial">
               Start Free Trial <ArrowRight className="h-4 w-4" />
             </Button>
           </div>

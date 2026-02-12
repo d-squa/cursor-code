@@ -353,12 +353,14 @@ const Landing = () => {
               <button
                 onClick={() => scrollToSection("capabilities")}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                data-gtm="nav-capabilities"
               >
                 Capabilities
               </button>
               <button
                 onClick={() => scrollToSection("pricing")}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                data-gtm="nav-pricing"
               >
                 Pricing
               </button>
@@ -369,6 +371,7 @@ const Landing = () => {
                 variant="outline"
                 size="sm"
                 className="text-xs md:text-sm px-2 md:px-4"
+                data-gtm="nav-sign-in"
               >
                 Sign In
               </Button>
@@ -376,6 +379,7 @@ const Landing = () => {
                 onClick={() => navigate("/auth?mode=signup")}
                 size="sm"
                 className="text-xs md:text-sm px-2 md:px-4 whitespace-nowrap"
+                data-gtm="nav-start-trial"
               >
                 Start Trial
               </Button>
@@ -405,10 +409,10 @@ const Landing = () => {
               TikTok, Google, Snapchat, Pinterest, LinkedIn & more at scale.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
-              <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
+              <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="hero-start-trial">
                 Start 30-Day Free Trial <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")}>
+              <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")} data-gtm="hero-see-capabilities">
                 See Capabilities
               </Button>
             </div>
@@ -533,6 +537,7 @@ const Landing = () => {
                     checked={isYearly}
                     onCheckedChange={setIsYearly}
                     className="data-[state=checked]:bg-primary"
+                    data-gtm="pricing-billing-toggle"
                   />
                 </div>
                 <span className={`text-sm font-medium ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
@@ -621,15 +626,16 @@ const Landing = () => {
                             className="w-full mt-auto"
                             variant={tier.popular ? "default" : "outline"}
                             onClick={() => navigate("/auth?mode=signup")}
+                            data-gtm={`pricing-cta-${tier.key}`}
                           >
                             {tier.cta}
                           </Button>
                           {(tier.key === "enterprise" || tier.key === "agency") && (
-                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")}>
+                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")} data-gtm={`pricing-book-demo-${tier.key}`}>
                               Book a Demo
                             </Button>
                           )}
-                          <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
+                          <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")} data-gtm={`pricing-compare-${tier.key}`}>
                             Compare Plans
                           </Button>
                         </CardContent>
@@ -696,15 +702,16 @@ const Landing = () => {
                       size="sm"
                       variant={tier.popular ? "default" : "outline"}
                       onClick={() => navigate("/auth?mode=signup")}
+                      data-gtm={`pricing-cta-${tier.key}`}
                     >
                       {tier.cta}
                     </Button>
                     {(tier.key === "enterprise" || tier.key === "agency") && (
-                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/book-demo")}>
+                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/book-demo")} data-gtm={`pricing-book-demo-${tier.key}`}>
                         Book a Demo
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")}>
+                    <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")} data-gtm={`pricing-compare-${tier.key}`}>
                       Compare Plans
                     </Button>
                   </CardContent>
@@ -729,7 +736,7 @@ const Landing = () => {
                 <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
                   Start your 30-day free trial today and experience the power of cross-platform activation management.
                 </p>
-                <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
+                <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="cta-bottom-start-trial">
                   Start Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
