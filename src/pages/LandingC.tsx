@@ -31,32 +31,32 @@ import {
 const benefits = [
   {
     icon: Zap,
-    title: "Replace Spreadsheets",
-    description: "Build structured, AI-assisted media plans in minutes instead of hours.",
+    title: "Faster Execution",
+    description: "From plan to launch in just a few minutes",
   },
   {
     icon: Layers,
-    title: "Plan Once, Deploy Everywhere",
-    description: "Turn your media plan into executable campaigns across platforms instantly.",
+    title: "Centralized Clarity",
+    description: "One dashboard. Zero chaos.",
   },
   {
     icon: Target,
-    title: "Forecast With Confidence",
-    description: "Predict delivery, costs, and KPI outcomes before launching.",
+    title: "Standardized Creation",
+    description: "Consistent workflow for every team.",
   },
   {
     icon: TrendingUp,
-    title: "Standardized Planning Framework",
-    description: "Create consistent media plans across clients and teams.",
+    title: "Scale Easily",
+    description: "ActiPlan flexes with your team.",
   },
 ];
 
 const features = [
   {
     icon: Sparkles,
-    title: "AI Media Plan Generator",
+    title: "Ready-To-Run Planning",
     description:
-      "Generate detailed media plans with projected delivery, cost estimates, KPI benchmarks, and structured allocation logic.",
+      "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes.",
   },
   {
     icon: Globe,
@@ -78,8 +78,9 @@ const features = [
   },
   {
     icon: BarChart3,
-    title: "Planned vs. Actual Dashboard",
-    description: "Compare forecasted performance with real campaign results inside one unified dashboard.",
+    title: "Real-time Performance Dashboard",
+    description:
+      "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results.",
   },
   {
     icon: Shield,
@@ -338,7 +339,7 @@ const Landing = () => {
         ogTitle="ActiPlan | Media Buying Software for Performance Teams"
         ogDescription="Launch and manage paid media campaigns across platforms using one centralized buying workflow."
         ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-        canonical="https://actiplan-blueprint-creation.lovable.app/media-buying-software"
+        canonical="https://yourdomain.com/media-buying-software"
       />
 
       <div className="min-h-screen bg-background">
