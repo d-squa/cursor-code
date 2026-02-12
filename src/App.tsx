@@ -9,6 +9,7 @@ import LandingB from "./pages/LandingB";
 import LandingC from "./pages/LandingC";
 import LandingD from "./pages/LandingD";
 import LandingE from "./pages/LandingE";
+import LandingF from "./pages/LandingF";
 import BookDemo from "./pages/BookDemo";
 import BookDemoConfirmation from "./pages/BookDemoConfirmation";
 import TermsAndConditions from "./pages/TermsAndConditions";
@@ -60,10 +61,11 @@ const App = () => (
             <Route path="/book-demo/confirmation" element={<BookDemoConfirmation />} />
             <Route path="/terms" element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/media-buying-software" element={<LandingB />} />
-            <Route path="/media-planning-software" element={<LandingC />} />
-            <Route path="/ai-media-buying-software" element={<LandingD />} />
-            <Route path="/cross-platform-ad-management-software" element={<LandingE />} />
+            <Route path="/generic" element={<LandingB />} />
+            <Route path="/media-buying-software" element={<LandingC />} />
+            <Route path="/media-planning-software" element={<LandingD />} />
+            <Route path="/ai-media-buying-software" element={<LandingE />} />
+            <Route path="/cross-platform-ad-management-software" element={<LandingF />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
