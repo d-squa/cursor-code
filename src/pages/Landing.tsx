@@ -339,6 +339,7 @@ const Landing = () => {
         ogTitle="ActiPlan: AI-Powered Paid Media Campaign Manager That Scales Businesses"
         ogDescription="From a single unified platform, ActiPlan helps media planners & digital marketers managing their paid media campaigns across different platforms"
         ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
+        canonical="https://actiplan-blueprint-creation.lovable.app/"
       />
 
       <div className="min-h-screen bg-background">
