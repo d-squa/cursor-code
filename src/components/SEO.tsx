@@ -9,6 +9,7 @@ interface SEOProps {
   ogImage?: string;
   twitterTitle?: string;
   twitterDescription?: string;
+  canonical?: string;
 }
 
 const SEO = ({
@@ -20,6 +21,7 @@ const SEO = ({
   ogImage = "https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png",
   twitterTitle,
   twitterDescription,
+  canonical,
 }: SEOProps) => {
   useEffect(() => {
     document.title = title;
@@ -37,13 +39,26 @@ const SEO = ({
     setMeta("description", description);
     if (keywords) setMeta("keywords", keywords);
 
+    setMeta("og:type", "website", "property");
     setMeta("og:title", ogTitle || title, "property");
     setMeta("og:description", ogDescription || description, "property");
     if (ogImage) setMeta("og:image", ogImage, "property");
 
+    setMeta("twitter:card", "summary_large_image");
     setMeta("twitter:title", twitterTitle || ogTitle || title);
     setMeta("twitter:description", twitterDescription || ogDescription || description);
-  }, [title, description, keywords, ogTitle, ogDescription, ogImage, twitterTitle, twitterDescription]);
+
+    // Update canonical link
+    if (canonical) {
+      let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement("link");
+        link.setAttribute("rel", "canonical");
+        document.head.appendChild(link);
+      }
+      link.setAttribute("href", canonical);
+    }
+  }, [title, description, keywords, ogTitle, ogDescription, ogImage, twitterTitle, twitterDescription, canonical]);
 
   return null;
 };
