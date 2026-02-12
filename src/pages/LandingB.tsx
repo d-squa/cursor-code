@@ -31,32 +31,33 @@ import {
 const benefits = [
   {
     icon: Zap,
-    title: "Launch Faster Across Platforms",
-    description: "Eliminate repetitive campaign setup with one consolidated buying workflow.",
+    title: "Faster Execution",
+    description: "Create once, activate everywhere — spend minutes, not hours.",
   },
   {
     icon: Layers,
-    title: "Centralized Media Buying",
-    description: "Manage multiple ad platforms from one buying interface.",
+    title: "Centralized Clarity",
+    description: "One blueprint. One dashboard. Zero confusion across platforms.",
   },
   {
     icon: Target,
-    title: "Reduce Manual Errors",
-    description: "Standardized campaign structures minimize duplication mistakes.",
+    title: "Standardized Creation",
+    description: "Maintain consistency with a single workflow for all campaigns.",
   },
   {
     icon: TrendingUp,
-    title: "Scale Ad Spend Efficiently",
-    description: "Increase campaign volume without increasing operational workload.",
+    title: "Scale Easily",
+    description: "Launch multiple campaigns across multiple networks effortlessly.",
   },
 ];
+
 // Updated features
 const features = [
   {
     icon: Sparkles,
-    title: "Cross-Platform Campaign Activation",
+    title: "AI-Assisted Planning",
     description:
-      "Create your campaign once and automatically deploy it across selected ad platforms without rebuilding structures manually.,
+      "Define objectives, budget, creatives, and KPIs once. Let ActiPlan generate a campaign blueprint ready for cross-platform activation.",
   },
   {
     icon: Globe,
@@ -66,9 +67,9 @@ const features = [
   },
   {
     icon: Switch,
-    title: "Creative Bulk Assignment",
+    title: "Creative Meshing",
     description:
-      "Upload creatives once and let ActiPlan distribute and match them across ad sets automatically.",
+      "Upload creatives in bulk, and ActiPlan assigns them to your blueprint automatically across all selected networks.",
   },
   {
     icon: Zap,
@@ -333,15 +334,14 @@ const Landing = () => {
   return (
     <>
       <SEO
-  title="ActiPlan | AI-Powered Media Planning & Buying Software"
-  description="ActiPlan is an AI-powered media planning and buying platform that helps teams forecast, launch, and manage cross-platform paid campaigns from one unified workspace."
-  keywords="media planning software, media buying software, paid media management platform, cross-platform advertising software, AI campaign management"
-  ogTitle="ActiPlan | AI Media Planning & Buying Platform"
-  ogDescription="Plan, forecast, and activate paid campaigns across Meta, Google, TikTok, LinkedIn & more from one centralized workspace."
-  ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-  canonical="https://actiplan-blueprint-creation.lovable.app/generic"
-/>
-
+        title="ActiPlan | AI-Powered Media Planning & Buying Software"
+        description="ActiPlan is an AI-powered media planning and buying platform that helps teams forecast, launch, and manage cross-platform paid campaigns from one unified workspace."
+        keywords="media planning software, media buying software, paid media management platform, cross-platform advertising software, AI campaign management"
+        ogTitle="ActiPlan | AI Media Planning & Buying Platform"
+        ogDescription="Plan, forecast, and activate paid campaigns across Meta, Google, TikTok, LinkedIn & more from one centralized workspace."
+        ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
+        canonical="https://yourdomain.com/"
+      />
 
       <div className="min-h-screen bg-background">
         {/* Navigation */}
@@ -406,14 +406,24 @@ const Landing = () => {
               From One Unified Workspace
             </h1>
             <p className="text-base md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-2">
-             ActiPlan helps media planners and performance teams forecast delivery, launch omnichannel campaigns, and manage cross-platform paid media from a centralized AI-powered dashboard.
-
+              ActiPlan helps media planners and performance teams forecast delivery, launch omnichannel campaigns, and
+              manage cross-platform paid media from a centralized AI-powered dashboard.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
-              <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="hero-start-trial">
+              <Button
+                size="lg"
+                onClick={() => navigate("/auth?mode=signup")}
+                className="gap-2"
+                data-gtm="hero-start-trial"
+              >
                 Start 30-Day Free Trial <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")} data-gtm="hero-see-capabilities">
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => scrollToSection("capabilities")}
+                data-gtm="hero-see-capabilities"
+              >
                 See Capabilities
               </Button>
             </div>
@@ -492,7 +502,9 @@ const Landing = () => {
             <div className="relative px-4 md:px-16 overflow-hidden">
               <Carousel
                 opts={{ align: "start", loop: true, dragFree: false }}
-                plugins={[Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true })]}
+                plugins={[
+                  Autoplay({ delay: 3000, stopOnInteraction: false, stopOnMouseEnter: true, playOnInit: true }),
+                ]}
                 className="w-full"
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
@@ -555,10 +567,7 @@ const Landing = () => {
 
             {/* Mobile: Carousel */}
             <div className="md:hidden relative px-4 overflow-hidden">
-              <Carousel
-                opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }}
-                className="w-full"
-              >
+              <Carousel opts={{ align: "start", loop: false, dragFree: false, startIndex: 0 }} className="w-full">
                 <CarouselContent className="-ml-2">
                   {pricingTiers.map((tier) => (
                     <CarouselItem key={tier.name} className="basis-[90%] pl-2 pt-3">
@@ -566,7 +575,9 @@ const Landing = () => {
                         className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                       >
                         {tier.popular && (
-                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary z-10">Most Popular</Badge>
+                          <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary z-10">
+                            Most Popular
+                          </Badge>
                         )}
                         <CardHeader className="pb-4">
                           <CardTitle>{tier.name}</CardTitle>
@@ -582,7 +593,10 @@ const Landing = () => {
                                   <span className="text-lg text-muted-foreground line-through">
                                     ${formatPrice(tier.monthlyPrice)}
                                   </span>
-                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                  >
                                     -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                                   </Badge>
                                 </div>
@@ -632,11 +646,21 @@ const Landing = () => {
                             {tier.cta}
                           </Button>
                           {(tier.key === "enterprise" || tier.key === "agency") && (
-                            <Button variant="ghost" className="w-full mt-2" onClick={() => navigate("/book-demo")} data-gtm={`pricing-book-demo-${tier.key}`}>
+                            <Button
+                              variant="ghost"
+                              className="w-full mt-2"
+                              onClick={() => navigate("/book-demo")}
+                              data-gtm={`pricing-book-demo-${tier.key}`}
+                            >
                               Book a Demo
                             </Button>
                           )}
-                          <Button variant="ghost" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")} data-gtm={`pricing-compare-${tier.key}`}>
+                          <Button
+                            variant="ghost"
+                            className="w-full mt-2 text-xs"
+                            onClick={() => navigate("/compare-plans")}
+                            data-gtm={`pricing-compare-${tier.key}`}
+                          >
                             Compare Plans
                           </Button>
                         </CardContent>
@@ -657,7 +681,9 @@ const Landing = () => {
                   className={`relative flex flex-col h-full ${tier.popular ? "border-primary shadow-lg" : ""}`}
                 >
                   {tier.popular && (
-                    <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">Most Popular</Badge>
+                    <Badge className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary z-10">
+                      Most Popular
+                    </Badge>
                   )}
                   <CardHeader className="pb-4">
                     <CardTitle className="text-base">{tier.name}</CardTitle>
@@ -673,7 +699,10 @@ const Landing = () => {
                             <span className="text-sm text-muted-foreground line-through">
                               ${formatPrice(tier.monthlyPrice)}
                             </span>
-                            <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                            >
                               -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                             </Badge>
                           </div>
@@ -708,11 +737,23 @@ const Landing = () => {
                       {tier.cta}
                     </Button>
                     {(tier.key === "enterprise" || tier.key === "agency") && (
-                      <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/book-demo")} data-gtm={`pricing-book-demo-${tier.key}`}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-2 text-xs"
+                        onClick={() => navigate("/book-demo")}
+                        data-gtm={`pricing-book-demo-${tier.key}`}
+                      >
                         Book a Demo
                       </Button>
                     )}
-                    <Button variant="ghost" size="sm" className="w-full mt-2 text-xs" onClick={() => navigate("/compare-plans")} data-gtm={`pricing-compare-${tier.key}`}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2 text-xs"
+                      onClick={() => navigate("/compare-plans")}
+                      data-gtm={`pricing-compare-${tier.key}`}
+                    >
                       Compare Plans
                     </Button>
                   </CardContent>
@@ -737,7 +778,12 @@ const Landing = () => {
                 <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
                   Start your 30-day free trial today and experience the power of cross-platform activation management.
                 </p>
-                <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2" data-gtm="cta-bottom-start-trial">
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/auth?mode=signup")}
+                  className="gap-2"
+                  data-gtm="cta-bottom-start-trial"
+                >
                   Start Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
