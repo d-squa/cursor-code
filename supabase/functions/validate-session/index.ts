@@ -28,9 +28,17 @@ serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    if (userError || !userData?.user?.id) {
+      logStep("User not found or token invalid, returning invalid session", { error: userError?.message });
+      return new Response(JSON.stringify({ 
+        valid: false, 
+        reason: "user_not_found" 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
     const user = userData.user;
-    if (!user?.id) throw new Error("User not authenticated");
 
     // Get session token from request body
     const body = await req.json().catch(() => ({}));
