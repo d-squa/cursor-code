@@ -1153,6 +1153,18 @@ export function PlatformMarketBudgetSelector({
               Add Platform
             </Button>
           </div>
+          {getConnectedPlatformTypes().size === 0 && (
+            <div className="flex items-center gap-2 mt-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+              <span>⚠️</span>
+              <span>
+                No ad accounts connected yet. Go to{" "}
+                <a href="/settings/platforms" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100">
+                  Platform Connections
+                </a>{" "}
+                to link your ad accounts before adding platforms.
+              </span>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
