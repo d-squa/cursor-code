@@ -219,7 +219,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-end gap-3">
-              <div className="flex-1 min-w-[200px]">
+              <div className="flex-1 min-w-[220px]">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">User</label>
                 <Select value={filters.userId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v === "all" ? undefined : v }))}>
                   <SelectTrigger className="h-9">
@@ -229,14 +229,17 @@ export default function AdminDashboard() {
                     <SelectItem value="all">All users</SelectItem>
                     {(opts?.users || []).map((u) => (
                       <SelectItem key={u.id} value={u.id}>
-                        {u.email} {u.name ? `(${u.name})` : ""}
+                        <div className="flex flex-col">
+                          <span>{u.email} {u.name ? `(${u.name})` : ""}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{u.id}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex-1 min-w-[200px]">
+              <div className="flex-1 min-w-[220px]">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Workspace</label>
                 <Select value={filters.teamId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, teamId: v === "all" ? undefined : v }))}>
                   <SelectTrigger className="h-9">
@@ -246,15 +249,18 @@ export default function AdminDashboard() {
                     <SelectItem value="all">All workspaces</SelectItem>
                     {(opts?.teams || []).map((t) => (
                       <SelectItem key={t.id} value={t.id}>
-                        {t.name}
+                        <div className="flex flex-col">
+                          <span>{t.name}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{t.id}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="flex-1 min-w-[200px]">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Subscription (Stripe Customer)</label>
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Subscription ID</label>
                 <Select value={filters.stripeCustomerId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, stripeCustomerId: v === "all" ? undefined : v }))}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="All subscriptions" />
@@ -263,7 +269,10 @@ export default function AdminDashboard() {
                     <SelectItem value="all">All subscriptions</SelectItem>
                     {(opts?.billingCustomers || []).map((b) => (
                       <SelectItem key={b.stripeCustomerId} value={b.stripeCustomerId}>
-                        {b.email} ({b.stripeCustomerId})
+                        <div className="flex flex-col">
+                          <span>{b.email}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{b.stripeCustomerId}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -283,6 +292,30 @@ export default function AdminDashboard() {
                 )}
               </div>
             </div>
+
+            {/* Active filter reference IDs */}
+            {hasActiveFilters && (
+              <div className="mt-3 pt-3 border-t flex flex-wrap gap-3 text-xs">
+                {activeFilters.userId && (
+                  <div className="bg-muted rounded px-2 py-1">
+                    <span className="text-muted-foreground">User ID: </span>
+                    <span className="font-mono">{activeFilters.userId}</span>
+                  </div>
+                )}
+                {activeFilters.teamId && (
+                  <div className="bg-muted rounded px-2 py-1">
+                    <span className="text-muted-foreground">Workspace ID: </span>
+                    <span className="font-mono">{activeFilters.teamId}</span>
+                  </div>
+                )}
+                {activeFilters.stripeCustomerId && (
+                  <div className="bg-muted rounded px-2 py-1">
+                    <span className="text-muted-foreground">Subscription ID: </span>
+                    <span className="font-mono">{activeFilters.stripeCustomerId}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
