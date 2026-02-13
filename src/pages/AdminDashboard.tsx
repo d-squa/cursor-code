@@ -23,6 +23,7 @@ interface FilterOptions {
   users: Array<{ id: string; email: string; name: string | null }>;
   teams: Array<{ id: string; name: string; ownerId: string }>;
   billingCustomers: Array<{ userId: string; stripeCustomerId: string; email: string }>;
+  userTeams?: Record<string, string[]>; // userId -> teamId[]
 }
 
 interface PlatformStats {
@@ -186,6 +187,23 @@ export default function AdminDashboard() {
 
   const opts = filterOptions || stats.filterOptions;
 
+  // Derive dependent filter options based on selected subscription
+  const selectedBilling = opts?.billingCustomers?.find(b => b.stripeCustomerId === filters.stripeCustomerId);
+  const subscriptionUserId = selectedBilling?.userId;
+
+  // Users available: if subscription selected, only the user linked to that subscription
+  const availableUsers = filters.stripeCustomerId
+    ? (opts?.users || []).filter(u => u.id === subscriptionUserId)
+    : [];
+
+  // Workspaces available: if a user is resolved (from subscription), show their workspaces
+  const resolvedUserId = filters.userId || subscriptionUserId;
+  const availableTeams = resolvedUserId && opts?.userTeams?.[resolvedUserId]
+    ? (opts?.teams || []).filter(t => opts.userTeams![resolvedUserId].includes(t.id))
+    : filters.stripeCustomerId
+      ? [] // subscription selected but no user found
+      : [];
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b">
@@ -219,15 +237,44 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-end gap-3">
+              {/* Subscription ID — primary filter */}
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Subscription ID</label>
+                <Select
+                  value={filters.stripeCustomerId || "all"}
+                  onValueChange={(v) => setFilters({ stripeCustomerId: v === "all" ? undefined : v, userId: undefined, teamId: undefined })}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select subscription" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All subscriptions</SelectItem>
+                    {(opts?.billingCustomers || []).map((b) => (
+                      <SelectItem key={b.stripeCustomerId} value={b.stripeCustomerId}>
+                        <div className="flex flex-col">
+                          <span>{b.email}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground">{b.stripeCustomerId}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* User — dependent on subscription */}
               <div className="flex-1 min-w-[220px]">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">User</label>
-                <Select value={filters.userId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v === "all" ? undefined : v }))}>
+                <Select
+                  value={filters.userId || "all"}
+                  onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v === "all" ? undefined : v, teamId: undefined }))}
+                  disabled={!filters.stripeCustomerId}
+                >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All users" />
+                    <SelectValue placeholder={filters.stripeCustomerId ? "Select user" : "Select subscription first"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All users</SelectItem>
-                    {(opts?.users || []).map((u) => (
+                    {availableUsers.map((u) => (
                       <SelectItem key={u.id} value={u.id}>
                         <div className="flex flex-col">
                           <span>{u.email} {u.name ? `(${u.name})` : ""}</span>
@@ -239,39 +286,24 @@ export default function AdminDashboard() {
                 </Select>
               </div>
 
+              {/* Workspace — dependent on subscription/user */}
               <div className="flex-1 min-w-[220px]">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Workspace</label>
-                <Select value={filters.teamId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, teamId: v === "all" ? undefined : v }))}>
+                <Select
+                  value={filters.teamId || "all"}
+                  onValueChange={(v) => setFilters(prev => ({ ...prev, teamId: v === "all" ? undefined : v }))}
+                  disabled={!filters.stripeCustomerId}
+                >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All workspaces" />
+                    <SelectValue placeholder={filters.stripeCustomerId ? "Select workspace" : "Select subscription first"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All workspaces</SelectItem>
-                    {(opts?.teams || []).map((t) => (
+                    {availableTeams.map((t) => (
                       <SelectItem key={t.id} value={t.id}>
                         <div className="flex flex-col">
                           <span>{t.name}</span>
                           <span className="text-[10px] font-mono text-muted-foreground">{t.id}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex-1 min-w-[220px]">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Subscription ID</label>
-                <Select value={filters.stripeCustomerId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, stripeCustomerId: v === "all" ? undefined : v }))}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="All subscriptions" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All subscriptions</SelectItem>
-                    {(opts?.billingCustomers || []).map((b) => (
-                      <SelectItem key={b.stripeCustomerId} value={b.stripeCustomerId}>
-                        <div className="flex flex-col">
-                          <span>{b.email}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground">{b.stripeCustomerId}</span>
                         </div>
                       </SelectItem>
                     ))}

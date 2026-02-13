@@ -170,10 +170,11 @@ Deno.serve(async (req) => {
     if (teamId) recentQ = recentQ.eq("team_id", teamId);
 
     // Also fetch filter option lists (users, teams) for the UI
-    const [usersListRes, teamsListRes, billingListRes] = await Promise.all([
+    const [usersListRes, teamsListRes, billingListRes, allUserRolesRes] = await Promise.all([
       supabase.from("profiles").select("id, email, full_name").order("email"),
       supabase.from("teams").select("id, name, owner_id").order("name"),
       supabase.from("billing_customers").select("id, user_id, stripe_customer_id, email"),
+      supabase.from("user_roles").select("user_id, team_id"),
     ]);
 
     const [
@@ -371,6 +372,11 @@ Deno.serve(async (req) => {
         users: (usersListRes.data || []).map((u: any) => ({ id: u.id, email: u.email, name: u.full_name })),
         teams: (teamsListRes.data || []).map((t: any) => ({ id: t.id, name: t.name, ownerId: t.owner_id })),
         billingCustomers: (billingListRes.data || []).map((b: any) => ({ userId: b.user_id, stripeCustomerId: b.stripe_customer_id, email: b.email })),
+        userTeams: (allUserRolesRes.data || []).reduce((acc: Record<string, string[]>, r: any) => {
+          if (!acc[r.user_id]) acc[r.user_id] = [];
+          if (r.team_id && !acc[r.user_id].includes(r.team_id)) acc[r.user_id].push(r.team_id);
+          return acc;
+        }, {}),
       },
     };
 
