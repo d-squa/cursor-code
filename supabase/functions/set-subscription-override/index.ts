@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
-      coupon: couponId,
+      discounts: [{ coupon: couponId }],
       metadata: {
         override: "true",
         user_id: targetUserId,
