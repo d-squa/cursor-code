@@ -172,6 +172,7 @@ Deno.serve(async (req) => {
       user_id: targetUserId,
       tier,
       billing_period: billingPeriod,
+      created_by: userData.user!.id,
     }, { onConflict: "user_id" });
 
     if (upsertError) {
