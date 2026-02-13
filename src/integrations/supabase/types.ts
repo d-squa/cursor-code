@@ -2486,6 +2486,39 @@ export type Database = {
           },
         ]
       }
+      subscription_overrides: {
+        Row: {
+          billing_period: string
+          created_at: string
+          created_by: string
+          id: string
+          notes: string | null
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_period?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          notes?: string | null
+          tier: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_period?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          notes?: string | null
+          tier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       taxonomy_templates: {
         Row: {
           ad_account_id: string
