@@ -1,6 +1,9 @@
 import { getObjectiveFromPhaseName } from './phaseObjectiveMapping';
 import { getAudienceStrategyConfig } from './audienceStrategyMapping';
-// Funnel phase mapping based on Strategy Focus
+import { getStrategyById, generatePhasesFromStrategy, getStrategyGroupsForPlatform } from './strategyMatrix';
+import type { StrategyDefinition } from './strategyMatrix';
+
+// Funnel phase mapping based on Strategy Focus (legacy support)
 export interface PhaseTemplate {
   name: string;
   description: string;
@@ -11,6 +14,7 @@ export interface FunnelTemplate {
   description: string;
 }
 
+// Legacy funnel templates kept for backward compatibility with auto-detect mode
 export const funnelTemplates: Record<string, FunnelTemplate> = {
   "Awareness": {
     phases: [
@@ -18,7 +22,7 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
       { name: "Consideration", description: "Product consideration" },
       { name: "Preference", description: "Brand preference" },
     ],
-    description: "Focused on building visibility and mental availability for the brand. Builds consistent exposure and credibility.",
+    description: "Focused on building visibility and mental availability for the brand.",
   },
   "Market Presence": {
     phases: [
@@ -27,7 +31,7 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
       { name: "Engagement", description: "Audience engagement" },
       { name: "Trust", description: "Trust building" },
     ],
-    description: "Builds consistent exposure and credibility to strengthen brand equity. Encourages discovery.",
+    description: "Builds consistent exposure and credibility to strengthen brand equity.",
   },
   "In-App Actions": {
     phases: [
@@ -45,7 +49,7 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
       { name: "Conversion", description: "Purchase action" },
       { name: "Loyalty", description: "Customer loyalty" },
     ],
-    description: "The classic AIDA funnel, focused on moving users from awareness to buying and retention.",
+    description: "The classic AIDA funnel, focused on moving users from awareness to buying.",
   },
   "Actions": {
     phases: [
@@ -53,7 +57,7 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
       { name: "Engagement", description: "Active engagement" },
       { name: "Conversion", description: "Action conversion" },
     ],
-    description: "Generalized funnel emphasizing stimulating and sustaining user actions. Performance-oriented.",
+    description: "Generalized funnel emphasizing stimulating and sustaining user actions.",
   },
   "Conversions": {
     phases: [
@@ -84,7 +88,20 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
 };
 
 /**
- * Generates default phases based on strategy focus and platform
+ * Generates phases from the NEW strategy matrix (preferred path)
+ */
+export const generatePhasesFromStrategyId = (
+  strategyId: string,
+  startDate: string,
+  endDate: string
+) => {
+  const strategy = getStrategyById(strategyId);
+  if (!strategy) return [];
+  return generatePhasesFromStrategy(strategy, startDate, endDate);
+};
+
+/**
+ * Generates default phases based on strategy focus and platform (legacy path)
  */
 export const getDefaultPhases = (
   strategyFocus: string, 
@@ -110,10 +127,7 @@ export const getDefaultPhases = (
       ? new Date(end) 
       : new Date(phaseStart.getTime() + (daysPerPhase * 1000 * 60 * 60 * 24));
     
-    // Auto-determine objective and optimization goal based on phase name and platform
     const { objective, optimizationGoal } = getObjectiveFromPhaseName(phase.name, strategyFocus, platform);
-    
-    // Apply audience strategy based on objective/goal
     const audienceStrategy = getAudienceStrategyConfig(platform, objective, optimizationGoal);
     
     return {
@@ -145,9 +159,7 @@ export const generateAutoDetectPhases = (
   const end = new Date(endDate);
   const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Determine which template to use based on ad formats and pixel/catalog
-  let strategyFocus = "Conversions"; // default
-  
+  let strategyFocus = "Conversions";
   const formatString = adFormats.join(" ").toLowerCase();
   
   if (formatString.includes("lead") || formatString.includes("instant form")) {
