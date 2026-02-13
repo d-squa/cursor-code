@@ -179,9 +179,14 @@ serve(async (req) => {
     console.log("Reach estimate response:", JSON.stringify(reachData, null, 2));
 
     // Parse response and calculate metrics
-    const estimateData = reachData.data?.[0] || reachData;
-    const users = estimateData.users || estimateData.estimate_ready || 0;
+    const estimateData = reachData.data?.[0] || reachData.data || reachData;
+    // The API returns users_lower_bound/users_upper_bound, NOT a "users" field
+    const usersLower = Number(estimateData.users_lower_bound) || 0;
+    const usersUpper = Number(estimateData.users_upper_bound) || 0;
+    const users = usersUpper > 0 ? Math.round((usersLower + usersUpper) / 2) : (Number(estimateData.users) || 0);
     const budget = body.budget || 0;
+
+    console.log("Parsed audience size:", { usersLower, usersUpper, users });
 
     // Calculate estimates based on industry benchmarks and optimization goal
     const avgCPM = 10; // $10 CPM average
