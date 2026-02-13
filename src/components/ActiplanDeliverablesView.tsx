@@ -29,7 +29,7 @@ interface ActiplanDeliverablesViewProps {
       avgCPM: number;
       frequency: number;
       sov: number;
-      dataSource?: 'live_api' | 'estimated'; // Data source indicator
+      dataSource?: 'live_api' | 'estimated' | 'ai_predicted'; // Data source indicator
       markets: Array<{
         marketName: string;
         budget: number;
