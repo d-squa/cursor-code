@@ -122,12 +122,36 @@ Deno.serve(async (req) => {
     assetsQ = applyUserFilter(assetsQ);
     if (teamId) assetsQ = assetsQ.eq("team_id", teamId);
 
-    // Creative assignments
+    // Creative assignments - filter via campaign_id subquery
     let assignQ = supabase.from("creative_assignments").select("id, campaign_id", { count: "exact", head: false });
-    // assignments don't have user_id directly, skip user filter for now
+    if (userId || teamId) {
+      // Get campaign IDs matching user/team filters to scope assignments
+      let campaignIdsQ = supabase.from("campaigns").select("id");
+      if (userId) campaignIdsQ = campaignIdsQ.eq("user_id", userId);
+      if (teamId) campaignIdsQ = campaignIdsQ.eq("team_id", teamId);
+      const { data: filteredCampaigns } = await campaignIdsQ;
+      const campaignIds = (filteredCampaigns || []).map((c: any) => c.id);
+      if (campaignIds.length > 0) {
+        assignQ = assignQ.in("campaign_id", campaignIds);
+      } else {
+        assignQ = assignQ.eq("campaign_id", "00000000-0000-0000-0000-000000000000"); // no results
+      }
+    }
 
-    // Launch status
+    // Launch status - filter via campaign_id subquery
     let launchQ = supabase.from("campaign_launch_status").select("id, status, campaign_id", { count: "exact", head: false });
+    if (userId || teamId) {
+      let campaignIdsQ2 = supabase.from("campaigns").select("id");
+      if (userId) campaignIdsQ2 = campaignIdsQ2.eq("user_id", userId);
+      if (teamId) campaignIdsQ2 = campaignIdsQ2.eq("team_id", teamId);
+      const { data: filteredCampaigns2 } = await campaignIdsQ2;
+      const campaignIds2 = (filteredCampaigns2 || []).map((c: any) => c.id);
+      if (campaignIds2.length > 0) {
+        launchQ = launchQ.in("campaign_id", campaignIds2);
+      } else {
+        launchQ = launchQ.eq("campaign_id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
 
     // Swaps
     let swapsAllQ = supabase.from("ad_account_swap_logs").select("id", { count: "exact", head: true });
@@ -138,8 +162,20 @@ Deno.serve(async (req) => {
     swapsMonthQ = applyUserFilter(swapsMonthQ);
     if (teamId) swapsMonthQ = swapsMonthQ.eq("team_id", teamId);
 
-    // Insights
+    // Insights - filter via campaign_id
     let insightsQ = supabase.from("campaign_insights").select("id", { count: "exact", head: true });
+    if (userId || teamId) {
+      let campaignIdsQ3 = supabase.from("campaigns").select("id");
+      if (userId) campaignIdsQ3 = campaignIdsQ3.eq("user_id", userId);
+      if (teamId) campaignIdsQ3 = campaignIdsQ3.eq("team_id", teamId);
+      const { data: filteredCampaigns3 } = await campaignIdsQ3;
+      const campaignIds3 = (filteredCampaigns3 || []).map((c: any) => c.id);
+      if (campaignIds3.length > 0) {
+        insightsQ = insightsQ.in("campaign_id", campaignIds3);
+      } else {
+        insightsQ = insightsQ.eq("campaign_id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
 
     // Activity logs
     let actLogsQ = supabase.from("activity_logs").select("id", { count: "exact", head: true });
