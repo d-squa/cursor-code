@@ -1969,6 +1969,36 @@ export function MediaPlanEditor() {
         </CardHeader>
         {currentStep === 1 ? (
           <CardContent className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="name">Activation Name</Label>
+                <Input
+                  id="name"
+                  value={campaignName}
+                  onChange={(e) => {
+                    setCampaignName(e.target.value);
+                    ensureDraft();
+                  }}
+                  placeholder="e.g., Q1 2024 Brand Activation"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bo-number">
+                  BO Number <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="bo-number"
+                  value={boNumber}
+                  onChange={(e) => {
+                    setBoNumber(e.target.value);
+                    ensureDraft();
+                  }}
+                  placeholder="e.g., BO-2025-001"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="budget">Total Activation Budget ($) *</Label>
               <Input
@@ -2097,37 +2127,6 @@ export function MediaPlanEditor() {
               <p className="text-xs text-muted-foreground">
                 Selecting a client will auto-populate platforms, markets, and ad account defaults
               </p>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Activation Name</Label>
-                <Input
-                  id="name"
-                  value={campaignName}
-                  onChange={(e) => {
-                    setCampaignName(e.target.value);
-                    ensureDraft();
-                  }}
-                  placeholder="e.g., Q1 2024 Brand Activation"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bo-number">
-                  BO Number <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="bo-number"
-                  value={boNumber}
-                  onChange={(e) => {
-                    setBoNumber(e.target.value);
-                    ensureDraft();
-                  }}
-                  placeholder="e.g., BO-2025-001"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
-              </div>
             </div>
 
             <div className="pt-4">
