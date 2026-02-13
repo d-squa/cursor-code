@@ -191,9 +191,20 @@ Deno.serve(async (req) => {
     pushConfigQ = applyUserFilter(pushConfigQ);
     if (teamId) pushConfigQ = pushConfigQ.eq("team_id", teamId);
 
-    // Push jobs
+    // Push jobs - filter via campaign_id subquery
     let pushJobsQ = supabase.from("creative_push_jobs").select("id, status", { count: "exact", head: false });
-    pushJobsQ = applyUserFilter(pushJobsQ);
+    if (userId || teamId) {
+      let campaignIdsQ4 = supabase.from("campaigns").select("id");
+      if (userId) campaignIdsQ4 = campaignIdsQ4.eq("user_id", userId);
+      if (teamId) campaignIdsQ4 = campaignIdsQ4.eq("team_id", teamId);
+      const { data: filteredCampaigns4 } = await campaignIdsQ4;
+      const campaignIds4 = (filteredCampaigns4 || []).map((c: any) => c.id);
+      if (campaignIds4.length > 0) {
+        pushJobsQ = pushJobsQ.in("campaign_id", campaignIds4);
+      } else {
+        pushJobsQ = pushJobsQ.eq("campaign_id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
 
     // Creatives
     let creativesQ = supabase.from("creatives").select("id", { count: "exact", head: true });
