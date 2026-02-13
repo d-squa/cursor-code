@@ -64,7 +64,7 @@ interface ForecastMetrics {
   objective?: string;
   optimizationGoal?: string;
   destination?: string;
-  dataSource?: 'live_api' | 'estimated'; // Track whether data is from live API or estimated
+  dataSource?: 'live_api' | 'estimated' | 'ai_predicted'; // Track whether data is from live API, AI predicted, or estimated
 }
 
 interface AdSetForecast {
@@ -120,7 +120,7 @@ interface PlatformForecast {
   avgCPM: number;
   frequency: number;
   sov: number;
-  dataSource?: 'live_api' | 'estimated'; // Track data source at platform level
+  dataSource?: 'live_api' | 'estimated' | 'ai_predicted'; // Track data source at platform level
   markets: MarketForecast[];
 }
 
@@ -996,7 +996,81 @@ export function CampaignForecast({
           } as ForecastMetrics;
         } catch (fbErr) {
           console.error('Meta reachestimate fallback failed:', fbErr);
-          toast.error('Meta API fallback failed, using estimates');
+          toast.error('Meta API fallback failed, trying AI prediction...');
+        }
+        
+        // AI-powered fallback before mock data
+        try {
+          console.log("🤖 Attempting AI-powered forecast fallback...");
+          const { supabase } = await import("@/integrations/supabase/client");
+          
+          const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
+          let optimizationGoal: string;
+          let objective: string;
+          let destination: string;
+          
+          if (market.phaseObjective && market.phaseOptimizationGoal && 
+              market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
+            objective = market.phaseObjective;
+            optimizationGoal = market.phaseOptimizationGoal;
+            destination = "Website";
+          } else if (market.phaseName) {
+            const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue, isTikTok ? 'tiktok' : undefined);
+            objective = autoDetected.objective;
+            optimizationGoal = autoDetected.optimizationGoal;
+            destination = autoDetected.destination;
+          } else {
+            const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue, isTikTok ? 'tiktok' : undefined);
+            objective = autoDetected.objective;
+            optimizationGoal = autoDetected.optimizationGoal;
+            destination = autoDetected.destination;
+          }
+          
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
+            body: {
+              platform: isMeta ? 'Meta' : 'TikTok',
+              market: marketCode,
+              budget,
+              strategyFocus: strategyFocusValue,
+              objective,
+              optimizationGoal,
+              destination,
+              ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+              ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+              gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
+              startDate,
+              endDate,
+              industry: resolvedIndustry,
+              phaseName: market.phaseName,
+            }
+          });
+
+          if (aiError) throw aiError;
+          
+          const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+          
+          toast.success(`Using AI-predicted forecast for ${marketCode}`, { duration: 3000 });
+          
+          return {
+            audienceSize: aiData.audienceSize || 0,
+            reach: aiData.reach || 0,
+            impressions: aiData.impressions || 0,
+            cpm: aiData.cpm || 10,
+            frequency: aiData.frequency,
+            result: aiData.results || 0,
+            resultLabel: getResultLabel(optimizationGoal),
+            resultKPI: goalMetrics?.kpi || optimizationGoal,
+            costPerResult: aiData.costPerResult || 0,
+            resultRate: aiData.resultRate || 0,
+            resultRateName: goalMetrics?.rateName || "Rate",
+            objective,
+            optimizationGoal,
+            destination,
+            dataSource: 'ai_predicted' as const,
+          } as ForecastMetrics;
+        } catch (aiErr) {
+          console.error('AI forecast fallback failed:', aiErr);
+          toast.error('AI prediction failed, using static estimates');
         }
         
         // Fall through to mock data
@@ -1460,10 +1534,12 @@ export function CampaignForecast({
         const platformFrequency = platformTotalReach > 0 ? platformTotalImp / platformTotalReach : 0;
         const platformSOV = platformTotalAudienceSize > 0 ? (platformTotalReach / platformTotalAudienceSize) * 100 : 0;
         
-        // Determine data source based on platform type
+        // Determine data source based on actual forecast results
         const platformName = platform.name.toLowerCase();
         const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
-        const dataSource = isMeta ? 'live_api' : 'estimated';
+        // Check if any market forecast used AI prediction
+        const hasAiPredicted = campaignForecasts.some(f => f.metrics.dataSource === 'ai_predicted');
+        const dataSource: 'live_api' | 'estimated' | 'ai_predicted' = hasAiPredicted ? 'ai_predicted' : (isMeta ? 'live_api' : 'estimated');
 
         platformForecasts.push({
           platformId: platform.id,
