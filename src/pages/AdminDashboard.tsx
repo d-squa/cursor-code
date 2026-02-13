@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 const COLORS = [
@@ -17,6 +18,12 @@ const COLORS = [
   "hsl(var(--chart-5))",
   "#94a3b8",
 ];
+
+interface FilterOptions {
+  users: Array<{ id: string; email: string; name: string | null }>;
+  teams: Array<{ id: string; name: string; ownerId: string }>;
+  billingCustomers: Array<{ userId: string; stripeCustomerId: string; email: string }>;
+}
 
 interface PlatformStats {
   totalUsers: number;
@@ -48,6 +55,13 @@ interface PlatformStats {
   roleDistribution: Record<string, number>;
   totalInvitations: number;
   recentCampaigns: Array<{ id: string; name: string; status: string; created_at: string; total_budget: number }>;
+  filterOptions?: FilterOptions;
+}
+
+interface Filters {
+  userId?: string;
+  teamId?: string;
+  stripeCustomerId?: string;
 }
 
 function MetricCard({ title, value, icon: Icon, description, color }: { title: string; value: string | number; icon: any; description?: string; color?: string }) {
@@ -69,23 +83,35 @@ export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>({});
+  const [activeFilters, setActiveFilters] = useState<Filters>({});
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async (appliedFilters: Filters = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("admin-platform-stats");
+      const hasFilters = Object.values(appliedFilters).some(Boolean);
+      const { data, error: fnError } = hasFilters
+        ? await supabase.functions.invoke("admin-platform-stats", {
+            method: "POST",
+            body: { filters: appliedFilters },
+          })
+        : await supabase.functions.invoke("admin-platform-stats");
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
       setStats(data);
+      if (data?.filterOptions && !filterOptions) {
+        setFilterOptions(data.filterOptions);
+      }
     } catch (e: any) {
       setError(e.message || "Failed to load stats");
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterOptions]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -95,7 +121,20 @@ export default function AdminDashboard() {
     }
   }, [authLoading, user]);
 
-  if (authLoading || loading) {
+  const applyFilters = () => {
+    setActiveFilters({ ...filters });
+    fetchStats(filters);
+  };
+
+  const clearFilters = () => {
+    setFilters({});
+    setActiveFilters({});
+    fetchStats({});
+  };
+
+  const hasActiveFilters = Object.values(activeFilters).some(Boolean);
+
+  if (authLoading || (loading && !stats)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -103,7 +142,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (error) {
+  if (error && !stats) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Card className="max-w-md w-full">
@@ -145,6 +184,8 @@ export default function AdminDashboard() {
     value: count,
   }));
 
+  const opts = filterOptions || stats.filterOptions;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b">
@@ -158,14 +199,93 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground">Real-time platform utilization & analytics</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchStats}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={() => fetchStats(activeFilters)} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Filters */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Filter className="h-4 w-4" /> Filters
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="ml-2 text-xs">Active</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">User</label>
+                <Select value={filters.userId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v === "all" ? undefined : v }))}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All users" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All users</SelectItem>
+                    {(opts?.users || []).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.email} {u.name ? `(${u.name})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Workspace</label>
+                <Select value={filters.teamId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, teamId: v === "all" ? undefined : v }))}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All workspaces" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All workspaces</SelectItem>
+                    {(opts?.teams || []).map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Subscription (Stripe Customer)</label>
+                <Select value={filters.stripeCustomerId || "all"} onValueChange={(v) => setFilters(prev => ({ ...prev, stripeCustomerId: v === "all" ? undefined : v }))}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="All subscriptions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All subscriptions</SelectItem>
+                    {(opts?.billingCustomers || []).map((b) => (
+                      <SelectItem key={b.stripeCustomerId} value={b.stripeCustomerId}>
+                        {b.email} ({b.stripeCustomerId})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button size="sm" onClick={applyFilters} disabled={loading}>
+                  {loading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                  Apply
+                </Button>
+                {hasActiveFilters && (
+                  <Button size="sm" variant="ghost" onClick={clearFilters} disabled={loading}>
+                    <X className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Subscription KPIs */}
         <div>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
