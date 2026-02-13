@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { cn } from "@/lib/utils";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -89,6 +91,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>({});
   const [activeFilters, setActiveFilters] = useState<Filters>({});
+  const [openCombobox, setOpenCombobox] = useState<string | null>(null);
 
   const fetchStats = useCallback(async (appliedFilters: Filters = {}) => {
     setLoading(true);
@@ -240,75 +243,121 @@ export default function AdminDashboard() {
               {/* Subscription ID — primary filter */}
               <div className="flex-1 min-w-[220px]">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Subscription ID</label>
-                <Select
-                  value={filters.stripeCustomerId || "all"}
-                  onValueChange={(v) => setFilters({ stripeCustomerId: v === "all" ? undefined : v, userId: undefined, teamId: undefined })}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select subscription" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All subscriptions</SelectItem>
-                    {(opts?.billingCustomers || []).map((b) => (
-                      <SelectItem key={b.stripeCustomerId} value={b.stripeCustomerId}>
-                        <div className="flex flex-col">
-                          <span>{b.email}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground">{b.stripeCustomerId}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={openCombobox === "subscription"} onOpenChange={(o) => setOpenCombobox(o ? "subscription" : null)}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full h-9 justify-between font-normal">
+                      <span className="truncate">
+                        {filters.stripeCustomerId
+                          ? (opts?.billingCustomers || []).find(b => b.stripeCustomerId === filters.stripeCustomerId)?.email || filters.stripeCustomerId
+                          : "All subscriptions"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0 z-50 bg-popover" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search subscription..." />
+                      <CommandList>
+                        <CommandEmpty>No subscription found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem onSelect={() => { setFilters({ stripeCustomerId: undefined, userId: undefined, teamId: undefined }); setOpenCombobox(null); }}>
+                            <Check className={cn("mr-2 h-4 w-4", !filters.stripeCustomerId ? "opacity-100" : "opacity-0")} />
+                            All subscriptions
+                          </CommandItem>
+                          {(opts?.billingCustomers || []).map((b) => (
+                            <CommandItem key={b.stripeCustomerId} value={`${b.email} ${b.stripeCustomerId}`} onSelect={() => { setFilters({ stripeCustomerId: b.stripeCustomerId, userId: undefined, teamId: undefined }); setOpenCombobox(null); }}>
+                              <Check className={cn("mr-2 h-4 w-4", filters.stripeCustomerId === b.stripeCustomerId ? "opacity-100" : "opacity-0")} />
+                              <div className="flex flex-col">
+                                <span>{b.email}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{b.stripeCustomerId}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Workspace — dependent on subscription */}
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Workspace</label>
+                <Popover open={openCombobox === "workspace"} onOpenChange={(o) => setOpenCombobox(o ? "workspace" : null)}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full h-9 justify-between font-normal" disabled={!filters.stripeCustomerId}>
+                      <span className="truncate">
+                        {filters.teamId
+                          ? availableTeams.find(t => t.id === filters.teamId)?.name || filters.teamId
+                          : filters.stripeCustomerId ? "All workspaces" : "Select subscription first"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0 z-50 bg-popover" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search workspace..." />
+                      <CommandList>
+                        <CommandEmpty>No workspace found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem onSelect={() => { setFilters(prev => ({ ...prev, teamId: undefined })); setOpenCombobox(null); }}>
+                            <Check className={cn("mr-2 h-4 w-4", !filters.teamId ? "opacity-100" : "opacity-0")} />
+                            All workspaces
+                          </CommandItem>
+                          {availableTeams.map((t) => (
+                            <CommandItem key={t.id} value={`${t.name} ${t.id}`} onSelect={() => { setFilters(prev => ({ ...prev, teamId: t.id })); setOpenCombobox(null); }}>
+                              <Check className={cn("mr-2 h-4 w-4", filters.teamId === t.id ? "opacity-100" : "opacity-0")} />
+                              <div className="flex flex-col">
+                                <span>{t.name}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{t.id}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* User — dependent on subscription */}
               <div className="flex-1 min-w-[220px]">
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">User</label>
-                <Select
-                  value={filters.userId || "all"}
-                  onValueChange={(v) => setFilters(prev => ({ ...prev, userId: v === "all" ? undefined : v, teamId: undefined }))}
-                  disabled={!filters.stripeCustomerId}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={filters.stripeCustomerId ? "Select user" : "Select subscription first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All users</SelectItem>
-                    {availableUsers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        <div className="flex flex-col">
-                          <span>{u.email} {u.name ? `(${u.name})` : ""}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground">{u.id}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Workspace — dependent on subscription/user */}
-              <div className="flex-1 min-w-[220px]">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Workspace</label>
-                <Select
-                  value={filters.teamId || "all"}
-                  onValueChange={(v) => setFilters(prev => ({ ...prev, teamId: v === "all" ? undefined : v }))}
-                  disabled={!filters.stripeCustomerId}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={filters.stripeCustomerId ? "Select workspace" : "Select subscription first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All workspaces</SelectItem>
-                    {availableTeams.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        <div className="flex flex-col">
-                          <span>{t.name}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground">{t.id}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={openCombobox === "user"} onOpenChange={(o) => setOpenCombobox(o ? "user" : null)}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full h-9 justify-between font-normal" disabled={!filters.stripeCustomerId}>
+                      <span className="truncate">
+                        {filters.userId
+                          ? availableUsers.find(u => u.id === filters.userId)?.email || filters.userId
+                          : filters.stripeCustomerId ? "All users" : "Select subscription first"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0 z-50 bg-popover" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search user..." />
+                      <CommandList>
+                        <CommandEmpty>No user found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem onSelect={() => { setFilters(prev => ({ ...prev, userId: undefined, teamId: undefined })); setOpenCombobox(null); }}>
+                            <Check className={cn("mr-2 h-4 w-4", !filters.userId ? "opacity-100" : "opacity-0")} />
+                            All users
+                          </CommandItem>
+                          {availableUsers.map((u) => (
+                            <CommandItem key={u.id} value={`${u.email} ${u.name || ""} ${u.id}`} onSelect={() => { setFilters(prev => ({ ...prev, userId: u.id, teamId: undefined })); setOpenCombobox(null); }}>
+                              <Check className={cn("mr-2 h-4 w-4", filters.userId === u.id ? "opacity-100" : "opacity-0")} />
+                              <div className="flex flex-col">
+                                <span>{u.email} {u.name ? `(${u.name})` : ""}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{u.id}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="flex gap-2">
