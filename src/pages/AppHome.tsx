@@ -82,7 +82,7 @@ const AppHome = () => {
             <Zap className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-primary">Blueprint-driven workflow</span>
           </div>
-          <h2 className="text-4xl md:text-2xl font-bold mb-4 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
+          <h2 className="text-2xl md:text-2xl font-bold mb-4 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
             Plan, Forecast & Launch A New ActiPlan using the blueprint-driven workflow for cross-platform activations
           </h2>
         </div>
