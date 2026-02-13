@@ -36,22 +36,62 @@ serve(async (req) => {
       // No body or invalid JSON - that's ok
     }
 
-    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
-    logStep("Stripe key verified");
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header provided");
-    logStep("Authorization header found");
 
     const token = authHeader.replace("Bearer ", "");
-    logStep("Authenticating user with token");
-
     const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError) throw new Error(`Authentication error: ${userError.message}`);
     const user = userData.user;
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
+
+    // ── CHECK FOR ADMIN SUBSCRIPTION OVERRIDE ──
+    // If an override exists for this user, return it immediately without touching Stripe
+    const { data: override } = await supabaseClient
+      .from("subscription_overrides")
+      .select("tier, billing_period")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (override) {
+      logStep("Subscription override found", { tier: override.tier, billingPeriod: override.billing_period });
+
+      // Map tier to the corresponding price/product IDs so the frontend resolves correctly
+      const tierPriceMap: Record<string, { monthly: string; yearly: string; productId: string; yearlyProductId: string }> = {
+        basic: { monthly: "price_1SydZ7KrTGU4P754jqI2guPI", yearly: "price_1SydZEKrTGU4P754aNJHK8pc", productId: "prod_TwWcmKdhIOpj2s", yearlyProductId: "prod_TwWcQkm8fqfqaO" },
+        freelancer: { monthly: "price_1SydVjKrTGU4P754mZJJWvAq", yearly: "price_1SydVuKrTGU4P754zRmad5iJ", productId: "prod_TwWYJSunEeVqiq", yearlyProductId: "prod_TwWZOkeoiYb7F4" },
+        enterprise: { monthly: "price_1SydW1KrTGU4P754aeyvSJP8", yearly: "price_1SydW3KrTGU4P754G3iA7VZM", productId: "prod_TwWZ9ID4ZXtZDA", yearlyProductId: "prod_TwWZVDvQQ5cYE7" },
+        agency: { monthly: "price_1SydW5KrTGU4P754vsPg9hWw", yearly: "price_1SydW8KrTGU4P754AEitLX2A", productId: "prod_TwWZww84JxfY9y", yearlyProductId: "prod_TwWZDJv1p9us5v" },
+      };
+
+      const tierConfig = tierPriceMap[override.tier];
+      const isYearly = override.billing_period === "yearly";
+      const priceId = isYearly ? tierConfig.yearly : tierConfig.monthly;
+      const productId = isYearly ? tierConfig.yearlyProductId : tierConfig.productId;
+
+      return new Response(
+        JSON.stringify({
+          subscribed: true,
+          onTrial: false,
+          productId,
+          priceId,
+          billingPeriod: override.billing_period,
+          subscriptionStart: new Date().toISOString(),
+          subscriptionEnd: null,
+          trialEnd: null,
+          status: "active",
+          subscriptionType: "personal",
+          isOverride: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      );
+    }
+    // ── END OVERRIDE CHECK ──
+
+    const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    logStep("Stripe key verified");
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 

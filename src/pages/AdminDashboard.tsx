@@ -8,9 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -92,6 +96,50 @@ export default function AdminDashboard() {
   const [filters, setFilters] = useState<Filters>({});
   const [activeFilters, setActiveFilters] = useState<Filters>({});
   const [openCombobox, setOpenCombobox] = useState<string | null>(null);
+  const [overrideUserId, setOverrideUserId] = useState("");
+  const [overrideTier, setOverrideTier] = useState<string>("basic");
+  const [overridePeriod, setOverridePeriod] = useState<string>("monthly");
+  const [overrideNotes, setOverrideNotes] = useState("");
+  const [overrideLoading, setOverrideLoading] = useState(false);
+  const [existingOverrides, setExistingOverrides] = useState<Array<{ id: string; user_id: string; tier: string; billing_period: string; notes: string | null; created_at: string }>>([]);
+
+  const fetchOverrides = useCallback(async () => {
+    const { data } = await supabase.from("subscription_overrides").select("*").order("created_at", { ascending: false });
+    if (data) setExistingOverrides(data);
+  }, []);
+
+  useEffect(() => { fetchOverrides(); }, [fetchOverrides]);
+
+  const setOverride = async () => {
+    if (!overrideUserId.trim()) { toast.error("Enter a user ID"); return; }
+    setOverrideLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+      const { error } = await supabase.from("subscription_overrides").upsert({
+        user_id: overrideUserId.trim(),
+        tier: overrideTier,
+        billing_period: overridePeriod,
+        notes: overrideNotes || null,
+        created_by: session.user.id,
+      }, { onConflict: "user_id" });
+      if (error) throw error;
+      toast.success(`Override set: ${overrideTier} (${overridePeriod})`);
+      setOverrideUserId("");
+      setOverrideNotes("");
+      fetchOverrides();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to set override");
+    } finally {
+      setOverrideLoading(false);
+    }
+  };
+
+  const removeOverride = async (id: string) => {
+    const { error } = await supabase.from("subscription_overrides").delete().eq("id", id);
+    if (error) toast.error("Failed to remove override");
+    else { toast.success("Override removed"); fetchOverrides(); }
+  };
 
   const fetchStats = useCallback(async (appliedFilters: Filters = {}) => {
     setLoading(true);
@@ -655,6 +703,89 @@ export default function AdminDashboard() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Subscription Override Management */}
+        <div>
+          <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <TestTube className="h-5 w-5" /> Subscription Overrides (Test Users)
+          </h2>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Set Override</CardTitle>
+                <CardDescription>Assign a tier to a user without Stripe checkout</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">User ID</Label>
+                  <Input value={overrideUserId} onChange={(e) => setOverrideUserId(e.target.value)} placeholder="Paste user UUID" className="font-mono text-sm h-9" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tier</Label>
+                    <Select value={overrideTier} onValueChange={setOverrideTier}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="basic">Basic</SelectItem>
+                        <SelectItem value="freelancer">Freelancer</SelectItem>
+                        <SelectItem value="enterprise">Enterprise</SelectItem>
+                        <SelectItem value="agency">Agency</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Period</Label>
+                    <Select value={overridePeriod} onValueChange={setOverridePeriod}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="yearly">Yearly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Notes (optional)</Label>
+                  <Input value={overrideNotes} onChange={(e) => setOverrideNotes(e.target.value)} placeholder="e.g. Test user for QA" className="h-9" />
+                </div>
+                <Button size="sm" onClick={setOverride} disabled={overrideLoading}>
+                  {overrideLoading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                  Set Override
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Active Overrides</CardTitle>
+                <CardDescription>{existingOverrides.length} override(s)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {existingOverrides.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No overrides set</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-auto">
+                    {existingOverrides.map((o) => (
+                      <div key={o.id} className="flex items-center justify-between border rounded px-3 py-2">
+                        <div>
+                          <p className="font-mono text-xs">{o.user_id}</p>
+                          <div className="flex gap-2 mt-1">
+                            <Badge variant="secondary" className="capitalize text-xs">{o.tier}</Badge>
+                            <Badge variant="outline" className="text-xs">{o.billing_period}</Badge>
+                          </div>
+                          {o.notes && <p className="text-xs text-muted-foreground mt-1">{o.notes}</p>}
+                        </div>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeOverride(o.id)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
