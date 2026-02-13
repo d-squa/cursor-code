@@ -122,6 +122,12 @@ export default function ChoosePlan() {
       return;
     }
 
+    // Super admin bypass - redirect to admin dashboard
+    if (!authLoading && user && user.email === "superadmin@actiplan.app") {
+      navigate("/admin");
+      return;
+    }
+
     // Check onboarding status
     if (!authLoading && user && isEmailConfirmed) {
       const onboardingData = localStorage.getItem("actiplan_onboarding");
