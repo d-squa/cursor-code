@@ -1060,17 +1060,26 @@ export function CampaignForecast({
           
           toast.success(`Using AI-predicted forecast for ${marketCode}`, { duration: 3000 });
           
+          // AI forecast should never show zero metrics - enforce minimums
+          const aiReach = aiData.reach || Math.round((aiData.impressions || 0) * 0.6);
+          const aiImpressions = aiData.impressions || Math.round((budget / (aiData.cpm || 10)) * 1000);
+          const aiAudienceSize = aiData.audienceSize || aiReach * 10;
+          const aiResults = aiData.results || Math.max(1, Math.round(aiImpressions * 0.001));
+          const aiCostPerResult = aiData.costPerResult || (aiResults > 0 ? parseFloat((budget / aiResults).toFixed(2)) : 0);
+          const aiResultRate = aiData.resultRate || (aiImpressions > 0 ? parseFloat(((aiResults / aiImpressions) * 100).toFixed(2)) : 0);
+          const aiFrequency = aiData.frequency || (aiReach > 0 ? parseFloat((aiImpressions / aiReach).toFixed(1)) : 2);
+          
           return {
-            audienceSize: aiData.audienceSize || 0,
-            reach: aiData.reach || 0,
-            impressions: aiData.impressions || 0,
+            audienceSize: aiAudienceSize,
+            reach: aiReach,
+            impressions: aiImpressions,
             cpm: aiData.cpm || 10,
-            frequency: aiData.frequency,
-            result: aiData.results || 0,
+            frequency: aiFrequency,
+            result: aiResults,
             resultLabel: getResultLabel(optimizationGoal),
             resultKPI: goalMetrics?.kpi || optimizationGoal,
-            costPerResult: aiData.costPerResult || 0,
-            resultRate: aiData.resultRate || 0,
+            costPerResult: aiCostPerResult,
+            resultRate: aiResultRate,
             resultRateName: goalMetrics?.rateName || "Rate",
             objective,
             optimizationGoal,
