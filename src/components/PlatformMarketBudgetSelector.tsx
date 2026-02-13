@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff, RefreshCw } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -69,6 +69,7 @@ export function PlatformMarketBudgetSelector({
   const [conversionEvents, setConversionEvents] = useState<Array<{ pixelId: string; id: string; name: string; type: string }>>([]);
   const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
   const [adAccountDefaults, setAdAccountDefaults] = useState<Record<string, any>>({});
   
   // TikTok resources
@@ -489,6 +490,44 @@ export function PlatformMarketBudgetSelector({
       toast.error("Failed to sync Meta resources");
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // Sync assets for a specific Meta ad account, then refresh dropdowns
+  const handleSyncMetaAccountAssets = async (accountId: string) => {
+    setSyncingAccountId(accountId);
+    try {
+      const { error } = await supabase.functions.invoke("sync-account-assets", {
+        body: { accountId, platform: "meta" },
+      });
+      if (error) throw error;
+      toast.success("Assets synced successfully. Refreshing...");
+      await fetchMetaResources();
+    } catch (err: any) {
+      console.error("Failed to sync Meta account assets:", err);
+      toast.error("Failed to sync assets for this ad account");
+    } finally {
+      setSyncingAccountId(null);
+    }
+  };
+
+  // Sync assets for a specific TikTok advertiser account, then refresh dropdowns
+  const handleSyncTiktokAccountAssets = async (advertiserId: string) => {
+    setSyncingAccountId(advertiserId);
+    try {
+      const { error: resourcesError } = await supabase.functions.invoke("sync-tiktok-resources", {
+        body: { advertiserId },
+      });
+      if (resourcesError) {
+        console.error("Error syncing TikTok resources:", resourcesError);
+      }
+      toast.success("TikTok assets synced successfully. Refreshing...");
+      await fetchTiktokResources();
+    } catch (err: any) {
+      console.error("Failed to sync TikTok account assets:", err);
+      toast.error("Failed to sync assets for this advertiser");
+    } finally {
+      setSyncingAccountId(null);
     }
   };
   
@@ -1694,6 +1733,22 @@ export function PlatformMarketBudgetSelector({
                                       )}
                                     </SelectContent>
                                   </Select>
+                                  {market.adAccountId && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs mt-1"
+                                      disabled={syncingAccountId === market.adAccountId}
+                                      onClick={() => handleSyncMetaAccountAssets(market.adAccountId!)}
+                                    >
+                                      {syncingAccountId === market.adAccountId ? (
+                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                      ) : (
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                      )}
+                                      {syncingAccountId === market.adAccountId ? "Syncing..." : "Sync Assets"}
+                                    </Button>
+                                  )}
                                 </div>
 
                                     <div className="space-y-1">
@@ -2209,6 +2264,22 @@ export function PlatformMarketBudgetSelector({
                                       )}
                                     </SelectContent>
                                   </Select>
+                                  {market.adAccountId && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs mt-1"
+                                      disabled={syncingAccountId === market.adAccountId}
+                                      onClick={() => handleSyncTiktokAccountAssets(market.adAccountId!)}
+                                    >
+                                      {syncingAccountId === market.adAccountId ? (
+                                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                      ) : (
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                      )}
+                                      {syncingAccountId === market.adAccountId ? "Syncing..." : "Sync Assets"}
+                                    </Button>
+                                  )}
                                 </div>
 
                                 <div className="space-y-1">
