@@ -41,6 +41,7 @@ import CreativeLibrary from "./pages/CreativeLibrary";
 import CreativeMatching from "./pages/CreativeMatching";
 import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
+import AdminDashboard from "./pages/AdminDashboard";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
@@ -102,6 +103,7 @@ const App = () => (
               <Route path="operations-reports" element={<OperationsReports />} />
               <Route path="usage" element={<UsageMonitoring />} />
             </Route>
+            <Route path="/admin" element={<AdminDashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

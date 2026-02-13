@@ -141,3 +141,6 @@ verify_jwt = false
 
 [functions.meta-adlibrary-oauth-callback]
 verify_jwt = true
+
+[functions.admin-platform-stats]
+verify_jwt = false
