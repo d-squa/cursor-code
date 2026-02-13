@@ -207,7 +207,7 @@ Important guidelines:
       platform: platform || "meta",
     };
 
-    // Sanity checks - ensure metrics are reasonable
+    // Sanity checks - ensure ALL metrics are meaningful (no zeros)
     if (forecast.impressions <= 0 && budget > 0) {
       forecast.impressions = Math.round((budget / forecast.cpm) * 1000);
     }
@@ -216,6 +216,21 @@ Important guidelines:
     }
     if (forecast.audienceSize <= 0) {
       forecast.audienceSize = forecast.reach * 10;
+    }
+    if (forecast.clicks <= 0 && forecast.impressions > 0) {
+      forecast.clicks = Math.round(forecast.impressions * (forecast.ctr / 100));
+    }
+    if (forecast.results <= 0 && forecast.clicks > 0) {
+      forecast.results = Math.max(1, Math.round(forecast.clicks * 0.02));
+    }
+    if (forecast.costPerResult <= 0 && forecast.results > 0) {
+      forecast.costPerResult = parseFloat((budget / forecast.results).toFixed(2));
+    }
+    if (forecast.resultRate <= 0 && forecast.impressions > 0 && forecast.results > 0) {
+      forecast.resultRate = parseFloat(((forecast.results / forecast.impressions) * 100).toFixed(2));
+    }
+    if (forecast.frequency <= 0 && forecast.reach > 0) {
+      forecast.frequency = parseFloat((forecast.impressions / forecast.reach).toFixed(1));
     }
 
     console.log("AI forecast result:", forecast);
