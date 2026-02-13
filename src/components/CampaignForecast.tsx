@@ -931,6 +931,15 @@ export function CampaignForecast({
           });
 
           if (fbError) throw fbError;
+          
+          // Check if fallback data is meaningful (non-zero reach or impressions)
+          const fbReach = Number((fallbackData as any)?.reach) || 0;
+          const fbImpressions = Number((fallbackData as any)?.impressions) || 0;
+          
+          if (fbReach <= 0 && fbImpressions <= 0) {
+            console.warn('Meta reach estimate returned zero data, falling through to AI forecast...');
+            throw new Error('Meta reach estimate returned zero data');
+          }
 
           toast.success('Using Meta reach estimates for this forecast');
           
@@ -980,7 +989,7 @@ export function CampaignForecast({
 
           return {
             audienceSize: (fallbackData as any).reach * 10,
-            reach: Number((fallbackData as any).reach) || 0,
+            reach: fbReach,
             impressions,
             cpm: Number((fallbackData as any).cpm) || 0,
             result,
@@ -992,7 +1001,7 @@ export function CampaignForecast({
             objective,
             optimizationGoal,
             destination,
-            dataSource: 'estimated' as const, // Fallback uses estimated data
+            dataSource: 'estimated' as const,
           } as ForecastMetrics;
         } catch (fbErr) {
           console.error('Meta reachestimate fallback failed:', fbErr);
