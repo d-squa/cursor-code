@@ -57,9 +57,22 @@ Deno.serve(async (req) => {
       // No body or invalid JSON, use no filters
     }
 
-    const { userId, teamId, stripeCustomerId } = filters;
+    let { userId, teamId, stripeCustomerId } = filters;
 
-    console.log("[ADMIN-STATS] Filters:", JSON.stringify(filters));
+    // If only stripeCustomerId is provided, resolve it to a userId
+    if (stripeCustomerId && !userId) {
+      const { data: billingRow } = await supabase
+        .from("billing_customers")
+        .select("user_id")
+        .eq("stripe_customer_id", stripeCustomerId)
+        .maybeSingle();
+      if (billingRow?.user_id) {
+        userId = billingRow.user_id;
+        console.log("[ADMIN-STATS] Resolved stripeCustomerId to userId:", userId);
+      }
+    }
+
+    console.log("[ADMIN-STATS] Filters:", JSON.stringify({ userId, teamId, stripeCustomerId }));
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
