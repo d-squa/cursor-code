@@ -725,7 +725,7 @@ export function MediaPlanEditor() {
       setTotalBudget(String(c.total_budget ?? ""));
       setStartDate(c.start_date || "");
       setEndDate(c.end_date || "");
-      
+
       // Restore selected client ID from generic_config
       if (c.generic_config?.selectedClientId) {
         setSelectedClientId(c.generic_config.selectedClientId);
@@ -967,19 +967,31 @@ export function MediaPlanEditor() {
 
   // Capture extension mode snapshot once campaign is hydrated
   useEffect(() => {
-    console.log('🔒 Extension mode check:', {
+    console.log("🔒 Extension mode check:", {
       isExtensionMode: extensionMode.isExtensionMode,
       isHydrated,
       platformCount: platformsWithMarkets.length,
       hasSnapshot: !!extensionMode.originalSnapshot,
-      urlSearch: location.search
+      urlSearch: location.search,
     });
-    
-    if (extensionMode.isExtensionMode && isHydrated && platformsWithMarkets.length > 0 && !extensionMode.originalSnapshot) {
-      console.log('🔒 Triggering snapshot capture...');
+
+    if (
+      extensionMode.isExtensionMode &&
+      isHydrated &&
+      platformsWithMarkets.length > 0 &&
+      !extensionMode.originalSnapshot
+    ) {
+      console.log("🔒 Triggering snapshot capture...");
       extensionMode.captureSnapshot(platformsWithMarkets);
     }
-  }, [extensionMode.isExtensionMode, isHydrated, platformsWithMarkets, extensionMode.originalSnapshot, extensionMode.captureSnapshot, location.search]);
+  }, [
+    extensionMode.isExtensionMode,
+    isHydrated,
+    platformsWithMarkets,
+    extensionMode.originalSnapshot,
+    extensionMode.captureSnapshot,
+    location.search,
+  ]);
 
   // Fetch first ad account ID for audience fetching
   useEffect(() => {
@@ -2678,7 +2690,7 @@ export function MediaPlanEditor() {
                                   >
                                     <Copy className="h-4 w-4" />
                                   </Button>
-                                  {extensionMode.canDeleteItem(platform.id, 'platform') ? (
+                                  {extensionMode.canDeleteItem(platform.id, "platform") ? (
                                     <Button
                                       type="button"
                                       variant="ghost"
@@ -2724,12 +2736,13 @@ export function MediaPlanEditor() {
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
                                           <div className="flex items-center gap-2">
                                             <h4 className="font-medium">{getMarketLabel(market.name)}</h4>
-                                            {extensionMode.isExtensionMode && extensionMode.isOriginalMarket(market.id) && (
-                                              <Badge variant="outline" className="text-xs gap-1">
-                                                <Lock className="h-3 w-3" />
-                                                Locked
-                                              </Badge>
-                                            )}
+                                            {extensionMode.isExtensionMode &&
+                                              extensionMode.isOriginalMarket(market.id) && (
+                                                <Badge variant="outline" className="text-xs gap-1">
+                                                  <Lock className="h-3 w-3" />
+                                                  Locked
+                                                </Badge>
+                                              )}
                                             <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                                           </div>
                                           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -2743,7 +2756,7 @@ export function MediaPlanEditor() {
                                             >
                                               <Copy className="h-4 w-4" />
                                             </Button>
-                                            {extensionMode.canDeleteItem(market.id, 'market') ? (
+                                            {extensionMode.canDeleteItem(market.id, "market") ? (
                                               <Button
                                                 type="button"
                                                 variant="ghost"
@@ -3275,7 +3288,9 @@ export function MediaPlanEditor() {
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
           basicTargeting={basicTargeting}
-          clientIndustry={clients.find((c) => c.id === selectedClientId)?.industry || (genericConfig as any)?.clientIndustry}
+          clientIndustry={
+            clients.find((c) => c.id === selectedClientId)?.industry || (genericConfig as any)?.clientIndustry
+          }
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
