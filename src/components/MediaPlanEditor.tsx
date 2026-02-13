@@ -11,6 +11,7 @@ import { PlatformSelector } from "./PlatformSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
 import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
+import { StrategySelector } from "./StrategySelector";
 import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
@@ -2413,116 +2414,38 @@ export function MediaPlanEditor() {
                   return singleMarket ? (
                     <div className="mt-6 pt-6 border-t space-y-6">
                       {/* Strategy Configuration for Single Market */}
-                      <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                        <h4 className="font-medium">Campaign Strategy</h4>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Strategy Type</Label>
-                            <Select
-                              value={singleMarket.strategy || genericConfig.strategy || "auto-detect"}
-                              onValueChange={(value) => {
-                                const adFormats = singleMarket.adFormats || genericConfig.targeting?.adFormats || [];
-                                const hasPixel = !!singleMarket.pixel;
-                                const hasCatalog = !!singleMarket.catalog;
-                                let newPhases: any[] = [];
-
-                                if (value === "auto-detect") {
-                                  newPhases =
-                                    generateAutoDetectPhases(
-                                      adFormats,
-                                      hasPixel,
-                                      hasCatalog,
-                                      startDate,
-                                      endDate,
-                                      singlePlatform?.id || "meta",
-                                    ) || [];
-                                } else if (value === "full-funnel") {
-                                  const focus = singleMarket.strategyFocus || genericConfig.strategyFocus;
-                                  const templateKey = mapFocusToTemplate(focus);
-                                  if (templateKey) {
-                                    newPhases =
-                                      getDefaultPhases(templateKey, startDate, endDate, singlePlatform?.id || "meta") ||
-                                      [];
-                                  }
-                                } else if (value === "manual") {
-                                  newPhases = [];
-                                }
-
-                                setPlatformsWithMarkets((prev) =>
-                                  prev.map((p) =>
-                                    p.id === singlePlatform?.id
-                                      ? {
-                                          ...p,
-                                          markets: p.markets.map((m) =>
-                                            m.id === singleMarket.id
-                                              ? {
-                                                  ...m,
-                                                  strategy: value,
-                                                  phases: newPhases,
-                                                }
-                                              : m,
-                                          ),
-                                        }
-                                      : p,
-                                  ),
-                                );
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select strategy type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="auto-detect">Auto-Generate</SelectItem>
-                                <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                                <SelectItem value="manual">Custom</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {(singleMarket.strategy || genericConfig.strategy) === "full-funnel" && (
-                            <div className="space-y-2">
-                              <Label>Strategy Focus</Label>
-                              <Select
-                                value={singleMarket.strategyFocus || genericConfig.strategyFocus || "auto"}
-                                onValueChange={(value) => {
-                                  const templateKey = mapFocusToTemplate(value);
-                                  const newPhases = templateKey
-                                    ? getDefaultPhases(templateKey, startDate, endDate, singlePlatform?.id || "meta")
-                                    : [];
-                                  setPlatformsWithMarkets((prev) =>
-                                    prev.map((p) =>
-                                      p.id === singlePlatform?.id
+                      <StrategySelector
+                        strategy={singleMarket.strategy || genericConfig.strategy || "auto-detect"}
+                        selectedStrategyId={(singleMarket as any).selectedStrategyId}
+                        platformId={singlePlatform?.id || "meta"}
+                        startDate={startDate}
+                        endDate={endDate}
+                        adFormats={singleMarket.adFormats || genericConfig.targeting?.adFormats || []}
+                        hasPixel={!!singleMarket.pixel}
+                        hasCatalog={!!singleMarket.catalog}
+                        onStrategyChange={(strategy, phases, selectedStrategyId) => {
+                          setPlatformsWithMarkets((prev) =>
+                            prev.map((p) =>
+                              p.id === singlePlatform?.id
+                                ? {
+                                    ...p,
+                                    markets: p.markets.map((m) =>
+                                      m.id === singleMarket.id
                                         ? {
-                                            ...p,
-                                            markets: p.markets.map((m) =>
-                                              m.id === singleMarket.id
-                                                ? { ...m, strategyFocus: value, phases: newPhases }
-                                                : m,
-                                            ),
+                                            ...m,
+                                            strategy,
+                                            phases,
+                                            selectedStrategyId,
                                           }
-                                        : p,
+                                        : m,
                                     ),
-                                  );
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select focus" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="auto" disabled>
-                                    Select a focus…
-                                  </SelectItem>
-                                  <SelectItem value="purchase">Purchase</SelectItem>
-                                  <SelectItem value="leads">Leads</SelectItem>
-                                  <SelectItem value="app-installs">App Installs</SelectItem>
-                                  <SelectItem value="conversions">Conversions</SelectItem>
-                                  <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                                  }
+                                : p,
+                            ),
+                          );
+                          ensureDraft();
+                        }}
+                      />
 
                       <PhaseScheduler
                         phases={singleMarket.phases || []}
@@ -2780,183 +2703,62 @@ export function MediaPlanEditor() {
                                       </CollapsibleTrigger>
                                       <CollapsibleContent>
                                         <div className="px-4 pb-4">
-                                          {/* Per-Market Strategy Configuration */}
-                                          <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
-                                            <div className="space-y-2">
-                                              <Label>Strategy Type</Label>
-                                              <Select
-                                                value={market.strategy || genericConfig.strategy || "auto-detect"}
-                                                onValueChange={(value) => {
-                                                  const adFormats =
-                                                    market.adFormats || genericConfig.targeting?.adFormats || [];
-                                                  const hasPixel = !!market.pixel;
-                                                  const hasCatalog = !!market.catalog;
-                                                  let newPhases: any[] = [];
+                          {/* Per-Market Strategy Configuration */}
+                          <div className="mb-6">
+                            <StrategySelector
+                              strategy={market.strategy || genericConfig.strategy || "auto-detect"}
+                              selectedStrategyId={(market as any).selectedStrategyId}
+                              platformId={platform.id}
+                              startDate={startDate}
+                              endDate={endDate}
+                              adFormats={market.adFormats || genericConfig.targeting?.adFormats || []}
+                              hasPixel={!!market.pixel}
+                              hasCatalog={!!market.catalog}
+                              onStrategyChange={(strategy, phases, selectedStrategyId) => {
+                                setPlatformsWithMarkets((prev) =>
+                                  prev.map((p) =>
+                                    p.id === platform.id
+                                      ? {
+                                          ...p,
+                                          markets: p.markets.map((m) =>
+                                            m.id === market.id
+                                              ? { ...m, strategy, phases, selectedStrategyId }
+                                              : m,
+                                          ),
+                                        }
+                                      : p,
+                                  ),
+                                );
+                                ensureDraft();
+                              }}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => {
+                                const currentStrategy = market.strategy || genericConfig.strategy;
+                                const currentStrategyId = (market as any).selectedStrategyId;
 
-                                                  if (value === "auto-detect") {
-                                                    newPhases =
-                                                      generateAutoDetectPhases(
-                                                        adFormats,
-                                                        hasPixel,
-                                                        hasCatalog,
-                                                        startDate,
-                                                        endDate,
-                                                        platform.id,
-                                                      ) || [];
-                                                  } else if (value === "full-funnel") {
-                                                    const focus = market.strategyFocus || genericConfig.strategyFocus;
-                                                    const templateKey = mapFocusToTemplate(focus);
-                                                    if (templateKey) {
-                                                      newPhases =
-                                                        getDefaultPhases(
-                                                          templateKey,
-                                                          startDate,
-                                                          endDate,
-                                                          platform.id,
-                                                        ) || [];
-                                                    }
-                                                  } else if (value === "manual") {
-                                                    newPhases = [];
-                                                  }
+                                setPlatformsWithMarkets((prev) =>
+                                  prev.map((p) => ({
+                                    ...p,
+                                    markets: p.markets.map((m) => ({
+                                      ...m,
+                                      strategy: currentStrategy,
+                                      selectedStrategyId: currentStrategyId,
+                                      phases: (market as any).phases || [],
+                                    })),
+                                  })),
+                                );
 
-                                                  setPlatformsWithMarkets((prev) =>
-                                                    prev.map((p) =>
-                                                      p.id === platform.id
-                                                        ? {
-                                                            ...p,
-                                                            markets: p.markets.map((m) =>
-                                                              m.id === market.id
-                                                                ? {
-                                                                    ...m,
-                                                                    strategy: value,
-                                                                    phases: newPhases,
-                                                                  }
-                                                                : m,
-                                                            ),
-                                                          }
-                                                        : p,
-                                                    ),
-                                                  );
-                                                  ensureDraft();
-                                                }}
-                                              >
-                                                <SelectTrigger>
-                                                  <SelectValue placeholder="Select strategy" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  <SelectItem value="auto-detect">Auto-Generate</SelectItem>
-                                                  <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                                                  <SelectItem value="manual">Custom</SelectItem>
-                                                </SelectContent>
-                                              </Select>
-                                            </div>
-
-                                            {(market.strategy || genericConfig.strategy) === "full-funnel" && (
-                                              <div className="space-y-2">
-                                                <Label>Strategy Focus</Label>
-                                                <Select
-                                                  value={market.strategyFocus || genericConfig.strategyFocus || "auto"}
-                                                  onValueChange={(value) => {
-                                                    const templateKey = mapFocusToTemplate(value);
-                                                    const newPhases = templateKey
-                                                      ? getDefaultPhases(templateKey, startDate, endDate, platform.id)
-                                                      : [];
-                                                    setPlatformsWithMarkets((prev) =>
-                                                      prev.map((p) =>
-                                                        p.id === platform.id
-                                                          ? {
-                                                              ...p,
-                                                              markets: p.markets.map((m) =>
-                                                                m.id === market.id
-                                                                  ? { ...m, strategyFocus: value, phases: newPhases }
-                                                                  : m,
-                                                              ),
-                                                            }
-                                                          : p,
-                                                      ),
-                                                    );
-                                                    ensureDraft();
-                                                  }}
-                                                >
-                                                  <SelectTrigger>
-                                                    <SelectValue placeholder="Select focus" />
-                                                  </SelectTrigger>
-                                                  <SelectContent>
-                                                    <SelectItem value="auto" disabled>
-                                                      Select a focus…
-                                                    </SelectItem>
-                                                    <SelectItem value="purchase">Purchase</SelectItem>
-                                                    <SelectItem value="leads">Leads</SelectItem>
-                                                    <SelectItem value="app-installs">App Installs</SelectItem>
-                                                    <SelectItem value="conversions">Conversions</SelectItem>
-                                                    <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
-                                                  </SelectContent>
-                                                </Select>
-                                              </div>
-                                            )}
-
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => {
-                                                const currentStrategy = market.strategy || genericConfig.strategy;
-                                                const currentFocus =
-                                                  market.strategyFocus || genericConfig.strategyFocus;
-
-                                                setPlatformsWithMarkets((prev) =>
-                                                  prev.map((p) => ({
-                                                    ...p,
-                                                    markets: p.markets.map((m) => {
-                                                      const adFormats =
-                                                        m.adFormats || genericConfig.targeting?.adFormats || [];
-                                                      const hasPixel = !!m.pixel;
-                                                      const hasCatalog = !!m.catalog;
-                                                      let newPhases: any[] = [];
-
-                                                      if (currentStrategy === "auto-detect") {
-                                                        newPhases =
-                                                          generateAutoDetectPhases(
-                                                            adFormats,
-                                                            hasPixel,
-                                                            hasCatalog,
-                                                            startDate,
-                                                            endDate,
-                                                            platform.id,
-                                                          ) || [];
-                                                      } else if (currentStrategy === "full-funnel") {
-                                                        const templateKey = mapFocusToTemplate(currentFocus);
-                                                        if (templateKey) {
-                                                          newPhases =
-                                                            getDefaultPhases(
-                                                              templateKey,
-                                                              startDate,
-                                                              endDate,
-                                                              platform.id,
-                                                            ) || [];
-                                                        }
-                                                      } else if (currentStrategy === "manual") {
-                                                        newPhases = [];
-                                                      }
-
-                                                      return {
-                                                        ...m,
-                                                        strategy: currentStrategy,
-                                                        strategyFocus: currentFocus,
-                                                        phases: newPhases,
-                                                      };
-                                                    }),
-                                                  })),
-                                                );
-
-                                                toast.success("Strategy applied to all markets. Phases regenerated.");
-                                                ensureDraft();
-                                              }}
-                                            >
-                                              Apply Strategy to All Markets
-                                            </Button>
-
-                                            {/* Inline budget type selection is available per phase below. */}
-                                          </div>
+                                toast.success("Strategy applied to all markets.");
+                                ensureDraft();
+                              }}
+                            >
+                              Apply Strategy to All Markets
+                            </Button>
+                          </div>
 
                                           <PhaseScheduler
                                             phases={market.phases || []}
