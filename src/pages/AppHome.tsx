@@ -20,11 +20,7 @@ const AppHome = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img 
-                src="/logo.png" 
-                alt="ActiPlan" 
-                className="h-10 w-auto"
-              />
+              <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
               <p className="text-xs text-muted-foreground hidden md:block">Cross-Platform Activation Manager</p>
             </div>
             <nav className="flex items-center gap-2">
@@ -84,10 +80,10 @@ const AppHome = () => {
         <div className="max-w-4xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 mb-6">
             <Zap className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-primary">Unified Campaign Management</span>
+            <span className="text-sm font-medium text-primary">Blueprint-driven workflow</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
-            Plan & Launch A New ActiPlan
+            Plan, Forecast & Launch A New ActiPlan using the blueprint-driven workflow for cross-platform activations
           </h2>
         </div>
       </section>
