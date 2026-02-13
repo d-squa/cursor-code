@@ -1296,11 +1296,6 @@ export function MediaPlanEditor() {
       return;
     }
 
-    if (!boNumber.trim()) {
-      toast.error("Please enter a BO number");
-      return;
-    }
-
     // Check if BO number is unique within the same workspace
     if (boNumber.trim() && activeWorkspaceId) {
       const { data: existingCampaign } = await supabase
@@ -1648,11 +1643,6 @@ export function MediaPlanEditor() {
       return null;
     }
 
-    if (!boNumber.trim()) {
-      toast.error("Please enter a BO number");
-      return null;
-    }
-
     if (!validateBudgetTypes()) {
       return null;
     }
@@ -1984,7 +1974,7 @@ export function MediaPlanEditor() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="bo-number">
-                  BO Number <span className="text-destructive">*</span>
+                  BO Number
                 </Label>
                 <Input
                   id="bo-number"
@@ -1994,7 +1984,6 @@ export function MediaPlanEditor() {
                     ensureDraft();
                   }}
                   placeholder="e.g., BO-2025-001"
-                  required
                 />
                 <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
               </div>
