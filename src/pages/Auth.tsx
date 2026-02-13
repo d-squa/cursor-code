@@ -136,6 +136,12 @@ export default function Auth() {
         setShowEmailConfirmation(false);
         setShowPostConfirmSuccess(false);
 
+        // Super admin bypass - skip onboarding and subscription checks
+        if (session.user.email === "superadmin@actiplan.app") {
+          navigate("/admin");
+          return;
+        }
+
         const onboardingData = localStorage.getItem("actiplan_onboarding");
         let onboardingComplete = false;
         if (onboardingData) {
@@ -152,11 +158,6 @@ export default function Auth() {
         }
 
         // Onboarding complete - check subscription status and redirect
-        // Super admin bypass - redirect directly to admin dashboard
-        if (session.user.email === "superadmin@actiplan.app") {
-          navigate("/admin");
-          return;
-        }
 
         setTimeout(() => {
           void (async () => {

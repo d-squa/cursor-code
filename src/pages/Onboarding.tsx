@@ -16,6 +16,11 @@ const Onboarding = () => {
         navigate("/auth");
         return;
       }
+
+      // Super admin bypass
+      if (session.user.email === "superadmin@actiplan.app") {
+        navigate("/admin");
+      }
       
       // Check if email is confirmed
       if (!session.user.email_confirmed_at) {
