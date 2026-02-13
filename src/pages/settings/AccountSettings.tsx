@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Copy, Check } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +28,28 @@ export default function AccountSettings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (value: string, field: string) => {
+    navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  // Fetch billing customer (license/subscription ID)
+  const { data: billingCustomer } = useQuery({
+    queryKey: ["billing-customer"],
+    queryFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return null;
+      const { data } = await supabase
+        .from("billing_customers")
+        .select("stripe_customer_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      return data;
+    },
+  });
 
   // Fetch user profile
   const { data: profile, isLoading } = useQuery({
@@ -172,6 +194,40 @@ export default function AccountSettings() {
           Manage your profile information and security settings
         </p>
       </div>
+
+      {/* Account IDs Reference */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account IDs</CardTitle>
+          <CardDescription>
+            Your unique identifiers for reference and support
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div>
+              <p className="text-xs text-muted-foreground">User ID</p>
+              <p className="font-mono text-sm">{profile?.id || "—"}</p>
+            </div>
+            {profile?.id && (
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(profile.id, "userId")}>
+                {copiedField === "userId" ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div>
+              <p className="text-xs text-muted-foreground">License ID</p>
+              <p className="font-mono text-sm">{billingCustomer?.stripe_customer_id || "No active license"}</p>
+            </div>
+            {billingCustomer?.stripe_customer_id && (
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(billingCustomer.stripe_customer_id, "licenseId")}>
+                {copiedField === "licenseId" ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Profile Information */}
       <Card>
