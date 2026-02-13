@@ -114,17 +114,17 @@ export default function AdminDashboard() {
     if (!overrideUserId.trim()) { toast.error("Enter a user ID"); return; }
     setOverrideLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-      const { error } = await supabase.from("subscription_overrides").upsert({
-        user_id: overrideUserId.trim(),
-        tier: overrideTier,
-        billing_period: overridePeriod,
-        notes: overrideNotes || null,
-        created_by: session.user.id,
-      }, { onConflict: "user_id" });
+      const { data, error } = await supabase.functions.invoke("set-subscription-override", {
+        body: {
+          action: "set",
+          targetUserId: overrideUserId.trim(),
+          tier: overrideTier,
+          billingPeriod: overridePeriod,
+        },
+      });
       if (error) throw error;
-      toast.success(`Override set: ${overrideTier} (${overridePeriod})`);
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Override set: ${overrideTier} (${overridePeriod}) — Stripe subscription created`);
       setOverrideUserId("");
       setOverrideNotes("");
       fetchOverrides();
@@ -135,10 +135,18 @@ export default function AdminDashboard() {
     }
   };
 
-  const removeOverride = async (id: string) => {
-    const { error } = await supabase.from("subscription_overrides").delete().eq("id", id);
-    if (error) toast.error("Failed to remove override");
-    else { toast.success("Override removed"); fetchOverrides(); }
+  const removeOverride = async (userId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("set-subscription-override", {
+        body: { action: "remove", targetUserId: userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success("Override removed — Stripe subscription cancelled");
+      fetchOverrides();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove override");
+    }
   };
 
   const fetchStats = useCallback(async (appliedFilters: Filters = {}) => {
@@ -775,7 +783,7 @@ export default function AdminDashboard() {
                           </div>
                           {o.notes && <p className="text-xs text-muted-foreground mt-1">{o.notes}</p>}
                         </div>
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeOverride(o.id)}>
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeOverride(o.user_id)}>
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
