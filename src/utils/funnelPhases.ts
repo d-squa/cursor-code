@@ -145,7 +145,55 @@ export const getDefaultPhases = (
 };
 
 /**
- * Generates phases for auto-detect strategy based on platform/market configuration
+ * Maps auto-detect signals to the best strategy from the strategy matrix.
+ * Returns the Base variant of the matched strategy.
+ */
+function getAutoDetectStrategyId(
+  adFormats: string[],
+  hasPixel: boolean,
+  hasCatalog: boolean,
+  platform: string
+): string {
+  const normalizedPlatform = platform.toLowerCase().includes("tiktok") ? "tiktok" : "meta";
+  const formatString = adFormats.join(" ").toLowerCase();
+
+  if (normalizedPlatform === "tiktok") {
+    if (formatString.includes("lead") || formatString.includes("instant form")) {
+      return "tiktok-lead-engine-base";
+    }
+    if (formatString.includes("app")) {
+      return "tiktok-app-growth-base";
+    }
+    if (formatString.includes("video views") || formatString.includes("brand awareness") || formatString.includes("reach")) {
+      return "tiktok-awareness-base";
+    }
+    return "tiktok-revenue-accelerator-base";
+  }
+
+  // Meta strategies
+  if (formatString.includes("lead") || formatString.includes("instant form")) {
+    return "meta-qualified-lead-base";
+  }
+  if (formatString.includes("app")) {
+    return "meta-app-growth-base";
+  }
+  if (formatString.includes("video views") || formatString.includes("brand awareness") || formatString.includes("reach")) {
+    return "meta-awareness-visibility-base";
+  }
+  if (formatString.includes("dynamic") || formatString.includes("catalog") || formatString.includes("shopping") || hasCatalog) {
+    return "meta-revenue-acceleration-base";
+  }
+  if (formatString.includes("message") || formatString.includes("conversation") || formatString.includes("whatsapp")) {
+    return "meta-conversation-base";
+  }
+  if (hasPixel) {
+    return "meta-performance-domination-base";
+  }
+  return "meta-revenue-acceleration-base";
+}
+
+/**
+ * Generates phases for auto-detect strategy using the strategy matrix
  */
 export const generateAutoDetectPhases = (
   adFormats: string[],
@@ -155,24 +203,13 @@ export const generateAutoDetectPhases = (
   endDate: string,
   platform: string = "meta"
 ) => {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const strategyId = getAutoDetectStrategyId(adFormats, hasPixel, hasCatalog, platform);
+  const strategy = getStrategyById(strategyId);
   
-  let strategyFocus = "Conversions";
-  const formatString = adFormats.join(" ").toLowerCase();
-  
-  if (formatString.includes("lead") || formatString.includes("instant form")) {
-    strategyFocus = "Leads";
-  } else if (formatString.includes("dynamic") || formatString.includes("catalog") || formatString.includes("shopping") || hasCatalog) {
-    strategyFocus = "Purchases";
-  } else if (formatString.includes("app")) {
-    strategyFocus = "In-App Actions";
-  } else if (formatString.includes("video views") || formatString.includes("brand awareness")) {
-    strategyFocus = "Awareness";
-  } else if (hasPixel) {
-    strategyFocus = "Conversions";
+  if (!strategy) {
+    // Fallback to legacy path if strategy not found
+    return getDefaultPhases("Conversions", startDate, endDate, platform);
   }
   
-  return getDefaultPhases(strategyFocus, startDate, endDate, platform);
+  return generatePhasesFromStrategy(strategy, startDate, endDate);
 };

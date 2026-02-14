@@ -647,6 +647,108 @@ const META_CONVERSATION_ADVANTAGE: StrategyDefinition = {
   ],
 };
 
+const META_AWARENESS_VISIBILITY_BASE: StrategyDefinition = {
+  id: "meta-awareness-visibility-base",
+  name: "Awareness & Visibility Maximizer",
+  variant: "base",
+  platform: "meta",
+  phases: [
+    {
+      name: "TOF - Mass Reach Expansion",
+      funnelStage: "TOF",
+      durationPercent: 60,
+      recommendedDurationDays: [45, 90],
+      budgetPercent: 65,
+      objective: "OUTCOME_AWARENESS",
+      optimizationGoal: "REACH",
+      optimizationLocation: "On-platform",
+      billingType: "Impressions",
+      audienceTypes: "Broad + Wide LAL (5-10%)",
+      adFormats: "Brand Film + Short Video + Static",
+      automationFeatures: "Manual Reach + Frequency Control",
+    },
+    {
+      name: "MOF - Attention Depth Amplification",
+      funnelStage: "MOF",
+      durationPercent: 25,
+      recommendedDurationDays: [30, 60],
+      budgetPercent: 25,
+      objective: "OUTCOME_ENGAGEMENT",
+      optimizationGoal: "THRUPLAY",
+      optimizationLocation: "On-platform",
+      billingType: "Impressions",
+      audienceTypes: "Video Viewers 25-50% + Engagers",
+      adFormats: "Explainer Video + Story Ads",
+      automationFeatures: "Manual Video Optimization",
+    },
+    {
+      name: "BOF - Branded Recall Reinforcement",
+      funnelStage: "BOF",
+      durationPercent: 15,
+      recommendedDurationDays: [14, 30],
+      budgetPercent: 10,
+      objective: "OUTCOME_ENGAGEMENT",
+      optimizationGoal: "POST_ENGAGEMENT",
+      optimizationLocation: "Website / On-platform",
+      billingType: "Impressions",
+      audienceTypes: "Video Viewers 75% + Page Engagers",
+      adFormats: "Short Reminder Ads + Testimonials",
+      automationFeatures: "Manual Retargeting",
+    },
+  ],
+};
+
+const META_AWARENESS_VISIBILITY_ADVANTAGE: StrategyDefinition = {
+  id: "meta-awareness-visibility-advantage",
+  name: "Awareness & Visibility Maximizer",
+  variant: "advantage+",
+  platform: "meta",
+  phases: [
+    {
+      name: "TOF - Algorithmic Reach Domination",
+      funnelStage: "TOF",
+      durationPercent: 65,
+      recommendedDurationDays: [45, 90],
+      budgetPercent: 70,
+      objective: "OUTCOME_AWARENESS",
+      optimizationGoal: "REACH",
+      optimizationLocation: "On-platform",
+      billingType: "Impressions",
+      audienceTypes: "Advantage+ Broad Audience",
+      adFormats: "Brand Film + Multiple Creative Variants",
+      automationFeatures: "Advantage+ Audience + Advantage Placements + Dynamic Creative",
+    },
+    {
+      name: "MOF - Automated Attention Scaling",
+      funnelStage: "MOF",
+      durationPercent: 25,
+      recommendedDurationDays: [30, 60],
+      budgetPercent: 20,
+      objective: "OUTCOME_ENGAGEMENT",
+      optimizationGoal: "THRUPLAY",
+      optimizationLocation: "On-platform",
+      billingType: "Impressions",
+      audienceTypes: "Algorithmic Engagement Signals",
+      adFormats: "Explainer + Hook Variations",
+      automationFeatures: "Advantage+ Audience Expansion + Automated Creative Optimization",
+    },
+    {
+      name: "BOF - Intelligent Recall Boost",
+      funnelStage: "BOF",
+      durationPercent: 10,
+      recommendedDurationDays: [14, 30],
+      budgetPercent: 10,
+      objective: "OUTCOME_ENGAGEMENT",
+      optimizationGoal: "POST_ENGAGEMENT",
+      optimizationLocation: "On-platform / Website",
+      billingType: "Impressions",
+      audienceTypes: "Expanded Engagement Pool",
+      adFormats: "Reminder + Social Proof Ads",
+      automationFeatures: "Advantage Placements + Dynamic Creative",
+    },
+  ],
+};
+
 // ─── TIKTOK STRATEGIES ────────────────────────────────────────────
 
 const TIKTOK_REVENUE_ACCELERATOR_BASE: StrategyDefinition = {
@@ -1067,6 +1169,12 @@ export const META_STRATEGY_GROUPS: StrategyGroup[] = [
     name: "Conversation Conversion Machine",
     platform: "meta",
     variants: [META_CONVERSATION_BASE, META_CONVERSATION_ADVANTAGE],
+  },
+  {
+    id: "meta-awareness-visibility",
+    name: "Awareness & Visibility Maximizer",
+    platform: "meta",
+    variants: [META_AWARENESS_VISIBILITY_BASE, META_AWARENESS_VISIBILITY_ADVANTAGE],
   },
 ];
 
