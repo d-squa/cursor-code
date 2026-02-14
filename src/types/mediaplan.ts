@@ -206,7 +206,9 @@ export interface Phase {
   tiktokClickWindow?: number; // Click attribution window
   tiktokViewWindow?: number; // View attribution window
   tiktokEventCount?: string; // Event count type: "every_conversion" or "once"
-  tiktokSmartPlusEnabled?: boolean; // Smart+ enabled
+  tiktokSmartPlusEnabled?: boolean; // Smart Performance Campaign enabled
+  tiktokSmartCreativeEnabled?: boolean; // Smart Creative Optimization
+  tiktokAutoTargetingEnabled?: boolean; // Smart+ auto-targeting
   tiktokBidStrategy?: string; // Bid strategy override at phase level
   tiktokBidAmount?: number; // Bid amount override at phase level
   tiktokCatalog?: string; // TikTok Catalog ID at phase level
@@ -232,8 +234,12 @@ export interface Phase {
   metaViewWindow?: number; // View-through attribution window in days (1, 7)
   metaBidStrategy?: string; // LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP
   metaBidAmount?: number; // Bid amount when bid cap is required
-  metaAdvantagePlusCampaign?: boolean; // Advantage+ campaign mode (like TikTok Smart+)
+  metaAdvantagePlusCampaign?: boolean; // Advantage+ Shopping Campaign mode
+  metaAdvantagePlusAudience?: boolean; // Advantage+ Audience (targeting_automation)
+  metaAdvantagePlusCreative?: boolean; // Advantage+ Creative optimization
   metaConversionCount?: string; // all_conversions or one_per_click
+  metaCatalogId?: string; // Catalog ID for Advantage+ Shopping
+  metaProductSetId?: string; // Product Set ID for Advantage+ Shopping
   // Meta destination-specific fields
   metaAppStore?: string; // Store for app destination
   metaAppId?: string; // App identifier from the selected store

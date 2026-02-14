@@ -1169,10 +1169,21 @@ export function generatePhasesFromStrategy(
   recommendedDurationDays: [number, number] | "always-on" | "ongoing";
   useBroadTargeting: boolean;
   overrideTargeting: boolean | undefined;
+  // Advantage+/Smart+ auto-configuration
+  metaAdvantagePlusCampaign?: boolean;
+  metaAdvantagePlusAudience?: boolean;
+  metaAdvantagePlusCreative?: boolean;
+  tiktokSmartPlusEnabled?: boolean;
+  tiktokSmartCreativeEnabled?: boolean;
+  tiktokAutoTargetingEnabled?: boolean;
 }> {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Determine if this is an Advantage+/Smart variant
+  const isAdvantagePlus = strategy.variant === "advantage+";
+  const isSmart = strategy.variant === "smart";
 
   return strategy.phases.map((phase, index) => {
     // Calculate cumulative duration offset
@@ -1196,7 +1207,8 @@ export function generatePhasesFromStrategy(
       !audienceLower.includes("retarget") &&
       !audienceLower.includes("engager");
 
-    return {
+    // Auto-set Advantage+/Smart+ flags based on strategy variant
+    const result: any = {
       id: `phase-${index}-${Date.now()}`,
       name: phase.name,
       startDate: phaseStart.toISOString().split("T")[0],
@@ -1214,5 +1226,21 @@ export function generatePhasesFromStrategy(
       useBroadTargeting,
       overrideTargeting: useBroadTargeting ? false : undefined,
     };
+
+    // Meta Advantage+ variant auto-configuration
+    if (strategy.platform === "meta" && isAdvantagePlus) {
+      result.metaAdvantagePlusCampaign = phase.objective === "OUTCOME_SALES";
+      result.metaAdvantagePlusAudience = true;
+      result.metaAdvantagePlusCreative = true;
+    }
+
+    // TikTok Smart variant auto-configuration
+    if (strategy.platform === "tiktok" && isSmart) {
+      result.tiktokSmartPlusEnabled = true;
+      result.tiktokSmartCreativeEnabled = true;
+      result.tiktokAutoTargetingEnabled = true;
+    }
+
+    return result;
   });
 }
