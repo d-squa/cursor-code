@@ -106,15 +106,25 @@ async function getUserSubscriptionInfo(supabase: any, userId: string, teamId: st
 
     // Map price IDs to tiers
     const priceToTier: Record<string, string> = {
-      'price_1ScnObKrTGU4P754AAJ9Q5NU': 'basic',      // basic monthly
-      'price_1ScnL9KrTGU4P754QirsF0Sd': 'basic',      // basic yearly
-      'price_1SyblZKrTGU4P754e0GfARV4': 'freelancer', // freelancer monthly
-      'price_1SyblbKrTGU4P754Otu9dcxm': 'freelancer', // freelancer yearly
-      'price_1SyblcKrTGU4P754HYOgkuIQ': 'enterprise', // enterprise monthly
-      'price_1SybldKrTGU4P754EBnjjPos': 'enterprise', // enterprise yearly
-      'price_1SyblfKrTGU4P754gwTKmrsC': 'agency',     // agency monthly
-      'price_1SyblfKrTGU4P754PtKbziMk': 'agency',     // agency yearly
-      'price_1ScnOeKrTGU4P75446dvndr3': 'agency',     // legacy agency monthly
+      // Current USD-standardized prices
+      'price_1SydZ7KrTGU4P754jqI2guPI': 'basic',      // basic monthly
+      'price_1SydZEKrTGU4P754aNJHK8pc': 'basic',      // basic yearly
+      'price_1SydVjKrTGU4P754mZJJWvAq': 'freelancer', // freelancer monthly
+      'price_1SydVuKrTGU4P754zRmad5iJ': 'freelancer', // freelancer yearly
+      'price_1SydW1KrTGU4P754aeyvSJP8': 'enterprise', // enterprise monthly
+      'price_1SydW3KrTGU4P754G3iA7VZM': 'enterprise', // enterprise yearly
+      'price_1SydW5KrTGU4P754vsPg9hWw': 'agency',     // agency monthly
+      'price_1SydW8KrTGU4P754AEitLX2A': 'agency',     // agency yearly
+      // Legacy prices
+      'price_1ScnObKrTGU4P754AAJ9Q5NU': 'basic',      // legacy basic monthly
+      'price_1ScnL9KrTGU4P754QirsF0Sd': 'basic',      // legacy basic yearly
+      'price_1SyblZKrTGU4P754e0GfARV4': 'freelancer', // legacy freelancer monthly
+      'price_1SyblbKrTGU4P754Otu9dcxm': 'freelancer', // legacy freelancer yearly
+      'price_1SyblcKrTGU4P754HYOgkuIQ': 'enterprise', // legacy enterprise monthly
+      'price_1SybldKrTGU4P754EBnjjPos': 'enterprise', // legacy enterprise yearly
+      'price_1SyblfKrTGU4P754gwTKmrsC': 'agency',     // legacy agency monthly
+      'price_1SyblfKrTGU4P754PtKbziMk': 'agency',     // legacy agency yearly
+      'price_1ScnOeKrTGU4P75446dvndr3': 'agency',     // legacy agency monthly v1
     };
 
     const tier = priceToTier[priceId] || 'trial';
