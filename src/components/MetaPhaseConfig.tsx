@@ -166,32 +166,103 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
         {/* Advantage+ Campaign */}
         {showAdvantagePlus && (
           <div className="space-y-2">
-            <Label>Advantage+ Campaign</Label>
+            <Label>Advantage+ Shopping Campaign</Label>
             <Select
               value={phase.metaAdvantagePlusCampaign ? "true" : "false"}
-              onValueChange={(value) => onUpdate("metaAdvantagePlusCampaign", value === "true")}
+              onValueChange={(value) => {
+                const enabled = value === "true";
+                onUpdate("metaAdvantagePlusCampaign", enabled);
+                // When Advantage+ Shopping is enabled, auto-enable related features
+                if (enabled) {
+                  onUpdate("metaAdvantagePlusAudience", true);
+                  onUpdate("metaAdvantagePlusCreative", true);
+                }
+              }}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="false">Manual Campaign</SelectItem>
-                <SelectItem value="true">Advantage+ Campaign</SelectItem>
+                <SelectItem value="true">Advantage+ Shopping Campaign</SelectItem>
               </SelectContent>
             </Select>
             {phase.metaAdvantagePlusCampaign && (
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  <strong>Advantage+ automatically enables:</strong>
+                  <strong>Advantage+ Shopping Campaign enables:</strong>
                   <ul className="mt-1 ml-4 list-disc space-y-1">
+                    <li>Automated audience targeting across the funnel</li>
+                    <li>AI-powered creative optimization</li>
                     <li>Automatic placements across Meta network</li>
-                    <li>AI-powered audience targeting</li>
-                    <li>Automatic creative optimization</li>
+                    <li>Requires <strong>OUTCOME_SALES</strong> objective</li>
                   </ul>
                 </AlertDescription>
               </Alert>
             )}
+          </div>
+        )}
+
+        {/* Advantage+ Audience */}
+        <div className="space-y-2">
+          <Label>Advantage+ Audience</Label>
+          <Select
+            value={phase.metaAdvantagePlusAudience ? "true" : "false"}
+            onValueChange={(value) => onUpdate("metaAdvantagePlusAudience", value === "true")}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="false">Manual Audience Targeting</SelectItem>
+              <SelectItem value="true">Advantage+ Audience (Recommended)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Advantage+ Audience uses AI to find people most likely to convert, expanding beyond your targeting selections as suggestions
+          </p>
+        </div>
+
+        {/* Advantage+ Creative */}
+        <div className="space-y-2">
+          <Label>Advantage+ Creative</Label>
+          <Select
+            value={phase.metaAdvantagePlusCreative ? "true" : "false"}
+            onValueChange={(value) => onUpdate("metaAdvantagePlusCreative", value === "true")}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="false">Standard Creative</SelectItem>
+              <SelectItem value="true">Advantage+ Creative Optimization</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Automatically optimizes creative elements (brightness, contrast, aspect ratio) per viewer
+          </p>
+        </div>
+
+        {/* Catalog & Product Set - for Advantage+ Shopping */}
+        {phase.metaAdvantagePlusCampaign && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Catalog ID</Label>
+              <Input
+                placeholder="Meta Catalog ID"
+                value={phase.metaCatalogId || ""}
+                onChange={(e) => onUpdate("metaCatalogId", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Product Set ID</Label>
+              <Input
+                placeholder="Product Set ID (optional)"
+                value={phase.metaProductSetId || ""}
+                onChange={(e) => onUpdate("metaProductSetId", e.target.value)}
+              />
+            </div>
           </div>
         )}
 

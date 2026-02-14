@@ -86,6 +86,8 @@ export interface CreateAdGroupParams {
   viewWindow?: number;
   eventCount?: string; // "every_conversion" or "once"
   smartPlusEnabled?: boolean;
+  smartCreativeEnabled?: boolean;
+  autoTargetingEnabled?: boolean;
 }
 
 export interface CreateAdGroupResult {
@@ -205,24 +207,82 @@ class TikTokAdapter implements PlatformAdapter {
 
   async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
     try {
+      // Check if Smart+ campaign
+      const isSmartPlus = params.metadata?.smartPlusEnabled === true;
+
       // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERSIONS objective
       // Fall back to TRAFFIC to prevent campaign creation issues
       let finalObjective = params.objective;
       let objectiveFallbackApplied = false;
-      if (finalObjective === 'CONVERSIONS') {
+      if (finalObjective === 'CONVERSIONS' && !isSmartPlus) {
         console.warn("⚠️ CONVERSIONS objective detected - Falling back to TRAFFIC (TikTok requires 90+ days conversion data)");
         finalObjective = 'TRAFFIC';
         objectiveFallbackApplied = true;
       }
-      
+
+      if (isSmartPlus) {
+        // ============= SMART+ CAMPAIGN - USE DEDICATED API =============
+        console.log(`🚀 Creating TikTok Smart+ Campaign via /smart_plus/campaign/create/`);
+        
+        const smartPlusBody: any = {
+          advertiser_id: params.accountId,
+          campaign_name: params.campaignName,
+          objective_type: finalObjective,
+          budget_mode: params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL',
+          budget: Math.round(params.budget * 100) / 100,
+          operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
+        };
+
+        const endpoint = `${this.API_BASE}/smart_plus/campaign/create/`;
+        console.log("TikTok Smart+ Campaign creation request:", JSON.stringify(smartPlusBody, null, 2));
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Access-Token": params.accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(smartPlusBody),
+        });
+
+        const data = await response.json();
+
+        if (data.code !== 0) {
+          console.error("TikTok Smart+ campaign creation error:", JSON.stringify(data, null, 2));
+          // Fallback to regular campaign creation if Smart+ endpoint fails
+          console.warn("⚠️ Smart+ campaign creation failed, falling back to regular campaign with is_smart_performance_campaign flag");
+        } else {
+          console.log("TikTok Smart+ campaign created successfully:", data.data?.campaign_id);
+          return {
+            success: true,
+            campaignId: data.data.campaign_id,
+            platform: "tiktok",
+            metadata: {
+              ...data.data,
+              actual_objective: finalObjective,
+              original_objective: params.objective,
+              objective_fallback_applied: objectiveFallbackApplied,
+              is_smart_plus: true,
+            },
+          };
+        }
+      }
+
+      // ============= REGULAR CAMPAIGN CREATION =============
       const body: any = {
         advertiser_id: params.accountId,
         campaign_name: params.campaignName,
         objective_type: finalObjective,
         budget_mode: params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL',
-        budget: Math.round(params.budget * 100) / 100, // Round to 2 decimal places for currency precision
+        budget: Math.round(params.budget * 100) / 100,
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
+      
+      // If Smart+ was requested but dedicated endpoint failed, try flag approach
+      if (isSmartPlus) {
+        body.campaign_type = "SMART_PERFORMANCE_CAMPAIGN";
+        console.log(`🚀 Fallback: Setting campaign_type=SMART_PERFORMANCE_CAMPAIGN on regular endpoint`);
+      }
       
       const endpoint = `${this.API_BASE}/campaign/create/`;
       console.log("TikTok API Full Request:", {
@@ -266,6 +326,7 @@ class TikTokAdapter implements PlatformAdapter {
           actual_objective: finalObjective,
           original_objective: params.objective,
           objective_fallback_applied: objectiveFallbackApplied,
+          is_smart_plus: isSmartPlus,
         },
       };
     } catch (error: any) {
@@ -696,6 +757,14 @@ class TikTokAdapter implements PlatformAdapter {
       if (params.appId) body.app_id = params.appId;
       if (params.eventCount) body.event_count = params.eventCount; // "every_conversion" or "once"
       if (params.smartPlusEnabled) body.is_smart_performance_campaign = true;
+      if (params.smartCreativeEnabled) {
+        body.creative_material_mode = "DYNAMIC"; // Enable dynamic creative optimization
+        console.log(`✅ Smart Creative Optimization enabled - creative_material_mode=DYNAMIC`);
+      }
+      if (params.autoTargetingEnabled) {
+        body.auto_targeting_enabled = true;
+        console.log(`✅ Auto-Targeting enabled for TikTok ad group`);
+      }
       
       console.log(`✅ Ad group configuration complete:`, {
         optimization_goal: body.optimization_goal,

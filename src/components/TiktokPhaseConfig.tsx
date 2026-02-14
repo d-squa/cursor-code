@@ -732,33 +732,84 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
 
         {/* Smart+ Campaigns */}
         {showSmartPlus && (
-          <div className="space-y-2">
-            <Label>Smart+ Campaign</Label>
-            <Select
-              value={phase.tiktokSmartPlusEnabled ? "true" : "false"}
-              onValueChange={(value) => onUpdate("tiktokSmartPlusEnabled", value === "true")}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="false">Manual Campaign</SelectItem>
-                <SelectItem value="true">Smart+ Campaign</SelectItem>
-              </SelectContent>
-            </Select>
-            {phase.tiktokSmartPlusEnabled && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  <strong>Smart+ automatically enables:</strong>
-                  <ul className="mt-1 ml-4 list-disc space-y-1">
-                    <li>Automatic placements across TikTok network</li>
-                    <li>AI-powered audience targeting</li>
-                    <li>Automatic ad creative optimization</li>
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Smart+ Campaign</Label>
+              <Select
+                value={phase.tiktokSmartPlusEnabled ? "true" : "false"}
+                onValueChange={(value) => {
+                  const enabled = value === "true";
+                  onUpdate("tiktokSmartPlusEnabled", enabled);
+                  // When Smart+ is enabled, auto-enable related features
+                  if (enabled) {
+                    onUpdate("tiktokSmartCreativeEnabled", true);
+                    onUpdate("tiktokAutoTargetingEnabled", true);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">Manual Campaign</SelectItem>
+                  <SelectItem value="true">Smart+ Campaign</SelectItem>
+                </SelectContent>
+              </Select>
+              {phase.tiktokSmartPlusEnabled && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    <strong>Smart+ Performance Campaign uses a separate API:</strong>
+                    <ul className="mt-1 ml-4 list-disc space-y-1">
+                      <li>Automatic placements across TikTok network</li>
+                      <li>AI-powered audience targeting</li>
+                      <li>Automatic creative optimization</li>
+                      <li>Targeting & placements are auto-managed by TikTok</li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            {/* Smart Creative Optimization - shown even when Smart+ is off */}
+            <div className="space-y-2">
+              <Label>Smart Creative Optimization</Label>
+              <Select
+                value={phase.tiktokSmartCreativeEnabled ? "true" : "false"}
+                onValueChange={(value) => onUpdate("tiktokSmartCreativeEnabled", value === "true")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">Standard Creative</SelectItem>
+                  <SelectItem value="true">Smart Creative (AI-optimized)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                TikTok automatically optimizes creative elements per viewer
+              </p>
+            </div>
+
+            {/* Auto-Targeting - shown even when Smart+ is off */}
+            <div className="space-y-2">
+              <Label>Auto-Targeting</Label>
+              <Select
+                value={phase.tiktokAutoTargetingEnabled ? "true" : "false"}
+                onValueChange={(value) => onUpdate("tiktokAutoTargetingEnabled", value === "true")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="false">Manual Targeting</SelectItem>
+                  <SelectItem value="true">Auto-Targeting (AI-managed)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Let TikTok automatically find the best audience for your ads
+              </p>
+            </div>
           </div>
         )}
 

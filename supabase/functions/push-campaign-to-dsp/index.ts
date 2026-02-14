@@ -1742,6 +1742,17 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           special_ad_categories: [],
         };
 
+        // ============= ADVANTAGE+ SHOPPING CAMPAIGN SUPPORT =============
+        // When Advantage+ Shopping is enabled at phase level, add smart_promotion_type
+        // This creates an ASC campaign (requires OUTCOME_SALES objective)
+        const isAdvantagePlusCampaign = phase.metaAdvantagePlusCampaign === true;
+        if (isAdvantagePlusCampaign) {
+          campaignPayload.smart_promotion_type = "AUTOMATED_SHOPPING_ADS";
+          // Force objective to OUTCOME_SALES as required by ASC
+          campaignPayload.objective = "OUTCOME_SALES";
+          console.log(`🚀 Advantage+ Shopping Campaign enabled - setting smart_promotion_type=AUTOMATED_SHOPPING_ADS`);
+        }
+
         // If CBO is enabled, set budget at campaign level
         if (useCBOEarly) {
           if (earlyBudgetType === "lifetime") {
@@ -2668,6 +2679,39 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             { event_type: "VIEW_THROUGH", window_days: metaViewWindow },
           ];
 
+          // ============= ADVANTAGE+ AUDIENCE & CREATIVE SUPPORT =============
+          // Add targeting_automation for Advantage+ Audience
+          const advantagePlusAudience = phase.metaAdvantagePlusAudience === true;
+          if (advantagePlusAudience) {
+            adSetPayload.targeting_automation = { advantage_audience: 1 };
+            console.log(`🎯 Advantage+ Audience enabled - setting targeting_automation.advantage_audience=1`);
+          }
+
+          // For Advantage+ Shopping campaigns, enforce Advantage+ Audience
+          if (isAdvantagePlusCampaign) {
+            adSetPayload.targeting_automation = { advantage_audience: 1 };
+            console.log(`🎯 ASC campaign - forcing Advantage+ Audience`);
+          }
+
+          // Advantage+ Creative is set at ad level, but we log the intent here
+          const advantagePlusCreative = phase.metaAdvantagePlusCreative === true;
+          if (advantagePlusCreative) {
+            console.log(`🎨 Advantage+ Creative enabled for this phase - will apply to ad creatives`);
+          }
+
+          // Catalog/Product Set for Advantage+ Shopping
+          if (isAdvantagePlusCampaign && phase.metaCatalogId) {
+            adSetPayload.promoted_object = {
+              ...(adSetPayload.promoted_object || {}),
+              product_catalog_id: phase.metaCatalogId,
+            };
+            if (phase.metaProductSetId) {
+              adSetPayload.promoted_object.product_set_id = phase.metaProductSetId;
+            }
+            console.log(`🛒 ASC Catalog: ${phase.metaCatalogId}, Product Set: ${phase.metaProductSetId || 'all'}`);
+          }
+          // ============= END ADVANTAGE+ SUPPORT =============
+
           // Add destination URL for traffic campaigns
           if (
             metaLandingPageUrl &&
@@ -3401,6 +3445,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}_${generateTimestampSuffix()}`;
 
+        // Determine if Smart+ campaign
+        const isSmartPlusCampaign = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled ?? false;
+
         // Create TikTok campaign
         const campaignResult = await tiktokAdapter.createCampaign({
           accountId: advertiserId,
@@ -3412,6 +3459,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           startDate: startDate.toISOString().split("T")[0],
           endDate: endDate.toISOString().split("T")[0],
           status: "PAUSED",
+          metadata: {
+            smartPlusEnabled: isSmartPlusCampaign,
+          },
         });
 
         if (!campaignResult.success) {
@@ -3757,6 +3807,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           viewWindow: tiktokViewWindow,
           eventCount: tiktokEventCount,
           smartPlusEnabled: tiktokSmartPlusEnabled,
+          smartCreativeEnabled: phase.tiktokSmartCreativeEnabled ?? market.tiktokSmartCreativeEnabled,
+          autoTargetingEnabled: phase.tiktokAutoTargetingEnabled ?? market.tiktokAutoTargetingEnabled,
         });
 
         console.log(`🚀 CALLING tiktokAdapter.createAdGroup for ${phase.name}...`);
