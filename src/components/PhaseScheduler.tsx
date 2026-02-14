@@ -7,7 +7,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink, Lock } from "lucide-react";
+import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink, Lock, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
@@ -124,6 +125,11 @@ interface PhaseSchedulerProps {
     tiktokClickWindow?: number;
     tiktokViewWindow?: number;
     tiktokBillingEvent?: string;
+    // Catalog & Product Set defaults
+    metaCatalogId?: string;
+    metaProductSetId?: string;
+    tiktokCatalogId?: string;
+    tiktokProductSetId?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -2016,9 +2022,26 @@ export function PhaseScheduler({
                         )}
                       </div>
 
-                      {/* Audience Selection - hidden when broad targeting is active */}
+                      {/* Audience Selection - hidden when broad targeting or AI-managed audience is active */}
                       {(() => {
                         if (phase.useBroadTargeting) return null;
+                        
+                        // Hide audience selector when Advantage+ Audience (Meta) or Auto-Targeting (TikTok) is enabled
+                        const isMeta = platformId?.toLowerCase() === 'meta';
+                        const isTikTok = platformId?.toLowerCase() === 'tiktok';
+                        const isAiAudience = (isMeta && (phase.metaAdvantagePlusAudience || phase.metaAdvantagePlusCampaign)) || 
+                                             (isTikTok && (phase.tiktokAutoTargetingEnabled || phase.tiktokSmartPlusEnabled));
+                        
+                        if (isAiAudience) {
+                          return (
+                            <Alert className="border-primary/30 bg-primary/5">
+                              <Info className="h-4 w-4 text-primary" />
+                              <AlertDescription className="text-xs">
+                                <strong>{isMeta ? 'Advantage+ Audience' : 'Smart+ Auto-Targeting'} is active.</strong> Audience targeting is fully managed by {isMeta ? 'Meta' : 'TikTok'} AI. {isMeta ? 'Manual selections are used as suggestions only.' : 'Manual audience selections will be ignored.'}
+                              </AlertDescription>
+                            </Alert>
+                          );
+                        }
 
                         return (
                           <SplittableSection
@@ -2734,59 +2757,65 @@ export function PhaseScheduler({
                       })()}
 
                       {/* Publisher Platforms & Placements with Split Button */}
-                      <SplittableSection
-                        dimension="placement"
-                        dimensionLabel="Placement"
-                        currentSplitDimension={phase.adSetSplitDimension}
-                        onSplitClick={(dim, useCBO) => {
-                          const newDimension = dim === 'none' ? undefined : dim;
-                          const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
-                            platformId: platformId || 'meta',
-                            availablePlacements: getPlacementsForSelection(platformName, phase.assetTypes || []),
-                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
-                            currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
-                            currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
-                            currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
-                            currentDevices: phase.targeting?.devices || basicTargeting?.devices,
-                            currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
-                            currentOptimizationGoal: phase.optimizationGoal,
-                          }) : undefined;
-                          updatePhaseFields(phase.id, { 
-                            adSetSplitDimension: newDimension,
-                            adSets: newAdSets,
-                            useCBO: useCBO,
-                          });
-                          // Trigger scroll to split manager
-                          if (newDimension) {
-                            setScrollToSplitPhaseId(phase.id);
-                          }
-                        }}
-                      >
-                        <div className="space-y-2">
-                          <CampaignPublisherConfig
-                            platformName={platformName}
-                            publisherPlatforms={phase.publisherPlatforms || []}
-                            positions={phase.positions || {}}
-                            advantagePlusPlacements={phase.advantagePlusPlacements}
-                            placementPreset={phase.placementPreset}
-                            onPublisherPlatformsChange={(publishers) => 
-                              updatePhaseField(phase.id, "publisherPlatforms", publishers)
+                      {/* Hidden when Advantage+ Shopping (Meta) or Smart+ (TikTok) is enabled - placements auto-managed */}
+                      {!(
+                        (platformId?.toLowerCase() === 'meta' && phase.metaAdvantagePlusCampaign) ||
+                        (platformId?.toLowerCase() === 'tiktok' && phase.tiktokSmartPlusEnabled)
+                      ) && (
+                        <SplittableSection
+                          dimension="placement"
+                          dimensionLabel="Placement"
+                          currentSplitDimension={phase.adSetSplitDimension}
+                          onSplitClick={(dim, useCBO) => {
+                            const newDimension = dim === 'none' ? undefined : dim;
+                            const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                              platformId: platformId || 'meta',
+                              availablePlacements: getPlacementsForSelection(platformName, phase.assetTypes || []),
+                              availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                              currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                              currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                              currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                              currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                              currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                              currentOptimizationGoal: phase.optimizationGoal,
+                            }) : undefined;
+                            updatePhaseFields(phase.id, { 
+                              adSetSplitDimension: newDimension,
+                              adSets: newAdSets,
+                              useCBO: useCBO,
+                            });
+                            // Trigger scroll to split manager
+                            if (newDimension) {
+                              setScrollToSplitPhaseId(phase.id);
                             }
-                            onPositionsChange={(positions) => 
-                              updatePhaseField(phase.id, "positions", positions)
-                            }
-                            onAdvantagePlusPlacementsChange={(enabled) =>
-                              updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
-                            }
-                            onPlacementPresetChange={(preset) =>
-                              updatePhaseField(phase.id, "placementPreset", preset)
-                            }
-                            onBatchUpdate={(updates) => 
-                              updatePhaseFields(phase.id, updates)
-                            }
-                          />
-                        </div>
-                      </SplittableSection>
+                          }}
+                        >
+                          <div className="space-y-2">
+                            <CampaignPublisherConfig
+                              platformName={platformName}
+                              publisherPlatforms={phase.publisherPlatforms || []}
+                              positions={phase.positions || {}}
+                              advantagePlusPlacements={phase.advantagePlusPlacements}
+                              placementPreset={phase.placementPreset}
+                              onPublisherPlatformsChange={(publishers) => 
+                                updatePhaseField(phase.id, "publisherPlatforms", publishers)
+                              }
+                              onPositionsChange={(positions) => 
+                                updatePhaseField(phase.id, "positions", positions)
+                              }
+                              onAdvantagePlusPlacementsChange={(enabled) =>
+                                updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
+                              }
+                              onPlacementPresetChange={(preset) =>
+                                updatePhaseField(phase.id, "placementPreset", preset)
+                              }
+                              onBatchUpdate={(updates) => 
+                                updatePhaseFields(phase.id, updates)
+                              }
+                            />
+                          </div>
+                        </SplittableSection>
+                      )}
 
                       {/* Ad Format Split Option - Meta only */}
                       {platformName.includes("Meta") && (

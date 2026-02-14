@@ -3,11 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, ShieldCheck } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { getOptimizationGoalsForObjective, getBillingEventForGoal } from "@/utils/objectiveOptimizationMapping";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AdAccountDefaults {
   metaBidStrategy?: string;
@@ -16,6 +18,8 @@ interface AdAccountDefaults {
   metaViewWindow?: number;
   metaBillingEvent?: string;
   metaAdvantagePlusCampaign?: boolean;
+  metaCatalogId?: string;
+  metaProductSetId?: string;
   [key: string]: any;
 }
 
@@ -27,10 +31,38 @@ interface MetaPhaseConfigProps {
 
 export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhaseConfigProps) {
   const { hasAccess } = useFeatureAccess();
+  const { user } = useAuth();
   const canInheritDefaults = hasAccess('bid_strategy_defaults');
+  
+  // Catalog & Product Set data from DB
+  const [catalogs, setCatalogs] = useState<Array<{ catalog_id: string; catalog_name: string }>>([]);
+  const [productSets, setProductSets] = useState<Array<{ product_set_id: string; product_set_name: string; catalog_id: string }>>([]);
   
   // Track if defaults have been applied to prevent infinite loops
   const defaultsAppliedRef = useRef(false);
+  
+  // Load catalogs and product sets from DB
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const loadCatalogData = async () => {
+      const [catalogsRes, productSetsRes] = await Promise.all([
+        supabase.from("meta_catalogs" as any).select("catalog_id, catalog_name").eq("user_id", user.id),
+        supabase.from("meta_product_sets" as any).select("product_set_id, product_set_name, catalog_id").eq("user_id", user.id),
+      ]);
+      
+      if (catalogsRes.data) setCatalogs(catalogsRes.data as any);
+      if (productSetsRes.data) setProductSets(productSetsRes.data as any);
+    };
+    
+    loadCatalogData();
+  }, [user?.id]);
+  
+  // Filter product sets by selected catalog
+  const filteredProductSets = useMemo(() => {
+    if (!phase.metaCatalogId) return productSets;
+    return productSets.filter(ps => ps.catalog_id === phase.metaCatalogId);
+  }, [phase.metaCatalogId, productSets]);
   
   // Reset defaults tracking when phase ID changes (new phase)
   useEffect(() => {
@@ -62,6 +94,13 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
     }
     if (!phase.metaBillingEvent && adAccountDefaults.metaBillingEvent) {
       onUpdate("metaBillingEvent", adAccountDefaults.metaBillingEvent);
+    }
+    // Auto-populate catalog & product set from ad account defaults
+    if (!phase.metaCatalogId && adAccountDefaults.metaCatalogId) {
+      onUpdate("metaCatalogId", adAccountDefaults.metaCatalogId);
+    }
+    if (!phase.metaProductSetId && adAccountDefaults.metaProductSetId) {
+      onUpdate("metaProductSetId", adAccountDefaults.metaProductSetId);
     }
   }, [adAccountDefaults, phase.id, canInheritDefaults]);
   
@@ -248,44 +287,88 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
         {phase.metaAdvantagePlusCampaign && (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Catalog ID</Label>
-              <Input
-                placeholder="Meta Catalog ID"
-                value={phase.metaCatalogId || ""}
-                onChange={(e) => onUpdate("metaCatalogId", e.target.value)}
-              />
+              <Label>Catalog</Label>
+              {catalogs.length > 0 ? (
+                <Select
+                  value={phase.metaCatalogId || undefined}
+                  onValueChange={(value) => {
+                    onUpdate("metaCatalogId", value);
+                    // Clear product set when catalog changes
+                    onUpdate("metaProductSetId", undefined);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select catalog" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {catalogs.map((c) => (
+                      <SelectItem key={c.catalog_id} value={c.catalog_id}>
+                        {c.catalog_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="No catalogs synced" disabled className="bg-muted" />
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Product Set ID</Label>
-              <Input
-                placeholder="Product Set ID (optional)"
-                value={phase.metaProductSetId || ""}
-                onChange={(e) => onUpdate("metaProductSetId", e.target.value)}
-              />
+              <Label>Product Set</Label>
+              {filteredProductSets.length > 0 ? (
+                <Select
+                  value={phase.metaProductSetId || undefined}
+                  onValueChange={(value) => onUpdate("metaProductSetId", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select product set (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredProductSets.map((ps) => (
+                      <SelectItem key={ps.product_set_id} value={ps.product_set_id}>
+                        {ps.product_set_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder={phase.metaCatalogId ? "No product sets for this catalog" : "Select a catalog first"} disabled className="bg-muted" />
+              )}
             </div>
           </div>
         )}
 
-        {/* Bid Strategy */}
-        <div className="space-y-2">
-          <Label>Bid Strategy</Label>
-          <Select
-            value={phase.metaBidStrategy || undefined}
-            onValueChange={(value) => onUpdate("metaBidStrategy", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={selectPlaceholder} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="LOWEST_COST_WITHOUT_CAP">Lowest Cost (Automatic)</SelectItem>
-              <SelectItem value="LOWEST_COST_WITH_BID_CAP">Lowest Cost with Bid Cap</SelectItem>
-              <SelectItem value="COST_CAP">Cost Cap</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Advantage+ Auto-managed Alert */}
+        {phase.metaAdvantagePlusAudience && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-xs">
+              <strong>Advantage+ Audience is active.</strong> Audience targeting is fully managed by Meta AI. Manual audience selections will be used as suggestions only.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Bid Amount */}
-        {showBidAmount && (
+        {/* Bid Strategy - hidden when Advantage+ Shopping is enabled (auto-managed) */}
+        {!phase.metaAdvantagePlusCampaign && (
+          <div className="space-y-2">
+            <Label>Bid Strategy</Label>
+            <Select
+              value={phase.metaBidStrategy || undefined}
+              onValueChange={(value) => onUpdate("metaBidStrategy", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={selectPlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LOWEST_COST_WITHOUT_CAP">Lowest Cost (Automatic)</SelectItem>
+                <SelectItem value="LOWEST_COST_WITH_BID_CAP">Lowest Cost with Bid Cap</SelectItem>
+                <SelectItem value="COST_CAP">Cost Cap</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Bid Amount - hidden when Advantage+ Shopping is enabled */}
+        {showBidAmount && !phase.metaAdvantagePlusCampaign && (
           <div className="space-y-2">
             <Label>Bid Amount (€)</Label>
             <Input
