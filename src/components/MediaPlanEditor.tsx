@@ -2515,6 +2515,11 @@ export function MediaPlanEditor() {
                           tiktokClickWindow: (singleMarket as any).tiktokClickWindow,
                           tiktokViewWindow: (singleMarket as any).tiktokViewWindow,
                           tiktokBillingEvent: (singleMarket as any).tiktokBillingEvent,
+                          // Catalog & Product Set defaults
+                          metaCatalogId: singleMarket.catalog,
+                          metaProductSetId: singleMarket.productSet,
+                          tiktokCatalogId: (singleMarket as any).tiktokCatalogId,
+                          tiktokProductSetId: (singleMarket as any).tiktokProductSetId,
                         }}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets((prev) =>
@@ -2830,6 +2835,11 @@ export function MediaPlanEditor() {
                                               tiktokClickWindow: (market as any).tiktokClickWindow,
                                               tiktokViewWindow: (market as any).tiktokViewWindow,
                                               tiktokBillingEvent: (market as any).tiktokBillingEvent,
+                                              // Catalog & Product Set defaults
+                                              metaCatalogId: market.catalog,
+                                              metaProductSetId: market.productSet,
+                                              tiktokCatalogId: (market as any).tiktokCatalogId,
+                                              tiktokProductSetId: (market as any).tiktokProductSetId,
                                             }}
                                             marketTargeting={{
                                               ageMin: market.ageMin || genericConfig.targeting?.ageMin,

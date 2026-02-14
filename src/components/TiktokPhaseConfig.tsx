@@ -3,9 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, ShieldCheck } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   getValidTikTokLocations, 
   objectiveRequiresLocation,
@@ -43,8 +45,36 @@ interface TiktokPhaseConfigProps {
 
 export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: TiktokPhaseConfigProps) {
   const { hasAccess } = useFeatureAccess();
+  const { user } = useAuth();
   const canInheritDefaults = hasAccess('bid_strategy_defaults');
   const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
+  
+  // Catalog & Product Set data from DB
+  const [tiktokCatalogs, setTiktokCatalogs] = useState<Array<{ catalog_id: string; catalog_name?: string }>>([]);
+  const [tiktokProductSets, setTiktokProductSets] = useState<Array<{ product_set_id: string; product_set_name: string; catalog_id: string }>>([]);
+  
+  // Load TikTok catalogs and product sets
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const loadData = async () => {
+      const [catalogsRes, productSetsRes] = await Promise.all([
+        supabase.from("tiktok_catalogs" as any).select("catalog_id, catalog_name").eq("user_id", user.id),
+        supabase.from("tiktok_product_sets" as any).select("product_set_id, product_set_name, catalog_id").eq("user_id", user.id),
+      ]);
+      
+      if (catalogsRes.data) setTiktokCatalogs(catalogsRes.data as any);
+      if (productSetsRes.data) setTiktokProductSets(productSetsRes.data as any);
+    };
+    
+    loadData();
+  }, [user?.id]);
+  
+  // Filter product sets by selected catalog
+  const filteredTiktokProductSets = useMemo(() => {
+    if (!phase.tiktokCatalog) return tiktokProductSets;
+    return tiktokProductSets.filter(ps => ps.catalog_id === phase.tiktokCatalog);
+  }, [phase.tiktokCatalog, tiktokProductSets]);
   
   // Track if defaults have been applied to prevent infinite loops
   const defaultsAppliedRef = useRef(false);
@@ -712,20 +742,51 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Catalog</Label>
-              <Input
-                placeholder="Catalog ID"
-                value={phase.tiktokCatalog || ""}
-                onChange={(e) => onUpdate("tiktokCatalog", e.target.value)}
-              />
+              {tiktokCatalogs.length > 0 ? (
+                <Select
+                  value={phase.tiktokCatalog || undefined}
+                  onValueChange={(value) => {
+                    onUpdate("tiktokCatalog", value);
+                    onUpdate("tiktokProductSet", undefined);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select catalog" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tiktokCatalogs.map((c) => (
+                      <SelectItem key={c.catalog_id} value={c.catalog_id}>
+                        {c.catalog_name || c.catalog_id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder="No catalogs synced" disabled className="bg-muted" />
+              )}
             </div>
 
             <div className="space-y-2">
               <Label>Product Set</Label>
-              <Input
-                placeholder="Product Set ID"
-                value={phase.tiktokProductSet || ""}
-                onChange={(e) => onUpdate("tiktokProductSet", e.target.value)}
-              />
+              {filteredTiktokProductSets.length > 0 ? (
+                <Select
+                  value={phase.tiktokProductSet || undefined}
+                  onValueChange={(value) => onUpdate("tiktokProductSet", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select product set" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredTiktokProductSets.map((ps) => (
+                      <SelectItem key={ps.product_set_id} value={ps.product_set_id}>
+                        {ps.product_set_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input placeholder={phase.tiktokCatalog ? "No product sets" : "Select catalog first"} disabled className="bg-muted" />
+              )}
             </div>
           </div>
         )}
@@ -813,66 +874,80 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
           </div>
         )}
 
-        {/* Placement Type */}
-        <div className="space-y-2">
-          <Label>Placement Type</Label>
-          <Select
-            value={phase.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC"}
-            onValueChange={(value) => {
-              onUpdate("tiktokPlacementType", value);
-              // Select all placements when switching to automatic
-              if (value === "PLACEMENT_TYPE_AUTOMATIC") {
-                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
-              }
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="PLACEMENT_TYPE_AUTOMATIC">Automatic Placement</SelectItem>
-              <SelectItem value="PLACEMENT_TYPE_NORMAL">Manual Placement</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Automatic lets TikTok optimize. Manual lets you select specific positions.
-          </p>
-        </div>
+        {/* Auto-Targeting Alert */}
+        {phase.tiktokAutoTargetingEnabled && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-xs">
+              <strong>Auto-Targeting is active.</strong> Audience targeting is fully managed by TikTok AI. Manual audience selections will be ignored.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Manual Placements - Only show when manual placement is selected */}
-        {phase.tiktokPlacementType === "PLACEMENT_TYPE_NORMAL" && (
-          <div className="space-y-2">
-            <Label>Placements</Label>
+        {/* Placement Type - hidden when Smart+ is enabled (auto-managed) */}
+        {!phase.tiktokSmartPlusEnabled && (
+          <>
             <div className="space-y-2">
-              {[
-                { value: "PLACEMENT_TIKTOK", label: "TikTok" },
-                { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
-                { value: "PLACEMENT_PANGLE", label: "Pangle" },
-              ].map((placement) => (
-                <label key={placement.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]).includes(placement.value)}
-                    onChange={(e) => {
-                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
-                      if (e.target.checked) {
-                        onUpdate("tiktokPlacements", [...currentPlacements, placement.value]);
-                      } else {
-                        const filtered = currentPlacements.filter(p => p !== placement.value);
-                        // Ensure at least one placement is selected
-                        onUpdate("tiktokPlacements", filtered.length > 0 ? filtered : ["PLACEMENT_TIKTOK"]);
-                      }
-                    }}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm">{placement.label}</span>
-                </label>
-              ))}
+              <Label>Placement Type</Label>
+              <Select
+                value={phase.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC"}
+                onValueChange={(value) => {
+                  onUpdate("tiktokPlacementType", value);
+                  // Select all placements when switching to automatic
+                  if (value === "PLACEMENT_TYPE_AUTOMATIC") {
+                    onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PLACEMENT_TYPE_AUTOMATIC">Automatic Placement</SelectItem>
+                  <SelectItem value="PLACEMENT_TYPE_NORMAL">Manual Placement</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Automatic lets TikTok optimize. Manual lets you select specific positions.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              TikTok: Main feed. Global App Bundle: Partner apps. Pangle: Audience network.
-            </p>
-          </div>
+
+            {/* Manual Placements - Only show when manual placement is selected */}
+            {phase.tiktokPlacementType === "PLACEMENT_TYPE_NORMAL" && (
+              <div className="space-y-2">
+                <Label>Placements</Label>
+                <div className="space-y-2">
+                  {[
+                    { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+                    { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
+                    { value: "PLACEMENT_PANGLE", label: "Pangle" },
+                  ].map((placement) => (
+                    <label key={placement.value} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]).includes(placement.value)}
+                        onChange={(e) => {
+                          const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
+                          if (e.target.checked) {
+                            onUpdate("tiktokPlacements", [...currentPlacements, placement.value]);
+                          } else {
+                            const filtered = currentPlacements.filter(p => p !== placement.value);
+                            // Ensure at least one placement is selected
+                            onUpdate("tiktokPlacements", filtered.length > 0 ? filtered : ["PLACEMENT_TIKTOK"]);
+                          }
+                        }}
+                        className="rounded border-input"
+                      />
+                      <span className="text-sm">{placement.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  TikTok: Main feed. Global App Bundle: Partner apps. Pangle: Audience network.
+                </p>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
