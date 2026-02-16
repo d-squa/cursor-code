@@ -4,7 +4,6 @@ import { MediaPlanEditor } from "@/components/MediaPlanEditor";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Target, Zap, LogOut, Settings, Bug } from "lucide-react";
-import { BugReportDialog } from "@/components/BugReportDialog";
 
 const AppHome = () => {
   const { user, signOut } = useAuth();
@@ -93,9 +92,6 @@ const AppHome = () => {
         <MediaPlanEditor />
       </section>
 
-      {/* Bug Report Dialog */}
-      <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
-    </div>
   );
 };
 
