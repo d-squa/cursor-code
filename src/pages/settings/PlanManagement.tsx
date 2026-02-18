@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -123,6 +123,8 @@ export default function PlanManagement() {
     }
   }, [hookLoading, isSubscribed, navigate]);
 
+  const postCheckoutHandledRef = useRef(false);
+
   useEffect(() => {
     // Check for success/canceled from Stripe redirect
     const handlePostCheckout = async () => {
@@ -130,6 +132,17 @@ export default function PlanManagement() {
       const sessionId = searchParams.get("session_id");
       const canceled = searchParams.get("canceled");
       const portalReturn = searchParams.get("portal_return");
+
+      // Early exit if no relevant params
+      if (!success && !canceled && !portalReturn) {
+        return;
+      }
+
+      // Prevent duplicate execution across React re-renders
+      if (postCheckoutHandledRef.current) {
+        return;
+      }
+      postCheckoutHandledRef.current = true;
 
       // GTM-friendly params (added by backend when creating checkout session)
       const planName = searchParams.get("plan_name");
@@ -140,11 +153,6 @@ export default function PlanManagement() {
       const price = searchParams.get("price");
       const quantity = searchParams.get("quantity");
       const currency = searchParams.get("currency");
-
-      // Early exit if no relevant params
-      if (!success && !canceled && !portalReturn) {
-        return;
-      }
 
       try {
         // Push to dataLayer BEFORE we clear URL params (so GTM can reliably pick it up)
