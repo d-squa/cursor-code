@@ -11,7 +11,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube } from "lucide-react";
+import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube, LogOut } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -87,7 +89,7 @@ function MetricCard({ title, value, icon: Icon, description, color }: { title: s
 }
 
 export default function AdminDashboard() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [filterOptions, setFilterOptions] = useState<FilterOptions | null>(null);
@@ -276,10 +278,36 @@ export default function AdminDashboard() {
               <p className="text-sm text-muted-foreground">Real-time platform utilization & analytics</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => fetchStats(activeFilters)} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => fetchStats(activeFilters)} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2 h-9 px-2">
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-xs bg-primary text-primary-foreground">
+                      {user?.email?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium max-w-[180px] truncate hidden sm:inline">
+                    {user?.email}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium truncate">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.id}</p>
+                </div>
+                <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive cursor-pointer">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
