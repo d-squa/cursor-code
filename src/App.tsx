@@ -45,6 +45,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
+import { MarketingGTM } from "./components/MarketingGTM";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+          <MarketingGTM />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
