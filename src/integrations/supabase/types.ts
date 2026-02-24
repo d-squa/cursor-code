@@ -1592,6 +1592,80 @@ export type Database = {
           },
         ]
       }
+      dsp_config_changes: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          actiplan_value: string | null
+          campaign_id: string
+          change_category: string
+          created_at: string
+          detected_at: string
+          dsp_entity_id: string
+          dsp_value: string | null
+          entity_name: string | null
+          entity_type: string
+          field_label: string | null
+          field_name: string
+          id: string
+          is_acknowledged: boolean
+          market: string | null
+          phase_name: string | null
+          platform: string
+          synced_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          actiplan_value?: string | null
+          campaign_id: string
+          change_category: string
+          created_at?: string
+          detected_at?: string
+          dsp_entity_id: string
+          dsp_value?: string | null
+          entity_name?: string | null
+          entity_type: string
+          field_label?: string | null
+          field_name: string
+          id?: string
+          is_acknowledged?: boolean
+          market?: string | null
+          phase_name?: string | null
+          platform: string
+          synced_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          actiplan_value?: string | null
+          campaign_id?: string
+          change_category?: string
+          created_at?: string
+          detected_at?: string
+          dsp_entity_id?: string
+          dsp_value?: string | null
+          entity_name?: string | null
+          entity_type?: string
+          field_label?: string | null
+          field_name?: string
+          id?: string
+          is_acknowledged?: boolean
+          market?: string | null
+          phase_name?: string | null
+          platform?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsp_config_changes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
