@@ -34,6 +34,8 @@ import { format } from "date-fns";
 
 import { LaunchProgressTracker } from "@/components/launch/LaunchProgressTracker";
 import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/LaunchFilters";
+import { DspConfigChangesView } from "@/components/launch/DspConfigChangesView";
+import { useDspConfigSync } from "@/hooks/useDspConfigSync";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
 import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
@@ -161,6 +163,22 @@ export default function LaunchStatus() {
     loading: progressLoading,
     refresh: refreshProgress,
   } = useLaunchProgress({ campaignId, enabled: !!campaignId && !!user });
+
+  // DSP config sync - auto-syncs on mount for pushed campaigns
+  const hasPushedEntities = statuses.some(s => ['pushed_to_dsp', 'live', 'partially_pushed'].includes(s.status));
+  const {
+    changes: dspChanges,
+    unacknowledgedCount: dspUnacknowledgedCount,
+    syncing: dspSyncing,
+    lastSyncedAt: dspLastSyncedAt,
+    syncFromDsp,
+    acknowledgeChange,
+    acknowledgeAll,
+  } = useDspConfigSync({
+    campaignId,
+    enabled: !!campaignId && !!user && hasPushedEntities,
+    autoSyncOnMount: hasPushedEntities,
+  });
 
   const getNextTierName = (): string => {
     const tierOrder: SubscriptionTier[] = ["trial", "basic", "freelancer", "enterprise", "agency"];
@@ -1218,6 +1236,21 @@ export default function LaunchStatus() {
               Download Shell
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* DSP Config Sync - shows when campaign has been pushed */}
+      {hasPushedEntities && campaignId && (
+        <div className="mb-6">
+          <DspConfigChangesView
+            changes={dspChanges}
+            unacknowledgedCount={dspUnacknowledgedCount}
+            syncing={dspSyncing}
+            lastSyncedAt={dspLastSyncedAt}
+            onSync={syncFromDsp}
+            onAcknowledge={acknowledgeChange}
+            onAcknowledgeAll={acknowledgeAll}
+          />
         </div>
       )}
 
