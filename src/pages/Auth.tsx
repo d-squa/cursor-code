@@ -27,6 +27,10 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [showPostConfirmSuccess, setShowPostConfirmSuccess] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const navigate = useNavigate();
   const { registerSession, startValidation, clearSession } = useSessionManager();
 
@@ -266,6 +270,23 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+      toast.success("Password reset email sent!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send reset email");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     try {
       // Clear any stale onboarding data from previous sessions
@@ -282,6 +303,79 @@ export default function Auth() {
       toast.error(error.message || "Failed to sign in with Google");
     }
   };
+
+  // Show forgot password screen
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
+            </div>
+            <CardTitle className="text-2xl">{forgotSent ? "Check Your Email" : "Reset Password"}</CardTitle>
+            <CardDescription>
+              {forgotSent
+                ? `We've sent a password reset link to ${forgotEmail}`
+                : "Enter your email and we'll send you a reset link"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {forgotSent ? (
+              <div className="space-y-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Didn't receive the email? Check your spam folder or try again.
+                </p>
+                <Button variant="outline" className="w-full" onClick={() => { setForgotSent(false); }}>
+                  Try again
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotPassword(false); setForgotSent(false); setForgotEmail(""); }}
+                  className="text-sm text-primary hover:underline"
+                >
+                  ← Back to sign in
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="forgot-email">Email</Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={forgotLoading}>
+                  {forgotLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Send Reset Link"
+                  )}
+                </Button>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPassword(false); setForgotEmail(""); }}
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    ← Back to sign in
+                  </button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Show post-confirmation success screen
   if (showPostConfirmSuccess) {
@@ -424,6 +518,17 @@ export default function Auth() {
               <p className="text-xs text-muted-foreground mt-1">
                 Minimum 8 characters required
               </p>
+              {isLogin && (
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPassword(true); setForgotEmail(email); }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
             </div>
             {!isLogin && (
               <div className="space-y-2">
