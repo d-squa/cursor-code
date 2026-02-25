@@ -17,6 +17,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import AppHome from "./pages/AppHome";
 import Overview from "./pages/Overview";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Onboarding from "./pages/Onboarding";
 import ChoosePlan from "./pages/ChoosePlan";
 import ManageClientAccounts from "./pages/ManageClientAccounts";
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/ai-media-buying-software" element={<LandingE />} />
             <Route path="/cross-platform-ad-management-software" element={<LandingF />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
