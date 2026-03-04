@@ -120,32 +120,36 @@ export const OnboardingWizard = () => {
           if (subData?.subscribed) {
             toast.success("Welcome to ActiPlan! Let's get started.");
             navigate("/overview");
-          } else {
-            // Check if user came from a custom landing page - auto-activate trial
-            const signupSource = localStorage.getItem("actiplan_signup_source");
-            if (signupSource === "landing") {
-              try {
-                const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
-                  headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                  },
-                });
+            } else {
+              // Check if user came from a custom landing page - auto-activate trial
+              const signupSource = localStorage.getItem("actiplan_signup_source");
+              if (signupSource === "landing") {
+                try {
+                  const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
+                    headers: {
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                  });
 
-                if (!trialError && trialData?.success) {
-                  localStorage.removeItem("actiplan_signup_source");
-                  toast.success("Welcome! Your 30-day free trial has started.");
-                  navigate("/overview");
-                  return;
+                  if (!trialError && (trialData?.success || trialData?.alreadySubscribed)) {
+                    localStorage.removeItem("actiplan_signup_source");
+                    toast.success("Welcome! Your 30-day free trial has started.");
+                    navigate("/overview");
+                    return;
+                  }
+                } catch (err) {
+                  console.error("Error activating free trial:", err);
                 }
-              } catch (err) {
-                console.error("Error activating free trial:", err);
+                // Even if trial activation failed, don't force checkout for landing users
+                localStorage.removeItem("actiplan_signup_source");
+                navigate("/overview");
+                return;
               }
-            }
 
-            // Not from landing page or trial activation failed - use standard checkout
-            toast.success("Almost there! Complete your free trial setup.");
-            await startBasicTrial();
-          }
+              // Not from landing page - use standard checkout
+              toast.success("Almost there! Complete your free trial setup.");
+              await startBasicTrial();
+            }
         } catch (error) {
           console.error("Error checking subscription:", error);
           // On error, still try to start trial checkout
@@ -411,10 +415,35 @@ export const OnboardingWizard = () => {
                   if (subData?.subscribed) {
                     navigate("/overview");
                   } else {
-                    await startBasicTrial();
+                    const signupSource = localStorage.getItem("actiplan_signup_source");
+                    if (signupSource === "landing") {
+                      try {
+                        const { data: trialData } = await supabase.functions.invoke("activate-free-trial", {
+                          headers: { Authorization: `Bearer ${session.access_token}` },
+                        });
+                        if (trialData?.success || trialData?.alreadySubscribed) {
+                          localStorage.removeItem("actiplan_signup_source");
+                          toast.success("Welcome! Your 30-day free trial has started.");
+                          navigate("/overview");
+                          return;
+                        }
+                      } catch (err) {
+                        console.error("Error activating free trial:", err);
+                      }
+                      localStorage.removeItem("actiplan_signup_source");
+                      navigate("/overview");
+                    } else {
+                      await startBasicTrial();
+                    }
                   }
                 } catch (error) {
-                  await startBasicTrial();
+                  const signupSource = localStorage.getItem("actiplan_signup_source");
+                  if (signupSource === "landing") {
+                    localStorage.removeItem("actiplan_signup_source");
+                    navigate("/overview");
+                  } else {
+                    await startBasicTrial();
+                  }
                 }
               } else {
                 setShowEmailConfirmation(true);
