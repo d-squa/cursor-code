@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
@@ -313,6 +313,10 @@ const pricingTiers = [
 const Landing = () => {
   const navigate = useNavigate();
   const [isYearly, setIsYearly] = useState(true);
+
+  useEffect(() => {
+    localStorage.setItem("actiplan_signup_source", "landing");
+  }, []);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });

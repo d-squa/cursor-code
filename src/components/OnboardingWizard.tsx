@@ -107,7 +107,7 @@ export const OnboardingWizard = () => {
       }
 
       if (hasSession && session) {
-        // User already confirmed email - check subscription and redirect to payment
+        // User already confirmed email - check subscription and redirect
         localStorage.removeItem("actiplan_pending_signup_email");
         
         try {
@@ -121,7 +121,28 @@ export const OnboardingWizard = () => {
             toast.success("Welcome to ActiPlan! Let's get started.");
             navigate("/overview");
           } else {
-            // Not subscribed - automatically start Basic Monthly trial checkout
+            // Check if user came from a custom landing page - auto-activate trial
+            const signupSource = localStorage.getItem("actiplan_signup_source");
+            if (signupSource === "landing") {
+              try {
+                const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
+                  headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                });
+
+                if (!trialError && trialData?.success) {
+                  localStorage.removeItem("actiplan_signup_source");
+                  toast.success("Welcome! Your 30-day free trial has started.");
+                  navigate("/overview");
+                  return;
+                }
+              } catch (err) {
+                console.error("Error activating free trial:", err);
+              }
+            }
+
+            // Not from landing page or trial activation failed - use standard checkout
             toast.success("Almost there! Complete your free trial setup.");
             await startBasicTrial();
           }
