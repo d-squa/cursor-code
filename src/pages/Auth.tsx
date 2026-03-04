@@ -177,7 +177,34 @@ export default function Auth() {
                 return;
               }
 
-              // No subscription - redirect to choose plan (don't auto-start checkout)
+              // Check if user came from a custom landing page - auto-activate trial
+              const signupSource = localStorage.getItem("actiplan_signup_source");
+              if (signupSource === "landing") {
+                try {
+                  const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
+                    headers: {
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                  });
+
+                  if (trialError) {
+                    console.error("Error activating free trial:", trialError);
+                    navigate("/choose-plan");
+                    return;
+                  }
+
+                  if (trialData?.success) {
+                    localStorage.removeItem("actiplan_signup_source");
+                    toast.success("Welcome! Your 30-day free trial has started.");
+                    navigate("/overview");
+                    return;
+                  }
+                } catch (err) {
+                  console.error("Error activating free trial:", err);
+                }
+              }
+
+              // No subscription and not from landing - redirect to choose plan
               navigate("/choose-plan");
             } catch (error) {
               console.error("Error checking subscription:", error);

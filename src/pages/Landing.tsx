@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import SEO from "@/components/SEO";
 import { useNavigate, Link } from "react-router-dom";
@@ -313,6 +313,11 @@ const pricingTiers = [
 const Landing = () => {
   const navigate = useNavigate();
   const [isYearly, setIsYearly] = useState(true);
+
+  // Clear landing source flag - main landing page uses standard checkout flow
+  useEffect(() => {
+    localStorage.removeItem("actiplan_signup_source");
+  }, []);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });

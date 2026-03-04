@@ -128,13 +128,41 @@ export default function ChoosePlan() {
       return;
     }
 
-    // Check onboarding status
+    // Check onboarding status and landing source for auto-trial
     if (!authLoading && user && isEmailConfirmed) {
       const onboardingData = localStorage.getItem("actiplan_onboarding");
       const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
 
       if (!onboardingComplete) {
         navigate("/onboarding");
+        return;
+      }
+
+      // If user came from custom landing page, auto-activate trial
+      const signupSource = localStorage.getItem("actiplan_signup_source");
+      if (signupSource === "landing") {
+        const activateTrial = async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const { data, error } = await supabase.functions.invoke("activate-free-trial", {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+
+            if (!error && data?.success) {
+              localStorage.removeItem("actiplan_signup_source");
+              toast.success("Welcome! Your 30-day free trial has started.");
+              navigate("/overview");
+            }
+          } catch (err) {
+            console.error("Error activating free trial:", err);
+            // Fall through to show plan selection
+          }
+        };
+        activateTrial();
         return;
       }
     }
