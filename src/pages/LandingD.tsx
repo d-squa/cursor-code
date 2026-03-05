@@ -169,7 +169,7 @@ const pricingTiers = [
     operationalLimits: "1 ActiPlan/Day • 1 Owner",
     cta: "Start 30-Day Free Trial",
     popular: false,
-    note: "Credit card required. Cancel anytime!",
+    note: "No credit card required!",
   },
   {
     key: "basic",
@@ -765,7 +765,7 @@ const Landing = () => {
             </div>
 
             <p className="text-center text-sm text-muted-foreground mt-8">
-              All signups start with a 30-day free trial on Basic Monthly. Credit card required. Cancel anytime!
+              All signups start with a 30-day free trial on Basic Monthly. No credit card required!
             </p>
           </div>
         </section>
