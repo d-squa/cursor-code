@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { AmplitudeAnalytics } from "./AmplitudeAnalytics";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -90,5 +91,10 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     return null;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <AmplitudeAnalytics />
+      {children}
+    </>
+  );
 }
