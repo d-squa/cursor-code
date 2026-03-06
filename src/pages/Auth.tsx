@@ -576,7 +576,21 @@ export default function Auth() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button className="w-full" onClick={() => navigate("/onboarding")}>Continue</Button>
+            <Button className="w-full" onClick={async () => {
+              // Save pending address if any
+              const pendingAddress = localStorage.getItem("actiplan_pending_address");
+              if (pendingAddress) {
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session) {
+                    const addr = JSON.parse(pendingAddress);
+                    await supabase.from("profiles").update(addr).eq("id", session.user.id);
+                  }
+                } catch (e) { console.error("Failed to save address:", e); }
+                localStorage.removeItem("actiplan_pending_address");
+              }
+              navigate("/onboarding");
+            }}>Continue</Button>
             <div className="text-center">
               <button
                 type="button"
