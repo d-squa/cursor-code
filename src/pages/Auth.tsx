@@ -227,10 +227,7 @@ export default function Auth() {
               return;
             }
 
-        // Onboarding complete - check subscription status and redirect
-
-        setTimeout(() => {
-          void (async () => {
+            // Onboarding complete - check subscription status and redirect
             try {
               const { data: subData } = await supabase.functions.invoke("check-subscription", {
                 headers: {
@@ -274,7 +271,6 @@ export default function Auth() {
               navigate("/choose-plan");
             } catch (error) {
               console.error("Error checking subscription:", error);
-              // On error, try to navigate to overview - SubscriptionGuard will handle redirect if needed
               navigate("/overview");
             }
           })();
