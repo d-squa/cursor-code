@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { fireSubscribeConversion } from "@/utils/conversionTracking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -231,6 +232,7 @@ export const OnboardingWizard = () => {
 
                 if (!trialError && (trialData?.success || trialData?.alreadySubscribed)) {
                   localStorage.removeItem("actiplan_signup_source");
+                  fireSubscribeConversion();
                   toast.success("Welcome! Your 30-day free trial has started.");
                   navigate("/overview");
                   return;
@@ -304,6 +306,7 @@ export const OnboardingWizard = () => {
               });
               if (trialData?.success || trialData?.alreadySubscribed) {
                 localStorage.removeItem("actiplan_signup_source");
+                fireSubscribeConversion();
                 toast.success("Welcome! Your 30-day free trial has started.");
                 navigate("/overview");
                 return;

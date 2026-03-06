@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { fireSubscribeConversion } from "@/utils/conversionTracking";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -189,6 +190,11 @@ export default function PlanManagement() {
             billing_cycle: billingCycle || undefined,
             is_trial: isTrial === "true",
           });
+
+          // Fire Google Ads Subscribe conversion for trial subscriptions
+          if (isTrial === "true") {
+            fireSubscribeConversion();
+          }
         }
 
         if (success === "true" && sessionId) {
