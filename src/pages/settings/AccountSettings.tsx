@@ -106,13 +106,34 @@ export default function AccountSettings() {
 
   // Update profile mutation
   const updateProfile = useMutation({
-    mutationFn: async (data: { company_name: string }) => {
+    mutationFn: async (data: {
+      company_name: string;
+      first_name: string;
+      last_name: string;
+      phone: string;
+      address_line1: string;
+      address_city: string;
+      address_state: string;
+      address_postal_code: string;
+      address_country: string;
+    }) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not authenticated");
 
       const { error } = await supabase
         .from("profiles")
-        .update({ company_name: data.company_name })
+        .update({
+          company_name: data.company_name,
+          first_name: data.first_name || null,
+          last_name: data.last_name || null,
+          phone: data.phone || null,
+          full_name: `${data.first_name} ${data.last_name}`.trim() || null,
+          address_line1: data.address_line1 || null,
+          address_city: data.address_city || null,
+          address_state: data.address_state || null,
+          address_postal_code: data.address_postal_code || null,
+          address_country: data.address_country || null,
+        })
         .eq("id", userData.user.id);
 
       if (error) throw error;
