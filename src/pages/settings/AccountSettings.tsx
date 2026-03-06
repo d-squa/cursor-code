@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 import { Loader2, AlertTriangle, Copy, Check } from "lucide-react";
 import {
   AlertDialog,
@@ -24,6 +25,14 @@ export default function AccountSettings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [companyName, setCompanyName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressState, setAddressState] = useState("");
+  const [addressPostalCode, setAddressPostalCode] = useState("");
+  const [addressCountry, setAddressCountry] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -84,19 +93,48 @@ export default function AccountSettings() {
       }
       
       setCompanyName(data.company_name || "");
+      setFirstName(data.first_name || "");
+      setLastName(data.last_name || "");
+      setPhoneNumber(data.phone || "");
+      setAddressLine1(data.address_line1 || "");
+      setAddressCity(data.address_city || "");
+      setAddressState(data.address_state || "");
+      setAddressPostalCode(data.address_postal_code || "");
+      setAddressCountry(data.address_country || "");
       return data;
     },
   });
 
   // Update profile mutation
   const updateProfile = useMutation({
-    mutationFn: async (data: { company_name: string }) => {
+    mutationFn: async (data: {
+      company_name: string;
+      first_name: string;
+      last_name: string;
+      phone: string;
+      address_line1: string;
+      address_city: string;
+      address_state: string;
+      address_postal_code: string;
+      address_country: string;
+    }) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not authenticated");
 
       const { error } = await supabase
         .from("profiles")
-        .update({ company_name: data.company_name })
+        .update({
+          company_name: data.company_name,
+          first_name: data.first_name || null,
+          last_name: data.last_name || null,
+          phone: data.phone || null,
+          full_name: `${data.first_name} ${data.last_name}`.trim() || null,
+          address_line1: data.address_line1 || null,
+          address_city: data.address_city || null,
+          address_state: data.address_state || null,
+          address_postal_code: data.address_postal_code || null,
+          address_country: data.address_country || null,
+        })
         .eq("id", userData.user.id);
 
       if (error) throw error;
@@ -130,7 +168,21 @@ export default function AccountSettings() {
   });
 
   const handleUpdateProfile = () => {
-    updateProfile.mutate({ company_name: companyName });
+    if (!firstName.trim() || !lastName.trim() || !phoneNumber.trim()) {
+      toast.error("First name, last name, and phone number are required");
+      return;
+    }
+    updateProfile.mutate({
+      company_name: companyName,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      phone: phoneNumber.trim(),
+      address_line1: addressLine1,
+      address_city: addressCity,
+      address_state: addressState,
+      address_postal_code: addressPostalCode,
+      address_country: addressCountry,
+    });
   };
 
   const handleUpdatePassword = () => {
@@ -252,6 +304,38 @@ export default function AccountSettings() {
             </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">First Name *</Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="John"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Last Name *</Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Doe"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number *</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="+1 (555) 000-0000"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="company">Company Name</Label>
             <Input
@@ -260,6 +344,60 @@ export default function AccountSettings() {
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="Enter your company name"
             />
+          </div>
+
+          <Separator />
+          <p className="text-sm font-medium">Address (Optional)</p>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="addressLine1">Street Address</Label>
+              <Input
+                id="addressLine1"
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                placeholder="123 Main St"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="addressCity">City</Label>
+                <Input
+                  id="addressCity"
+                  value={addressCity}
+                  onChange={(e) => setAddressCity(e.target.value)}
+                  placeholder="New York"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="addressState">State / Region</Label>
+                <Input
+                  id="addressState"
+                  value={addressState}
+                  onChange={(e) => setAddressState(e.target.value)}
+                  placeholder="NY"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="addressPostalCode">Postal Code</Label>
+                <Input
+                  id="addressPostalCode"
+                  value={addressPostalCode}
+                  onChange={(e) => setAddressPostalCode(e.target.value)}
+                  placeholder="10001"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="addressCountry">Country</Label>
+                <Input
+                  id="addressCountry"
+                  value={addressCountry}
+                  onChange={(e) => setAddressCountry(e.target.value)}
+                  placeholder="US"
+                />
+              </div>
+            </div>
           </div>
 
           <Button 

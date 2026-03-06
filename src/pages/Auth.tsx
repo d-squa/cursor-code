@@ -43,9 +43,18 @@ export default function Auth() {
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressState, setAddressState] = useState("");
+  const [addressPostalCode, setAddressPostalCode] = useState("");
+  const [addressCountry, setAddressCountry] = useState("");
   const [loading, setLoading] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [showPostConfirmSuccess, setShowPostConfirmSuccess] = useState(false);
+  const [showProfileCompletion, setShowProfileCompletion] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -97,7 +106,25 @@ export default function Auth() {
         localStorage.removeItem("actiplan_pending_signup_email");
       }
 
-      // Otherwise, normal routing
+      // Otherwise, normal routing — check if profile needs completion (Google OAuth users)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, phone")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (!profile?.first_name || !profile?.last_name || !profile?.phone) {
+        setShowProfileCompletion(true);
+        // Pre-fill from Google metadata if available
+        const meta = session.user.user_metadata;
+        if (meta?.full_name) {
+          const parts = meta.full_name.split(" ");
+          setFirstName(parts[0] || "");
+          setLastName(parts.slice(1).join(" ") || "");
+        }
+        return;
+      }
+
       const onboardingData = localStorage.getItem("actiplan_onboarding");
       let onboardingComplete = false;
       if (onboardingData) {
@@ -165,25 +192,42 @@ export default function Auth() {
           return;
         }
 
-        const onboardingData = localStorage.getItem("actiplan_onboarding");
-        let onboardingComplete = false;
-        if (onboardingData) {
-          try {
-            onboardingComplete = Boolean(JSON.parse(onboardingData)?.completedAt);
-          } catch {
-            onboardingComplete = false;
-          }
-        }
-
-        if (!onboardingComplete) {
-          navigate("/onboarding");
-          return;
-        }
-
-        // Onboarding complete - check subscription status and redirect
-
+        // Check if profile needs completion (Google OAuth users) - async wrapper
         setTimeout(() => {
           void (async () => {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("first_name, last_name, phone")
+              .eq("id", session.user.id)
+              .maybeSingle();
+
+            if (!profile?.first_name || !profile?.last_name || !profile?.phone) {
+              setShowProfileCompletion(true);
+              const meta = session.user.user_metadata;
+              if (meta?.full_name) {
+                const parts = meta.full_name.split(" ");
+                setFirstName(parts[0] || "");
+                setLastName(parts.slice(1).join(" ") || "");
+              }
+              return;
+            }
+
+            const onboardingData = localStorage.getItem("actiplan_onboarding");
+            let onboardingComplete = false;
+            if (onboardingData) {
+              try {
+                onboardingComplete = Boolean(JSON.parse(onboardingData)?.completedAt);
+              } catch {
+                onboardingComplete = false;
+              }
+            }
+
+            if (!onboardingComplete) {
+              navigate("/onboarding");
+              return;
+            }
+
+            // Onboarding complete - check subscription status and redirect
             try {
               const { data: subData } = await supabase.functions.invoke("check-subscription", {
                 headers: {
@@ -227,7 +271,6 @@ export default function Auth() {
               navigate("/choose-plan");
             } catch (error) {
               console.error("Error checking subscription:", error);
-              // On error, try to navigate to overview - SubscriptionGuard will handle redirect if needed
               navigate("/overview");
             }
           })();
@@ -257,10 +300,46 @@ export default function Auth() {
     setLoading(true);
 
     // Validate inputs
+    if (isLogin) {
+      const loginResult = z.object({
+        email: z.string().email("Please enter a valid email").max(255).trim(),
+        password: z.string().min(8, "Password must be at least 8 characters").max(128),
+      }).safeParse({ email: email.trim(), password });
+
+      if (!loginResult.success) {
+        toast.error(loginResult.error.errors[0].message);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: loginResult.data.email,
+          password: loginResult.data.password,
+        });
+        if (error) throw error;
+        toast.success("Welcome back!");
+      } catch (error: any) {
+        toast.error(error.message || "An error occurred");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Signup validation
     const validationResult = authSchema.safeParse({
       email: email.trim(),
       password,
-      companyName: companyName || undefined
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+      companyName: companyName || undefined,
+      addressLine1: addressLine1 || undefined,
+      addressCity: addressCity || undefined,
+      addressState: addressState || undefined,
+      addressPostalCode: addressPostalCode || undefined,
+      addressCountry: addressCountry || undefined,
     });
 
     if (!validationResult.success) {
@@ -273,42 +352,47 @@ export default function Auth() {
     const validatedData = validationResult.data;
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: validatedData.email,
-          password: validatedData.password,
-        });
-
-        if (error) throw error;
-        toast.success("Welcome back!");
-      } else {
-        // CRITICAL: Force sign-out before sign-up to prevent session contamination
-        await supabase.auth.signOut();
-        clearSession();
-        
-        const { data, error } = await supabase.auth.signUp({
-          email: validatedData.email,
-          password: validatedData.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth?confirmed=true`,
-            data: {
-              company_name: validatedData.companyName,
-            },
+      // CRITICAL: Force sign-out before sign-up to prevent session contamination
+      await supabase.auth.signOut();
+      clearSession();
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: validatedData.email,
+        password: validatedData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth?confirmed=true`,
+          data: {
+            first_name: validatedData.firstName,
+            last_name: validatedData.lastName,
+            phone: validatedData.phone,
+            company_name: validatedData.companyName,
           },
-        });
+        },
+      });
 
-        if (error) throw error;
-        
-        // Clear any stale onboarding data from previous sessions
-        localStorage.removeItem("actiplan_onboarding");
-        
-        // Store email for reference
-        localStorage.setItem("actiplan_pending_signup_email", validatedData.email);
-        
-        // Show email confirmation message - don't redirect to onboarding yet
-        setShowEmailConfirmation(true);
-        toast.success("Check your email to confirm your account!");
+      if (error) throw error;
+      
+      // Store address fields in profile if provided
+      if (validatedData.addressLine1 || validatedData.addressCity || validatedData.addressState || validatedData.addressPostalCode || validatedData.addressCountry) {
+        // Will be saved after email confirmation when profile exists
+        localStorage.setItem("actiplan_pending_address", JSON.stringify({
+          address_line1: validatedData.addressLine1,
+          address_city: validatedData.addressCity,
+          address_state: validatedData.addressState,
+          address_postal_code: validatedData.addressPostalCode,
+          address_country: validatedData.addressCountry,
+        }));
       }
+      
+      // Clear any stale onboarding data from previous sessions
+      localStorage.removeItem("actiplan_onboarding");
+      
+      // Store email for reference
+      localStorage.setItem("actiplan_pending_signup_email", validatedData.email);
+      
+      // Show email confirmation message - don't redirect to onboarding yet
+      setShowEmailConfirmation(true);
+      toast.success("Check your email to confirm your account!");
     } catch (error: any) {
       toast.error(error.message || "An error occurred");
     } finally {
@@ -330,6 +414,58 @@ export default function Auth() {
       toast.error(error.message || "Failed to send reset email");
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  const handleProfileCompletion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const result = profileCompletionSchema.safeParse({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+      addressLine1: addressLine1 || undefined,
+      addressCity: addressCity || undefined,
+      addressState: addressState || undefined,
+      addressPostalCode: addressPostalCode || undefined,
+      addressCountry: addressCountry || undefined,
+    });
+
+    if (!result.success) {
+      toast.error(result.error.errors[0].message);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: result.data.firstName,
+          last_name: result.data.lastName,
+          phone: result.data.phone,
+          full_name: `${result.data.firstName} ${result.data.lastName}`.trim(),
+          address_line1: result.data.addressLine1 || null,
+          address_city: result.data.addressCity || null,
+          address_state: result.data.addressState || null,
+          address_postal_code: result.data.addressPostalCode || null,
+          address_country: result.data.addressCountry || null,
+        })
+        .eq("id", session.user.id);
+
+      if (error) throw error;
+
+      setShowProfileCompletion(false);
+      toast.success("Profile completed!");
+      navigate("/onboarding");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save profile");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -440,7 +576,21 @@ export default function Auth() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button className="w-full" onClick={() => navigate("/onboarding")}>Continue</Button>
+            <Button className="w-full" onClick={async () => {
+              // Save pending address if any
+              const pendingAddress = localStorage.getItem("actiplan_pending_address");
+              if (pendingAddress) {
+                try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session) {
+                    const addr = JSON.parse(pendingAddress);
+                    await supabase.from("profiles").update(addr).eq("id", session.user.id);
+                  }
+                } catch (e) { console.error("Failed to save address:", e); }
+                localStorage.removeItem("actiplan_pending_address");
+              }
+              navigate("/onboarding");
+            }}>Continue</Button>
             <div className="text-center">
               <button
                 type="button"
@@ -525,6 +675,105 @@ export default function Auth() {
     );
   }
 
+  // Show profile completion screen (Google OAuth users missing required fields)
+  if (showProfileCompletion) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
+            </div>
+            <CardTitle className="text-2xl">Complete Your Profile</CardTitle>
+            <CardDescription>
+              Please provide a few more details to get started
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleProfileCompletion} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="pc-firstName">First Name *</Label>
+                  <Input
+                    id="pc-firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    placeholder="John"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pc-lastName">Last Name *</Label>
+                  <Input
+                    id="pc-lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pc-phone">Phone Number *</Label>
+                <Input
+                  id="pc-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  placeholder="+1 (555) 000-0000"
+                />
+              </div>
+              <Separator />
+              <p className="text-xs text-muted-foreground">Address (Optional)</p>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Street Address"
+                  value={addressLine1}
+                  onChange={(e) => setAddressLine1(e.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="City"
+                    value={addressCity}
+                    onChange={(e) => setAddressCity(e.target.value)}
+                  />
+                  <Input
+                    placeholder="State / Region"
+                    value={addressState}
+                    onChange={(e) => setAddressState(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Postal Code"
+                    value={addressPostalCode}
+                    onChange={(e) => setAddressPostalCode(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Country"
+                    value={addressCountry}
+                    onChange={(e) => setAddressCountry(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Continue"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <Card className="w-full max-w-md">
@@ -577,16 +826,84 @@ export default function Auth() {
               )}
             </div>
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="company">Company Name (Optional)</Label>
-                <Input
-                  id="company"
-                  type="text"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Acme Corp"
-                />
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name *</Label>
+                    <Input
+                      id="firstName"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                      placeholder="John"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name *</Label>
+                    <Input
+                      id="lastName"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    placeholder="+1 (555) 000-0000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company Name (Optional)</Label>
+                  <Input
+                    id="company"
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Acme Corp"
+                  />
+                </div>
+                <Separator />
+                <p className="text-xs text-muted-foreground">Address (Optional)</p>
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Street Address"
+                    value={addressLine1}
+                    onChange={(e) => setAddressLine1(e.target.value)}
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      placeholder="City"
+                      value={addressCity}
+                      onChange={(e) => setAddressCity(e.target.value)}
+                    />
+                    <Input
+                      placeholder="State / Region"
+                      value={addressState}
+                      onChange={(e) => setAddressState(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Postal Code"
+                      value={addressPostalCode}
+                      onChange={(e) => setAddressPostalCode(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Country"
+                      value={addressCountry}
+                      onChange={(e) => setAddressCountry(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
