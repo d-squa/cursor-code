@@ -469,6 +469,7 @@ export default function Auth() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
     try {
       // Clear any stale onboarding data from previous sessions
       localStorage.removeItem("actiplan_onboarding");
