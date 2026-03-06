@@ -167,7 +167,21 @@ export default function AccountSettings() {
   });
 
   const handleUpdateProfile = () => {
-    updateProfile.mutate({ company_name: companyName });
+    if (!firstName.trim() || !lastName.trim() || !phoneNumber.trim()) {
+      toast.error("First name, last name, and phone number are required");
+      return;
+    }
+    updateProfile.mutate({
+      company_name: companyName,
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      phone: phoneNumber.trim(),
+      address_line1: addressLine1,
+      address_city: addressCity,
+      address_state: addressState,
+      address_postal_code: addressPostalCode,
+      address_country: addressCountry,
+    });
   };
 
   const handleUpdatePassword = () => {
