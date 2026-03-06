@@ -6,13 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Mail, Loader2 } from "lucide-react";
 import { useTrialCheckout } from "@/hooks/useTrialCheckout";
 
 interface OnboardingData {
-  fullName: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  addressLine1: string;
+  addressCity: string;
+  addressState: string;
+  addressPostalCode: string;
+  addressCountry: string;
   company: string;
   source: string;
   role: string;
@@ -28,8 +36,16 @@ export const OnboardingWizard = () => {
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [step1Completed, setStep1Completed] = useState(false);
   const [formData, setFormData] = useState<OnboardingData>({
-    fullName: "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    addressLine1: "",
+    addressCity: "",
+    addressState: "",
+    addressPostalCode: "",
+    addressCountry: "",
     company: "",
     source: "",
     role: "",
@@ -44,14 +60,98 @@ export const OnboardingWizard = () => {
       
       const email = localStorage.getItem("actiplan_pending_signup_email");
       setPendingEmail(email);
+
+      // Pre-fill from profile if data exists (e.g. Google OAuth)
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, phone, address_line1, address_city, address_state, address_postal_code, address_country, company_name")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          const prefilled: Partial<OnboardingData> = {};
+          if (profile.first_name) prefilled.firstName = profile.first_name;
+          if (profile.last_name) prefilled.lastName = profile.last_name;
+          if (profile.phone) prefilled.phone = profile.phone;
+          if (profile.address_line1) prefilled.addressLine1 = profile.address_line1;
+          if (profile.address_city) prefilled.addressCity = profile.address_city;
+          if (profile.address_state) prefilled.addressState = profile.address_state;
+          if (profile.address_postal_code) prefilled.addressPostalCode = profile.address_postal_code;
+          if (profile.address_country) prefilled.addressCountry = profile.address_country;
+          if (profile.company_name) prefilled.company = profile.company_name;
+
+          if (Object.keys(prefilled).length > 0) {
+            setFormData(prev => ({ ...prev, ...prefilled }));
+          }
+
+          // If required fields already filled, mark step 1 as done
+          if (profile.first_name && profile.last_name && profile.phone) {
+            setStep1Completed(true);
+          }
+        }
+
+        // Also try Google metadata
+        if (!profile?.first_name) {
+          const meta = session.user.user_metadata;
+          if (meta?.full_name) {
+            const parts = meta.full_name.split(" ");
+            setFormData(prev => ({
+              ...prev,
+              firstName: prev.firstName || parts[0] || "",
+              lastName: prev.lastName || parts.slice(1).join(" ") || "",
+            }));
+          }
+          if (meta?.first_name) {
+            setFormData(prev => ({ ...prev, firstName: prev.firstName || meta.first_name }));
+          }
+          if (meta?.last_name) {
+            setFormData(prev => ({ ...prev, lastName: prev.lastName || meta.last_name }));
+          }
+        }
+      }
     };
     checkSession();
   }, []);
 
-  const totalSteps = 3;
+  const totalSteps = 4;
   const progress = (step / totalSteps) * 100;
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Save profile data when completing step 1
+    if (step === 1) {
+      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.phone.trim()) {
+        toast.error("Please fill in all required fields");
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            first_name: formData.firstName.trim(),
+            last_name: formData.lastName.trim(),
+            phone: formData.phone.trim(),
+            full_name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+            company_name: formData.company.trim() || null,
+            address_line1: formData.addressLine1.trim() || null,
+            address_city: formData.addressCity.trim() || null,
+            address_state: formData.addressState.trim() || null,
+            address_postal_code: formData.addressPostalCode.trim() || null,
+            address_country: formData.addressCountry.trim() || null,
+          })
+          .eq("id", session.user.id);
+
+        if (error) {
+          console.error("Error saving profile:", error);
+          toast.error("Failed to save profile data");
+          return;
+        }
+      }
+      setStep1Completed(true);
+    }
+
     if (step < totalSteps) {
       setStep(step + 1);
     }
@@ -66,11 +166,13 @@ export const OnboardingWizard = () => {
   const canProceed = () => {
     switch (step) {
       case 1:
-        return formData.fullName.trim() !== "";
+        return formData.firstName.trim() !== "" && formData.lastName.trim() !== "" && formData.phone.trim() !== "";
       case 2:
         return formData.role !== "" && formData.teamSize !== "";
       case 3:
         return formData.source !== "" && formData.experience !== "";
+      case 4:
+        return true;
       default:
         return true;
     }
@@ -79,19 +181,17 @@ export const OnboardingWizard = () => {
   const handleComplete = async () => {
     setIsSubmitting(true);
     try {
-      // Store onboarding data in localStorage and mark as complete
       localStorage.setItem("actiplan_onboarding", JSON.stringify({
         ...formData,
         completedAt: new Date().toISOString()
       }));
       
-      // Save to database if user has session
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { error } = await supabase
           .from("profiles")
           .update({ 
-            full_name: formData.fullName,
+            full_name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
             company_name: formData.company || null,
             role: formData.role,
             team_size: formData.teamSize,
@@ -107,7 +207,6 @@ export const OnboardingWizard = () => {
       }
 
       if (hasSession && session) {
-        // User already confirmed email - check subscription and redirect
         localStorage.removeItem("actiplan_pending_signup_email");
         
         try {
@@ -120,43 +219,38 @@ export const OnboardingWizard = () => {
           if (subData?.subscribed) {
             toast.success("Welcome to ActiPlan! Let's get started.");
             navigate("/overview");
-            } else {
-              // Check if user came from a custom landing page - auto-activate trial
-              const signupSource = localStorage.getItem("actiplan_signup_source");
-              if (signupSource === "landing") {
-                try {
-                  const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
-                    headers: {
-                      Authorization: `Bearer ${session.access_token}`,
-                    },
-                  });
+          } else {
+            const signupSource = localStorage.getItem("actiplan_signup_source");
+            if (signupSource === "landing") {
+              try {
+                const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
+                  headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                });
 
-                  if (!trialError && (trialData?.success || trialData?.alreadySubscribed)) {
-                    localStorage.removeItem("actiplan_signup_source");
-                    toast.success("Welcome! Your 30-day free trial has started.");
-                    navigate("/overview");
-                    return;
-                  }
-                } catch (err) {
-                  console.error("Error activating free trial:", err);
+                if (!trialError && (trialData?.success || trialData?.alreadySubscribed)) {
+                  localStorage.removeItem("actiplan_signup_source");
+                  toast.success("Welcome! Your 30-day free trial has started.");
+                  navigate("/overview");
+                  return;
                 }
-                // Even if trial activation failed, don't force checkout for landing users
-                localStorage.removeItem("actiplan_signup_source");
-                navigate("/overview");
-                return;
+              } catch (err) {
+                console.error("Error activating free trial:", err);
               }
-
-              // Not from landing page - use standard checkout
-              toast.success("Almost there! Complete your free trial setup.");
-              await startBasicTrial();
+              localStorage.removeItem("actiplan_signup_source");
+              navigate("/overview");
+              return;
             }
+
+            toast.success("Almost there! Complete your free trial setup.");
+            await startBasicTrial();
+          }
         } catch (error) {
           console.error("Error checking subscription:", error);
-          // On error, still try to start trial checkout
           await startBasicTrial();
         }
       } else {
-        // User needs to confirm email - show confirmation screen
         setShowEmailConfirmation(true);
       }
     } catch (error) {
@@ -164,6 +258,76 @@ export const OnboardingWizard = () => {
       toast.error("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    // Store partial onboarding data and mark as complete
+    localStorage.setItem("actiplan_onboarding", JSON.stringify({
+      ...formData,
+      skipped: true,
+      completedAt: new Date().toISOString()
+    }));
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase
+        .from("profiles")
+        .update({ 
+          full_name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+          company_name: formData.company || null,
+          role: formData.role || null,
+          team_size: formData.teamSize || null,
+          discovery_source: formData.source || null,
+          paid_media_experience: formData.experience || null,
+          onboarding_completed_at: new Date().toISOString()
+        })
+        .eq("id", session.user.id);
+    }
+    
+    if (hasSession && session) {
+      try {
+        const { data: subData } = await supabase.functions.invoke("check-subscription", {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+        
+        if (subData?.subscribed) {
+          navigate("/overview");
+        } else {
+          const signupSource = localStorage.getItem("actiplan_signup_source");
+          if (signupSource === "landing") {
+            try {
+              const { data: trialData } = await supabase.functions.invoke("activate-free-trial", {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              });
+              if (trialData?.success || trialData?.alreadySubscribed) {
+                localStorage.removeItem("actiplan_signup_source");
+                toast.success("Welcome! Your 30-day free trial has started.");
+                navigate("/overview");
+                return;
+              }
+            } catch (err) {
+              console.error("Error activating free trial:", err);
+            }
+            localStorage.removeItem("actiplan_signup_source");
+            navigate("/overview");
+          } else {
+            await startBasicTrial();
+          }
+        }
+      } catch (error) {
+        const signupSource = localStorage.getItem("actiplan_signup_source");
+        if (signupSource === "landing") {
+          localStorage.removeItem("actiplan_signup_source");
+          navigate("/overview");
+        } else {
+          await startBasicTrial();
+        }
+      }
+    } else {
+      setShowEmailConfirmation(true);
     }
   };
 
@@ -225,26 +389,52 @@ export const OnboardingWizard = () => {
           </div>
           <Progress value={progress} className="h-2 mb-4" />
           <CardTitle className="text-2xl">
-            {step === 1 && "Tell us about yourself"}
-            {step === 2 && "Your work profile"}
-            {step === 3 && "Almost done!"}
+            {step === 1 && "Your details"}
+            {step === 2 && "Tell us about yourself"}
+            {step === 3 && "Your work profile"}
+            {step === 4 && "Almost done!"}
           </CardTitle>
           <CardDescription>
-            {step === 1 && "Help us personalize your experience"}
-            {step === 2 && "This helps us recommend the right features"}
-            {step === 3 && "Just a few more details"}
+            {step === 1 && "We need a few details to set up your account"}
+            {step === 2 && "Help us personalize your experience"}
+            {step === 3 && "This helps us recommend the right features"}
+            {step === 4 && "Just a few more details"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {step === 1 && (
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input
+                    id="firstName"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    placeholder="John"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input
+                    id="lastName"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    placeholder="Doe"
+                    required
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name *</Label>
+                <Label htmlFor="phone">Phone Number *</Label>
                 <Input
-                  id="fullName"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  placeholder="John Doe"
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="+1 (555) 000-0000"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -255,6 +445,39 @@ export const OnboardingWizard = () => {
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="Your company name (optional)"
                 />
+              </div>
+              <Separator />
+              <p className="text-xs text-muted-foreground">Address (Optional)</p>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Street Address"
+                  value={formData.addressLine1}
+                  onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="City"
+                    value={formData.addressCity}
+                    onChange={(e) => setFormData({ ...formData, addressCity: e.target.value })}
+                  />
+                  <Input
+                    placeholder="State / Region"
+                    value={formData.addressState}
+                    onChange={(e) => setFormData({ ...formData, addressState: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Postal Code"
+                    value={formData.addressPostalCode}
+                    onChange={(e) => setFormData({ ...formData, addressPostalCode: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Country"
+                    value={formData.addressCountry}
+                    onChange={(e) => setFormData({ ...formData, addressCountry: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -345,6 +568,19 @@ export const OnboardingWizard = () => {
             </div>
           )}
 
+          {step === 4 && (
+            <div className="space-y-4 text-center py-4">
+              <div className="flex items-center justify-center">
+                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-primary" />
+                </div>
+              </div>
+              <p className="text-muted-foreground">
+                You're all set! Click "Complete" to start using ActiPlan.
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-between mt-8">
             <Button
               variant="outline"
@@ -378,81 +614,15 @@ export const OnboardingWizard = () => {
             )}
           </div>
 
-          <button
-            onClick={async () => {
-              // Store partial onboarding data and mark as complete
-              localStorage.setItem("actiplan_onboarding", JSON.stringify({
-                ...formData,
-                skipped: true,
-                completedAt: new Date().toISOString()
-              }));
-              
-              // Save partial data to database
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session?.user) {
-                await supabase
-                  .from("profiles")
-                  .update({ 
-                    full_name: formData.fullName || null,
-                    company_name: formData.company || null,
-                    role: formData.role || null,
-                    team_size: formData.teamSize || null,
-                    discovery_source: formData.source || null,
-                    paid_media_experience: formData.experience || null,
-                    onboarding_completed_at: new Date().toISOString()
-                  })
-                  .eq("id", session.user.id);
-              }
-              
-              if (hasSession && session) {
-                try {
-                  const { data: subData } = await supabase.functions.invoke("check-subscription", {
-                    headers: {
-                      Authorization: `Bearer ${session.access_token}`,
-                    },
-                  });
-                  
-                  if (subData?.subscribed) {
-                    navigate("/overview");
-                  } else {
-                    const signupSource = localStorage.getItem("actiplan_signup_source");
-                    if (signupSource === "landing") {
-                      try {
-                        const { data: trialData } = await supabase.functions.invoke("activate-free-trial", {
-                          headers: { Authorization: `Bearer ${session.access_token}` },
-                        });
-                        if (trialData?.success || trialData?.alreadySubscribed) {
-                          localStorage.removeItem("actiplan_signup_source");
-                          toast.success("Welcome! Your 30-day free trial has started.");
-                          navigate("/overview");
-                          return;
-                        }
-                      } catch (err) {
-                        console.error("Error activating free trial:", err);
-                      }
-                      localStorage.removeItem("actiplan_signup_source");
-                      navigate("/overview");
-                    } else {
-                      await startBasicTrial();
-                    }
-                  }
-                } catch (error) {
-                  const signupSource = localStorage.getItem("actiplan_signup_source");
-                  if (signupSource === "landing") {
-                    localStorage.removeItem("actiplan_signup_source");
-                    navigate("/overview");
-                  } else {
-                    await startBasicTrial();
-                  }
-                }
-              } else {
-                setShowEmailConfirmation(true);
-              }
-            }}
-            className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Skip for now
-          </button>
+          {/* Skip button only shows after step 1 is completed */}
+          {step1Completed && step > 1 && (
+            <button
+              onClick={handleSkip}
+              className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Skip for now
+            </button>
+          )}
         </CardContent>
       </Card>
     </div>
