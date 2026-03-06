@@ -2435,46 +2435,70 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address_city: string | null
+          address_country: string | null
+          address_line1: string | null
+          address_postal_code: string | null
+          address_state: string | null
           adlibrary_authorized: boolean | null
           adlibrary_authorized_at: string | null
           company_name: string | null
           created_at: string
           discovery_source: string | null
           email: string
+          first_name: string | null
           full_name: string | null
           id: string
+          last_name: string | null
           onboarding_completed_at: string | null
           paid_media_experience: string | null
+          phone: string | null
           role: string | null
           team_size: string | null
           updated_at: string
         }
         Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_line1?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
           adlibrary_authorized?: boolean | null
           adlibrary_authorized_at?: string | null
           company_name?: string | null
           created_at?: string
           discovery_source?: string | null
           email: string
+          first_name?: string | null
           full_name?: string | null
           id: string
+          last_name?: string | null
           onboarding_completed_at?: string | null
           paid_media_experience?: string | null
+          phone?: string | null
           role?: string | null
           team_size?: string | null
           updated_at?: string
         }
         Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_line1?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
           adlibrary_authorized?: boolean | null
           adlibrary_authorized_at?: string | null
           company_name?: string | null
           created_at?: string
           discovery_source?: string | null
           email?: string
+          first_name?: string | null
           full_name?: string | null
           id?: string
+          last_name?: string | null
           onboarding_completed_at?: string | null
           paid_media_experience?: string | null
+          phone?: string | null
           role?: string | null
           team_size?: string | null
           updated_at?: string
