@@ -300,10 +300,46 @@ export default function Auth() {
     setLoading(true);
 
     // Validate inputs
+    if (isLogin) {
+      const loginResult = z.object({
+        email: z.string().email("Please enter a valid email").max(255).trim(),
+        password: z.string().min(8, "Password must be at least 8 characters").max(128),
+      }).safeParse({ email: email.trim(), password });
+
+      if (!loginResult.success) {
+        toast.error(loginResult.error.errors[0].message);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: loginResult.data.email,
+          password: loginResult.data.password,
+        });
+        if (error) throw error;
+        toast.success("Welcome back!");
+      } catch (error: any) {
+        toast.error(error.message || "An error occurred");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Signup validation
     const validationResult = authSchema.safeParse({
       email: email.trim(),
       password,
-      companyName: companyName || undefined
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+      companyName: companyName || undefined,
+      addressLine1: addressLine1 || undefined,
+      addressCity: addressCity || undefined,
+      addressState: addressState || undefined,
+      addressPostalCode: addressPostalCode || undefined,
+      addressCountry: addressCountry || undefined,
     });
 
     if (!validationResult.success) {
@@ -316,29 +352,23 @@ export default function Auth() {
     const validatedData = validationResult.data;
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: validatedData.email,
-          password: validatedData.password,
-        });
-
-        if (error) throw error;
-        toast.success("Welcome back!");
-      } else {
-        // CRITICAL: Force sign-out before sign-up to prevent session contamination
-        await supabase.auth.signOut();
-        clearSession();
-        
-        const { data, error } = await supabase.auth.signUp({
-          email: validatedData.email,
-          password: validatedData.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth?confirmed=true`,
-            data: {
-              company_name: validatedData.companyName,
-            },
+      // CRITICAL: Force sign-out before sign-up to prevent session contamination
+      await supabase.auth.signOut();
+      clearSession();
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: validatedData.email,
+        password: validatedData.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth?confirmed=true`,
+          data: {
+            first_name: validatedData.firstName,
+            last_name: validatedData.lastName,
+            phone: validatedData.phone,
+            company_name: validatedData.companyName,
           },
-        });
+        },
+      });
 
         if (error) throw error;
         
