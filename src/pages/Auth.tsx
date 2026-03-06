@@ -11,30 +11,14 @@ import { Separator } from "@/components/ui/separator";
 import { z } from "zod";
 import { useSessionManager } from "@/hooks/useSessionManager";
 
-// Input validation schemas
-const authSchema = z.object({
+const loginSchema = z.object({
   email: z.string().email("Please enter a valid email").max(255).trim(),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
-  firstName: z.string().min(1, "First name is required").max(50).trim(),
-  lastName: z.string().min(1, "Last name is required").max(50).trim(),
-  phone: z.string().min(1, "Phone number is required").max(30).trim(),
-  companyName: z.string().max(100).optional(),
-  addressLine1: z.string().max(200).optional(),
-  addressCity: z.string().max(100).optional(),
-  addressState: z.string().max(100).optional(),
-  addressPostalCode: z.string().max(20).optional(),
-  addressCountry: z.string().max(100).optional(),
 });
 
-const profileCompletionSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(50).trim(),
-  lastName: z.string().min(1, "Last name is required").max(50).trim(),
-  phone: z.string().min(1, "Phone number is required").max(30).trim(),
-  addressLine1: z.string().max(200).optional(),
-  addressCity: z.string().max(100).optional(),
-  addressState: z.string().max(100).optional(),
-  addressPostalCode: z.string().max(20).optional(),
-  addressCountry: z.string().max(100).optional(),
+const signupSchema = z.object({
+  email: z.string().email("Please enter a valid email").max(255).trim(),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128),
 });
 
 export default function Auth() {
@@ -42,19 +26,9 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [email, setEmail] = useState(searchParams.get("email") || "");
   const [password, setPassword] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [addressLine1, setAddressLine1] = useState("");
-  const [addressCity, setAddressCity] = useState("");
-  const [addressState, setAddressState] = useState("");
-  const [addressPostalCode, setAddressPostalCode] = useState("");
-  const [addressCountry, setAddressCountry] = useState("");
   const [loading, setLoading] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [showPostConfirmSuccess, setShowPostConfirmSuccess] = useState(false);
-  const [showProfileCompletion, setShowProfileCompletion] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -62,7 +36,6 @@ export default function Auth() {
   const navigate = useNavigate();
   const { registerSession, startValidation, clearSession } = useSessionManager();
 
-  // Check if user was redirected here because email not confirmed
   const needsEmailConfirmation = searchParams.get("confirm_email") === "true";
   const isConfirmedRedirect = searchParams.get("confirmed") === "true";
 
@@ -76,15 +49,12 @@ export default function Auth() {
 
       if (!isMounted || !session) return;
 
-      // If email is not confirmed, force confirmation screen
       if (!session.user.email_confirmed_at) {
         setShowEmailConfirmation(true);
         setEmail(session.user.email || "");
         return;
       }
 
-      // If we have a pending signup email, only apply it to the same user.
-      // Otherwise it can trap returning users on /auth due to stale localStorage.
       const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
       const sessionEmail = session.user.email ?? "";
 
@@ -101,30 +71,11 @@ export default function Auth() {
         return;
       }
 
-      // Clear stale pending email if it belongs to a different user
       if (pendingEmail && pendingEmail !== sessionEmail) {
         localStorage.removeItem("actiplan_pending_signup_email");
       }
 
-      // Otherwise, normal routing — check if profile needs completion (Google OAuth users)
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, phone")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      if (!profile?.first_name || !profile?.last_name || !profile?.phone) {
-        setShowProfileCompletion(true);
-        // Pre-fill from Google metadata if available
-        const meta = session.user.user_metadata;
-        if (meta?.full_name) {
-          const parts = meta.full_name.split(" ");
-          setFirstName(parts[0] || "");
-          setLastName(parts.slice(1).join(" ") || "");
-        }
-        return;
-      }
-
+      // Always route to onboarding — it handles profile completion on step 1
       const onboardingData = localStorage.getItem("actiplan_onboarding");
       let onboardingComplete = false;
       if (onboardingData) {
@@ -155,7 +106,6 @@ export default function Auth() {
           return;
         }
 
-        // Register the session for single-session enforcement (async, deferred)
         setTimeout(() => {
           void (async () => {
             await registerSession(session);
@@ -163,7 +113,6 @@ export default function Auth() {
           })();
         }, 0);
 
-        // Only check pending email if it matches current session email
         const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
         if (pendingEmail && pendingEmail === session.user.email) {
           if (isConfirmedRedirect) {
@@ -178,7 +127,6 @@ export default function Auth() {
           return;
         }
         
-        // Clear stale pending email if it doesn't match current user
         if (pendingEmail && pendingEmail !== session.user.email) {
           localStorage.removeItem("actiplan_pending_signup_email");
         }
@@ -186,32 +134,14 @@ export default function Auth() {
         setShowEmailConfirmation(false);
         setShowPostConfirmSuccess(false);
 
-        // Super admin bypass - skip onboarding and subscription checks
         if (session.user.email === "superadmin@actiplan.app") {
           navigate("/admin");
           return;
         }
 
-        // Check if profile needs completion (Google OAuth users) - async wrapper
+        // Route to onboarding — step 1 handles profile data collection
         setTimeout(() => {
           void (async () => {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("first_name, last_name, phone")
-              .eq("id", session.user.id)
-              .maybeSingle();
-
-            if (!profile?.first_name || !profile?.last_name || !profile?.phone) {
-              setShowProfileCompletion(true);
-              const meta = session.user.user_metadata;
-              if (meta?.full_name) {
-                const parts = meta.full_name.split(" ");
-                setFirstName(parts[0] || "");
-                setLastName(parts.slice(1).join(" ") || "");
-              }
-              return;
-            }
-
             const onboardingData = localStorage.getItem("actiplan_onboarding");
             let onboardingComplete = false;
             if (onboardingData) {
@@ -227,7 +157,6 @@ export default function Auth() {
               return;
             }
 
-            // Onboarding complete - check subscription status and redirect
             try {
               const { data: subData } = await supabase.functions.invoke("check-subscription", {
                 headers: {
@@ -240,7 +169,6 @@ export default function Auth() {
                 return;
               }
 
-              // Check if user came from a custom landing page - auto-activate trial
               const signupSource = localStorage.getItem("actiplan_signup_source");
               if (signupSource === "landing") {
                 try {
@@ -267,7 +195,6 @@ export default function Auth() {
                 }
               }
 
-              // No subscription and not from landing - redirect to choose plan
               navigate("/choose-plan");
             } catch (error) {
               console.error("Error checking subscription:", error);
@@ -299,12 +226,8 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
 
-    // Validate inputs
     if (isLogin) {
-      const loginResult = z.object({
-        email: z.string().email("Please enter a valid email").max(255).trim(),
-        password: z.string().min(8, "Password must be at least 8 characters").max(128),
-      }).safeParse({ email: email.trim(), password });
+      const loginResult = loginSchema.safeParse({ email: email.trim(), password });
 
       if (!loginResult.success) {
         toast.error(loginResult.error.errors[0].message);
@@ -327,70 +250,35 @@ export default function Auth() {
       return;
     }
 
-    // Signup validation
-    const validationResult = authSchema.safeParse({
+    // Signup
+    const validationResult = signupSchema.safeParse({
       email: email.trim(),
       password,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      phone: phone.trim(),
-      companyName: companyName || undefined,
-      addressLine1: addressLine1 || undefined,
-      addressCity: addressCity || undefined,
-      addressState: addressState || undefined,
-      addressPostalCode: addressPostalCode || undefined,
-      addressCountry: addressCountry || undefined,
     });
 
     if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0];
-      toast.error(firstError.message);
+      toast.error(validationResult.error.errors[0].message);
       setLoading(false);
       return;
     }
 
-    const validatedData = validationResult.data;
-
     try {
-      // CRITICAL: Force sign-out before sign-up to prevent session contamination
       await supabase.auth.signOut();
       clearSession();
       
-      const { data, error } = await supabase.auth.signUp({
-        email: validatedData.email,
-        password: validatedData.password,
+      const { error } = await supabase.auth.signUp({
+        email: validationResult.data.email,
+        password: validationResult.data.password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth?confirmed=true`,
-          data: {
-            first_name: validatedData.firstName,
-            last_name: validatedData.lastName,
-            phone: validatedData.phone,
-            company_name: validatedData.companyName,
-          },
         },
       });
 
       if (error) throw error;
       
-      // Store address fields in profile if provided
-      if (validatedData.addressLine1 || validatedData.addressCity || validatedData.addressState || validatedData.addressPostalCode || validatedData.addressCountry) {
-        // Will be saved after email confirmation when profile exists
-        localStorage.setItem("actiplan_pending_address", JSON.stringify({
-          address_line1: validatedData.addressLine1,
-          address_city: validatedData.addressCity,
-          address_state: validatedData.addressState,
-          address_postal_code: validatedData.addressPostalCode,
-          address_country: validatedData.addressCountry,
-        }));
-      }
-      
-      // Clear any stale onboarding data from previous sessions
       localStorage.removeItem("actiplan_onboarding");
+      localStorage.setItem("actiplan_pending_signup_email", validationResult.data.email);
       
-      // Store email for reference
-      localStorage.setItem("actiplan_pending_signup_email", validatedData.email);
-      
-      // Show email confirmation message - don't redirect to onboarding yet
       setShowEmailConfirmation(true);
       toast.success("Check your email to confirm your account!");
     } catch (error: any) {
@@ -417,61 +305,8 @@ export default function Auth() {
     }
   };
 
-  const handleProfileCompletion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const result = profileCompletionSchema.safeParse({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      phone: phone.trim(),
-      addressLine1: addressLine1 || undefined,
-      addressCity: addressCity || undefined,
-      addressState: addressState || undefined,
-      addressPostalCode: addressPostalCode || undefined,
-      addressCountry: addressCountry || undefined,
-    });
-
-    if (!result.success) {
-      toast.error(result.error.errors[0].message);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: result.data.firstName,
-          last_name: result.data.lastName,
-          phone: result.data.phone,
-          full_name: `${result.data.firstName} ${result.data.lastName}`.trim(),
-          address_line1: result.data.addressLine1 || null,
-          address_city: result.data.addressCity || null,
-          address_state: result.data.addressState || null,
-          address_postal_code: result.data.addressPostalCode || null,
-          address_country: result.data.addressCountry || null,
-        })
-        .eq("id", session.user.id);
-
-      if (error) throw error;
-
-      setShowProfileCompletion(false);
-      toast.success("Profile completed!");
-      navigate("/onboarding");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save profile");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     try {
-      // Clear any stale onboarding data from previous sessions
       localStorage.removeItem("actiplan_onboarding");
       
       const { error } = await supabase.auth.signInWithOAuth({
@@ -486,7 +321,7 @@ export default function Auth() {
     }
   };
 
-  // Show forgot password screen
+  // Forgot password screen
   if (showForgotPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
@@ -559,7 +394,7 @@ export default function Auth() {
     );
   }
 
-  // Show post-confirmation success screen
+  // Post-confirmation success screen
   if (showPostConfirmSuccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
@@ -576,21 +411,7 @@ export default function Auth() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button className="w-full" onClick={async () => {
-              // Save pending address if any
-              const pendingAddress = localStorage.getItem("actiplan_pending_address");
-              if (pendingAddress) {
-                try {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  if (session) {
-                    const addr = JSON.parse(pendingAddress);
-                    await supabase.from("profiles").update(addr).eq("id", session.user.id);
-                  }
-                } catch (e) { console.error("Failed to save address:", e); }
-                localStorage.removeItem("actiplan_pending_address");
-              }
-              navigate("/onboarding");
-            }}>Continue</Button>
+            <Button className="w-full" onClick={() => navigate("/onboarding")}>Continue</Button>
             <div className="text-center">
               <button
                 type="button"
@@ -606,10 +427,9 @@ export default function Auth() {
     );
   }
 
-  // Show email confirmation screen after signup
+  // Email confirmation screen
   if (showEmailConfirmation) {
     const handleEscapeConfirmation = () => {
-      // Clear stale pending email that might be trapping user
       localStorage.removeItem("actiplan_pending_signup_email");
       setShowEmailConfirmation(false);
       setIsLogin(true);
@@ -675,105 +495,6 @@ export default function Auth() {
     );
   }
 
-  // Show profile completion screen (Google OAuth users missing required fields)
-  if (showProfileCompletion) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="flex items-center justify-center mb-4">
-              <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
-            </div>
-            <CardTitle className="text-2xl">Complete Your Profile</CardTitle>
-            <CardDescription>
-              Please provide a few more details to get started
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleProfileCompletion} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="pc-firstName">First Name *</Label>
-                  <Input
-                    id="pc-firstName"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    required
-                    placeholder="John"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pc-lastName">Last Name *</Label>
-                  <Input
-                    id="pc-lastName"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    required
-                    placeholder="Doe"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pc-phone">Phone Number *</Label>
-                <Input
-                  id="pc-phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                  placeholder="+1 (555) 000-0000"
-                />
-              </div>
-              <Separator />
-              <p className="text-xs text-muted-foreground">Address (Optional)</p>
-              <div className="space-y-3">
-                <Input
-                  placeholder="Street Address"
-                  value={addressLine1}
-                  onChange={(e) => setAddressLine1(e.target.value)}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    placeholder="City"
-                    value={addressCity}
-                    onChange={(e) => setAddressCity(e.target.value)}
-                  />
-                  <Input
-                    placeholder="State / Region"
-                    value={addressState}
-                    onChange={(e) => setAddressState(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    placeholder="Postal Code"
-                    value={addressPostalCode}
-                    onChange={(e) => setAddressPostalCode(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Country"
-                    value={addressCountry}
-                    onChange={(e) => setAddressCountry(e.target.value)}
-                  />
-                </div>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Continue"
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <Card className="w-full max-w-md">
@@ -825,86 +546,6 @@ export default function Auth() {
                 </div>
               )}
             </div>
-            {!isLogin && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                      placeholder="John"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      required
-                      placeholder="Doe"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    placeholder="+1 (555) 000-0000"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company Name (Optional)</Label>
-                  <Input
-                    id="company"
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Acme Corp"
-                  />
-                </div>
-                <Separator />
-                <p className="text-xs text-muted-foreground">Address (Optional)</p>
-                <div className="space-y-3">
-                  <Input
-                    placeholder="Street Address"
-                    value={addressLine1}
-                    onChange={(e) => setAddressLine1(e.target.value)}
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      placeholder="City"
-                      value={addressCity}
-                      onChange={(e) => setAddressCity(e.target.value)}
-                    />
-                    <Input
-                      placeholder="State / Region"
-                      value={addressState}
-                      onChange={(e) => setAddressState(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      placeholder="Postal Code"
-                      value={addressPostalCode}
-                      onChange={(e) => setAddressPostalCode(e.target.value)}
-                    />
-                    <Input
-                      placeholder="Country"
-                      value={addressCountry}
-                      onChange={(e) => setAddressCountry(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
