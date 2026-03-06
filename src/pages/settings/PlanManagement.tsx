@@ -190,6 +190,11 @@ export default function PlanManagement() {
             billing_cycle: billingCycle || undefined,
             is_trial: isTrial === "true",
           });
+
+          // Fire Google Ads Subscribe conversion for trial subscriptions
+          if (isTrial === "true") {
+            fireSubscribeConversion();
+          }
         }
 
         if (success === "true" && sessionId) {
