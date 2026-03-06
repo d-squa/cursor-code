@@ -399,6 +399,14 @@ export default function AccountSettings() {
               </div>
             </div>
           </div>
+
+          <Button 
+            onClick={handleUpdateProfile} 
+            disabled={updateProfile.isPending}
+          >
+            {updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Profile
+          </Button>
         </CardContent>
       </Card>
 
