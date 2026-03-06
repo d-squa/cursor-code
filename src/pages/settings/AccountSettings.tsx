@@ -92,6 +92,14 @@ export default function AccountSettings() {
       }
       
       setCompanyName(data.company_name || "");
+      setFirstName(data.first_name || "");
+      setLastName(data.last_name || "");
+      setPhoneNumber(data.phone || "");
+      setAddressLine1(data.address_line1 || "");
+      setAddressCity(data.address_city || "");
+      setAddressState(data.address_state || "");
+      setAddressPostalCode(data.address_postal_code || "");
+      setAddressCountry(data.address_country || "");
       return data;
     },
   });
