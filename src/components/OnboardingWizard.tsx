@@ -149,6 +149,9 @@ export const OnboardingWizard = () => {
           toast.error("Failed to save profile data");
           return;
         }
+
+        // Fire Google Ads conversion after personal data is saved
+        fireSubscribeConversion();
       }
       setStep1Completed(true);
     }
