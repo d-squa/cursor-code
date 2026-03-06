@@ -192,6 +192,24 @@ export default function Auth() {
           return;
         }
 
+        // Check if profile needs completion (Google OAuth users)
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, phone")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (!profile?.first_name || !profile?.last_name || !profile?.phone) {
+          setShowProfileCompletion(true);
+          const meta = session.user.user_metadata;
+          if (meta?.full_name) {
+            const parts = meta.full_name.split(" ");
+            setFirstName(parts[0] || "");
+            setLastName(parts.slice(1).join(" ") || "");
+          }
+          return;
+        }
+
         const onboardingData = localStorage.getItem("actiplan_onboarding");
         let onboardingComplete = false;
         if (onboardingData) {
