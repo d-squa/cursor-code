@@ -370,18 +370,29 @@ export default function Auth() {
         },
       });
 
-        if (error) throw error;
-        
-        // Clear any stale onboarding data from previous sessions
-        localStorage.removeItem("actiplan_onboarding");
-        
-        // Store email for reference
-        localStorage.setItem("actiplan_pending_signup_email", validatedData.email);
-        
-        // Show email confirmation message - don't redirect to onboarding yet
-        setShowEmailConfirmation(true);
-        toast.success("Check your email to confirm your account!");
+      if (error) throw error;
+      
+      // Store address fields in profile if provided
+      if (validatedData.addressLine1 || validatedData.addressCity || validatedData.addressState || validatedData.addressPostalCode || validatedData.addressCountry) {
+        // Will be saved after email confirmation when profile exists
+        localStorage.setItem("actiplan_pending_address", JSON.stringify({
+          address_line1: validatedData.addressLine1,
+          address_city: validatedData.addressCity,
+          address_state: validatedData.addressState,
+          address_postal_code: validatedData.addressPostalCode,
+          address_country: validatedData.addressCountry,
+        }));
       }
+      
+      // Clear any stale onboarding data from previous sessions
+      localStorage.removeItem("actiplan_onboarding");
+      
+      // Store email for reference
+      localStorage.setItem("actiplan_pending_signup_email", validatedData.email);
+      
+      // Show email confirmation message - don't redirect to onboarding yet
+      setShowEmailConfirmation(true);
+      toast.success("Check your email to confirm your account!");
     } catch (error: any) {
       toast.error(error.message || "An error occurred");
     } finally {
