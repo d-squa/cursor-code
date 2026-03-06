@@ -304,6 +304,38 @@ export default function AccountSettings() {
             </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="firstName">First Name *</Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="John"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName">Last Name *</Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Doe"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number *</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="+1 (555) 000-0000"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="company">Company Name</Label>
             <Input
@@ -314,13 +346,59 @@ export default function AccountSettings() {
             />
           </div>
 
-          <Button 
-            onClick={handleUpdateProfile} 
-            disabled={updateProfile.isPending}
-          >
-            {updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Profile
-          </Button>
+          <Separator />
+          <p className="text-sm font-medium">Address (Optional)</p>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="addressLine1">Street Address</Label>
+              <Input
+                id="addressLine1"
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                placeholder="123 Main St"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="addressCity">City</Label>
+                <Input
+                  id="addressCity"
+                  value={addressCity}
+                  onChange={(e) => setAddressCity(e.target.value)}
+                  placeholder="New York"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="addressState">State / Region</Label>
+                <Input
+                  id="addressState"
+                  value={addressState}
+                  onChange={(e) => setAddressState(e.target.value)}
+                  placeholder="NY"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="addressPostalCode">Postal Code</Label>
+                <Input
+                  id="addressPostalCode"
+                  value={addressPostalCode}
+                  onChange={(e) => setAddressPostalCode(e.target.value)}
+                  placeholder="10001"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="addressCountry">Country</Label>
+                <Input
+                  id="addressCountry"
+                  value={addressCountry}
+                  onChange={(e) => setAddressCountry(e.target.value)}
+                  placeholder="US"
+                />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
