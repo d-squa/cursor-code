@@ -24,6 +24,14 @@ export default function AccountSettings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [companyName, setCompanyName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressState, setAddressState] = useState("");
+  const [addressPostalCode, setAddressPostalCode] = useState("");
+  const [addressCountry, setAddressCountry] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
