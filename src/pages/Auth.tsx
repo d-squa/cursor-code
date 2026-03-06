@@ -417,7 +417,58 @@ export default function Auth() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleProfileCompletion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const result = profileCompletionSchema.safeParse({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      phone: phone.trim(),
+      addressLine1: addressLine1 || undefined,
+      addressCity: addressCity || undefined,
+      addressState: addressState || undefined,
+      addressPostalCode: addressPostalCode || undefined,
+      addressCountry: addressCountry || undefined,
+    });
+
+    if (!result.success) {
+      toast.error(result.error.errors[0].message);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: result.data.firstName,
+          last_name: result.data.lastName,
+          phone: result.data.phone,
+          full_name: `${result.data.firstName} ${result.data.lastName}`.trim(),
+          address_line1: result.data.addressLine1 || null,
+          address_city: result.data.addressCity || null,
+          address_state: result.data.addressState || null,
+          address_postal_code: result.data.addressPostalCode || null,
+          address_country: result.data.addressCountry || null,
+        })
+        .eq("id", session.user.id);
+
+      if (error) throw error;
+
+      setShowProfileCompletion(false);
+      toast.success("Profile completed!");
+      navigate("/onboarding");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save profile");
+    } finally {
+      setLoading(false);
+    }
+  };
+
     try {
       // Clear any stale onboarding data from previous sessions
       localStorage.removeItem("actiplan_onboarding");
