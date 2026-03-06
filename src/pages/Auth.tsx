@@ -661,7 +661,105 @@ export default function Auth() {
     );
   }
 
-  return (
+  // Show profile completion screen (Google OAuth users missing required fields)
+  if (showProfileCompletion) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
+            </div>
+            <CardTitle className="text-2xl">Complete Your Profile</CardTitle>
+            <CardDescription>
+              Please provide a few more details to get started
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleProfileCompletion} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="pc-firstName">First Name *</Label>
+                  <Input
+                    id="pc-firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    placeholder="John"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pc-lastName">Last Name *</Label>
+                  <Input
+                    id="pc-lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pc-phone">Phone Number *</Label>
+                <Input
+                  id="pc-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                  placeholder="+1 (555) 000-0000"
+                />
+              </div>
+              <Separator />
+              <p className="text-xs text-muted-foreground">Address (Optional)</p>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Street Address"
+                  value={addressLine1}
+                  onChange={(e) => setAddressLine1(e.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="City"
+                    value={addressCity}
+                    onChange={(e) => setAddressCity(e.target.value)}
+                  />
+                  <Input
+                    placeholder="State / Region"
+                    value={addressState}
+                    onChange={(e) => setAddressState(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="Postal Code"
+                    value={addressPostalCode}
+                    onChange={(e) => setAddressPostalCode(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Country"
+                    value={addressCountry}
+                    onChange={(e) => setAddressCountry(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Continue"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
