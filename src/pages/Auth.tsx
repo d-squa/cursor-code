@@ -15,7 +15,26 @@ import { useSessionManager } from "@/hooks/useSessionManager";
 const authSchema = z.object({
   email: z.string().email("Please enter a valid email").max(255).trim(),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
-  companyName: z.string().max(100).optional()
+  firstName: z.string().min(1, "First name is required").max(50).trim(),
+  lastName: z.string().min(1, "Last name is required").max(50).trim(),
+  phone: z.string().min(1, "Phone number is required").max(30).trim(),
+  companyName: z.string().max(100).optional(),
+  addressLine1: z.string().max(200).optional(),
+  addressCity: z.string().max(100).optional(),
+  addressState: z.string().max(100).optional(),
+  addressPostalCode: z.string().max(20).optional(),
+  addressCountry: z.string().max(100).optional(),
+});
+
+const profileCompletionSchema = z.object({
+  firstName: z.string().min(1, "First name is required").max(50).trim(),
+  lastName: z.string().min(1, "Last name is required").max(50).trim(),
+  phone: z.string().min(1, "Phone number is required").max(30).trim(),
+  addressLine1: z.string().max(200).optional(),
+  addressCity: z.string().max(100).optional(),
+  addressState: z.string().max(100).optional(),
+  addressPostalCode: z.string().max(20).optional(),
+  addressCountry: z.string().max(100).optional(),
 });
 
 export default function Auth() {
