@@ -149,9 +149,8 @@ export const OnboardingWizard = () => {
           toast.error("Failed to save profile data");
           return;
         }
-
+      }
       setStep1Completed(true);
-    }
 
     if (step < totalSteps) {
       setStep(step + 1);
