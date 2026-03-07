@@ -91,7 +91,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Get the base URL for the invitation link
-    const baseUrl = "https://actiplan-blueprint-creation.lovable.app";
+    const baseUrl = "https://actiplan.app";
     const invitationUrl = `${baseUrl}/accept-invitation?token=${invitationToken}`;
 
     console.log("Invitation URL:", invitationUrl);
