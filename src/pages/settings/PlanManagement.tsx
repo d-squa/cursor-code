@@ -218,6 +218,8 @@ export default function PlanManagement() {
             console.error("Finalize error:", err);
             toast.success("Subscription activated!");
           }
+          // Fire Subscribe conversion for Google Ads tracking
+          fireSubscribeConversion();
           refetch();
         } else if (success === "true") {
           toast.success("Subscription activated successfully!");

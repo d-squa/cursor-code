@@ -155,7 +155,6 @@ export default function ChoosePlan() {
 
             if (!error && data?.success) {
               localStorage.removeItem("actiplan_signup_source");
-              fireSubscribeConversion();
               toast.success("Welcome! Your 30-day free trial has started.");
               navigate("/overview");
             }

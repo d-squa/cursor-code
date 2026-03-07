@@ -187,7 +187,6 @@ export default function Auth() {
 
                   if (trialData?.success) {
                     localStorage.removeItem("actiplan_signup_source");
-                    fireSubscribeConversion();
                     toast.success("Welcome! Your 30-day free trial has started.");
                     navigate("/overview");
                     return;
