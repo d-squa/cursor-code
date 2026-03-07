@@ -151,6 +151,7 @@ export const OnboardingWizard = () => {
         }
       }
       setStep1Completed(true);
+    }
 
     if (step < totalSteps) {
       setStep(step + 1);
