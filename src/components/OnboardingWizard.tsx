@@ -232,7 +232,7 @@ export const OnboardingWizard = () => {
 
                 if (!trialError && (trialData?.success || trialData?.alreadySubscribed)) {
                   localStorage.removeItem("actiplan_signup_source");
-                  fireSubscribeConversion();
+                  fireSubscribeConversion(`auto-trial:${session.user.id}`);
                   toast.success("Welcome! Your 30-day free trial has started.");
                   navigate("/overview");
                   return;
@@ -306,7 +306,7 @@ export const OnboardingWizard = () => {
               });
               if (trialData?.success || trialData?.alreadySubscribed) {
                 localStorage.removeItem("actiplan_signup_source");
-                fireSubscribeConversion();
+                fireSubscribeConversion(`auto-trial:${session.user.id}`);
                 toast.success("Welcome! Your 30-day free trial has started.");
                 navigate("/overview");
                 return;

@@ -219,7 +219,7 @@ export default function PlanManagement() {
             toast.success("Subscription activated!");
           }
           // Fire Subscribe conversion for Google Ads tracking
-          fireSubscribeConversion();
+          fireSubscribeConversion(`stripe-checkout:${sessionId}`);
           refetch();
         } else if (success === "true") {
           toast.success("Subscription activated successfully!");
