@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { fireSubscribeConversion } from "@/utils/conversionTracking";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -155,7 +155,6 @@ export default function ChoosePlan() {
 
             if (!error && data?.success) {
               localStorage.removeItem("actiplan_signup_source");
-              fireSubscribeConversion();
               toast.success("Welcome! Your 30-day free trial has started.");
               navigate("/overview");
             }

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PRICE_IDS, TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
+import { fireSubscribeConversion } from "@/utils/conversionTracking";
 import { SubscriptionTimeline } from "@/components/SubscriptionTimeline";
 
 const plans = [
@@ -217,6 +218,8 @@ export default function PlanManagement() {
             console.error("Finalize error:", err);
             toast.success("Subscription activated!");
           }
+          // Fire Subscribe conversion for Google Ads tracking
+          fireSubscribeConversion();
           refetch();
         } else if (success === "true") {
           toast.success("Subscription activated successfully!");
