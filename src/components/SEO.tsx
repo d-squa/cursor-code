@@ -18,7 +18,7 @@ const SEO = ({
   keywords,
   ogTitle,
   ogDescription,
-  ogImage = "https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png",
+  ogImage = "https://actiplan.app/logo.png",
   twitterTitle,
   twitterDescription,
   canonical,
