@@ -191,10 +191,6 @@ export default function PlanManagement() {
             is_trial: isTrial === "true",
           });
 
-          // Fire Google Ads Subscribe conversion for trial subscriptions
-          if (isTrial === "true") {
-            fireSubscribeConversion();
-          }
         }
 
         if (success === "true" && sessionId) {
