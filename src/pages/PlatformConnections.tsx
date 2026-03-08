@@ -822,9 +822,10 @@ export default function PlatformConnections() {
 
           if (error) throw error;
 
-          // Handle TikTok background sync
-          if (platformType === "tiktok" && data?.syncInProgress) {
-            toast.success("TikTok connected! Syncing advertiser accounts...");
+          // Handle TikTok/Snapchat background sync
+          if ((platformType === "tiktok" || platformType === "snapchat") && data?.syncInProgress) {
+            const platformLabel = platformType === "tiktok" ? "TikTok" : "Snapchat";
+            toast.success(`${platformLabel} connected! Syncing accounts...`);
             sessionStorage.setItem("platform_sync_id", data.platformId);
             setSyncProgressPlatformId(data.platformId);
             setSyncProgressDialogOpen(true);
