@@ -144,7 +144,8 @@ export function UnifiedTargeting({
         body: {
           query: searchQuery,
           metaAdAccountId,
-          tiktokAdvertiserId
+          tiktokAdvertiserId,
+          googleCustomerId
         }
       });
 
