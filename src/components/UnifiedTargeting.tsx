@@ -47,6 +47,16 @@ export interface UnifiedTargetingConfig {
   os?: string[];
   languages?: string[];
   selectedItems: UnifiedTargetingItem[];
+  // Keyword targeting for Google Ads / TikTok
+  selectedKeywords?: Array<{
+    id: string;
+    name: string;
+    platform: "google" | "tiktok";
+    avgMonthlySearches?: number;
+    competition?: string;
+    cpcLow?: number;
+    cpcHigh?: number;
+  }>;
   // Audience targeting mode
   useBroadTargeting?: boolean;
   // Custom/Lookalike audience selections
