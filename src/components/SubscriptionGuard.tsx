@@ -65,7 +65,14 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // 3. No subscription error (errors should not trigger redirect) AND
     // 4. Workspace is loaded (so subscription check has correct context)
     if (!isSubscribed && !wasSubscribedRef.current && !subError && !subLoading && activeWorkspaceId) {
-      navigate("/choose-plan");
+      // Preserve checkout success params so ChoosePlan can handle post-checkout polling
+      const currentParams = new URLSearchParams(window.location.search);
+      const successParam = currentParams.get("success");
+      if (successParam === "true") {
+        navigate(`/choose-plan${window.location.search}`);
+      } else {
+        navigate("/choose-plan");
+      }
       return;
     }
   }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed, workspaceLoading, activeWorkspaceId]);
