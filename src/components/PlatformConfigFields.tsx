@@ -62,6 +62,7 @@ export function PlatformConfigFields({
   const [tiktokIdentities, setTiktokIdentities] = useState<Resource[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<Resource[]>([]);
   const [tiktokProductSets, setTiktokProductSets] = useState<Resource[]>([]);
+  const [googleAccount, setGoogleAccount] = useState<{ merchant_center_id?: string; feed_label?: string } | null>(null);
 
   useEffect(() => {
     if (userId && platformName.toLowerCase() === 'meta') {
