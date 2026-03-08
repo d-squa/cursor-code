@@ -38,6 +38,7 @@ export function StrategySelector({
   adFormats = [],
   hasPixel = false,
   hasCatalog = false,
+  hasKeywords = false,
 }: StrategySelectorProps) {
   const normalizedPlatform = useMemo(() => {
     const p = (platformId || "meta").toLowerCase();
