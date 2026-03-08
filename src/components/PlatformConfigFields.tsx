@@ -164,15 +164,27 @@ export function PlatformConfigFields({
   const loadGoogleAdsResources = async () => {
     setLoading(true);
     try {
+      // Fetch defaults from DB
       const { data, error } = await supabase
         .from("google_ad_accounts")
-        .select("default_merchant_center_id, default_feed_label")
+        .select("default_merchant_center_id, default_feed_label, customer_id")
         .eq("user_id", userId!)
         .eq("account_id", selectedAdAccountId!)
         .maybeSingle();
 
       if (error) throw error;
       setGoogleAccount(data ? { merchant_center_id: data.default_merchant_center_id || '', feed_label: data.default_feed_label || '' } : null);
+
+      // Fetch Merchant Center links from Google Ads API
+      if (data?.customer_id) {
+        const { data: mcData, error: mcError } = await supabase.functions.invoke("fetch-google-merchant-centers", {
+          body: { customerId: data.customer_id },
+        });
+        if (!mcError && mcData) {
+          setGoogleMerchantCenters(mcData.merchantCenters || []);
+          setGoogleFeedLabels(mcData.feedLabels || []);
+        }
+      }
     } catch (error) {
       console.error("Error loading Google Ads resources:", error);
     } finally {
