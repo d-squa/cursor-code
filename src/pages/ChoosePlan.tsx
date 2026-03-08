@@ -258,6 +258,19 @@ export default function ChoosePlan() {
     );
   }
 
+  if (checkoutSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="text-center space-y-4">
+          <CheckCircle className="h-16 w-16 text-primary mx-auto" />
+          <h2 className="text-2xl font-bold">Subscription Successful!</h2>
+          <p className="text-muted-foreground">Setting up your account, please wait...</p>
+          <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       {/* Header */}
