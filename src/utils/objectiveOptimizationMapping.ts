@@ -449,7 +449,7 @@ export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat
  * Get valid optimization goals for a specific objective
  */
 export function getOptimizationGoalsForObjective(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string
 ): OptimizationGoalOption[] {
   const objectives = getObjectivesForPlatform(platform);
