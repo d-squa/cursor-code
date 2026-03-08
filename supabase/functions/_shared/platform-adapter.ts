@@ -168,6 +168,9 @@ export function getPlatformAdapter(platform: string): PlatformAdapter {
       return new MetaAdapter();
     case 'tiktok':
       return new TikTokAdapter();
+    case 'google':
+    case 'google_ads':
+      return new GoogleAdsAdapter();
     default:
       throw new Error(`Unsupported platform: ${platform}`);
   }
