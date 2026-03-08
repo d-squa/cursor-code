@@ -87,7 +87,7 @@ export function UnifiedPageAssetsLibrary({
   const [posts, setPosts] = useState<OrganicPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok' | 'google'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
   const [networkFilter, setNetworkFilter] = useState<'all' | 'facebook' | 'instagram'>('all');
 
