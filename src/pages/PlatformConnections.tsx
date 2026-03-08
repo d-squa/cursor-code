@@ -505,6 +505,47 @@ export default function PlatformConnections() {
         console.error("Error connecting to TikTok:", error);
         toast.error(error.message || "Failed to connect to TikTok");
       }
+    } else if (platformType === "google") {
+      try {
+        const redirectUri = OAUTH_REDIRECT_URI;
+        const clientId = PLATFORM_CONFIG.google.clientId;
+
+        console.log("Google Ads OAuth - Client ID:", clientId ? "Configured" : "Missing");
+
+        if (!clientId) {
+          toast.error("Google Ads Client ID not configured. Please contact support.");
+          return;
+        }
+
+        // Store platformId in sessionStorage ONLY for explicit reconnection
+        if (platformId) {
+          sessionStorage.setItem("reconnecting_platform_id", platformId);
+          sessionStorage.setItem("reconnecting_platform_type", "google");
+        }
+
+        // Build Google OAuth URL
+        const oauthParams = new URLSearchParams({
+          response_type: "code",
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope: PLATFORM_CONFIG.google.oauthScopes,
+          access_type: "offline",
+          prompt: "consent",
+          state: "google",
+        });
+
+        const oauthUrl = `${PLATFORM_CONFIG.google.authEndpoint}?${oauthParams.toString()}`;
+
+        console.log("Google Ads OAuth - Redirecting...");
+        toast.loading("Redirecting to Google...");
+
+        setTimeout(() => {
+          window.location.href = oauthUrl;
+        }, 100);
+      } catch (error: any) {
+        console.error("Error connecting to Google Ads:", error);
+        toast.error(error.message || "Failed to connect to Google Ads");
+      }
     } else {
       toast.error("This platform is not yet supported");
     }
