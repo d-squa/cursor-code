@@ -228,10 +228,10 @@ const getFunnelObjectives = (platformId: string, stage: string, focus: string): 
       },
     },
     google: {
-      awareness: { purchase: "Display", leads: "Display", "app-installs": "App", conversions: "Display" },
-      consideration: { purchase: "Search", leads: "Search", "app-installs": "App", conversions: "Search" },
-      conversion: { purchase: "Shopping", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
-      loyalty: { purchase: "Performance Max", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
+      awareness: { purchase: "Display", leads: "Display", "app-installs": "Video", conversions: "Display" },
+      consideration: { purchase: "Demand Gen", leads: "Performance Max", "app-installs": "App Promotion", conversions: "Performance Max" },
+      conversion: { purchase: "Shopping", leads: "Search", "app-installs": "App Promotion", conversions: "Search" },
+      loyalty: { purchase: "Performance Max", leads: "Search", "app-installs": "App Promotion", conversions: "Performance Max" },
     },
   };
 
