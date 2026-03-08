@@ -214,11 +214,11 @@ export function PhaseAudienceSelector({
       // Determine which audience endpoint to call based on platform
       const platformLower = platform.toLowerCase();
       const isTikTok = platformLower.includes('tiktok');
+      const isGoogle = platformLower.includes('google');
 
-      // For TikTok, we would call a TikTok-specific audience endpoint
-      // For now, skip audience loading for TikTok as it's not implemented yet
-      if (isTikTok) {
-        console.log('TikTok audience loading not yet implemented');
+      // For TikTok and Google, audience loading is not yet implemented
+      if (isTikTok || isGoogle) {
+        console.log(`${isGoogle ? 'Google Ads' : 'TikTok'} audience loading not yet implemented`);
         setAudiencesByType({});
         return;
       }

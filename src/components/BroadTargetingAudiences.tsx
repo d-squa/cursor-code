@@ -50,10 +50,10 @@ export function BroadTargetingAudiences({
     setLoading(true);
     try {
       const isTikTok = platform?.toLowerCase().includes('tiktok');
+      const isGoogle = platform?.toLowerCase().includes('google');
       
-      if (isTikTok) {
-        // TikTok audience loading - would need different endpoint
-        console.log('TikTok audience loading for broad targeting');
+      if (isTikTok || isGoogle) {
+        console.log(`${isGoogle ? 'Google Ads' : 'TikTok'} audience loading for broad targeting not yet implemented`);
         setAvailableRetargeting([]);
         setAvailableLookalike([]);
         return;
