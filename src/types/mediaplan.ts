@@ -67,6 +67,13 @@ export interface Market {
     messenger?: string[];
     threads?: string[];
   }; // Meta Positions per publisher
+  // Google Ads-specific fields
+  googleBidStrategy?: string; // MAXIMIZE_CONVERSIONS, MAXIMIZE_CLICKS, TARGET_CPA, TARGET_ROAS, MANUAL_CPC
+  googleTargetCpa?: number; // Target CPA amount
+  googleTargetRoas?: number; // Target ROAS percentage
+  googleMaxCpcBid?: number; // Max CPC bid for manual bidding
+  googleConversionAction?: string; // Google Ads conversion action
+  googleLandingPageUrl?: string; // Landing page URL
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;
