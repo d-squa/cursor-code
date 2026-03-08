@@ -1192,7 +1192,16 @@ export default function PlatformConnections() {
                   >
                     <Search className="h-4 w-4 mr-2" />
                     Connect Google Ads Account
-                  </Button>
+                   </Button>
+                   {/* Snapchat Connect Button */}
+                   <Button
+                     onClick={() => handleConnectPlatform("snapchat", false)}
+                     variant="outline"
+                     className="border-border"
+                   >
+                     <Video className="h-4 w-4 mr-2" />
+                     Connect Snapchat Account
+                   </Button>
                 </div>
               </div>
             )}
