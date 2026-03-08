@@ -1928,6 +1928,9 @@ export function PhaseScheduler({
                                          filterItemsForPlatform(basicTargeting.selectedItems) : [],
                                        selectedKeywords: basicTargeting.selectedKeywords ? [...basicTargeting.selectedKeywords] : [],
                                        useBroadTargeting: false,
+                                       retargetingAudienceIds: basicTargeting.retargetingAudienceIds ? [...basicTargeting.retargetingAudienceIds] : [],
+                                       lookalikeAudienceIds: basicTargeting.lookalikeAudienceIds ? [...basicTargeting.lookalikeAudienceIds] : [],
+                                       customAudienceIds: basicTargeting.customAudienceIds ? [...basicTargeting.customAudienceIds] : [],
                                      };
                                      console.log('🔄 Setting override ON with targeting from basicTargeting:', phaseTargeting);
                                      updatePhaseFields(phase.id, { overrideTargeting: true, useBroadTargeting: false, targeting: phaseTargeting });
@@ -1972,6 +1975,7 @@ export function PhaseScheduler({
                                     onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
                                     metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
                                     tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
+                                    googleCustomerId={platformId === 'google_ads' ? adAccountId : undefined}
                                     skipLocalStorage={true}
                                     currentSplitDimension={phase.adSetSplitDimension}
                                     onSplitDimensionChange={(dim, useCBO) => {
