@@ -216,9 +216,10 @@ export const generateAutoDetectPhases = (
   hasCatalog: boolean,
   startDate: string,
   endDate: string,
-  platform: string = "meta"
+  platform: string = "meta",
+  hasKeywords: boolean = false
 ) => {
-  const strategyId = getAutoDetectStrategyId(adFormats, hasPixel, hasCatalog, platform);
+  const strategyId = getAutoDetectStrategyId(adFormats, hasPixel, hasCatalog, platform, hasKeywords);
   const strategy = getStrategyById(strategyId);
   
   if (!strategy) {
