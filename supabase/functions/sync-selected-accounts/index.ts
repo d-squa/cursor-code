@@ -1216,6 +1216,60 @@ serve(async (req) => {
       );
     }
 
+    // Handle Google Ads account syncing (synchronous - simple insert)
+    if (platform.platform_type === "google") {
+      const accountsInfo = platform.metadata?.accounts || [];
+      
+      // Filter selected accounts from metadata
+      const selectedGoogleAccounts = accountsInfo.filter((acc: any) =>
+        selectedIds.includes(String(acc.customer_id))
+      );
+
+      if (selectedGoogleAccounts.length === 0) {
+        throw new Error("No matching Google Ads accounts found");
+      }
+
+      const googleAccountsToInsert = selectedGoogleAccounts.map((account: any) => ({
+        user_id: user.id,
+        team_id: teamId,
+        account_id: String(account.customer_id),
+        account_name: account.name || `Account ${account.customer_id}`,
+        customer_id: String(account.customer_id),
+        account_status: account.status || "ENABLED",
+        currency: account.currency || "USD",
+        timezone: account.timezone || "UTC",
+        platform_id: platformId,
+        manager_customer_id: platform.metadata?.manager_customer_id || null,
+      }));
+
+      // Replace existing Google accounts for this team
+      await supabase
+        .from("google_ad_accounts")
+        .delete()
+        .eq("team_id", teamId);
+
+      const { error: insertError } = await supabase
+        .from("google_ad_accounts")
+        .insert(googleAccountsToInsert);
+
+      if (insertError) {
+        console.error("Google Ads insert error:", insertError);
+        throw new Error("Failed to save selected Google Ads accounts");
+      }
+
+      console.log(`Successfully synced ${googleAccountsToInsert.length} Google Ads accounts`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          syncedCount: googleAccountsToInsert.length,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Handle Meta account syncing - use background processing for large account sets
     if (platform.platform_type !== "meta") {
       throw new Error("Unsupported platform type");
