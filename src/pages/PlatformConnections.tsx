@@ -1325,7 +1325,7 @@ export default function PlatformConnections() {
               emptyMessage="No Google Ads accounts synced yet. Connect a Google Ads platform to get started."
               syncingAssets={syncingAssets}
               canManageClients={canManageClients}
-              onSyncAccount={() => {}} 
+              onSyncAccount={(account) => handleSyncGoogleAccountAssets(account)} 
               onLinkAccount={(accountId) => {
                 setSelectedAdAccountForLinking("google_" + accountId);
                 setClientSelectorOpen(true);
