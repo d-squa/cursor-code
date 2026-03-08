@@ -109,8 +109,17 @@ serve(async (req) => {
         if (metaInsights) {
           insights.push(metaInsights);
         }
+      } else if (platformType.toLowerCase() === "google" || platformType.toLowerCase() === "google_ads") {
+        const googleInsights = await fetchGoogleAdsInsights(
+          connectedPlatform,
+          campaign,
+          supabase
+        );
+        if (googleInsights) {
+          insights.push(googleInsights);
+        }
       }
-      // Add other platforms (Google Ads, TikTok, etc.) here
+      // Add other platforms (TikTok, etc.) here
     }
 
     // Save insights to database
