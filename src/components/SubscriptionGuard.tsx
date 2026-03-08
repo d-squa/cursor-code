@@ -64,7 +64,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // 2. Never was subscribed in this session (or explicitly confirmed unsubscribed) AND
     // 3. No subscription error (errors should not trigger redirect) AND
     // 4. Workspace is loaded (so subscription check has correct context)
-    if (!isSubscribed && !wasSubscribedRef.current && !subError && !subLoading && activeWorkspaceId) {
+    if (!isSubscribed && !wasSubscribedRef.current && !subError && !subLoading) {
       navigate("/choose-plan");
       return;
     }
