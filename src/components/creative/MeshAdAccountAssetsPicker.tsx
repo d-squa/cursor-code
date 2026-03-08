@@ -6,7 +6,7 @@ import { UnifiedAssetsLibrary, PlatformAsset } from '@/components/creative/Unifi
 import type { SelectedAsset } from '@/hooks/useCreativeMeshProgress';
 
 interface AdAccountInfo {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   accountId: string;
 }
 

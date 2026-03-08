@@ -202,6 +202,87 @@ function getTikTokObjectiveFromPhaseName(
 }
 
 /**
+ * Google Ads-specific objective mapping
+ * Maps funnel phases to Google Ads campaign types and bidding strategies
+ */
+function getGoogleAdsObjectiveFromPhaseName(
+  phaseName: string,
+  strategyFocus?: string
+): PhaseObjectiveMapping {
+  const normalizedPhase = phaseName.toLowerCase();
+  
+  // Awareness/Reach phases → Display/Video awareness
+  if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
+    return {
+      objective: "AWARENESS",
+      optimizationGoal: "TARGET_CPM",
+      destination: "Display/YouTube"
+    };
+  }
+  
+  // Video/Engagement phases → YouTube video campaigns
+  if (normalizedPhase.includes("engagement") || normalizedPhase.includes("authority") || normalizedPhase.includes("trust")) {
+    return {
+      objective: "CONSIDERATION",
+      optimizationGoal: "TARGET_CPV",
+      destination: "YouTube"
+    };
+  }
+  
+  // Consideration/Traffic phases → Search/Demand Gen
+  if (normalizedPhase.includes("consideration") || normalizedPhase.includes("interest") || normalizedPhase.includes("preference")) {
+    return {
+      objective: "WEBSITE_TRAFFIC",
+      optimizationGoal: "MAXIMIZE_CLICKS",
+      destination: "Search/Demand Gen"
+    };
+  }
+  
+  // Lead-focused phases → PMax/Search leads
+  if (normalizedPhase.includes("capture") || normalizedPhase.includes("nurture") || strategyFocus === "Leads") {
+    return {
+      objective: "LEADS",
+      optimizationGoal: "MAXIMIZE_CONVERSIONS",
+      destination: "Search/PMax"
+    };
+  }
+  
+  // Conversion/Purchase phases → PMax/Search sales
+  if (normalizedPhase.includes("conversion") || normalizedPhase.includes("purchase") || normalizedPhase.includes("intent")) {
+    return {
+      objective: "SALES",
+      optimizationGoal: "MAXIMIZE_CONVERSIONS",
+      destination: "PMax/Search"
+    };
+  }
+  
+  // Loyalty/Retention phases → PMax with ROAS
+  if (normalizedPhase.includes("loyalty") || normalizedPhase.includes("retention") || normalizedPhase.includes("expansion")) {
+    return {
+      objective: "SALES",
+      optimizationGoal: "TARGET_ROAS",
+      destination: "PMax"
+    };
+  }
+  
+  // App-specific phases → App campaigns (UAC)
+  if (normalizedPhase.includes("acquisition") || normalizedPhase.includes("onboarding") || normalizedPhase.includes("activation")) {
+    return {
+      objective: "APP_PROMOTION",
+      optimizationGoal: "MAXIMIZE_CONVERSIONS",
+      destination: "App Campaigns"
+    };
+  }
+  
+  // Default to website traffic
+  return {
+    objective: "WEBSITE_TRAFFIC",
+    optimizationGoal: "MAXIMIZE_CLICKS",
+    destination: "Search"
+  };
+}
+
+/**
  * Get display label for strategy
  */
 export function getStrategyLabel(strategy: string, strategyFocus?: string): string {
