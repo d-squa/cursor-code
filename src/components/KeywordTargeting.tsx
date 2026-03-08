@@ -82,6 +82,9 @@ export function KeywordTargeting({
     onUpdate(selectedKeywords.filter((s) => s.id !== kw.id));
   };
 
+  const totalSearchVolume = selectedKeywords.reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
+  const avgSearchVolume = selectedKeywords.length > 0 ? Math.round(totalSearchVolume / selectedKeywords.length) : 0;
+
   const formatSearchVolume = (vol?: number) => {
     if (!vol) return "N/A";
     if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
