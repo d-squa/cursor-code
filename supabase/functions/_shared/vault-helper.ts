@@ -97,6 +97,117 @@ export async function getAccessToken(
 }
 
 /**
+ * Get access token with automatic refresh for Google OAuth tokens.
+ * If the access token fails (expired), uses the refresh token to get a new one.
+ * @param supabase - Supabase client with service role key
+ * @param platformId - UUID of the connected platform
+ * @param fallbackToken - Optional fallback token from database column
+ * @param platformType - Platform type to determine refresh strategy
+ * @returns The access token (refreshed if needed)
+ */
+export async function getAccessTokenWithRefresh(
+  supabase: any,
+  platformId: string,
+  fallbackToken?: string | null,
+  platformType?: string
+): Promise<string | null> {
+  // First try the regular access token
+  const accessToken = await getAccessToken(supabase, platformId, fallbackToken);
+  
+  if (!accessToken) {
+    return null;
+  }
+
+  // For Google, check if we need to refresh
+  if (platformType === 'google') {
+    // Check token_expires_at from platform record
+    const { data: platform } = await supabase
+      .from('connected_platforms')
+      .select('token_expires_at')
+      .eq('id', platformId)
+      .single();
+
+    if (platform?.token_expires_at) {
+      const expiresAt = new Date(platform.token_expires_at);
+      const now = new Date();
+      // Refresh if expires within 5 minutes
+      if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
+        console.log(`Token expiring soon or expired for platform ${platformId}, attempting refresh...`);
+        const refreshedToken = await refreshGoogleToken(supabase, platformId);
+        if (refreshedToken) {
+          return refreshedToken;
+        }
+      }
+    }
+  }
+
+  return accessToken;
+}
+
+/**
+ * Refresh a Google OAuth access token using the stored refresh token
+ */
+async function refreshGoogleToken(
+  supabase: any,
+  platformId: string
+): Promise<string | null> {
+  try {
+    const refreshToken = await getPlatformToken(supabase, platformId, 'refresh');
+    if (!refreshToken) {
+      console.error('No refresh token found in Vault for Google platform', platformId);
+      return null;
+    }
+
+    // Get Google OAuth credentials from environment
+    // These are available in the edge function runtime
+    const clientId = (globalThis as any).Deno?.env?.get?.('GOOGLE_ADS_OAUTH_CLIENT_ID');
+    const clientSecret = (globalThis as any).Deno?.env?.get?.('GOOGLE_ADS_CLIENT_SECRET');
+
+    if (!clientId || !clientSecret) {
+      console.error('Google OAuth credentials not available for token refresh');
+      return null;
+    }
+
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Google token refresh failed:', errorData);
+      return null;
+    }
+
+    const tokenData = await response.json();
+    const newAccessToken = tokenData.access_token;
+    const expiresIn = tokenData.expires_in || 3600;
+
+    // Store the new access token in Vault
+    await storePlatformToken(supabase, platformId, newAccessToken, 'access');
+
+    // Update token_expires_at in the platform record
+    const newExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+    await supabase
+      .from('connected_platforms')
+      .update({ token_expires_at: newExpiresAt, updated_at: new Date().toISOString() })
+      .eq('id', platformId);
+
+    console.log(`Successfully refreshed Google token for platform ${platformId}`);
+    return newAccessToken;
+  } catch (error: any) {
+    console.error('Error refreshing Google token:', error.message);
+    return null;
+  }
+}
+
+/**
  * Store page access token in Supabase Vault
  * @param supabase - Supabase client with service role key
  * @param pageId - UUID of the meta page record
