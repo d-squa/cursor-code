@@ -1513,6 +1513,7 @@ export function getStrategyById(strategyId: string): StrategyDefinition | undefi
   const allStrategies = [
     ...META_STRATEGY_GROUPS.flatMap(g => g.variants),
     ...TIKTOK_STRATEGY_GROUPS.flatMap(g => g.variants),
+    ...GOOGLE_ADS_STRATEGY_GROUPS.flatMap(g => g.variants),
   ];
   return allStrategies.find(s => s.id === strategyId);
 }
