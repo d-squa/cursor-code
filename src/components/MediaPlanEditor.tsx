@@ -19,6 +19,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 
 import { AudienceCard } from "./AudienceCard";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
+import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
 import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
