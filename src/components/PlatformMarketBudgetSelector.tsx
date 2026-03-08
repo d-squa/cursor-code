@@ -2511,6 +2511,62 @@ export function PlatformMarketBudgetSelector({
                                 </div>
                               )}
 
+                            {/* Platform Configuration Fields - Only for Google Ads */}
+                            {platform.name.toLowerCase().includes("google") && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    Customer Account <span className="text-destructive">*</span>
+                                  </Label>
+                                  <Select
+                                    value={market.adAccountId || ""}
+                                    onValueChange={(value) => {
+                                      const account = googleAdAccounts.find(a => a.id === value);
+                                      setPlatforms(prev =>
+                                        prev.map((p, i) => {
+                                          if (i !== platformIndex) return p;
+                                          return {
+                                            ...p,
+                                            markets: p.markets.map(m => {
+                                              if (m.id === market.id) {
+                                                return {
+                                                  ...m,
+                                                  adAccountId: value,
+                                                  accountName: account?.name || "",
+                                                };
+                                              }
+                                              return m;
+                                            }),
+                                          };
+                                        })
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingGoogleAdAccounts ? "Loading..." : "Select Customer Account"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingGoogleAdAccounts ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : googleAdAccounts.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No Google Ads accounts found. Connect Google Ads first.
+                                        </div>
+                                      ) : (
+                                        googleAdAccounts.map((account) => (
+                                          <SelectItem key={account.id} value={account.id}>
+                                            {account.name} ({account.customerId})
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            )}
+
                              {/* Ad Formats */}
                              <div className="space-y-1">
                                <Label className="text-xs">Ad Formats</Label>
