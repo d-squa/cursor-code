@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import SEO from "@/components/SEO";
+import HeroVideoPlayer from "@/components/HeroVideoPlayer";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -443,6 +444,7 @@ const Landing = () => {
                 </li>
               ))}
             </ul>
+            <HeroVideoPlayer />
           </div>
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
