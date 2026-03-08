@@ -121,14 +121,7 @@ export default function ChoosePlan() {
       const isTrial = searchParams.get("is_trial") === "true";
 
       // Fire conversion tracking
-      fireSubscribeConversion({
-        planName,
-        priceId: searchParams.get("stripe_price_id") || "",
-        billingCycle: searchParams.get("billing_cycle") || "",
-        price: searchParams.get("price") || "",
-        currency: searchParams.get("currency") || "USD",
-        isTrial,
-      });
+      fireSubscribeConversion(`subscribe-${searchParams.get("session_id") || "checkout"}`);
 
       // Poll subscription status and redirect when ready
       const pollInterval = setInterval(async () => {
