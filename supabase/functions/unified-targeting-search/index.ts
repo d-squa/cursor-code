@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
-import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getAccessToken, getAccessTokenWithRefresh, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -144,7 +144,7 @@ serve(async (req) => {
         .single();
 
       if (googlePlatform) {
-        const accessToken = await getAccessToken(supabaseClient, googlePlatform.id, googlePlatform.access_token);
+        const accessTWithRefresh(supabaseClient, googlePlatform.id, googlePlatform.access_token, 'google'googlePlatform.access_token);
         
         if (accessToken) {
           const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');

@@ -65,7 +65,7 @@ serve(async (req: Request) => {
         .single();
 
       if (platform) {
-        const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+        const accessToken = await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, 'google');
         const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
         const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
 
