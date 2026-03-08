@@ -346,6 +346,36 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         })),
       );
 
+      // Load Google Ads accounts for this client
+      const { data: googleAccountsData, error: googleAccountsError } = await supabase
+        .from("google_ad_accounts")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, main_markets")
+        .eq("client_id", clientId);
+
+      if (googleAccountsError) throw googleAccountsError;
+
+      const googleAccounts: GoogleAdAccountDefaults[] = (googleAccountsData || []).map((acc: any) => ({
+        ...acc,
+        main_markets: Array.isArray(acc.main_markets) ? (acc.main_markets as string[]) : [],
+      }));
+      setGoogleAdAccounts(googleAccounts);
+
+      // Initialize Google local defaults
+      const gDefaults: Record<string, Partial<GoogleAdAccountDefaults>> = {};
+      googleAccounts.forEach((acc) => {
+        gDefaults[acc.id] = {
+          default_landing_page_url: acc.default_landing_page_url || null,
+          default_bid_strategy: acc.default_bid_strategy || null,
+          default_target_cpa: acc.default_target_cpa || null,
+          default_target_roas: acc.default_target_roas || null,
+          default_max_cpc_bid: acc.default_max_cpc_bid || null,
+          default_conversion_budget_type: acc.default_conversion_budget_type || null,
+          default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+          main_markets: acc.main_markets || [],
+        };
+      });
+      setGoogleLocalDefaults(gDefaults);
+
       const allAccounts = [...metaAccounts, ...tiktokAccounts];
       setAdAccounts(allAccounts);
 
