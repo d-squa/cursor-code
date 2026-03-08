@@ -40,7 +40,9 @@ export function StrategySelector({
 }: StrategySelectorProps) {
   const normalizedPlatform = useMemo(() => {
     const p = (platformId || "meta").toLowerCase();
-    return p.includes("tiktok") ? "tiktok" : "meta";
+    if (p.includes("tiktok")) return "tiktok";
+    if (p.includes("google")) return "google";
+    return "meta";
   }, [platformId]);
 
   const strategyGroups = useMemo(() => getStrategyGroupsForPlatform(normalizedPlatform), [normalizedPlatform]);
