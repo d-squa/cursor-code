@@ -98,6 +98,70 @@ export const platformAdFormats: Record<string, string[]> = {
     "Masthead",
     "Text Ads",
   ],
+  "Google Ads": [
+    // Search
+    "Responsive Search Ads",
+    "Text Ads",
+    // Display
+    "Responsive Display Ads",
+    "Uploaded Image Ads",
+    "HTML5 Ads",
+    // Video
+    "In-stream Ads (Bumper, Skippable)",
+    "Non-skippable In-stream Ads",
+    "In-feed Ads",
+    "Shorts Ads",
+    "Audio Ads",
+    // Demand Gen
+    "Single Image Ads",
+    "Video Ads",
+    "Carousel Ads",
+    "Product Ads",
+    // Shopping
+    "Product Shopping Ads",
+    "Showcase Shopping Ads",
+    // PMax
+    "Asset Groups (Auto-generated)",
+    // App
+    "App Install Ads (Auto-generated)",
+  ],
+  "Google Ads — Search": [
+    "Responsive Search Ads",
+    "Text Ads",
+  ],
+  "Google Ads — Display": [
+    "Responsive Display Ads",
+    "Uploaded Image Ads",
+    "HTML5 Ads",
+  ],
+  "Google Ads — Video": [
+    "In-stream Ads (Bumper, Skippable)",
+    "Non-skippable In-stream Ads",
+    "In-feed Ads",
+    "Shorts Ads",
+    "Multi-format Ads (Skippable In-stream, Bumper, In-feed, Shorts)",
+    "Audio Ads",
+    "Bumper Ads",
+    "Skippable In-stream Ads",
+  ],
+  "Google Ads — Performance Max": [
+    "Asset Groups (Auto-generated)",
+  ],
+  "Google Ads — Demand Gen": [
+    "Single Image Ads",
+    "Video Ads",
+    "Carousel Ads",
+    "Product Ads",
+  ],
+  "Google Ads — Shopping": [
+    "Product Shopping Ads",
+    "Showcase Shopping Ads",
+  ],
+  "Google Ads — App Promotion": [
+    "App Install Ads (Auto-generated)",
+    "App Engagement Ads (Auto-generated)",
+    "App Pre-registration Ads (Auto-generated)",
+  ],
 };
 
 // Ad format to funnel stage and objective mapping
