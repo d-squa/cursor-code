@@ -223,7 +223,7 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    persistToLocalStorage(updated);
     toast.success(`Added ${newItems.length} targeting options`);
   };
 
