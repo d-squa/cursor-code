@@ -188,7 +188,11 @@ const platformObjectives: Record<string, string[]> = {
 
 const optimizationGoals: Record<string, string[]> = {
   meta: ["Impressions", "Link Clicks", "Landing Page Views", "Conversions", "Value", "Reach", "Thruplay"],
-  google: ["Clicks", "Conversions", "Conversion Value", "Impressions", "Views"],
+  google: [
+    "Maximize Clicks", "Maximum CPC", "Maximize Conversions", "Target CPA",
+    "Maximize Conversion Value", "Target ROAS", "Target CPM", "Target Impression Share",
+    "Viewable Impressions", "Manual CPC",
+  ],
   linkedin: ["Impressions", "Clicks", "Landing Page Actions", "Conversions"],
   tiktok: ["Reach", "Click", "Conversion", "Value"],
   snapchat: ["Impressions", "Swipes", "App Installs", "Pixel Purchases"],
