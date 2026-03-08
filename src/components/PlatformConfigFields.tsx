@@ -159,6 +159,25 @@ export function PlatformConfigFields({
     }
   };
 
+  const loadGoogleAdsResources = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("google_ad_accounts")
+        .select("default_merchant_center_id, default_feed_label")
+        .eq("user_id", userId!)
+        .eq("account_id", selectedAdAccountId!)
+        .maybeSingle();
+
+      if (error) throw error;
+      setGoogleAccount(data ? { merchant_center_id: data.default_merchant_center_id || '', feed_label: data.default_feed_label || '' } : null);
+    } catch (error) {
+      console.error("Error loading Google Ads resources:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Filter product sets by selected catalog
   const filteredProductSets = productSets.filter(ps => ps.catalog_id === catalog);
   const filteredTiktokProductSets = tiktokProductSets.filter(ps => ps.catalog_id === catalog);
