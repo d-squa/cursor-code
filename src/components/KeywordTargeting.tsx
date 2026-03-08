@@ -82,6 +82,16 @@ export function KeywordTargeting({
     onUpdate(selectedKeywords.filter((s) => s.id !== kw.id));
   };
 
+  const handleAddAll = () => {
+    const newKeywords = results.filter((kw) => !isSelected(kw));
+    if (newKeywords.length === 0) {
+      toast.info("All keywords already selected");
+      return;
+    }
+    onUpdate([...selectedKeywords, ...newKeywords]);
+    toast.success(`Added ${newKeywords.length} keywords`);
+  };
+
   const totalSearchVolume = selectedKeywords.reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
   const avgSearchVolume = selectedKeywords.length > 0 ? Math.round(totalSearchVolume / selectedKeywords.length) : 0;
 
