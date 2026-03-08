@@ -80,3 +80,8 @@ export default function HeroVideoPlayer({ videoId = DEFAULT_VIDEO_ID }: HeroVide
     </div>
   );
 }
+
+/** Call this from any button to scroll to the video and auto-play it */
+export function triggerHeroVideo() {
+  window.dispatchEvent(new CustomEvent("play-hero-video"));
+}
