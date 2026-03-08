@@ -2782,6 +2782,7 @@ export function MediaPlanEditor() {
                               adFormats={market.adFormats || genericConfig.targeting?.adFormats || []}
                               hasPixel={!!market.pixel}
                               hasCatalog={!!market.catalog}
+                              hasKeywords={(basicTargeting as any)?.selectedKeywords?.filter((k: any) => !k.isNegative)?.length > 0}
                               onStrategyChange={(strategy, phases, selectedStrategyId) => {
                                 setPlatformsWithMarkets((prev) =>
                                   prev.map((p) =>
