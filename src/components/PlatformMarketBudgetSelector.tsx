@@ -2535,6 +2535,8 @@ export function PlatformMarketBudgetSelector({
                                                   ...m,
                                                   adAccountId: value,
                                                   accountName: account?.name || "",
+                                                  googleMerchantCenterId: account?.merchantCenterId || "",
+                                                  googleFeedLabel: account?.feedLabel || "",
                                                 };
                                               }
                                               return m;
