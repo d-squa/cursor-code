@@ -235,7 +235,7 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    persistToLocalStorage(updated);
   };
 
   const getPlatformBadge = (platforms: ('meta' | 'tiktok' | 'google')[]) => {
