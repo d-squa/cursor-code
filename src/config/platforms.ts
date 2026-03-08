@@ -45,7 +45,7 @@ export const PLATFORM_CONFIG = {
     responseType: "code"
   },
   google: {
-    clientId: import.meta.env.VITE_GOOGLE_ADS_CLIENT_ID || "",
+    clientId: import.meta.env.VITE_GOOGLE_ADS_CLIENT_ID || "307243081095-gnl19m9etdjteb4toggj4kvla69a7njo.apps.googleusercontent.com",
     oauthScopes: "https://www.googleapis.com/auth/adwords openid email profile",
     authEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenEndpoint: "https://oauth2.googleapis.com/token",
