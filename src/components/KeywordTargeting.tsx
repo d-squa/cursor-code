@@ -134,9 +134,17 @@ export function KeywordTargeting({
         {/* Results */}
         {results.length > 0 && (
           <div>
-            <p className="text-sm text-muted-foreground mb-2">
-              Suggestions ({results.length})
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-muted-foreground">
+                Suggestions ({results.length})
+              </p>
+              {results.some((kw) => !isSelected(kw)) && (
+                <Button size="sm" variant="outline" onClick={handleAddAll} className="text-xs h-7">
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add All
+                </Button>
+              )}
+            </div>
             <ScrollArea className="h-[280px]">
               <div className="space-y-2">
                 {results.map((kw) => (
