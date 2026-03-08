@@ -647,10 +647,11 @@ export default function PlatformConnections() {
 
     try {
       const isTikTok = selectedAdAccountForLinking.startsWith("tiktok_");
-      const table = isTikTok ? "tiktok_ad_accounts" : "meta_ad_accounts";
-      const cleanId = isTikTok ? selectedAdAccountForLinking.replace("tiktok_", "") : selectedAdAccountForLinking;
+      const isGoogle = selectedAdAccountForLinking.startsWith("google_");
+      const table = isTikTok ? "tiktok_ad_accounts" : isGoogle ? "google_ad_accounts" : "meta_ad_accounts";
+      const cleanId = isTikTok ? selectedAdAccountForLinking.replace("tiktok_", "") : isGoogle ? selectedAdAccountForLinking.replace("google_", "") : selectedAdAccountForLinking;
 
-      const { error } = await supabase.from(table).update({ client_id: clientId }).eq("id", cleanId);
+      const { error } = await supabase.from(table as any).update({ client_id: clientId }).eq("id", cleanId);
 
       if (error) throw error;
 
