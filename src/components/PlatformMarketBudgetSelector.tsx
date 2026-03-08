@@ -2665,22 +2665,52 @@ export function PlatformMarketBudgetSelector({
                                 {/* Product Feed (Merchant Center) */}
                                 <div className="space-y-1">
                                   <Label className="text-xs">Merchant Center ID (Product Feed)</Label>
-                                  <Input
-                                    className="h-7 text-xs"
-                                    placeholder="Enter Merchant Center ID"
-                                    value={market.googleMerchantCenterId || ""}
-                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleMerchantCenterId', e.target.value)}
-                                  />
+                                  {loadingGoogleMC[market.id] ? (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground h-7"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</div>
+                                  ) : (
+                                    <Select
+                                      value={market.googleMerchantCenterId || undefined}
+                                      onValueChange={(v) => updateMarketField(platformIndex, market.id, 'googleMerchantCenterId', v)}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue placeholder="Select Merchant Center" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {(googleMerchantCenters[market.id] || []).length === 0 ? (
+                                          <SelectItem value="none" disabled>No Merchant Centers linked</SelectItem>
+                                        ) : (
+                                          (googleMerchantCenters[market.id] || []).map((mc) => (
+                                            <SelectItem key={mc.id} value={mc.merchantCenterId}>
+                                              {mc.merchantCenterName} ({mc.merchantCenterId})
+                                            </SelectItem>
+                                          ))
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
                                 </div>
 
                                 <div className="space-y-1">
                                   <Label className="text-xs">Feed Label</Label>
-                                  <Input
-                                    className="h-7 text-xs"
-                                    placeholder="e.g., US, EU, ALL"
-                                    value={market.googleFeedLabel || ""}
-                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleFeedLabel', e.target.value)}
-                                  />
+                                  <Select
+                                    value={market.googleFeedLabel || undefined}
+                                    onValueChange={(v) => updateMarketField(platformIndex, market.id, 'googleFeedLabel', v)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Select feed label" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(googleFeedLabels[market.id] || []).length === 0 ? (
+                                        <SelectItem value="none" disabled>No feed labels found</SelectItem>
+                                      ) : (
+                                        (googleFeedLabels[market.id] || []).map((fl) => (
+                                          <SelectItem key={fl.label} value={fl.label}>
+                                            {fl.label}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
                             )}
