@@ -117,7 +117,7 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
     }
   }, []);
 
-  const selectPlatform = useCallback((platform: 'meta' | 'tiktok') => {
+  const selectPlatform = useCallback((platform: 'meta' | 'tiktok' | 'google') => {
     setProgress(prev => prev ? {
       ...prev,
       platform,
