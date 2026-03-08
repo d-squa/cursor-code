@@ -801,7 +801,9 @@ export default function PlatformConnections() {
             ? "tiktok-oauth-callback" 
             : platformType === "google" 
               ? "google-ads-oauth-callback" 
-              : "meta-oauth-callback";
+              : platformType === "snapchat"
+                ? "snapchat-oauth-callback"
+                : "meta-oauth-callback";
 
           console.log("OAuth callback - calling function:", callbackFunction);
 
