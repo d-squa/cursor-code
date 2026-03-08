@@ -21,7 +21,7 @@ interface GoogleAdsPhaseConfigProps {
   googleCustomerId?: string;
 }
 
-export function GoogleAdsPhaseConfig({ phase, onUpdate }: GoogleAdsPhaseConfigProps) {
+export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId }: GoogleAdsPhaseConfigProps) {
   const campaignTypes = getGoogleAdsCampaignTypes();
   const selectedType = phase.googleCampaignType || "";
   const subtypes = useMemo(() => selectedType ? getGoogleAdsSubtypes(selectedType) : [], [selectedType]);
@@ -31,6 +31,24 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate }: GoogleAdsPhaseConfigPr
     () => getGoogleAdsCampaignConfig(selectedType, selectedSubtype || undefined),
     [selectedType, selectedSubtype]
   );
+
+  const [merchantCenters, setMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);
+  const [feedLabels, setFeedLabels] = useState<Array<{ label: string; country: string }>>([]);
+  const [loadingMC, setLoadingMC] = useState(false);
+
+  useEffect(() => {
+    if (googleCustomerId && phase.googleProductFeed) {
+      setLoadingMC(true);
+      supabase.functions.invoke("fetch-google-merchant-centers", {
+        body: { customerId: googleCustomerId },
+      }).then(({ data, error }) => {
+        if (!error && data) {
+          setMerchantCenters(data.merchantCenters || []);
+          setFeedLabels(data.feedLabels || []);
+        }
+      }).finally(() => setLoadingMC(false));
+    }
+  }, [googleCustomerId, phase.googleProductFeed]);
 
   const handleCampaignTypeChange = (value: string) => {
     onUpdate("googleCampaignType", value);
