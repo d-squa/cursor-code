@@ -33,6 +33,8 @@ async function fetchGoogleAdsAccounts(
 
   // Step 1: List accessible customers
   const listUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers:listAccessibleCustomers`;
+  console.log(`[${FUNCTION_NAME}] listAccessibleCustomers URL: ${listUrl}`);
+  console.log(`[${FUNCTION_NAME}] developer-token length: ${developerToken?.length}, starts with: ${developerToken?.substring(0, 5)}`);
   const headers: Record<string, string> = {
     Authorization: `Bearer ${accessToken}`,
     "developer-token": developerToken,
@@ -41,9 +43,11 @@ async function fetchGoogleAdsAccounts(
 
   if (loginCustomerId) {
     headers["login-customer-id"] = loginCustomerId.replace(/-/g, "");
+    console.log(`[${FUNCTION_NAME}] login-customer-id: ${loginCustomerId.replace(/-/g, "")}`);
   }
 
   const listResponse = await fetch(listUrl, { headers });
+  console.log(`[${FUNCTION_NAME}] listAccessibleCustomers response status: ${listResponse.status}`);
 
   if (!listResponse.ok) {
     const errorBody = await listResponse.text();
