@@ -954,6 +954,41 @@ export default function PlatformConnections() {
     }
   };
 
+  const handleSyncGoogleAccountAssets = async (account: any, skipClientCheck = false) => {
+    const googleAccount = googleAdAccounts.find(a => a.id === account.id);
+    if (!googleAccount) return;
+
+    if (!googleAccount.client_id && !skipClientCheck && canManageClients) {
+      setPendingSyncAfterLink(account);
+      setPendingSyncPlatform("google" as any);
+      setSelectedAdAccountForLinking("google_" + googleAccount.id);
+      setClientSelectorOpen(true);
+      return;
+    }
+
+    setSyncingAssets(googleAccount.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-google-ads-assets", {
+        body: {
+          customerId: googleAccount.customer_id,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Assets synced for ${googleAccount.account_name}`, {
+        description: data?.message || "Google Ads assets synced successfully",
+      });
+    } catch (error: any) {
+      console.error("Error syncing Google Ads assets:", error);
+      toast.error("Failed to sync assets", {
+        description: error.message || "Please try again",
+      });
+    } finally {
+      setSyncingAssets(null);
+    }
+  };
+
   const handleClientSelectorClose = (open: boolean) => {
     if (!open && pendingSyncAfterLink) {
       // User closed without selecting - ask if they want to sync anyway
