@@ -49,7 +49,7 @@ export const PLATFORM_CONFIG = {
     oauthScopes: "https://www.googleapis.com/auth/adwords openid email profile",
     authEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenEndpoint: "https://oauth2.googleapis.com/token",
-    apiVersion: "v18",
+    apiVersion: "v23",
     responseType: "code"
   },
   snapchat: {

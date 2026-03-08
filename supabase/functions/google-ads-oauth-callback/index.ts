@@ -18,7 +18,7 @@ const oauthInputSchema = z.object({
 });
 
 // Google Ads API version
-const GOOGLE_ADS_API_VERSION = "v18";
+const GOOGLE_ADS_API_VERSION = "v23";
 
 /**
  * Fetch accessible Google Ads customer accounts using the Google Ads API.
