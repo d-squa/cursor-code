@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Play } from "lucide-react";
 
 interface HeroVideoPlayerProps {
@@ -10,11 +10,23 @@ const DEFAULT_VIDEO_ID = "dQw4w9WgXcQ"; // Placeholder — replace with your exp
 
 export default function HeroVideoPlayer({ videoId = DEFAULT_VIDEO_ID }: HeroVideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
+  // Listen for the custom "play-hero-video" event dispatched by the CTA button
+  useEffect(() => {
+    const handler = () => {
+      containerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Small delay so scroll completes before iframe loads
+      setTimeout(() => setIsPlaying(true), 400);
+    };
+    window.addEventListener("play-hero-video", handler);
+    return () => window.removeEventListener("play-hero-video", handler);
+  }, []);
+
   return (
-    <div className="w-full max-w-3xl mx-auto mt-8 md:mt-12">
+    <div ref={containerRef} id="hero-video" className="w-full max-w-3xl mx-auto mt-8 md:mt-12">
       <div className="relative w-full rounded-xl overflow-hidden shadow-lg border border-border bg-card aspect-video group">
         {isPlaying ? (
           <iframe
@@ -59,4 +71,9 @@ export default function HeroVideoPlayer({ videoId = DEFAULT_VIDEO_ID }: HeroVide
       </div>
     </div>
   );
+}
+
+/** Call this from any button to scroll to the video and auto-play it */
+export function triggerHeroVideo() {
+  window.dispatchEvent(new CustomEvent("play-hero-video"));
 }
