@@ -680,10 +680,10 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleUnlinkAccount = async (accountId: string, platform: "meta" | "tiktok" = "meta") => {
+  const handleUnlinkAccount = async (accountId: string, platform: "meta" | "tiktok" | "google" = "meta") => {
     try {
-      const table = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
-      const { error } = await supabase.from(table).update({ client_id: null }).eq("id", accountId);
+      const table = platform === "tiktok" ? "tiktok_ad_accounts" : platform === "google" ? "google_ad_accounts" : "meta_ad_accounts";
+      const { error } = await supabase.from(table).update({ client_id: null } as any).eq("id", accountId);
 
       if (error) throw error;
 
