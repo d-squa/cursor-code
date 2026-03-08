@@ -2564,6 +2564,82 @@ export function PlatformMarketBudgetSelector({
                                     </SelectContent>
                                   </Select>
                                 </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Bid Strategy</Label>
+                                  <Select
+                                    value={market.googleBidStrategy || "MAXIMIZE_CONVERSIONS"}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'googleBidStrategy', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Select bid strategy" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      <SelectItem value="MAXIMIZE_CONVERSIONS">Maximize Conversions</SelectItem>
+                                      <SelectItem value="MAXIMIZE_CLICKS">Maximize Clicks</SelectItem>
+                                      <SelectItem value="MAXIMIZE_CONVERSION_VALUE">Maximize Conversion Value</SelectItem>
+                                      <SelectItem value="TARGET_CPA">Target CPA</SelectItem>
+                                      <SelectItem value="TARGET_ROAS">Target ROAS</SelectItem>
+                                      <SelectItem value="MANUAL_CPC">Manual CPC</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {market.googleBidStrategy === "TARGET_CPA" && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Target CPA ($)</Label>
+                                    <Input
+                                      className="h-7 text-xs"
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="e.g., 10.00"
+                                      value={market.googleTargetCpa || ""}
+                                      onChange={(e) => updateMarketField(platformIndex, market.id, 'googleTargetCpa', parseFloat(e.target.value) || undefined)}
+                                    />
+                                  </div>
+                                )}
+
+                                {market.googleBidStrategy === "TARGET_ROAS" && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Target ROAS (%)</Label>
+                                    <Input
+                                      className="h-7 text-xs"
+                                      type="number"
+                                      step="1"
+                                      min="0"
+                                      placeholder="e.g., 200"
+                                      value={market.googleTargetRoas || ""}
+                                      onChange={(e) => updateMarketField(platformIndex, market.id, 'googleTargetRoas', parseFloat(e.target.value) || undefined)}
+                                    />
+                                  </div>
+                                )}
+
+                                {market.googleBidStrategy === "MANUAL_CPC" && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Max CPC Bid ($)</Label>
+                                    <Input
+                                      className="h-7 text-xs"
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="e.g., 1.50"
+                                      value={market.googleMaxCpcBid || ""}
+                                      onChange={(e) => updateMarketField(platformIndex, market.id, 'googleMaxCpcBid', parseFloat(e.target.value) || undefined)}
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="space-y-1 col-span-2">
+                                  <Label className="text-xs">Landing Page URL</Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    type="url"
+                                    placeholder="https://example.com/landing"
+                                    value={market.googleLandingPageUrl || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleLandingPageUrl', e.target.value)}
+                                  />
+                                </div>
                               </div>
                             )}
 
