@@ -35,6 +35,21 @@ import {
   ConversionLocationData,
 } from "@/utils/conversionLocationUtils";
 
+interface GoogleAdAccountDefaults {
+  id: string;
+  account_id: string;
+  account_name: string;
+  customer_id: string;
+  default_landing_page_url?: string | null;
+  default_bid_strategy?: string | null;
+  default_target_cpa?: number | null;
+  default_target_roas?: number | null;
+  default_max_cpc_bid?: number | null;
+  default_conversion_budget_type?: string | null;
+  default_non_conversion_budget_type?: string | null;
+  main_markets?: string[] | null;
+}
+
 interface AdAccount {
   id: string;
   account_id: string;
