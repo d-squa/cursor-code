@@ -29,7 +29,7 @@ export interface SelectedAsset {
 export interface MeshProgress {
   campaignId: string;
   campaignName: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   currentStep: MeshStep;
   selectedAssets: SelectedAsset[];
   meshedCreativeIds: string[];
