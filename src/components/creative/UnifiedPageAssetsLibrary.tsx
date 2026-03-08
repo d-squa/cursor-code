@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface OrganicPost {
   id: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   postId: string;
   pageId?: string;
   identityId?: string;
