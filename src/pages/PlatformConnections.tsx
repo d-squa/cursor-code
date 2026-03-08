@@ -1248,9 +1248,12 @@ export default function PlatformConnections() {
           loading={selectingAccount}
           platformType={platforms.find((p) => p.id === currentPlatformId)?.platform_type || "meta"}
           existingAccountIds={
-            platforms.find((p) => p.id === currentPlatformId)?.platform_type === "tiktok"
-              ? tiktokAdAccounts.map((acc) => acc.advertiser_id)
-              : metaAdAccounts.map((acc) => acc.account_id)
+            (() => {
+              const pt = platforms.find((p) => p.id === currentPlatformId)?.platform_type;
+              if (pt === "tiktok") return tiktokAdAccounts.map((acc) => acc.advertiser_id);
+              if (pt === "google") return googleAdAccounts.map((acc) => acc.customer_id);
+              return metaAdAccounts.map((acc) => acc.account_id);
+            })()
           }
           teamId={activeWorkspaceId}
         />
