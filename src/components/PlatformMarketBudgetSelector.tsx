@@ -85,6 +85,10 @@ export function PlatformMarketBudgetSelector({
   const [loadingTiktokProductSets, setLoadingTiktokProductSets] = useState(false);
   const [tiktokAdAccountDefaults, setTiktokAdAccountDefaults] = useState<Record<string, any>>({});
   
+  // Google Ads resources
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<Array<{ id: string; name: string; customerId: string; currency: string; timezone: string }>>([]);
+  const [loadingGoogleAdAccounts, setLoadingGoogleAdAccounts] = useState(false);
+  
   // Collapsible state for platforms and markets
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
@@ -180,11 +184,41 @@ export function PlatformMarketBudgetSelector({
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
-  // Fetch all Meta and TikTok resources from database
+  // Fetch all Meta, TikTok, and Google resources from database
   useEffect(() => {
     fetchMetaResources();
     fetchTiktokResources();
+    fetchGoogleResources();
   }, [selectedClientId]); // Re-fetch when client changes
+
+  const fetchGoogleResources = async () => {
+    setLoadingGoogleAdAccounts(true);
+    try {
+      let query = supabase
+        .from("google_ad_accounts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (selectedClientId) {
+        query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        setGoogleAdAccounts(data.map((acc: any) => ({
+          id: acc.account_id,
+          name: acc.account_name || `Account ${acc.customer_id}`,
+          customerId: acc.customer_id,
+          currency: acc.currency || "USD",
+          timezone: acc.timezone || "UTC",
+        })));
+      }
+    } catch (error) {
+      console.error("Error loading Google Ads resources:", error);
+    } finally {
+      setLoadingGoogleAdAccounts(false);
+    }
+  };
 
   const fetchMetaResources = async () => {
     setIsLoadingAccounts(true);
@@ -2476,6 +2510,62 @@ export function PlatformMarketBudgetSelector({
                                   </p>
                                 </div>
                               )}
+
+                            {/* Platform Configuration Fields - Only for Google Ads */}
+                            {platform.name.toLowerCase().includes("google") && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    Customer Account <span className="text-destructive">*</span>
+                                  </Label>
+                                  <Select
+                                    value={market.adAccountId || ""}
+                                    onValueChange={(value) => {
+                                      const account = googleAdAccounts.find(a => a.id === value);
+                                      setPlatforms(prev =>
+                                        prev.map((p, i) => {
+                                          if (i !== platformIndex) return p;
+                                          return {
+                                            ...p,
+                                            markets: p.markets.map(m => {
+                                              if (m.id === market.id) {
+                                                return {
+                                                  ...m,
+                                                  adAccountId: value,
+                                                  accountName: account?.name || "",
+                                                };
+                                              }
+                                              return m;
+                                            }),
+                                          };
+                                        })
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingGoogleAdAccounts ? "Loading..." : "Select Customer Account"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingGoogleAdAccounts ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : googleAdAccounts.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No Google Ads accounts found. Connect Google Ads first.
+                                        </div>
+                                      ) : (
+                                        googleAdAccounts.map((account) => (
+                                          <SelectItem key={account.id} value={account.id}>
+                                            {account.name} ({account.customerId})
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            )}
 
                              {/* Ad Formats */}
                              <div className="space-y-1">
