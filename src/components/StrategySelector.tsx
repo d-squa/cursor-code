@@ -25,6 +25,7 @@ interface StrategySelectorProps {
   adFormats?: string[];
   hasPixel?: boolean;
   hasCatalog?: boolean;
+  hasKeywords?: boolean;
 }
 
 export function StrategySelector({
