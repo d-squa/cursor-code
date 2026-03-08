@@ -12,7 +12,7 @@ export default function HeroVideoPlayer({ videoId = DEFAULT_VIDEO_ID }: HeroVide
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+  const thumbnailUrl = "/video-thumbnail.jpg";
 
   const startPlaying = () => {
     setIsPlaying(true);
