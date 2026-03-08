@@ -331,19 +331,49 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId }: Goog
             {config.features.productFeed && phase.googleProductFeed && (
               <div className="w-full space-y-2">
                 <Label className="text-xs">Merchant Center ID</Label>
-                <Input
-                  className="h-8 text-xs"
-                  value={phase.googleMerchantCenterId || ""}
-                  onChange={(e) => onUpdate("googleMerchantCenterId", e.target.value)}
-                  placeholder="Enter Merchant Center ID"
-                />
+                {loadingMC ? (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</div>
+                ) : (
+                  <Select
+                    value={phase.googleMerchantCenterId || undefined}
+                    onValueChange={(v) => onUpdate("googleMerchantCenterId", v)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select Merchant Center" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {merchantCenters.length === 0 ? (
+                        <SelectItem value="none" disabled>No Merchant Centers linked</SelectItem>
+                      ) : (
+                        merchantCenters.map((mc) => (
+                          <SelectItem key={mc.id} value={mc.merchantCenterId}>
+                            {mc.merchantCenterName} ({mc.merchantCenterId})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Label className="text-xs">Feed Label</Label>
-                <Input
-                  className="h-8 text-xs"
-                  value={phase.googleFeedLabel || ""}
-                  onChange={(e) => onUpdate("googleFeedLabel", e.target.value)}
-                  placeholder="e.g. US, EU, ALL"
-                />
+                <Select
+                  value={phase.googleFeedLabel || undefined}
+                  onValueChange={(v) => onUpdate("googleFeedLabel", v)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select feed label" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {feedLabels.length === 0 ? (
+                      <SelectItem value="none" disabled>No feed labels found</SelectItem>
+                    ) : (
+                      feedLabels.map((fl) => (
+                        <SelectItem key={fl.label} value={fl.label}>
+                          {fl.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             {config.targeting.optimizedTargeting && (
