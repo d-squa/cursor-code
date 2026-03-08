@@ -50,13 +50,13 @@ serve(async (req) => {
       );
     }
 
-    const { query, metaAdAccountId, tiktokAdvertiserId } = await req.json();
+    const { query, metaAdAccountId, tiktokAdvertiserId, googleCustomerId } = await req.json();
 
     if (!query) {
       throw new Error('Search query is required');
     }
 
-    console.log('Unified search for:', query);
+    console.log('Unified search for:', query, { metaAdAccountId, tiktokAdvertiserId, googleCustomerId });
 
     const results: UnifiedTargetingItem[] = [];
     const metaResults = new Map<string, any>();
