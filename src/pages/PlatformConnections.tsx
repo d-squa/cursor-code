@@ -101,9 +101,9 @@ const PLATFORM_TYPES = [
   { id: "google", name: "Google Ads", icon: Search, color: "bg-yellow-500" },
 ];
 
-// IMPORTANT: Must exactly match the URL configured in Meta/TikTok app settings.
-// Keep as a single constant to avoid subtle mismatches (preview domains, trailing slashes, etc.).
-const OAUTH_REDIRECT_URI = "https://actiplan.app/settings/platforms";
+// IMPORTANT: Must exactly match the URL configured in Meta/TikTok/Google app settings.
+// Use the current origin to support both production domains.
+const OAUTH_REDIRECT_URI = `${window.location.origin}/settings/platforms`;
 
 export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
