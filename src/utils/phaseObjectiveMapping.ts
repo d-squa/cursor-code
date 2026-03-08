@@ -215,46 +215,46 @@ function getGoogleAdsObjectiveFromPhaseName(
 ): PhaseObjectiveMapping {
   const normalizedPhase = phaseName.toLowerCase();
   
-  // Awareness/Reach phases → Display/Video awareness
+  // Awareness/Reach phases → Display awareness
   if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
     return {
-      objective: "AWARENESS",
-      optimizationGoal: "TARGET_CPM",
+      objective: "AWARENESS_DISPLAY",
+      optimizationGoal: "CPM",
       destination: "Display/YouTube"
     };
   }
   
-  // Video/Engagement phases → YouTube video campaigns
+  // Video/Engagement phases → Video Views
   if (normalizedPhase.includes("engagement") || normalizedPhase.includes("authority") || normalizedPhase.includes("trust")) {
     return {
-      objective: "CONSIDERATION",
-      optimizationGoal: "TARGET_CPV",
+      objective: "AWARENESS_VIDEO_VIEWS",
+      optimizationGoal: "TARGET_CPM",
       destination: "YouTube"
     };
   }
   
-  // Consideration/Traffic phases → Search/Demand Gen
+  // Consideration/Traffic phases → Demand Gen
   if (normalizedPhase.includes("consideration") || normalizedPhase.includes("interest") || normalizedPhase.includes("preference")) {
     return {
-      objective: "WEBSITE_TRAFFIC",
+      objective: "CONSIDERATION_DEMAND_GEN",
       optimizationGoal: "MAXIMIZE_CLICKS",
       destination: "Search/Demand Gen"
     };
   }
   
-  // Lead-focused phases → PMax/Search leads
+  // Lead-focused phases → Conversion Search
   if (normalizedPhase.includes("capture") || normalizedPhase.includes("nurture") || strategyFocus === "Leads") {
     return {
-      objective: "LEADS",
+      objective: "CONVERSION_SEARCH",
       optimizationGoal: "MAXIMIZE_CONVERSIONS",
       destination: "Search/PMax"
     };
   }
   
-  // Conversion/Purchase phases → PMax/Search sales
+  // Conversion/Purchase phases → Performance Max
   if (normalizedPhase.includes("conversion") || normalizedPhase.includes("purchase") || normalizedPhase.includes("intent")) {
     return {
-      objective: "SALES",
+      objective: "CONSIDERATION_PMAX",
       optimizationGoal: "MAXIMIZE_CONVERSIONS",
       destination: "PMax/Search"
     };
@@ -263,24 +263,24 @@ function getGoogleAdsObjectiveFromPhaseName(
   // Loyalty/Retention phases → PMax with ROAS
   if (normalizedPhase.includes("loyalty") || normalizedPhase.includes("retention") || normalizedPhase.includes("expansion")) {
     return {
-      objective: "SALES",
+      objective: "CONSIDERATION_PMAX",
       optimizationGoal: "TARGET_ROAS",
       destination: "PMax"
     };
   }
   
-  // App-specific phases → App campaigns (UAC)
+  // App-specific phases → App Installs
   if (normalizedPhase.includes("acquisition") || normalizedPhase.includes("onboarding") || normalizedPhase.includes("activation")) {
     return {
-      objective: "APP_PROMOTION",
+      objective: "CONSIDERATION_APP_INSTALLS",
       optimizationGoal: "MAXIMIZE_CONVERSIONS",
       destination: "App Campaigns"
     };
   }
   
-  // Default to website traffic
+  // Default to Conversion Search
   return {
-    objective: "WEBSITE_TRAFFIC",
+    objective: "CONVERSION_SEARCH",
     optimizationGoal: "MAXIMIZE_CLICKS",
     destination: "Search"
   };
