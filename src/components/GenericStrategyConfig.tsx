@@ -194,11 +194,15 @@ export function GenericStrategyConfig({
       if (strategy === "full-funnel" && focus && focus !== "auto" && !updatedConfig.selectedStrategyId) {
         const templateKey = mapFocusToTemplate(focus as string);
         if (templateKey && startDate && endDate) {
-          const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
+          const platformForMapping = (platformName || "meta").toLowerCase().includes("google") ? "google" 
+            : (platformName || "meta").toLowerCase().includes("tiktok") ? "tiktok"
+            : (platformName || "meta").toLowerCase().includes("snapchat") ? "snapchat" : "meta";
+          const defaultPhases = getDefaultPhases(templateKey, startDate, endDate, platformForMapping);
           updatedConfig.phases = defaultPhases.map(phase => {
-            const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
-            const objective = objectiveToLabel(objectiveData.objective) || "Conversions";
-            const optimizationGoal = optimizationToLabel(objectiveData.optimizationGoal) || "Conversions";
+            const objectiveData = getObjectiveFromPhaseName(phase.name, focus, platformForMapping);
+            const { objective, optimizationGoal } = resolveObjectiveForPlatform(
+              objectiveData.objective, objectiveData.optimizationGoal, platformName
+            );
             const audienceStrategy = getAudienceStrategyConfig(platformName || "meta", objective, optimizationGoal);
             return {
               ...phase,
