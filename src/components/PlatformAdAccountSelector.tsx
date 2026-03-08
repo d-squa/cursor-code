@@ -51,11 +51,11 @@ export default function PlatformAdAccountSelector({
 
   // IMPORTANT: limits must be scoped to the active workspace (team)
   const adAccountLimits = useAdAccountLimits(teamId);
-  const platform = platformType as 'meta' | 'tiktok';
+  const platform = (platformType === 'meta' || platformType === 'tiktok') ? platformType : 'meta';
   const platformLimits = adAccountLimits[platform];
 
-  const platformName = platformType === 'tiktok' ? 'TikTok' : 'Meta';
-  const accountLabel = platformType === 'tiktok' ? 'advertiser account' : 'ad account';
+  const platformName = platformType === 'tiktok' ? 'TikTok' : platformType === 'google' ? 'Google Ads' : 'Meta';
+  const accountLabel = platformType === 'tiktok' ? 'advertiser account' : platformType === 'google' ? 'customer account' : 'ad account';
 
   const maxSelectable = platformLimits.maxAllowed;
 

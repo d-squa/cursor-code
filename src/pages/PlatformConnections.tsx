@@ -19,6 +19,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
@@ -69,6 +70,21 @@ interface TikTokAdAccount {
   } | null;
 }
 
+interface GoogleAdAccount {
+  id: string;
+  account_id: string;
+  account_name: string;
+  customer_id: string;
+  account_status: string | null;
+  client_id: string | null;
+  currency?: string | null;
+  timezone?: string | null;
+  clients?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
 interface ConnectedPlatform {
   id: string;
   platform_type: string;
@@ -82,6 +98,7 @@ interface ConnectedPlatform {
 const PLATFORM_TYPES = [
   { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
   { id: "tiktok", name: "TikTok Ads", icon: Video, color: "bg-black" },
+  { id: "google", name: "Google Ads", icon: Search, color: "bg-yellow-500" },
 ];
 
 // IMPORTANT: Must exactly match the URL configured in Meta/TikTok app settings.
@@ -97,6 +114,7 @@ export default function PlatformConnections() {
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [tiktokAdAccounts, setTikTokAdAccounts] = useState<TikTokAdAccount[]>([]);
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<GoogleAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string; business_center?: any }[]>([]);
@@ -295,16 +313,24 @@ export default function PlatformConnections() {
         .select("id, account_id, account_name, advertiser_id, account_status, client_id, team_id, clients(id, name)")
         .eq("team_id", activeWorkspaceId)
         .order("account_name");
+
+      const googleQuery = supabase
+        .from("google_ad_accounts")
+        .select("id, account_id, account_name, customer_id, account_status, client_id, currency, timezone, team_id, clients(id, name)")
+        .eq("team_id", activeWorkspaceId)
+        .order("account_name");
       
-      const [platformsRes, metaAccountsRes, tiktokAccountsRes] = await Promise.all([
+      const [platformsRes, metaAccountsRes, tiktokAccountsRes, googleAccountsRes] = await Promise.all([
         platformsQuery,
         metaQuery,
         tiktokQuery,
+        googleQuery,
       ]);
 
       if (platformsRes.error) throw platformsRes.error;
       if (metaAccountsRes.error) throw metaAccountsRes.error;
       if (tiktokAccountsRes.error) throw tiktokAccountsRes.error;
+      if (googleAccountsRes.error) throw googleAccountsRes.error;
 
       setPlatforms(platformsRes.data || []);
       setMetaAdAccounts(metaAccountsRes.data || []);
@@ -335,6 +361,7 @@ export default function PlatformConnections() {
       });
 
       setTikTokAdAccounts(enrichedTiktokAccounts);
+      setGoogleAdAccounts((googleAccountsRes.data || []) as GoogleAdAccount[]);
       
       // Refresh ad account limits after data is fetched - use ref to avoid dep loop
       adAccountLimitsRefetchRef.current();
@@ -364,7 +391,7 @@ export default function PlatformConnections() {
 
   const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string, skipLimitCheck = false) => {
     // Check limits before allowing new platform connections (not reconnects)
-    if (!platformId && !skipLimitCheck) {
+    if (!platformId && !skipLimitCheck && (platformType === 'meta' || platformType === 'tiktok')) {
       const platform = platformType as 'meta' | 'tiktok';
       const limits = adAccountLimits[platform];
       
@@ -487,6 +514,47 @@ export default function PlatformConnections() {
         console.error("Error connecting to TikTok:", error);
         toast.error(error.message || "Failed to connect to TikTok");
       }
+    } else if (platformType === "google") {
+      try {
+        const redirectUri = OAUTH_REDIRECT_URI;
+        const clientId = PLATFORM_CONFIG.google.clientId;
+
+        console.log("Google Ads OAuth - Client ID:", clientId ? "Configured" : "Missing");
+
+        if (!clientId) {
+          toast.error("Google Ads Client ID not configured. Please contact support.");
+          return;
+        }
+
+        // Store platformId in sessionStorage ONLY for explicit reconnection
+        if (platformId) {
+          sessionStorage.setItem("reconnecting_platform_id", platformId);
+          sessionStorage.setItem("reconnecting_platform_type", "google");
+        }
+
+        // Build Google OAuth URL
+        const oauthParams = new URLSearchParams({
+          response_type: "code",
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope: PLATFORM_CONFIG.google.oauthScopes,
+          access_type: "offline",
+          prompt: "consent",
+          state: "google",
+        });
+
+        const oauthUrl = `${PLATFORM_CONFIG.google.authEndpoint}?${oauthParams.toString()}`;
+
+        console.log("Google Ads OAuth - Redirecting...");
+        toast.loading("Redirecting to Google...");
+
+        setTimeout(() => {
+          window.location.href = oauthUrl;
+        }, 100);
+      } catch (error: any) {
+        console.error("Error connecting to Google Ads:", error);
+        toast.error(error.message || "Failed to connect to Google Ads");
+      }
     } else {
       toast.error("This platform is not yet supported");
     }
@@ -579,10 +647,11 @@ export default function PlatformConnections() {
 
     try {
       const isTikTok = selectedAdAccountForLinking.startsWith("tiktok_");
-      const table = isTikTok ? "tiktok_ad_accounts" : "meta_ad_accounts";
-      const cleanId = isTikTok ? selectedAdAccountForLinking.replace("tiktok_", "") : selectedAdAccountForLinking;
+      const isGoogle = selectedAdAccountForLinking.startsWith("google_");
+      const table = isTikTok ? "tiktok_ad_accounts" : isGoogle ? "google_ad_accounts" : "meta_ad_accounts";
+      const cleanId = isTikTok ? selectedAdAccountForLinking.replace("tiktok_", "") : isGoogle ? selectedAdAccountForLinking.replace("google_", "") : selectedAdAccountForLinking;
 
-      const { error } = await supabase.from(table).update({ client_id: clientId }).eq("id", cleanId);
+      const { error } = await supabase.from(table as any).update({ client_id: clientId }).eq("id", cleanId);
 
       if (error) throw error;
 
@@ -612,10 +681,10 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleUnlinkAccount = async (accountId: string, platform: "meta" | "tiktok" = "meta") => {
+  const handleUnlinkAccount = async (accountId: string, platform: "meta" | "tiktok" | "google" = "meta") => {
     try {
-      const table = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
-      const { error } = await supabase.from(table).update({ client_id: null }).eq("id", accountId);
+      const table = platform === "tiktok" ? "tiktok_ad_accounts" : platform === "google" ? "google_ad_accounts" : "meta_ad_accounts";
+      const { error } = await supabase.from(table).update({ client_id: null } as any).eq("id", accountId);
 
       if (error) throw error;
 
@@ -627,12 +696,12 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleDeleteAccount = async (accountId: string, platform: "meta" | "tiktok" = "meta") => {
+  const handleDeleteAccount = async (accountId: string, platform: "meta" | "tiktok" | "google" = "meta") => {
     if (!confirm("Are you sure you want to delete this ad account? This action cannot be undone.")) return;
 
     try {
-      const table = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
-      const { error } = await supabase.from(table).delete().eq("id", accountId);
+      const table = platform === "tiktok" ? "tiktok_ad_accounts" : platform === "google" ? "google_ad_accounts" : "meta_ad_accounts";
+      const { error } = await supabase.from(table as any).delete().eq("id", accountId);
 
       if (error) throw error;
 
@@ -690,7 +759,11 @@ export default function PlatformConnections() {
           console.log("OAuth callback - platformType:", platformType);
           console.log("OAuth callback - platformId:", platformId);
 
-          const callbackFunction = platformType === "tiktok" ? "tiktok-oauth-callback" : "meta-oauth-callback";
+          const callbackFunction = platformType === "tiktok" 
+            ? "tiktok-oauth-callback" 
+            : platformType === "google" 
+              ? "google-ads-oauth-callback" 
+              : "meta-oauth-callback";
 
           console.log("OAuth callback - calling function:", callbackFunction);
 
@@ -722,7 +795,7 @@ export default function PlatformConnections() {
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
-            toast.success(`${platformType === "tiktok" ? "TikTok" : "Platform"} connected successfully!`);
+            toast.success(`${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : "Platform"} connected successfully!`);
           }
 
           // Open account selector if accounts are returned (Meta flow)
@@ -905,6 +978,9 @@ export default function PlatformConnections() {
                 <Badge variant="outline" className="gap-1">
                   TikTok: {platforms.filter(p => p.platform_type === 'tiktok').length} connection{platforms.filter(p => p.platform_type === 'tiktok').length !== 1 ? 's' : ''}
                 </Badge>
+                <Badge variant="outline" className="gap-1">
+                  Google: {platforms.filter(p => p.platform_type === 'google').length} connection{platforms.filter(p => p.platform_type === 'google').length !== 1 ? 's' : ''}
+                </Badge>
               </div>
             </div>
           </CardHeader>
@@ -925,6 +1001,14 @@ export default function PlatformConnections() {
                     <Video className="h-4 w-4 mr-2" />
                     Connect TikTok
                   </Button>
+                  <Button
+                    onClick={() => handleConnectPlatform("google", false)}
+                    variant="outline"
+                    className="border-border"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    Connect Google Ads
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -932,10 +1016,11 @@ export default function PlatformConnections() {
                 {platforms.map((platform) => {
                   const businessName = platform.metadata?.businesses?.[0]?.name;
                   const advertiserIds = platform.metadata?.advertiser_ids;
-                  const isTikTok = platform.platform_type === "tiktok";
-                  const Icon = isTikTok ? Video : Facebook;
-                  const iconColor = isTikTok ? "text-black dark:text-white" : "text-blue-600";
-                  const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : "";
+                   const isTikTok = platform.platform_type === "tiktok";
+                   const isGoogle = platform.platform_type === "google";
+                   const Icon = isGoogle ? Search : isTikTok ? Video : Facebook;
+                   const iconColor = isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
+                   const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
 
                   return (
                     <div
@@ -950,6 +1035,11 @@ export default function PlatformConnections() {
                           {isTikTok && advertiserIds && advertiserIds.length > 0 && (
                             <p className="text-sm text-muted-foreground">
                               {advertiserIds.length} advertiser account{advertiserIds.length !== 1 ? "s" : ""}
+                            </p>
+                          )}
+                          {isGoogle && platform.metadata?.accounts && (
+                            <p className="text-sm text-muted-foreground">
+                              {platform.metadata.accounts.length} customer account{platform.metadata.accounts.length !== 1 ? "s" : ""}
                             </p>
                           )}
                           <p className="text-xs text-muted-foreground">
@@ -1049,6 +1139,15 @@ export default function PlatformConnections() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
+                  {/* Google Ads Connect Button */}
+                  <Button
+                    onClick={() => handleConnectPlatform("google", false)}
+                    variant="outline"
+                    className="border-border"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    Connect Google Ads Account
+                  </Button>
                 </div>
               </div>
             )}
@@ -1082,6 +1181,9 @@ export default function PlatformConnections() {
                   allowed={adAccountLimits.tiktok.swapsAllowed}
                   subscriptionEnd={subscriptionEnd}
                 />
+                <Badge variant="outline" className="gap-1">
+                  Google Accounts: {googleAdAccounts.length}
+                </Badge>
               </div>
             </div>
           </CardHeader>
@@ -1121,6 +1223,27 @@ export default function PlatformConnections() {
               onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, "tiktok")}
               onDeleteAccount={(accountId) => handleDeleteAccount(accountId, "tiktok")}
             />
+
+            {/* Google Ad Accounts - Collapsible */}
+            <PlatformAccountsCollapsible
+              platform="google"
+              icon={<Search className="h-5 w-5 text-yellow-600" />}
+              title="Google Ad Accounts"
+              accounts={googleAdAccounts.map(acc => ({
+                ...acc,
+                advertiser_id: acc.customer_id,
+              }))}
+              emptyMessage="No Google Ads accounts synced yet. Connect a Google Ads platform to get started."
+              syncingAssets={syncingAssets}
+              canManageClients={canManageClients}
+              onSyncAccount={() => {}} 
+              onLinkAccount={(accountId) => {
+                setSelectedAdAccountForLinking("google_" + accountId);
+                setClientSelectorOpen(true);
+              }}
+              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, "google" as any)}
+              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, "google" as any)}
+            />
           </CardContent>
         </Card>
         <PlatformAdAccountSelector
@@ -1131,9 +1254,12 @@ export default function PlatformConnections() {
           loading={selectingAccount}
           platformType={platforms.find((p) => p.id === currentPlatformId)?.platform_type || "meta"}
           existingAccountIds={
-            platforms.find((p) => p.id === currentPlatformId)?.platform_type === "tiktok"
-              ? tiktokAdAccounts.map((acc) => acc.advertiser_id)
-              : metaAdAccounts.map((acc) => acc.account_id)
+            (() => {
+              const pt = platforms.find((p) => p.id === currentPlatformId)?.platform_type;
+              if (pt === "tiktok") return tiktokAdAccounts.map((acc) => acc.advertiser_id);
+              if (pt === "google") return googleAdAccounts.map((acc) => acc.customer_id);
+              return metaAdAccounts.map((acc) => acc.account_id);
+            })()
           }
           teamId={activeWorkspaceId}
         />
