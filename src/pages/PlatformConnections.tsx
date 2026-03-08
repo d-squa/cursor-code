@@ -1000,6 +1000,14 @@ export default function PlatformConnections() {
                     <Video className="h-4 w-4 mr-2" />
                     Connect TikTok
                   </Button>
+                  <Button
+                    onClick={() => handleConnectPlatform("google", false)}
+                    variant="outline"
+                    className="border-border"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    Connect Google Ads
+                  </Button>
                 </div>
               </div>
             ) : (
