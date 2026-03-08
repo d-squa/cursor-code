@@ -88,6 +88,9 @@ export function PlatformMarketBudgetSelector({
   // Google Ads resources
   const [googleAdAccounts, setGoogleAdAccounts] = useState<Array<{ id: string; name: string; customerId: string; currency: string; timezone: string; merchantCenterId: string; feedLabel: string }>>([]);
   const [loadingGoogleAdAccounts, setLoadingGoogleAdAccounts] = useState(false);
+  const [googleMerchantCenters, setGoogleMerchantCenters] = useState<Record<string, Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>>({});
+  const [googleFeedLabels, setGoogleFeedLabels] = useState<Record<string, Array<{ label: string; country: string }>>>({});
+  const [loadingGoogleMC, setLoadingGoogleMC] = useState<Record<string, boolean>>({});
   
   // Collapsible state for platforms and markets
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
