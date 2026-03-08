@@ -780,7 +780,7 @@ export function UnifiedTargeting({
               defaultAdSetSplitUseCBO: true,
             };
             onUpdate(updated);
-            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+            persistToLocalStorage(updated);
           }
           setPendingSplitSelection(null);
         }}
