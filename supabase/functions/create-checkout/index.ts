@@ -374,7 +374,7 @@ serve(async (req) => {
         const priceInfo = PRICE_METADATA[priceId];
         const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
         const successUrl =
-          `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
+          `${origin}/choose-plan?success=true&session_id={CHECKOUT_SESSION_ID}` +
           `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
           `&stripe_price_id=${encodeURIComponent(priceId)}` +
           `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
@@ -408,7 +408,7 @@ serve(async (req) => {
             },
           },
           success_url: successUrl,
-          cancel_url: `${origin}/settings/plans?canceled=true`,
+          cancel_url: `${origin}/choose-plan?canceled=true`,
         });
 
         logStep("Plan change checkout session created", {
@@ -452,7 +452,7 @@ serve(async (req) => {
     const priceInfo = PRICE_METADATA[priceId];
     const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
     const successUrl =
-      `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
+      `${origin}/choose-plan?success=true&session_id={CHECKOUT_SESSION_ID}` +
       `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
       `&stripe_price_id=${encodeURIComponent(priceId)}` +
       `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
@@ -481,7 +481,7 @@ serve(async (req) => {
       },
       subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
       success_url: successUrl,
-      cancel_url: `${origin}/settings/plans?canceled=true`,
+      cancel_url: `${origin}/choose-plan?canceled=true`,
     });
 
     logStep("Checkout session created", {

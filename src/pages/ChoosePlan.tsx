@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Target } from "lucide-react";
+import { Check, Loader2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PRICE_IDS } from "@/config/subscriptionTiers";
+import { fireSubscribeConversion } from "@/utils/conversionTracking";
 
 const plans = [
   {
@@ -105,10 +106,48 @@ const plans = [
 
 export default function ChoosePlan() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading, signOut, isEmailConfirmed } = useAuth();
-  const { isSubscribed, loading: subLoading } = useSubscription();
+  const { isSubscribed, loading: subLoading, refetch } = useSubscription();
   const [isYearly, setIsYearly] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+  // Handle successful checkout redirect
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      setCheckoutSuccess(true);
+      const planName = searchParams.get("plan_name") || "your plan";
+      const isTrial = searchParams.get("is_trial") === "true";
+
+      // Fire conversion tracking
+      fireSubscribeConversion(`subscribe-${searchParams.get("session_id") || "checkout"}`);
+
+      // Poll subscription status and redirect when ready
+      const pollInterval = setInterval(async () => {
+        await refetch({ force: true, showLoading: false });
+      }, 3000);
+
+      // Auto-redirect after max 15 seconds regardless
+      const timeout = setTimeout(() => {
+        clearInterval(pollInterval);
+        navigate("/overview");
+      }, 15000);
+
+      return () => {
+        clearInterval(pollInterval);
+        clearTimeout(timeout);
+      };
+    }
+  }, [searchParams]);
+
+  // Redirect to overview once subscription is confirmed after checkout
+  useEffect(() => {
+    if (checkoutSuccess && isSubscribed) {
+      toast.success("Welcome! Your subscription is now active.");
+      navigate("/overview");
+    }
+  }, [checkoutSuccess, isSubscribed, navigate]);
 
   useEffect(() => {
     // Redirect to auth if not logged in
@@ -215,6 +254,19 @@ export default function ChoosePlan() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (checkoutSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="text-center space-y-4">
+          <CheckCircle className="h-16 w-16 text-primary mx-auto" />
+          <h2 className="text-2xl font-bold">Subscription Successful!</h2>
+          <p className="text-muted-foreground">Setting up your account, please wait...</p>
+          <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+        </div>
       </div>
     );
   }
