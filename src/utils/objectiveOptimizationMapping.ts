@@ -491,7 +491,7 @@ export function isValidObjectiveGoalCombination(
  * Get the billing event for an optimization goal under a specific objective
  */
 export function getBillingEventForGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string,
   optimizationGoal: string
 ): string | undefined {
