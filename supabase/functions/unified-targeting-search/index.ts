@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
-import { getAccessToken, getAccessTokenWithRefresh, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
