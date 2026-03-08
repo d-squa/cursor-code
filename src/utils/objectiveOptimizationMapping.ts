@@ -514,13 +514,16 @@ export function getDefaultOptimizationGoal(
 /**
  * Detect platform from string (e.g., platform name)
  */
-export function detectPlatformType(platformName: string): "meta" | "tiktok" | "snapchat" | null {
+export function detectPlatformType(platformName: string): "meta" | "tiktok" | "snapchat" | "google" | null {
   const lower = platformName.toLowerCase();
   if (lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram")) {
     return "meta";
   }
   if (lower.includes("tiktok")) {
     return "tiktok";
+  }
+  if (lower.includes("google")) {
+    return "google";
   }
   if (lower.includes("snapchat") || lower.includes("snap")) {
     return "snapchat";
