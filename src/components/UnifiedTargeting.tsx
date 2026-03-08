@@ -134,13 +134,17 @@ export function UnifiedTargeting({
   // Ensure selectedItems is always an array
   const selectedItems = Array.isArray(targeting.selectedItems) ? targeting.selectedItems : [];
 
-  const updateField = (field: keyof UnifiedTargetingConfig, value: any) => {
-    const updated = { ...targeting, selectedItems, [field]: value };
-    onUpdate(updated);
-    // Persist immediately to localStorage (only for Step 2 basic targeting, not phase overrides)
+  // Helper to persist to localStorage only for Step 2 basic targeting, not phase overrides
+  const persistToLocalStorage = (updated: UnifiedTargetingConfig) => {
     if (!skipLocalStorage) {
       localStorage.setItem('basicTargeting', JSON.stringify(updated));
     }
+  };
+
+  const updateField = (field: keyof UnifiedTargetingConfig, value: any) => {
+    const updated = { ...targeting, selectedItems, [field]: value };
+    onUpdate(updated);
+    persistToLocalStorage(updated);
   };
 
   const handleSearch = async () => {
