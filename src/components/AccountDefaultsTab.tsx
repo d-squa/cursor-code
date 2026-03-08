@@ -193,6 +193,8 @@ interface ClientTargetingDefaults {
 
 export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<GoogleAdAccountDefaults[]>([]);
+  const [googleLocalDefaults, setGoogleLocalDefaults] = useState<Record<string, Partial<GoogleAdAccountDefaults>>>({});
   const [pixels, setPixels] = useState<MetaResource[]>([]);
   const [pages, setPages] = useState<MetaResource[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<MetaResource[]>([]);
@@ -218,6 +220,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     default_languages: [],
   });
   const [savingClientDefaults, setSavingClientDefaults] = useState(false);
+  const [savingGoogleDefaults, setSavingGoogleDefaults] = useState<string | null>(null);
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
 
   useEffect(() => {
