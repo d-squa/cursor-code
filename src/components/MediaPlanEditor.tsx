@@ -2618,6 +2618,12 @@ export function MediaPlanEditor() {
                           metaProductSetId: singleMarket.productSet,
                           tiktokCatalogId: (singleMarket as any).tiktokCatalogId,
                           tiktokProductSetId: (singleMarket as any).tiktokProductSetId,
+                          // Google Ads defaults
+                          googleLandingPageUrl: (singleMarket as any).googleLandingPageUrl,
+                          googleBidStrategy: (singleMarket as any).googleBidStrategy,
+                          googleTargetCpa: (singleMarket as any).googleTargetCpa,
+                          googleTargetRoas: (singleMarket as any).googleTargetRoas,
+                          googleMaxCpcBid: (singleMarket as any).googleMaxCpcBid,
                         }}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets((prev) =>
