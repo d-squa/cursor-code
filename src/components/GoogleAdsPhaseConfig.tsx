@@ -18,6 +18,7 @@ import { Loader2 } from "lucide-react";
 interface GoogleAdsPhaseConfigProps {
   phase: Phase;
   onUpdate: (field: string, value: any) => void;
+  googleCustomerId?: string;
 }
 
 export function GoogleAdsPhaseConfig({ phase, onUpdate }: GoogleAdsPhaseConfigProps) {
