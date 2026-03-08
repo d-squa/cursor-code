@@ -292,3 +292,130 @@ async function fetchMetaInsights(
     return null;
   }
 }
+
+async function fetchGoogleAdsInsights(
+  connectedPlatform: any,
+  campaign: any,
+  supabase: any
+): Promise<any | null> {
+  try {
+    const accessToken = await getAccessToken(supabase, connectedPlatform.id, connectedPlatform.access_token);
+    if (!accessToken) {
+      console.log("Missing Google Ads access token");
+      return null;
+    }
+
+    const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
+    if (!developerToken) {
+      console.log("GOOGLE_ADS_DEVELOPER_TOKEN not set");
+      return null;
+    }
+
+    // Find the Google ad account for this campaign
+    const { data: googleAccounts } = await supabase
+      .from("google_ad_accounts")
+      .select("customer_id")
+      .eq("user_id", campaign.user_id)
+      .eq("is_active", true)
+      .limit(1);
+
+    if (!googleAccounts || googleAccounts.length === 0) {
+      console.log("No active Google Ads account found");
+      return null;
+    }
+
+    const customerId = googleAccounts[0].customer_id.replace(/-/g, "");
+    const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    if (managerAccountId) {
+      headers["login-customer-id"] = managerAccountId.replace(/-/g, "");
+    }
+
+    const startDate = campaign.start_date?.split("T")[0] || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+    const endDate = campaign.end_date?.split("T")[0] || new Date().toISOString().split("T")[0];
+
+    const gaql = `
+      SELECT
+        campaign.id, campaign.name,
+        metrics.impressions, metrics.clicks, metrics.cost_micros,
+        metrics.conversions, metrics.conversions_value,
+        segments.date
+      FROM campaign
+      WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'
+      ORDER BY segments.date DESC
+      LIMIT 500
+    `;
+
+    const searchUrl = `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`;
+    const resp = await fetch(searchUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query: gaql }),
+    });
+
+    if (!resp.ok) {
+      console.error("Google Ads insights fetch failed:", await resp.text());
+      return null;
+    }
+
+    const data = await resp.json();
+    const rows = data?.[0]?.results || [];
+
+    const aggregated = {
+      impressions: 0,
+      clicks: 0,
+      spend: 0,
+      conversions: 0,
+      conversionValue: 0,
+      reach: 0,
+      cpm: 0,
+      frequency: 0,
+      ctr: 0,
+    };
+
+    const weeklyMetrics: any[] = [];
+    let dayIndex = 0;
+
+    for (const row of rows) {
+      const m = row.metrics || {};
+      aggregated.impressions += Number(m.impressions || 0);
+      aggregated.clicks += Number(m.clicks || 0);
+      aggregated.spend += Number(m.costMicros || 0) / 1_000_000;
+      aggregated.conversions += Number(m.conversions || 0);
+      aggregated.conversionValue += Number(m.conversionsValue || 0);
+
+      const weekIndex = Math.floor(dayIndex / 7);
+      if (!weeklyMetrics[weekIndex]) {
+        weeklyMetrics[weekIndex] = { week: `Week ${weekIndex + 1}`, impressions: 0, clicks: 0, spend: 0, conversions: 0 };
+      }
+      weeklyMetrics[weekIndex].impressions += Number(m.impressions || 0);
+      weeklyMetrics[weekIndex].clicks += Number(m.clicks || 0);
+      weeklyMetrics[weekIndex].spend += Number(m.costMicros || 0) / 1_000_000;
+      weeklyMetrics[weekIndex].conversions += Number(m.conversions || 0);
+      dayIndex++;
+    }
+
+    if (aggregated.impressions > 0) {
+      aggregated.cpm = (aggregated.spend / aggregated.impressions) * 1000;
+      aggregated.ctr = (aggregated.clicks / aggregated.impressions) * 100;
+    }
+
+    console.log("Fetched Google Ads insights:", aggregated);
+
+    return {
+      platform: "Google",
+      ad_account_id: customerId,
+      campaign_dsp_id: null,
+      metrics: aggregated,
+      weekly_metrics: weeklyMetrics,
+    };
+  } catch (error: any) {
+    console.error("Error fetching Google Ads insights:", error);
+    return null;
+  }
+}
