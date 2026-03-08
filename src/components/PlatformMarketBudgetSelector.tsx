@@ -184,11 +184,41 @@ export function PlatformMarketBudgetSelector({
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
-  // Fetch all Meta and TikTok resources from database
+  // Fetch all Meta, TikTok, and Google resources from database
   useEffect(() => {
     fetchMetaResources();
     fetchTiktokResources();
+    fetchGoogleResources();
   }, [selectedClientId]); // Re-fetch when client changes
+
+  const fetchGoogleResources = async () => {
+    setLoadingGoogleAdAccounts(true);
+    try {
+      let query = supabase
+        .from("google_ad_accounts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (selectedClientId) {
+        query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        setGoogleAdAccounts(data.map((acc: any) => ({
+          id: acc.account_id,
+          name: acc.account_name || `Account ${acc.customer_id}`,
+          customerId: acc.customer_id,
+          currency: acc.currency || "USD",
+          timezone: acc.timezone || "UTC",
+        })));
+      }
+    } catch (error) {
+      console.error("Error loading Google Ads resources:", error);
+    } finally {
+      setLoadingGoogleAdAccounts(false);
+    }
+  };
 
   const fetchMetaResources = async () => {
     setIsLoadingAccounts(true);
