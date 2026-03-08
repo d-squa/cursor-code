@@ -421,6 +421,9 @@ const Landing = () => {
               <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")} data-gtm="hero-see-capabilities">
                 See Capabilities
               </Button>
+              <Button size="lg" variant="ghost" onClick={triggerHeroVideo} className="gap-2" data-gtm="hero-watch-demo">
+                ▶ See How It Works
+              </Button>
             </div>
             <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto text-left mb-0 px-0 py-[20px]">
               {[
