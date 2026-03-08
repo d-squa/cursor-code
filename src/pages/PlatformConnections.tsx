@@ -391,7 +391,7 @@ export default function PlatformConnections() {
 
   const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string, skipLimitCheck = false) => {
     // Check limits before allowing new platform connections (not reconnects)
-    if (!platformId && !skipLimitCheck) {
+    if (!platformId && !skipLimitCheck && (platformType === 'meta' || platformType === 'tiktok')) {
       const platform = platformType as 'meta' | 'tiktok';
       const limits = adAccountLimits[platform];
       
