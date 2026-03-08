@@ -268,6 +268,16 @@ export function AdSetSplitManager({
   // Fetch audiences when dimension is audience_selection and adAccountId is available
   useEffect(() => {
     if (dimension !== "audience_selection" || !adAccountId) return;
+    
+    // Only fetch Meta audiences for Meta platform
+    const isGoogle = platformName?.toLowerCase().includes('google');
+    const isTikTok = platformName?.toLowerCase().includes('tiktok');
+    if (isGoogle || isTikTok) {
+      console.log(`${isGoogle ? 'Google Ads' : 'TikTok'} audience fetching not yet implemented`);
+      setFetchedAudiences([]);
+      setAudiencesLoading(false);
+      return;
+    }
 
     const fetchAudiences = async () => {
       setAudiencesLoading(true);
