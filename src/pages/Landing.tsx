@@ -435,6 +435,7 @@ const Landing = () => {
                 </li>
               )}
             </ul>
+            <HeroVideoPlayer />
           </div>
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
