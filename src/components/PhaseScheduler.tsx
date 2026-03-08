@@ -1865,7 +1865,13 @@ export function PhaseScheduler({
                               checked={phase.overrideTargeting === true}
                               onCheckedChange={(checked) => {
                                 console.log('🔄 Switch onCheckedChange:', { checked, currentValue: phase.overrideTargeting, phaseId: phase.id });
-                                const isTikTok = platformId === 'tiktok';
+                                const platformFilter = platformId === 'tiktok' ? 'tiktok' 
+                                  : platformId === 'google_ads' ? 'google' 
+                                  : platformId === 'snapchat' ? 'snapchat' 
+                                  : 'meta';
+                                
+                                const filterItemsForPlatform = (items: any[]) => 
+                                  items.filter(item => item.platforms?.includes(platformFilter));
                                 
                                 if (checked) {
                                    // When enabling override, always initialize from latest basicTargeting
@@ -1879,9 +1885,7 @@ export function PhaseScheduler({
                                        os: phase.targeting?.os?.length ? [...phase.targeting.os] : (basicTargeting.os ? [...basicTargeting.os] : []),
                                        languages: phase.targeting?.languages?.length ? [...phase.targeting.languages] : (basicTargeting.languages ? [...basicTargeting.languages] : []),
                                        selectedItems: basicTargeting.selectedItems ? 
-                                         basicTargeting.selectedItems.filter(item => 
-                                           isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                         ) : [],
+                                         filterItemsForPlatform(basicTargeting.selectedItems) : [],
                                        useBroadTargeting: false,
                                      };
                                      console.log('🔄 Setting override ON with targeting:', phaseTargeting);
@@ -1900,9 +1904,7 @@ export function PhaseScheduler({
                                     os: basicTargeting.os ? [...basicTargeting.os] : [],
                                     languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
                                     selectedItems: basicTargeting.selectedItems ? 
-                                      basicTargeting.selectedItems.filter(item => 
-                                        isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                      ) : [],
+                                      filterItemsForPlatform(basicTargeting.selectedItems) : [],
                                     useBroadTargeting: false,
                                   } : undefined;
                                   
