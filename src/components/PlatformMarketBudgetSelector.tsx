@@ -2547,6 +2547,20 @@ export function PlatformMarketBudgetSelector({
                                           };
                                         })
                                       );
+                                      // Fetch merchant centers for this account
+                                      if (account?.customerId) {
+                                        setLoadingGoogleMC(prev => ({ ...prev, [market.id]: true }));
+                                        supabase.functions.invoke("fetch-google-merchant-centers", {
+                                          body: { customerId: account.customerId },
+                                        }).then(({ data, error }) => {
+                                          if (!error && data) {
+                                            setGoogleMerchantCenters(prev => ({ ...prev, [market.id]: data.merchantCenters || [] }));
+                                            setGoogleFeedLabels(prev => ({ ...prev, [market.id]: data.feedLabels || [] }));
+                                          }
+                                        }).finally(() => {
+                                          setLoadingGoogleMC(prev => ({ ...prev, [market.id]: false }));
+                                        });
+                                      }
                                     }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
