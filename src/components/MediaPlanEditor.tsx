@@ -1188,6 +1188,9 @@ export function MediaPlanEditor() {
                   metaLandingPageUrl: (m as any).metaLandingPageUrl,
                   metaPublisherPlatforms: m.metaPublisherPlatforms || m.publisherPlatforms,
                   metaPositions: m.metaPositions || m.positions,
+                  // Google Ads fields
+                  googleObjective: m.googleObjective,
+                  googleLandingPageUrl: m.googleLandingPageUrl,
                 })),
               };
             }, {}),
@@ -1388,6 +1391,9 @@ export function MediaPlanEditor() {
                 tiktokProductSet: m.tiktokProductSet,
                 tiktokOptimizationEvent: m.tiktokOptimizationEvent,
                 tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+                // Google Ads fields
+                googleObjective: m.googleObjective,
+                googleLandingPageUrl: m.googleLandingPageUrl,
               })),
             }),
             {},
@@ -1737,6 +1743,9 @@ export function MediaPlanEditor() {
                 tiktokProductSet: m.tiktokProductSet,
                 tiktokOptimizationEvent: m.tiktokOptimizationEvent,
                 tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+                // Google Ads fields
+                googleObjective: m.googleObjective,
+                googleLandingPageUrl: m.googleLandingPageUrl,
                 adFormats: m.adFormats,
                 phases: m.phases,
                 instagramActorId: m.instagramActorId,
