@@ -59,7 +59,7 @@ export interface PlatformAsset {
 }
 
 interface AdAccount {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   accountId: string;
 }
 
