@@ -622,7 +622,7 @@ export function UnifiedTargeting({
                           defaultAdSets: adSets,
                         };
                         onUpdate(updated);
-                        localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                        persistToLocalStorage(updated);
                       }}
                       onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
                       adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
