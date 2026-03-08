@@ -407,6 +407,39 @@ export function MediaPlanEditor() {
             });
           }
         });
+      } else if (platformId === "google" && googleAdAccounts.length > 0) {
+        // Create markets from all Google Ads accounts with main_markets
+        googleAdAccounts.forEach((acc: any) => {
+          const accountMarkets = Array.isArray(acc.main_markets) ? acc.main_markets : [];
+          if (accountMarkets.length > 0) {
+            accountMarkets.forEach((marketCode: string, idx: number) => {
+              markets.push({
+                id: `${marketCode}-${acc.customer_id}-${Date.now()}-${idx}`,
+                name: marketCode,
+                budgetPercentage: 0,
+                adAccountId: acc.customer_id,
+                accountName: acc.account_name,
+                googleLandingPageUrl: acc.default_landing_page_url || "",
+                googleBidStrategy: acc.default_bid_strategy || "",
+                googleTargetCpa: acc.default_target_cpa || undefined,
+                googleTargetRoas: acc.default_target_roas || undefined,
+                googleMaxCpcBid: acc.default_max_cpc_bid || undefined,
+                phases: [],
+                adFormats: [],
+                countries: [marketCode],
+                ageMin: selectedClient.default_age_min ?? 18,
+                ageMax: selectedClient.default_age_max ?? 65,
+                gender: selectedClient.default_gender || "all",
+                languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+                publisherPlatforms: ["google"],
+                positions: {},
+                detailedTargeting: [],
+                isCBOEnabled: false,
+                isLifetimeBudget: false,
+              });
+            });
+          }
+        });
       }
 
       // If no markets were created from ad accounts, create a fallback temporary market
