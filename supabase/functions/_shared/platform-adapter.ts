@@ -1153,3 +1153,362 @@ class TikTokAdapter implements PlatformAdapter {
     return ageGroups.length > 0 ? ageGroups : ["AGE_18_100"];
   }
 }
+
+// =====================================================================
+// Google Ads Adapter Implementation
+// Supports: Search, Display, Video, PMax, Demand Gen
+// =====================================================================
+class GoogleAdsAdapter implements PlatformAdapter {
+  private readonly API_BASE = `https://googleads.googleapis.com/v18`;
+
+  private getHeaders(accessToken: string, developerToken: string, loginCustomerId?: string): Record<string, string> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      "developer-token": developerToken,
+      "Content-Type": "application/json",
+    };
+    if (loginCustomerId) {
+      headers["login-customer-id"] = loginCustomerId.replace(/-/g, "");
+    }
+    return headers;
+  }
+
+  async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
+    try {
+      const customerId = params.accountId.replace(/-/g, "");
+      const developerToken = params.metadata?.developerToken || "";
+      const loginCustomerId = params.metadata?.loginCustomerId;
+      const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
+
+      // Step 1: Create campaign budget
+      const budgetMicros = String(Math.round(params.budget * 1_000_000));
+      const budgetOp = {
+        create: {
+          name: `${params.campaignName} Budget`,
+          ...(params.budgetMode === "daily"
+            ? { amountMicros: budgetMicros }
+            : { amountMicros: budgetMicros }),
+          deliveryMethod: "STANDARD",
+        },
+      };
+
+      const budgetUrl = `${this.API_BASE}/customers/${customerId}/campaignBudgets:mutate`;
+      const budgetResp = await fetch(budgetUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: [budgetOp] }),
+      });
+
+      if (!budgetResp.ok) {
+        const errText = await budgetResp.text();
+        console.error("Google Ads budget creation failed:", errText);
+        return { success: false, campaignId: "", platform: "google", error: `Budget creation failed: ${errText}` };
+      }
+
+      const budgetData = await budgetResp.json();
+      const budgetResourceName = budgetData.results?.[0]?.resourceName;
+      if (!budgetResourceName) {
+        return { success: false, campaignId: "", platform: "google", error: "No budget resource name returned" };
+      }
+
+      // Step 2: Create campaign
+      const channelType = params.metadata?.advertisingChannelType || "SEARCH";
+      const biddingStrategy = this.buildBiddingStrategy(
+        params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+        params.metadata?.bidAmount
+      );
+
+      const campaignOp = {
+        create: {
+          name: params.campaignName,
+          advertisingChannelType: channelType,
+          status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
+          campaignBudget: budgetResourceName,
+          startDate: params.startDate.split("T")[0],
+          ...(params.endDate ? { endDate: params.endDate.split("T")[0] } : {}),
+          ...biddingStrategy,
+          ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
+        },
+      };
+
+      const campaignUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
+      const campaignResp = await fetch(campaignUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: [campaignOp] }),
+      });
+
+      if (!campaignResp.ok) {
+        const errText = await campaignResp.text();
+        console.error("Google Ads campaign creation failed:", errText);
+        return { success: false, campaignId: "", platform: "google", error: `Campaign creation failed: ${errText}` };
+      }
+
+      const campaignData = await campaignResp.json();
+      const campaignResourceName = campaignData.results?.[0]?.resourceName;
+      // Extract campaign ID from resource name "customers/123/campaigns/456"
+      const campaignId = campaignResourceName?.split("/").pop() || "";
+
+      console.log(`✅ Google Ads campaign created: ${campaignId}`);
+
+      return {
+        success: true,
+        campaignId,
+        platform: "google",
+        metadata: {
+          resourceName: campaignResourceName,
+          budgetResourceName,
+          channelType,
+          biddingStrategy: params.metadata?.biddingStrategy,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, campaignId: "", platform: "google", error: error.message };
+    }
+  }
+
+  async updateCampaign(params: UpdateCampaignParams): Promise<UpdateCampaignResult> {
+    try {
+      const customerId = params.accountId.replace(/-/g, "");
+      const developerToken = params.updates?.developerToken || "";
+      const loginCustomerId = params.updates?.loginCustomerId;
+      const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
+
+      const resourceName = `customers/${customerId}/campaigns/${params.campaignId}`;
+      const updateFields: Record<string, any> = {};
+      const updateMask: string[] = [];
+
+      if (params.updates.name) { updateFields.name = params.updates.name; updateMask.push("name"); }
+      if (params.updates.status) { updateFields.status = params.updates.status; updateMask.push("status"); }
+
+      const campaignOp = {
+        update: { resourceName, ...updateFields },
+        updateMask: updateMask.join(","),
+      };
+
+      const url = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: [campaignOp] }),
+      });
+
+      const ok = resp.ok;
+      const body = await resp.text();
+      return { success: ok, campaignId: params.campaignId, platform: "google", error: ok ? undefined : body };
+    } catch (error: any) {
+      return { success: false, campaignId: params.campaignId, platform: "google", error: error.message };
+    }
+  }
+
+  async createAdGroup(params: CreateAdGroupParams): Promise<CreateAdGroupResult> {
+    try {
+      const customerId = params.accountId.replace(/-/g, "");
+      const developerToken = params.targeting?.developerToken || "";
+      const loginCustomerId = params.targeting?.loginCustomerId;
+      const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
+
+      const campaignResourceName = `customers/${customerId}/campaigns/${params.campaignId}`;
+
+      const adGroupOp = {
+        create: {
+          name: params.adGroupName,
+          campaign: campaignResourceName,
+          status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
+          type: params.targeting?.adGroupType || "SEARCH_STANDARD",
+          ...(params.bidAmount ? { cpcBidMicros: String(Math.round(params.bidAmount * 1_000_000)) } : {}),
+        },
+      };
+
+      const url = `${this.API_BASE}/customers/${customerId}/adGroups:mutate`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: [adGroupOp] }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        return { success: false, adGroupId: "", platform: "google", error: errText };
+      }
+
+      const data = await resp.json();
+      const adGroupResourceName = data.results?.[0]?.resourceName;
+      const adGroupId = adGroupResourceName?.split("/").pop() || "";
+
+      // Add targeting criteria if provided
+      if (params.targeting?.keywords?.length) {
+        await this.addKeywordCriteria(customerId, adGroupId, params.targeting.keywords, headers);
+      }
+
+      console.log(`✅ Google Ads ad group created: ${adGroupId}`);
+
+      return {
+        success: true,
+        adGroupId,
+        platform: "google",
+        metadata: { resourceName: adGroupResourceName },
+      };
+    } catch (error: any) {
+      return { success: false, adGroupId: "", platform: "google", error: error.message };
+    }
+  }
+
+  async createCreative(params: CreateCreativeParams): Promise<CreateCreativeResult> {
+    try {
+      const customerId = params.accountId.replace(/-/g, "");
+      const developerToken = (params as any).developerToken || "";
+      const loginCustomerId = (params as any).loginCustomerId;
+      const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
+
+      const adGroupResourceName = `customers/${customerId}/adGroups/${params.adGroupId}`;
+
+      // Build responsive search ad (most common)
+      const adOp = {
+        create: {
+          adGroup: adGroupResourceName,
+          status: "ENABLED",
+          ad: {
+            responsiveSearchAd: {
+              headlines: [
+                { text: params.creativeName.substring(0, 30) },
+                { text: params.adText.substring(0, 30) },
+                { text: params.callToAction.substring(0, 30) },
+              ],
+              descriptions: [
+                { text: params.adText.substring(0, 90) },
+                { text: params.creativeName.substring(0, 90) },
+              ],
+            },
+            finalUrls: [params.landingPageUrl],
+          },
+        },
+      };
+
+      const url = `${this.API_BASE}/customers/${customerId}/adGroupAds:mutate`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: [adOp] }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        return { success: false, creativeId: "", platform: "google", error: errText };
+      }
+
+      const data = await resp.json();
+      const adResourceName = data.results?.[0]?.resourceName;
+      const adId = adResourceName?.split("/").pop() || "";
+
+      return { success: true, creativeId: adId, platform: "google" };
+    } catch (error: any) {
+      return { success: false, creativeId: "", platform: "google", error: error.message };
+    }
+  }
+
+  async fetchMetrics(params: FetchMetricsParams): Promise<FetchMetricsResult> {
+    try {
+      const customerId = params.accountId.replace(/-/g, "");
+      const developerToken = (params as any).developerToken || "";
+      const loginCustomerId = (params as any).loginCustomerId;
+      const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
+
+      const entityIds = params.entityIds.join(", ");
+      const gaql = `
+        SELECT
+          campaign.id, campaign.name,
+          metrics.impressions, metrics.clicks, metrics.cost_micros,
+          metrics.conversions, metrics.conversions_value,
+          segments.date
+        FROM campaign
+        WHERE campaign.id IN (${entityIds})
+          AND segments.date BETWEEN '${params.startDate}' AND '${params.endDate}'
+        ORDER BY segments.date DESC
+      `;
+
+      const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:searchStream`;
+      const resp = await fetch(searchUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        return { success: false, metrics: [], platform: "google", error: errText };
+      }
+
+      const data = await resp.json();
+      const rows = data?.[0]?.results || [];
+
+      const metrics = rows.map((r: any) => ({
+        entityId: String(r.campaign?.id),
+        date: r.segments?.date,
+        impressions: Number(r.metrics?.impressions || 0),
+        clicks: Number(r.metrics?.clicks || 0),
+        spend: Number(r.metrics?.costMicros || 0) / 1_000_000,
+        conversions: Number(r.metrics?.conversions || 0),
+        conversionValue: Number(r.metrics?.conversionsValue || 0),
+      }));
+
+      return { success: true, metrics, platform: "google" };
+    } catch (error: any) {
+      return { success: false, metrics: [], platform: "google", error: error.message };
+    }
+  }
+
+  private buildBiddingStrategy(strategy: string, bidAmount?: number): Record<string, any> {
+    switch (strategy) {
+      case "MAXIMIZE_CONVERSIONS":
+        return { maximizeConversions: bidAmount ? { targetCpaMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
+      case "MAXIMIZE_CONVERSION_VALUE":
+        return { maximizeConversionValue: bidAmount ? { targetRoas: bidAmount } : {} };
+      case "TARGET_CPA":
+        return { targetCpa: { targetCpaMicros: String(Math.round((bidAmount || 10) * 1_000_000)) } };
+      case "TARGET_ROAS":
+        return { targetRoas: { targetRoas: bidAmount || 2.0 } };
+      case "MAXIMIZE_CLICKS":
+        return { maximizeClicks: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
+      case "TARGET_CPM":
+        return { targetCpm: {} };
+      case "MANUAL_CPC":
+        return { manualCpc: { enhancedCpcEnabled: true } };
+      default:
+        return { maximizeConversions: {} };
+    }
+  }
+
+  private async addKeywordCriteria(
+    customerId: string,
+    adGroupId: string,
+    keywords: Array<{ text: string; matchType?: string }>,
+    headers: Record<string, string>
+  ): Promise<void> {
+    const operations = keywords.map((kw) => ({
+      create: {
+        adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+        status: "ENABLED",
+        keyword: {
+          text: kw.text,
+          matchType: kw.matchType || "BROAD",
+        },
+      },
+    }));
+
+    const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error("Failed to add keyword criteria:", errText);
+    } else {
+      await resp.text();
+      console.log(`Added ${keywords.length} keywords to ad group ${adGroupId}`);
+    }
+  }
+}
