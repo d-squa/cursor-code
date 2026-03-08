@@ -84,7 +84,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
   const getActivePlatforms = () => ({
     hasMeta: !!metaAdAccountId,
     hasTiktok: !!tiktokAdvertiserId,
-    hasMultiple: !!metaAdAccountId && !!tiktokAdvertiserId
+    hasGoogle: !!googleCustomerId,
+    hasMultiple: [!!metaAdAccountId, !!tiktokAdvertiserId, !!googleCustomerId].filter(Boolean).length > 1
   });
 
   // Controlled tab state for AI recommendations
