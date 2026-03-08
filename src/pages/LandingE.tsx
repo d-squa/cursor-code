@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import SEO from "@/components/SEO";
-import HeroVideoPlayer from "@/components/HeroVideoPlayer";
+import HeroVideoPlayer, { triggerHeroVideo } from "@/components/HeroVideoPlayer";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
