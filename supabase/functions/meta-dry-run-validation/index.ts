@@ -347,7 +347,10 @@ serve(async (req: Request) => {
       "conversion_attribution",
     ];
 
-    // Get user's connected Meta platform
+    // Get user's connected Meta platform OR fall back to META_ACCESS_TOKEN secret
+    let accessToken: string | null = null;
+    let platformAdAccountId: string | null = null;
+
     const { data: platforms } = await supabase
       .from("connected_platforms")
       .select("*")
@@ -355,24 +358,27 @@ serve(async (req: Request) => {
       .eq("platform_type", "meta")
       .eq("is_active", true);
 
-    if (!platforms || platforms.length === 0) {
-      return new Response(JSON.stringify({ error: "No active Meta platform connected" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (platforms && platforms.length > 0) {
+      const platform = platforms[0];
+      accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+      platformAdAccountId = platform.ad_account_id;
     }
 
-    const platform = platforms[0];
-    const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+    // Fallback to META_ACCESS_TOKEN secret for testing without a connected platform
     if (!accessToken) {
-      return new Response(JSON.stringify({ error: "Could not retrieve Meta access token" }), {
+      accessToken = Deno.env.get("META_ACCESS_TOKEN") || null;
+      console.log("[DRY-RUN] No connected platform found, using META_ACCESS_TOKEN secret fallback");
+    }
+
+    if (!accessToken) {
+      return new Response(JSON.stringify({ error: "No Meta access token available. Either connect a Meta platform or set the META_ACCESS_TOKEN secret." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Determine ad account
-    let rawAdAccountId = adAccountIdOverride || platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+    let rawAdAccountId = adAccountIdOverride || platformAdAccountId || Deno.env.get("META_AD_ACCOUNT_ID");
     if (!rawAdAccountId) {
       // Try to get from meta_ad_accounts
       const { data: metaAccounts } = await supabase
