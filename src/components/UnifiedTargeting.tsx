@@ -352,7 +352,7 @@ export function UnifiedTargeting({
       {/* Unified Search */}
       <Card>
         <CardHeader>
-          <CardTitle>Search Targeting Options</CardTitle>
+          <CardTitle>Audience & Interest Targeting</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
