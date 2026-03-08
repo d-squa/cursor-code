@@ -286,15 +286,28 @@ export function GenericStrategyConfig({
     
     const generatedPhases = generatePhasesFromStrategyId(strategy.id, startDate, endDate);
     
+    const lower = (platformName || "meta").toLowerCase();
+    const isMeta = lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram");
+    const platformForMapping = lower.includes("google") ? "google" 
+      : lower.includes("tiktok") ? "tiktok"
+      : lower.includes("snapchat") ? "snapchat" : "meta";
+    
     // Map to Phase format expected by the system
     const phases = generatedPhases.map(p => {
-      const resolved = resolveObjectiveForPlatform(
-        p.objective || "", p.optimizationGoal || "", platformName
-      );
+      if (isMeta) {
+        // For Meta, translate API values to display labels (legacy behavior)
+        return {
+          ...p,
+          objective: objectiveToLabel(p.objective) || p.objective,
+          optimizationGoal: optimizationToLabel(p.optimizationGoal) || p.optimizationGoal,
+        };
+      }
+      // For non-Meta platforms, re-derive from phase name since strategy matrix stores Meta-style values
+      const objectiveData = getObjectiveFromPhaseName(p.name, config.strategyFocus || "conversions", platformForMapping);
       return {
         ...p,
-        objective: resolved.objective || p.objective,
-        optimizationGoal: resolved.optimizationGoal || p.optimizationGoal,
+        objective: objectiveData.objective,
+        optimizationGoal: objectiveData.optimizationGoal,
       };
     });
 
