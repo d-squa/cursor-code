@@ -1022,6 +1022,9 @@ export default function PlatformConnections() {
                 <Badge variant="outline" className="gap-1">
                   Google: {platforms.filter(p => p.platform_type === 'google').length} connection{platforms.filter(p => p.platform_type === 'google').length !== 1 ? 's' : ''}
                 </Badge>
+                <Badge variant="outline" className="gap-1">
+                  Snapchat: {platforms.filter(p => p.platform_type === 'snapchat').length} connection{platforms.filter(p => p.platform_type === 'snapchat').length !== 1 ? 's' : ''}
+                </Badge>
               </div>
             </div>
           </CardHeader>
