@@ -1133,6 +1133,15 @@ export default function PlatformConnections() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
+                  {/* Google Ads Connect Button */}
+                  <Button
+                    onClick={() => handleConnectPlatform("google", false)}
+                    variant="outline"
+                    className="border-border"
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    Connect Google Ads Account
+                  </Button>
                 </div>
               </div>
             )}
