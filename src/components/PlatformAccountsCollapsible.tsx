@@ -39,7 +39,7 @@ interface TikTokAdAccount {
 }
 
 interface PlatformAccountsCollapsibleProps {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   icon: React.ReactNode;
   title: string;
   accounts: MetaAdAccount[] | TikTokAdAccount[];
