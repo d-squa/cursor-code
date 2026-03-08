@@ -287,6 +287,87 @@ function getGoogleAdsObjectiveFromPhaseName(
 }
 
 /**
+ * Snapchat-specific objective mapping
+ * Maps funnel phases to Snapchat Marketing API objectives
+ */
+function getSnapchatObjectiveFromPhaseName(
+  phaseName: string,
+  strategyFocus?: string
+): PhaseObjectiveMapping {
+  const normalizedPhase = phaseName.toLowerCase();
+  
+  // Awareness/Reach phases
+  if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
+    return {
+      objective: "AWARENESS",
+      optimizationGoal: "IMPRESSIONS",
+      destination: "Snap Ads"
+    };
+  }
+  
+  // Video/Engagement phases
+  if (normalizedPhase.includes("engagement") || normalizedPhase.includes("authority") || normalizedPhase.includes("trust")) {
+    return {
+      objective: "ENGAGEMENT",
+      optimizationGoal: "SWIPES",
+      destination: "Snap Ads"
+    };
+  }
+  
+  // Consideration/Traffic phases
+  if (normalizedPhase.includes("consideration") || normalizedPhase.includes("interest") || normalizedPhase.includes("preference")) {
+    return {
+      objective: "TRAFFIC",
+      optimizationGoal: "SWIPES",
+      destination: "Website"
+    };
+  }
+  
+  // Lead-focused phases
+  if (normalizedPhase.includes("capture") || normalizedPhase.includes("nurture") || strategyFocus === "Leads") {
+    return {
+      objective: "LEAD_GENERATION",
+      optimizationGoal: "LEAD_FORM_SUBMISSIONS",
+      destination: "Lead Form"
+    };
+  }
+  
+  // Conversion/Purchase phases
+  if (normalizedPhase.includes("conversion") || normalizedPhase.includes("purchase") || normalizedPhase.includes("intent")) {
+    return {
+      objective: "CONVERSIONS",
+      optimizationGoal: "PIXEL_PURCHASE",
+      destination: "Website"
+    };
+  }
+  
+  // Loyalty/Retention phases
+  if (normalizedPhase.includes("loyalty") || normalizedPhase.includes("retention") || normalizedPhase.includes("expansion")) {
+    return {
+      objective: "CATALOG_SALES",
+      optimizationGoal: "CATALOG_SALES",
+      destination: "Catalog"
+    };
+  }
+  
+  // App-specific phases
+  if (normalizedPhase.includes("acquisition") || normalizedPhase.includes("onboarding") || normalizedPhase.includes("activation")) {
+    return {
+      objective: "APP_INSTALLS",
+      optimizationGoal: "APP_INSTALLS",
+      destination: "App"
+    };
+  }
+  
+  // Default to traffic
+  return {
+    objective: "TRAFFIC",
+    optimizationGoal: "SWIPES",
+    destination: "Website"
+  };
+}
+
+/**
  * Get display label for strategy
  */
 export function getStrategyLabel(strategy: string, strategyFocus?: string): string {
