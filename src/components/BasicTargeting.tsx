@@ -49,7 +49,7 @@ interface TargetingOption {
   name: string;
 }
 
-export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdvertiserId }: BasicTargetingProps) {
+export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdvertiserId, googleCustomerId }: BasicTargetingProps) {
   const [loading, setLoading] = useState(false);
   const [genderOptions, setGenderOptions] = useState<TargetingOption[]>([]);
   const [deviceOptions, setDeviceOptions] = useState<TargetingOption[]>([]);
