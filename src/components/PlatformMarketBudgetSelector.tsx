@@ -2828,6 +2828,11 @@ export function PlatformMarketBudgetSelector({
                                     tiktokClickWindow: (market as any).tiktokClickWindow,
                                     tiktokViewWindow: (market as any).tiktokViewWindow,
                                     tiktokBillingEvent: (market as any).tiktokBillingEvent,
+                                    // Google Ads defaults
+                                    googleCustomerId: (() => {
+                                      const account = googleAdAccounts.find(a => a.id === market.adAccountId);
+                                      return account?.customerId;
+                                    })(),
                                   }}
                                   marketBudget={marketBudget}
                                 />
