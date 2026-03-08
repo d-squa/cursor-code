@@ -440,16 +440,16 @@ const GOOGLE_ADS_API_VERSION = 'v23';
 
 async function searchGoogleAudiences(headers: Record<string, string>, customerId: string, query: string) {
   try {
-    // Search user interest (affinity + in-market) audience segments
+    // Search Google Ads audience segments (affinity + in-market)
     const gaql = `
       SELECT
-        audience.id,
-        audience.name,
-        audience.description,
-        audience.status
-      FROM audience
-      WHERE audience.name LIKE '%${query.replace(/'/g, "''")}%'
-      LIMIT 30
+        user_interest.user_interest_id,
+        user_interest.name,
+        user_interest.taxonomy_type,
+        user_interest.availabilities
+      FROM user_interest
+      WHERE user_interest.name LIKE '%${query.replace(/'/g, "''")}%'
+      LIMIT 50
     `;
 
     const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`;
@@ -459,21 +459,34 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       body: JSON.stringify({ query: gaql }),
     });
 
-    if (resp.ok) {
-      const data = await resp.json();
-      const rows = data?.[0]?.results || [];
-      return rows.map((r: any) => ({
-        id: String(r.audience?.id || ''),
-        name: r.audience?.name || 'Unknown',
-        description: r.audience?.description || '',
-      }));
-    } else {
+    if (!resp.ok) {
       const errText = await resp.text();
-      console.error('Google audience search failed:', errText);
+      console.error('Google audience segment search failed:', errText);
       return [];
     }
+
+    const data = await resp.json();
+    const batches = Array.isArray(data) ? data : [];
+    const rows = batches.flatMap((batch: any) => batch?.results || []);
+
+    return rows
+      .map((r: any) => {
+        const ui = r.userInterest || r.user_interest || {};
+        const id = String(ui.userInterestId ?? ui.user_interest_id ?? '');
+        const name = ui.name ?? '';
+        const taxonomyType = ui.taxonomyType ?? ui.taxonomy_type ?? '';
+
+        if (!id || !name) return null;
+
+        return {
+          id,
+          name,
+          description: taxonomyType ? `Segment type: ${taxonomyType}` : '',
+        };
+      })
+      .filter(Boolean);
   } catch (err) {
-    console.error('Google audience search error:', err);
+    console.error('Google audience segment search error:', err);
     return [];
   }
 }
