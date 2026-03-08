@@ -1932,6 +1932,7 @@ export function PhaseScheduler({
                                     onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
                                     metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
                                     tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
+                                    skipLocalStorage={true}
                                     currentSplitDimension={phase.adSetSplitDimension}
                                     onSplitDimensionChange={(dim, useCBO) => {
                                       const newDimension = dim === 'none' ? undefined : dim;
