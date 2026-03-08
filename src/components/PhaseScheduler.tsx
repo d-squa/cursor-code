@@ -2931,6 +2931,7 @@ export function PhaseScheduler({
                         <GoogleAdsPhaseConfig
                           phase={phase}
                           googleCustomerId={adAccountDefaults?.googleCustomerId}
+                          selectedKeywords={basicTargeting?.selectedKeywords}
                           onUpdate={(field, value) => {
                             console.log("🔄 PhaseScheduler Google Ads onUpdate called:", { phaseId: phase.id, field, value });
                             updatePhaseField(phase.id, field as keyof Phase, value);
