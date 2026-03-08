@@ -18,6 +18,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import MetaDryRunValidation from "@/components/MetaDryRunValidation";
+import TikTokDryRunValidation from "@/components/TikTokDryRunValidation";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -743,6 +744,9 @@ export default function AdminDashboard() {
 
         {/* Meta API Dry-Run Validation */}
         <MetaDryRunValidation />
+
+        {/* TikTok API Dry-Run Validation */}
+        <TikTokDryRunValidation />
 
         {/* Subscription Override Management */}
         <div>
