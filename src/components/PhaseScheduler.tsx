@@ -54,6 +54,7 @@ import {
   META_MESSAGING_MODES,
   TIKTOK_MESSAGING_APPS,
 } from "@/utils/destinationOptions";
+import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
