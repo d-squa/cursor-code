@@ -106,6 +106,7 @@ export function GenericStrategyConfig({
   const platformId = useMemo(() => {
     const p = (platformName || "meta").toLowerCase();
     if (p.includes("tiktok")) return "tiktok";
+    if (p.includes("google")) return "google";
     return "meta";
   }, [platformName]);
 
