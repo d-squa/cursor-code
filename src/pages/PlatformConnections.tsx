@@ -114,6 +114,7 @@ export default function PlatformConnections() {
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [tiktokAdAccounts, setTikTokAdAccounts] = useState<TikTokAdAccount[]>([]);
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<GoogleAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string; business_center?: any }[]>([]);
