@@ -57,6 +57,34 @@ const optimizationToLabel = (goal?: string): string | undefined => {
   }
 };
 
+/**
+ * Converts raw objective/optimizationGoal from phaseObjectiveMapping to
+ * values the PhaseScheduler dropdowns understand.
+ * For Meta: translates API values → display labels (legacy behavior).
+ * For Google/TikTok/Snapchat: uses raw values directly (they already match dropdown values).
+ */
+const resolveObjectiveForPlatform = (
+  rawObjective: string,
+  rawOptGoal: string,
+  platformName?: string
+): { objective: string; optimizationGoal: string } => {
+  const lower = (platformName || "meta").toLowerCase();
+  const isMeta = lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram");
+  
+  if (isMeta) {
+    return {
+      objective: objectiveToLabel(rawObjective) || "Conversions",
+      optimizationGoal: optimizationToLabel(rawOptGoal) || "Conversions",
+    };
+  }
+  
+  // For Google Ads, TikTok, Snapchat — use raw values directly (they match dropdown values)
+  return {
+    objective: rawObjective,
+    optimizationGoal: rawOptGoal,
+  };
+};
+
 export interface GenericConfig {
   strategy?: "auto-detect" | "full-funnel" | "manual";
   strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness" | "auto";
