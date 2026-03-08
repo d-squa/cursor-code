@@ -2644,6 +2644,27 @@ export function PlatformMarketBudgetSelector({
                                     onChange={(e) => updateMarketField(platformIndex, market.id, 'googleLandingPageUrl', e.target.value)}
                                   />
                                 </div>
+
+                                {/* Product Feed (Merchant Center) */}
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Merchant Center ID (Product Feed)</Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Enter Merchant Center ID"
+                                    value={market.googleMerchantCenterId || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleMerchantCenterId', e.target.value)}
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Feed Label</Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="e.g., US, EU, ALL"
+                                    value={market.googleFeedLabel || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleFeedLabel', e.target.value)}
+                                  />
+                                </div>
                               </div>
                             )}
 
