@@ -836,7 +836,7 @@ export default function PlatformConnections() {
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
-            toast.success(`${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : "Platform"} connected successfully!`);
+            toast.success(`${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : platformType === "snapchat" ? "Snapchat" : "Platform"} connected successfully!`);
           }
 
           // Open account selector if accounts are returned (Meta flow)
