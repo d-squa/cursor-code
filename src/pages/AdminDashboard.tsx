@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import MetaDryRunValidation from "@/components/MetaDryRunValidation";
 
 const COLORS = [
   "hsl(var(--primary))",
@@ -739,6 +740,9 @@ export default function AdminDashboard() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Meta API Dry-Run Validation */}
+        <MetaDryRunValidation />
 
         {/* Subscription Override Management */}
         <div>
