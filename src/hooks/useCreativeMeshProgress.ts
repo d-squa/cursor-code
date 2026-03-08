@@ -42,7 +42,7 @@ interface UseCreativeMeshProgressReturn {
   currentStep: MeshStep;
   // Step 1: ActiPlan & Platform
   selectActiPlan: (campaignId: string, campaignName: string, platforms: string[]) => void;
-  selectPlatform: (platform: 'meta' | 'tiktok') => void;
+  selectPlatform: (platform: 'meta' | 'tiktok' | 'google') => void;
   // Step 2: Creative Source
   addAsset: (asset: SelectedAsset) => void;
   removeAsset: (assetId: string) => void;
