@@ -179,7 +179,7 @@ export function MeshActiPlanStep({
               {availablePlatforms.map(platform => (
                 <button
                   key={platform}
-                  onClick={() => onPlatformSelect(platform as 'meta' | 'tiktok')}
+                  onClick={() => onPlatformSelect(platform as 'meta' | 'tiktok' | 'google')}
                   className={`p-4 rounded-lg border-2 transition-all text-left ${
                     selectedPlatform === platform
                       ? 'border-primary bg-primary/5'

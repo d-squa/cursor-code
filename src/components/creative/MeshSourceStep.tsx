@@ -26,12 +26,12 @@ import { MeshAdAccountAssetsPicker } from '@/components/creative/MeshAdAccountAs
 
 // Ad account configuration passed from parent
 interface AdAccountInfo {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   accountId: string;
 }
 
 interface PageConfig {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   pageId?: string;
   identityId?: string;
   advertiserId?: string;
@@ -39,7 +39,7 @@ interface PageConfig {
 }
 
 interface MeshSourceStepProps {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   campaignId: string;
   adAccounts: AdAccountInfo[];
   pageConfigs: PageConfig[];
