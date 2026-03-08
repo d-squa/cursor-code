@@ -2667,6 +2667,72 @@ export type Database = {
           },
         ]
       }
+      snapchat_ad_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_status: string | null
+          advertiser_id: string
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          metadata: Json | null
+          organization_id: string | null
+          team_id: string | null
+          timezone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          account_name?: string
+          account_status?: string | null
+          advertiser_id: string
+          client_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          organization_id?: string | null
+          team_id?: string | null
+          timezone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_status?: string | null
+          advertiser_id?: string
+          client_id?: string | null
+          created_at?: string
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          organization_id?: string | null
+          team_id?: string | null
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snapchat_ad_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "snapchat_ad_accounts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_overrides: {
         Row: {
           billing_period: string

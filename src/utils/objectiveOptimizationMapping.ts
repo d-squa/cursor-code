@@ -212,15 +212,95 @@ export const TIKTOK_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
 ];
 
 // =============================================================================
+// SNAPCHAT OBJECTIVE ↔ OPTIMIZATION GOAL MAPPING
+// Based on Snapchat Marketing API
+// =============================================================================
+
+export const SNAPCHAT_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
+  {
+    value: "AWARENESS",
+    label: "Awareness",
+    optimizationGoals: [
+      { value: "IMPRESSIONS", label: "Impressions", billingEvent: "CPM" },
+      { value: "REACH", label: "Reach", billingEvent: "CPM" },
+    ]
+  },
+  {
+    value: "VIDEO_VIEWS",
+    label: "Video Views",
+    optimizationGoals: [
+      { value: "VIDEO_VIEWS", label: "Video Views (2s)", billingEvent: "CPM" },
+      { value: "VIDEO_VIEWS_15S", label: "Video Views (15s)", billingEvent: "CPM" },
+    ]
+  },
+  {
+    value: "TRAFFIC",
+    label: "Traffic",
+    optimizationGoals: [
+      { value: "SWIPES", label: "Swipe-Ups", billingEvent: "CPS" },
+      { value: "STORY_OPENS", label: "Story Opens", billingEvent: "CPM" },
+    ]
+  },
+  {
+    value: "ENGAGEMENT",
+    label: "Engagement",
+    optimizationGoals: [
+      { value: "SWIPES", label: "Swipe-Ups", billingEvent: "CPS" },
+      { value: "SHARES", label: "Shares", billingEvent: "CPM" },
+      { value: "STORY_OPENS", label: "Story Opens", billingEvent: "CPM" },
+    ]
+  },
+  {
+    value: "APP_INSTALLS",
+    label: "App Installs",
+    optimizationGoals: [
+      { value: "APP_INSTALLS", label: "App Installs", billingEvent: "CPI" },
+      { value: "APP_PURCHASES", label: "App Purchases", billingEvent: "OCPM" },
+      { value: "APP_SIGNUPS", label: "App Sign-Ups", billingEvent: "OCPM" },
+      { value: "APP_ROAS", label: "App ROAS", billingEvent: "OCPM" },
+    ]
+  },
+  {
+    value: "LEAD_GENERATION",
+    label: "Lead Generation",
+    optimizationGoals: [
+      { value: "LEAD_FORM_SUBMISSIONS", label: "Lead Form Submissions", billingEvent: "OCPM" },
+      { value: "SIGN_UPS", label: "Sign-Ups (Pixel)", billingEvent: "OCPM" },
+    ]
+  },
+  {
+    value: "CONVERSIONS",
+    label: "Web Conversions",
+    optimizationGoals: [
+      { value: "PIXEL_PURCHASE", label: "Pixel Purchase", billingEvent: "OCPM" },
+      { value: "PIXEL_SIGNUP", label: "Pixel Sign-Up", billingEvent: "OCPM" },
+      { value: "PIXEL_ADD_TO_CART", label: "Pixel Add to Cart", billingEvent: "OCPM" },
+      { value: "PIXEL_PAGE_VIEW", label: "Pixel Page View", billingEvent: "OCPM" },
+    ]
+  },
+  {
+    value: "CATALOG_SALES",
+    label: "Catalog Sales",
+    optimizationGoals: [
+      { value: "CATALOG_SALES", label: "Catalog Sales", billingEvent: "OCPM" },
+      { value: "CATALOG_ROAS", label: "Catalog ROAS", billingEvent: "OCPM" },
+    ]
+  },
+];
+
+// =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
 /**
  * Get all objectives for a platform
  */
-export function getObjectivesForPlatform(platform: "meta" | "tiktok"): ObjectiveMapping[] {
+export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat"): ObjectiveMapping[] {
   if (platform === "meta") {
     return [...META_OBJECTIVE_MAPPING, ...META_LEGACY_OBJECTIVES];
+  }
+  if (platform === "snapchat") {
+    return SNAPCHAT_OBJECTIVE_MAPPING;
   }
   return TIKTOK_OBJECTIVE_MAPPING;
 }
@@ -229,7 +309,7 @@ export function getObjectivesForPlatform(platform: "meta" | "tiktok"): Objective
  * Get valid optimization goals for a specific objective
  */
 export function getOptimizationGoalsForObjective(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "snapchat",
   objective: string
 ): OptimizationGoalOption[] {
   const objectives = getObjectivesForPlatform(platform);
@@ -241,7 +321,7 @@ export function getOptimizationGoalsForObjective(
  * Get the objective that corresponds to an optimization goal (reverse mapping)
  */
 export function getObjectiveForOptimizationGoal(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "snapchat",
   optimizationGoal: string
 ): string | null {
   const objectives = getObjectivesForPlatform(platform);
@@ -259,7 +339,7 @@ export function getObjectiveForOptimizationGoal(
  * Validate if an objective and optimization goal combination is valid
  */
 export function isValidObjectiveGoalCombination(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "snapchat",
   objective: string,
   optimizationGoal: string
 ): boolean {
@@ -271,7 +351,7 @@ export function isValidObjectiveGoalCombination(
  * Get the billing event for an optimization goal under a specific objective
  */
 export function getBillingEventForGoal(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "snapchat",
   objective: string,
   optimizationGoal: string
 ): string | undefined {
@@ -284,7 +364,7 @@ export function getBillingEventForGoal(
  * Get default optimization goal for an objective
  */
 export function getDefaultOptimizationGoal(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "snapchat",
   objective: string
 ): string | null {
   const goals = getOptimizationGoalsForObjective(platform, objective);
@@ -294,13 +374,16 @@ export function getDefaultOptimizationGoal(
 /**
  * Detect platform from string (e.g., platform name)
  */
-export function detectPlatformType(platformName: string): "meta" | "tiktok" | null {
+export function detectPlatformType(platformName: string): "meta" | "tiktok" | "snapchat" | null {
   const lower = platformName.toLowerCase();
   if (lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram")) {
     return "meta";
   }
   if (lower.includes("tiktok")) {
     return "tiktok";
+  }
+  if (lower.includes("snapchat") || lower.includes("snap")) {
+    return "snapchat";
   }
   return null;
 }
@@ -310,7 +393,7 @@ export function detectPlatformType(platformName: string): "meta" | "tiktok" | nu
  * Returns corrected values if needed, or original values if valid
  */
 export function autoCorrectObjectiveGoal(
-  platform: "meta" | "tiktok",
+  platform: "meta" | "tiktok" | "snapchat",
   objective: string,
   optimizationGoal: string
 ): { objective: string; optimizationGoal: string; corrected: boolean } {

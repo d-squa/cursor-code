@@ -311,6 +311,15 @@ export interface Phase {
   }>;
   // Auto-exclude toggle
   autoExcludeAudiences?: boolean;
+  // Snapchat-specific fields at phase level
+  snapchatBidStrategy?: string; // AUTO_BID, TARGET_COST, MIN_ROAS, MAX_BID
+  snapchatBidAmount?: number; // Bid amount for TARGET_COST / MAX_BID
+  snapchatMinRoas?: number; // Minimum ROAS for MIN_ROAS strategy
+  snapchatDestinationUrl?: string; // Swipe-up destination URL
+  snapchatPixelId?: string; // Snap Pixel ID
+  snapchatFrequencyCap?: number; // Frequency cap (impressions per day)
+  snapchatPlacementType?: string; // AUTOMATIC or MANUAL
+  snapchatPlacements?: string[]; // Manual placement selections
 }
 
 export interface Campaign {

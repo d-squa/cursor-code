@@ -99,6 +99,7 @@ const PLATFORM_TYPES = [
   { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
   { id: "tiktok", name: "TikTok Ads", icon: Video, color: "bg-black" },
   { id: "google", name: "Google Ads", icon: Search, color: "bg-yellow-500" },
+  { id: "snapchat", name: "Snapchat Ads", icon: Video, color: "bg-yellow-400" },
 ];
 
 // IMPORTANT: Must exactly match the URL configured in Meta/TikTok/Google app settings.
@@ -555,6 +556,43 @@ export default function PlatformConnections() {
         console.error("Error connecting to Google Ads:", error);
         toast.error(error.message || "Failed to connect to Google Ads");
       }
+    } else if (platformType === "snapchat") {
+      try {
+        const redirectUri = OAUTH_REDIRECT_URI;
+        const clientId = PLATFORM_CONFIG.snapchat.clientId;
+
+        console.log("Snapchat OAuth - Client ID:", clientId ? "Configured" : "Missing");
+
+        if (!clientId) {
+          toast.error("Snapchat Client ID not configured. Please contact support.");
+          return;
+        }
+
+        if (platformId) {
+          sessionStorage.setItem("reconnecting_platform_id", platformId);
+          sessionStorage.setItem("reconnecting_platform_type", "snapchat");
+        }
+
+        const oauthParams = new URLSearchParams({
+          response_type: "code",
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope: PLATFORM_CONFIG.snapchat.oauthScopes,
+          state: "snapchat",
+        });
+
+        const oauthUrl = `${PLATFORM_CONFIG.snapchat.authEndpoint}?${oauthParams.toString()}`;
+
+        console.log("Snapchat OAuth - Redirecting...");
+        toast.loading("Redirecting to Snapchat...");
+
+        setTimeout(() => {
+          window.location.href = oauthUrl;
+        }, 100);
+      } catch (error: any) {
+        console.error("Error connecting to Snapchat:", error);
+        toast.error(error.message || "Failed to connect to Snapchat");
+      }
     } else {
       toast.error("This platform is not yet supported");
     }
@@ -763,7 +801,9 @@ export default function PlatformConnections() {
             ? "tiktok-oauth-callback" 
             : platformType === "google" 
               ? "google-ads-oauth-callback" 
-              : "meta-oauth-callback";
+              : platformType === "snapchat"
+                ? "snapchat-oauth-callback"
+                : "meta-oauth-callback";
 
           console.log("OAuth callback - calling function:", callbackFunction);
 
@@ -782,9 +822,10 @@ export default function PlatformConnections() {
 
           if (error) throw error;
 
-          // Handle TikTok background sync
-          if (platformType === "tiktok" && data?.syncInProgress) {
-            toast.success("TikTok connected! Syncing advertiser accounts...");
+          // Handle TikTok/Snapchat background sync
+          if ((platformType === "tiktok" || platformType === "snapchat") && data?.syncInProgress) {
+            const platformLabel = platformType === "tiktok" ? "TikTok" : "Snapchat";
+            toast.success(`${platformLabel} connected! Syncing accounts...`);
             sessionStorage.setItem("platform_sync_id", data.platformId);
             setSyncProgressPlatformId(data.platformId);
             setSyncProgressDialogOpen(true);
@@ -795,7 +836,7 @@ export default function PlatformConnections() {
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
-            toast.success(`${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : "Platform"} connected successfully!`);
+            toast.success(`${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : platformType === "snapchat" ? "Snapchat" : "Platform"} connected successfully!`);
           }
 
           // Open account selector if accounts are returned (Meta flow)
@@ -981,6 +1022,9 @@ export default function PlatformConnections() {
                 <Badge variant="outline" className="gap-1">
                   Google: {platforms.filter(p => p.platform_type === 'google').length} connection{platforms.filter(p => p.platform_type === 'google').length !== 1 ? 's' : ''}
                 </Badge>
+                <Badge variant="outline" className="gap-1">
+                  Snapchat: {platforms.filter(p => p.platform_type === 'snapchat').length} connection{platforms.filter(p => p.platform_type === 'snapchat').length !== 1 ? 's' : ''}
+                </Badge>
               </div>
             </div>
           </CardHeader>
@@ -1018,9 +1062,10 @@ export default function PlatformConnections() {
                   const advertiserIds = platform.metadata?.advertiser_ids;
                    const isTikTok = platform.platform_type === "tiktok";
                    const isGoogle = platform.platform_type === "google";
-                   const Icon = isGoogle ? Search : isTikTok ? Video : Facebook;
-                   const iconColor = isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
-                   const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
+                   const isSnapchat = platform.platform_type === "snapchat";
+                   const Icon = isSnapchat ? Video : isGoogle ? Search : isTikTok ? Video : Facebook;
+                   const iconColor = isSnapchat ? "text-yellow-500" : isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
+                   const bgColor = isSnapchat ? "bg-yellow-50 dark:bg-yellow-900/10" : isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
 
                   return (
                     <div
@@ -1147,7 +1192,16 @@ export default function PlatformConnections() {
                   >
                     <Search className="h-4 w-4 mr-2" />
                     Connect Google Ads Account
-                  </Button>
+                   </Button>
+                   {/* Snapchat Connect Button */}
+                   <Button
+                     onClick={() => handleConnectPlatform("snapchat", false)}
+                     variant="outline"
+                     className="border-border"
+                   >
+                     <Video className="h-4 w-4 mr-2" />
+                     Connect Snapchat Account
+                   </Button>
                 </div>
               </div>
             )}

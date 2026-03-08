@@ -51,5 +51,13 @@ export const PLATFORM_CONFIG = {
     tokenEndpoint: "https://oauth2.googleapis.com/token",
     apiVersion: "v18",
     responseType: "code"
+  },
+  snapchat: {
+    clientId: import.meta.env.VITE_SNAPCHAT_CLIENT_ID || "",
+    oauthScopes: "snapchat-marketing-api",
+    authEndpoint: "https://accounts.snapchat.com/login/oauth2/authorize",
+    tokenEndpoint: "https://accounts.snapchat.com/login/oauth2/access_token",
+    apiVersion: "v1",
+    responseType: "code"
   }
 } as const;
