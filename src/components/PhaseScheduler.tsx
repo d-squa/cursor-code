@@ -637,6 +637,54 @@ export function PhaseScheduler({
     }
   }, [phases, platformId, platformName]);
 
+  // Normalize legacy Meta-style objective/goal values so Google Ads dropdowns hydrate correctly.
+  useEffect(() => {
+    const isGoogle =
+      platformId?.toLowerCase() === "google" ||
+      platformId?.toLowerCase() === "google_ads" ||
+      platformName.toLowerCase().includes("google");
+
+    if (!isGoogle || phases.length === 0) return;
+
+    const googleMappings = getObjectivesForPlatform("google");
+    const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
+
+    let changed = false;
+
+    const updated = phases.map((p) => {
+      const fallback = getObjectiveFromPhaseName(p.name || "Conversion", strategyFocus, "google");
+
+      const objectiveNeedsFix = !p.objective || !validGoogleObjectives.has(p.objective);
+      const objective = objectiveNeedsFix ? fallback.objective : p.objective;
+
+      const validGoalValues = new Set(
+        getOptimizationGoalsForObjective("google", objective).map((g) => g.value)
+      );
+
+      const optimizationGoalNeedsFix =
+        !p.optimizationGoal || !validGoalValues.has(p.optimizationGoal);
+
+      const fallbackGoal = validGoalValues.has(fallback.optimizationGoal)
+        ? fallback.optimizationGoal
+        : (getDefaultOptimizationGoal("google", objective) || undefined);
+
+      const optimizationGoal = optimizationGoalNeedsFix
+        ? fallbackGoal
+        : p.optimizationGoal;
+
+      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
+        changed = true;
+        return { ...p, objective, optimizationGoal };
+      }
+
+      return p;
+    });
+
+    if (changed) {
+      onPhasesChangeRef.current(updated);
+    }
+  }, [phases, platformId, platformName, strategyFocus]);
+
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
     
