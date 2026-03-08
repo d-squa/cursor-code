@@ -1675,6 +1675,10 @@ export type Database = {
           created_at: string | null
           currency: string | null
           customer_id: string
+          default_conversion_budget_type: string | null
+          default_feed_label: string | null
+          default_merchant_center_id: string | null
+          default_non_conversion_budget_type: string | null
           descriptive_name: string | null
           id: string
           manager_customer_id: string | null
@@ -1692,6 +1696,10 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           customer_id: string
+          default_conversion_budget_type?: string | null
+          default_feed_label?: string | null
+          default_merchant_center_id?: string | null
+          default_non_conversion_budget_type?: string | null
           descriptive_name?: string | null
           id?: string
           manager_customer_id?: string | null
@@ -1709,6 +1717,10 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           customer_id?: string
+          default_conversion_budget_type?: string | null
+          default_feed_label?: string | null
+          default_merchant_center_id?: string | null
+          default_non_conversion_budget_type?: string | null
           descriptive_name?: string | null
           id?: string
           manager_customer_id?: string | null
