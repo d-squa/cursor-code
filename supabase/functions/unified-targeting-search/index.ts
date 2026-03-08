@@ -161,16 +161,12 @@ serve(async (req) => {
               headers['login-customer-id'] = managerAccountId.replace(/-/g, '');
             }
 
-            // Search audience segments and locations in parallel
-            const [audienceResults, locationResults] = await Promise.all([
-              searchGoogleAudiences(headers, cleanCustomerId, query),
-              searchGoogleLocations(headers, query),
-            ]);
+            // Search audience segments only (locations excluded - handled separately)
+            const audienceResults = await searchGoogleAudiences(headers, cleanCustomerId, query);
 
-            console.log(`Google Ads found ${audienceResults.length} audiences and ${locationResults.length} locations`);
+            console.log(`Google Ads found ${audienceResults.length} audiences`);
 
             audienceResults.forEach((item: any) => googleResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
-            locationResults.forEach((item: any) => googleResults.set(`loc_${item.id}`, { ...item, category: 'location' }));
           } else {
             console.error('GOOGLE_ADS_DEVELOPER_TOKEN not configured');
           }
