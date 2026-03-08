@@ -224,11 +224,15 @@ export function GenericStrategyConfig({
         if (focus && startDate && endDate) {
           const templateKey = mapFocusToTemplate(focus === "auto" ? "conversions" : focus as string);
           if (templateKey) {
-            const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
+            const platformForMapping2 = (platformName || "meta").toLowerCase().includes("google") ? "google" 
+              : (platformName || "meta").toLowerCase().includes("tiktok") ? "tiktok"
+              : (platformName || "meta").toLowerCase().includes("snapchat") ? "snapchat" : "meta";
+            const defaultPhases = getDefaultPhases(templateKey, startDate, endDate, platformForMapping2);
             updatedConfig.phases = defaultPhases.map(phase => {
-              const objectiveData = getObjectiveFromPhaseName(phase.name, focus === "auto" ? "conversions" : focus);
-              const objective = objectiveToLabel(objectiveData.objective) || "Conversions";
-              const optimizationGoal = optimizationToLabel(objectiveData.optimizationGoal) || "Conversions";
+              const objectiveData = getObjectiveFromPhaseName(phase.name, focus === "auto" ? "conversions" : focus, platformForMapping2);
+              const { objective, optimizationGoal } = resolveObjectiveForPlatform(
+                objectiveData.objective, objectiveData.optimizationGoal, platformName
+              );
               const audienceStrategy = getAudienceStrategyConfig(platformName || "meta", objective, optimizationGoal);
               return {
                 ...phase,
