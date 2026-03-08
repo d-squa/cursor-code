@@ -741,6 +741,9 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
+        {/* Meta API Dry-Run Validation */}
+        <MetaDryRunValidation />
+
         {/* Subscription Override Management */}
         <div>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
