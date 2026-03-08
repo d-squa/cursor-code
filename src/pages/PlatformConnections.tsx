@@ -361,6 +361,7 @@ export default function PlatformConnections() {
       });
 
       setTikTokAdAccounts(enrichedTiktokAccounts);
+      setGoogleAdAccounts((googleAccountsRes.data || []) as GoogleAdAccount[]);
       
       // Refresh ad account limits after data is fetched - use ref to avoid dep loop
       adAccountLimitsRefetchRef.current();
