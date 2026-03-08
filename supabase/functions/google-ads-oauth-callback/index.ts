@@ -26,8 +26,7 @@ const GOOGLE_ADS_API_VERSION = "v23";
  */
 async function fetchGoogleAdsAccounts(
   accessToken: string,
-  developerToken: string,
-  loginCustomerId?: string
+  developerToken: string
 ): Promise<{ accounts: any[]; managerCustomerId: string | null }> {
   console.log(`[${FUNCTION_NAME}] Fetching accessible Google Ads customers...`);
 
@@ -40,11 +39,6 @@ async function fetchGoogleAdsAccounts(
     "developer-token": developerToken,
     "Content-Type": "application/json",
   };
-
-  if (loginCustomerId) {
-    headers["login-customer-id"] = loginCustomerId.replace(/-/g, "");
-    console.log(`[${FUNCTION_NAME}] login-customer-id: ${loginCustomerId.replace(/-/g, "")}`);
-  }
 
   const listResponse = await fetch(listUrl, { headers });
   console.log(`[${FUNCTION_NAME}] listAccessibleCustomers response status: ${listResponse.status}`);
