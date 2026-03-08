@@ -1217,6 +1217,27 @@ export default function PlatformConnections() {
               onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, "tiktok")}
               onDeleteAccount={(accountId) => handleDeleteAccount(accountId, "tiktok")}
             />
+
+            {/* Google Ad Accounts - Collapsible */}
+            <PlatformAccountsCollapsible
+              platform="google"
+              icon={<Search className="h-5 w-5 text-yellow-600" />}
+              title="Google Ad Accounts"
+              accounts={googleAdAccounts.map(acc => ({
+                ...acc,
+                advertiser_id: acc.customer_id,
+              }))}
+              emptyMessage="No Google Ads accounts synced yet. Connect a Google Ads platform to get started."
+              syncingAssets={syncingAssets}
+              canManageClients={canManageClients}
+              onSyncAccount={() => {}} 
+              onLinkAccount={(accountId) => {
+                setSelectedAdAccountForLinking("google_" + accountId);
+                setClientSelectorOpen(true);
+              }}
+              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, "google" as any)}
+              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, "google" as any)}
+            />
           </CardContent>
         </Card>
         <PlatformAdAccountSelector
