@@ -35,6 +35,21 @@ import {
   ConversionLocationData,
 } from "@/utils/conversionLocationUtils";
 
+interface GoogleAdAccountDefaults {
+  id: string;
+  account_id: string;
+  account_name: string;
+  customer_id: string;
+  default_landing_page_url?: string | null;
+  default_bid_strategy?: string | null;
+  default_target_cpa?: number | null;
+  default_target_roas?: number | null;
+  default_max_cpc_bid?: number | null;
+  default_conversion_budget_type?: string | null;
+  default_non_conversion_budget_type?: string | null;
+  main_markets?: string[] | null;
+}
+
 interface AdAccount {
   id: string;
   account_id: string;
@@ -178,6 +193,8 @@ interface ClientTargetingDefaults {
 
 export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<GoogleAdAccountDefaults[]>([]);
+  const [googleLocalDefaults, setGoogleLocalDefaults] = useState<Record<string, Partial<GoogleAdAccountDefaults>>>({});
   const [pixels, setPixels] = useState<MetaResource[]>([]);
   const [pages, setPages] = useState<MetaResource[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<MetaResource[]>([]);
@@ -203,6 +220,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     default_languages: [],
   });
   const [savingClientDefaults, setSavingClientDefaults] = useState(false);
+  const [savingGoogleDefaults, setSavingGoogleDefaults] = useState<string | null>(null);
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
 
   useEffect(() => {
@@ -327,6 +345,36 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           main_markets: acc.main_markets,
         })),
       );
+
+      // Load Google Ads accounts for this client
+      const { data: googleAccountsData, error: googleAccountsError } = await supabase
+        .from("google_ad_accounts")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, main_markets")
+        .eq("client_id", clientId);
+
+      if (googleAccountsError) throw googleAccountsError;
+
+      const googleAccounts: GoogleAdAccountDefaults[] = (googleAccountsData || []).map((acc: any) => ({
+        ...acc,
+        main_markets: Array.isArray(acc.main_markets) ? (acc.main_markets as string[]) : [],
+      }));
+      setGoogleAdAccounts(googleAccounts);
+
+      // Initialize Google local defaults
+      const gDefaults: Record<string, Partial<GoogleAdAccountDefaults>> = {};
+      googleAccounts.forEach((acc) => {
+        gDefaults[acc.id] = {
+          default_landing_page_url: acc.default_landing_page_url || null,
+          default_bid_strategy: acc.default_bid_strategy || null,
+          default_target_cpa: acc.default_target_cpa || null,
+          default_target_roas: acc.default_target_roas || null,
+          default_max_cpc_bid: acc.default_max_cpc_bid || null,
+          default_conversion_budget_type: acc.default_conversion_budget_type || null,
+          default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+          main_markets: acc.main_markets || [],
+        };
+      });
+      setGoogleLocalDefaults(gDefaults);
 
       const allAccounts = [...metaAccounts, ...tiktokAccounts];
       setAdAccounts(allAccounts);
@@ -772,6 +820,57 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
+  const updateGoogleDefault = (accountId: string, field: keyof GoogleAdAccountDefaults, value: any) => {
+    setGoogleLocalDefaults((prev) => ({
+      ...prev,
+      [accountId]: {
+        ...prev[accountId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveGoogleDefaults = async (accountId: string) => {
+    setSavingGoogleDefaults(accountId);
+    try {
+      const updates = googleLocalDefaults[accountId];
+      if (!updates) return;
+
+      const validFields = [
+        "default_landing_page_url",
+        "default_bid_strategy",
+        "default_target_cpa",
+        "default_target_roas",
+        "default_max_cpc_bid",
+        "default_conversion_budget_type",
+        "default_non_conversion_budget_type",
+        "main_markets",
+      ];
+
+      const updateData: Record<string, any> = {};
+      validFields.forEach((field) => {
+        if (updates && Object.prototype.hasOwnProperty.call(updates, field)) {
+          updateData[field] = (updates as any)[field];
+        }
+      });
+
+      const { error } = await supabase
+        .from("google_ad_accounts")
+        .update(updateData)
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast.success("Google Ads defaults saved successfully");
+      await loadData();
+    } catch (error: any) {
+      console.error("Error saving Google Ads defaults:", error);
+      toast.error("Failed to save Google Ads defaults");
+    } finally {
+      setSavingGoogleDefaults(null);
+    }
+  };
+
   const updateDefault = (accountId: string, field: keyof AdAccount, value: any) => {
     console.log(`[AccountDefaultsTab] updateDefault called:`, { accountId, field, value });
     setLocalDefaults((prev) => {
@@ -795,7 +894,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     );
   }
 
-  if (adAccounts.length === 0) {
+  if (adAccounts.length === 0 && googleAdAccounts.length === 0) {
     return (
       <Card className="p-8">
         <p className="text-muted-foreground text-center">
@@ -2300,6 +2399,197 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           );
         })}
       </Accordion>
+
+      {/* Google Ads account defaults */}
+      {googleAdAccounts.length > 0 && (
+        <Accordion type="single" collapsible className="space-y-4">
+          {googleAdAccounts.map((gAccount) => {
+            const gDefaults = googleLocalDefaults[gAccount.id] || {};
+            return (
+              <AccordionItem key={gAccount.id} value={gAccount.id}>
+                <Card>
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                    <div className="flex items-center justify-between w-full pr-4">
+                      <div className="text-left">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{gAccount.account_name}</p>
+                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200">
+                            Google Ads
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">ID: {gAccount.customer_id}</p>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="px-6 pb-6 space-y-6">
+                      {/* Assigned Markets */}
+                      <div className="space-y-2">
+                        <Label>Assigned Markets</Label>
+                        <MultiSelect
+                          options={MARKET_OPTIONS
+                            .filter((m) => (clientMarkets || fetchedClientMarkets).includes(m.value))
+                            .map((m) => ({ value: m.value, label: m.label }))}
+                          value={(gDefaults.main_markets as string[]) || []}
+                          onChange={(markets) => updateGoogleDefault(gAccount.id, "main_markets", markets)}
+                          placeholder="Select markets for this ad account"
+                          emptyText="No markets assigned"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Which client markets this ad account should target
+                        </p>
+                      </div>
+
+                      <Separator className="my-4" />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Landing Page URL */}
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Default Landing Page URL</Label>
+                          <Input
+                            type="url"
+                            placeholder="https://example.com/landing"
+                            value={gDefaults.default_landing_page_url || ""}
+                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_landing_page_url", e.target.value || null)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            This URL will be used as the default for all Google Ads phases
+                          </p>
+                        </div>
+
+                        {/* Bid Strategy */}
+                        <div className="space-y-2">
+                          <Label>Default Bid Strategy</Label>
+                          <Select
+                            value={gDefaults.default_bid_strategy || undefined}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_bid_strategy", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select bid strategy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Maximize Conversions">Maximize Conversions</SelectItem>
+                              <SelectItem value="Maximize Conversion Value">Maximize Conversion Value</SelectItem>
+                              <SelectItem value="Maximize Clicks">Maximize Clicks</SelectItem>
+                              <SelectItem value="Target CPA">Target CPA</SelectItem>
+                              <SelectItem value="Target ROAS">Target ROAS</SelectItem>
+                              <SelectItem value="Target Impression Share">Target Impression Share</SelectItem>
+                              <SelectItem value="Manual CPC">Manual CPC</SelectItem>
+                              <SelectItem value="Maximum CPV">Maximum CPV</SelectItem>
+                              <SelectItem value="Target CPM">Target CPM</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Target CPA */}
+                        {(gDefaults.default_bid_strategy === "Target CPA" || gDefaults.default_bid_strategy === "TARGET_CPA") && (
+                          <div className="space-y-2">
+                            <Label>Default Target CPA ($)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="10.00"
+                              value={gDefaults.default_target_cpa || ""}
+                              onChange={(e) => updateGoogleDefault(gAccount.id, "default_target_cpa", parseFloat(e.target.value) || null)}
+                            />
+                          </div>
+                        )}
+
+                        {/* Target ROAS */}
+                        {(gDefaults.default_bid_strategy === "Target ROAS" || gDefaults.default_bid_strategy === "TARGET_ROAS") && (
+                          <div className="space-y-2">
+                            <Label>Default Target ROAS (%)</Label>
+                            <Input
+                              type="number"
+                              step="1"
+                              min="0"
+                              placeholder="200"
+                              value={gDefaults.default_target_roas || ""}
+                              onChange={(e) => updateGoogleDefault(gAccount.id, "default_target_roas", parseFloat(e.target.value) || null)}
+                            />
+                          </div>
+                        )}
+
+                        {/* Max CPC Bid */}
+                        {(gDefaults.default_bid_strategy === "Manual CPC" || gDefaults.default_bid_strategy === "Maximum CPC") && (
+                          <div className="space-y-2">
+                            <Label>Default Max CPC ($)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="2.00"
+                              value={gDefaults.default_max_cpc_bid || ""}
+                              onChange={(e) => updateGoogleDefault(gAccount.id, "default_max_cpc_bid", parseFloat(e.target.value) || null)}
+                            />
+                          </div>
+                        )}
+
+                        {/* Conversion Budget Type */}
+                        <div className="space-y-2">
+                          <Label>Conversion Budget Type</Label>
+                          <Select
+                            value={gDefaults.default_conversion_budget_type || undefined}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_conversion_budget_type", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select budget type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BUDGET_TYPE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Non-Conversion Budget Type */}
+                        <div className="space-y-2">
+                          <Label>Non-Conversion Budget Type</Label>
+                          <Select
+                            value={gDefaults.default_non_conversion_budget_type || undefined}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_non_conversion_budget_type", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select budget type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {BUDGET_TYPE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button onClick={() => handleSaveGoogleDefaults(gAccount.id)} disabled={savingGoogleDefaults === gAccount.id}>
+                          {savingGoogleDefaults === gAccount.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Defaults
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </Card>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      )}
     </div>
   );
 }

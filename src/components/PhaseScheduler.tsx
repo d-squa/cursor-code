@@ -134,6 +134,11 @@ interface PhaseSchedulerProps {
     tiktokProductSetId?: string;
     // Google Ads defaults
     googleCustomerId?: string;
+    googleLandingPageUrl?: string;
+    googleBidStrategy?: string;
+    googleTargetCpa?: number;
+    googleTargetRoas?: number;
+    googleMaxCpcBid?: number;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -690,7 +695,8 @@ export function PhaseScheduler({
     
     const isTikTok = platformName.toLowerCase().includes('tiktok');
     const isMeta = platformName.toLowerCase().includes('meta');
-    const platformType = isTikTok ? "tiktok" : "meta";
+    const isGoogle = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads' || platformName.toLowerCase().includes('google');
+    const platformType = isTikTok ? "tiktok" : isMeta ? "meta" : "google";
     
     let hasUpdates = false;
     const updatedPhases = phases.map(phase => {
@@ -703,8 +709,8 @@ export function PhaseScheduler({
       // Skip if we've already processed this phase with this objective
       if (appliedDestinationDefaultsRef.current.get(phase.id) === phase.objective) return phase;
       
-      const validDestinations = getDestinationsForObjective(platformType, phase.objective);
-      if (validDestinations.length === 0) {
+      const validDestinations = (isMeta || isTikTok) ? getDestinationsForObjective(platformType as "meta" | "tiktok", phase.objective) : [];
+      if (validDestinations.length === 0 && !isGoogle) {
         // Mark as processed even if no destinations needed
         appliedDestinationDefaultsRef.current.set(phase.id, phase.objective);
         return phase;
@@ -782,6 +788,28 @@ export function PhaseScheduler({
         if (!phase.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
           phaseHasUpdates = true;
           updatedPhase.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
+        }
+      } else if (isGoogle) {
+        // Auto-populate Google Ads landing page URL and bid strategy from defaults
+        if (!phase.googleLandingPageUrl && adAccountDefaults.googleLandingPageUrl) {
+          phaseHasUpdates = true;
+          updatedPhase.googleLandingPageUrl = adAccountDefaults.googleLandingPageUrl;
+        }
+        if (!phase.googleBidStrategy && adAccountDefaults.googleBidStrategy) {
+          phaseHasUpdates = true;
+          updatedPhase.googleBidStrategy = adAccountDefaults.googleBidStrategy;
+        }
+        if (phase.googleTargetCpa === undefined && adAccountDefaults.googleTargetCpa) {
+          phaseHasUpdates = true;
+          updatedPhase.googleTargetCpa = adAccountDefaults.googleTargetCpa;
+        }
+        if (phase.googleTargetRoas === undefined && adAccountDefaults.googleTargetRoas) {
+          phaseHasUpdates = true;
+          updatedPhase.googleTargetRoas = adAccountDefaults.googleTargetRoas;
+        }
+        if (phase.googleMaxCpcBid === undefined && adAccountDefaults.googleMaxCpcBid) {
+          phaseHasUpdates = true;
+          updatedPhase.googleMaxCpcBid = adAccountDefaults.googleMaxCpcBid;
         }
       }
       

@@ -274,14 +274,16 @@ export function MediaPlanEditor() {
       return;
     }
 
-    // Fetch all ad accounts linked to this client for Meta and TikTok
-    const [metaAccountsResult, tiktokAccountsResult] = await Promise.all([
+    // Fetch all ad accounts linked to this client for Meta, TikTok, and Google Ads
+    const [metaAccountsResult, tiktokAccountsResult, googleAccountsResult] = await Promise.all([
       supabase.from("meta_ad_accounts").select("*").eq("client_id", selectedClientId),
       supabase.from("tiktok_ad_accounts").select("*").eq("client_id", selectedClientId),
+      supabase.from("google_ad_accounts").select("*").eq("client_id", selectedClientId),
     ]);
 
     const metaAdAccounts = metaAccountsResult.data || [];
     const tiktokAdAccounts = tiktokAccountsResult.data || [];
+    const googleAdAccounts = googleAccountsResult.data || [];
 
     console.log("📦 Meta ad accounts for client:", metaAdAccounts);
     console.log("📦 TikTok ad accounts for client:", tiktokAdAccounts);
@@ -397,6 +399,39 @@ export function MediaPlanEditor() {
                 gender: selectedClient.default_gender || "all",
                 languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
                 publisherPlatforms: ["tiktok"],
+                positions: {},
+                detailedTargeting: [],
+                isCBOEnabled: false,
+                isLifetimeBudget: false,
+              });
+            });
+          }
+        });
+      } else if (platformId === "google" && googleAdAccounts.length > 0) {
+        // Create markets from all Google Ads accounts with main_markets
+        googleAdAccounts.forEach((acc: any) => {
+          const accountMarkets = Array.isArray(acc.main_markets) ? acc.main_markets : [];
+          if (accountMarkets.length > 0) {
+            accountMarkets.forEach((marketCode: string, idx: number) => {
+              markets.push({
+                id: `${marketCode}-${acc.customer_id}-${Date.now()}-${idx}`,
+                name: marketCode,
+                budgetPercentage: 0,
+                adAccountId: acc.customer_id,
+                accountName: acc.account_name,
+                googleLandingPageUrl: acc.default_landing_page_url || "",
+                googleBidStrategy: acc.default_bid_strategy || "",
+                googleTargetCpa: acc.default_target_cpa || undefined,
+                googleTargetRoas: acc.default_target_roas || undefined,
+                googleMaxCpcBid: acc.default_max_cpc_bid || undefined,
+                phases: [],
+                adFormats: [],
+                countries: [marketCode],
+                ageMin: selectedClient.default_age_min ?? 18,
+                ageMax: selectedClient.default_age_max ?? 65,
+                gender: selectedClient.default_gender || "all",
+                languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+                publisherPlatforms: ["google"],
                 positions: {},
                 detailedTargeting: [],
                 isCBOEnabled: false,
@@ -1188,9 +1223,13 @@ export function MediaPlanEditor() {
                   metaLandingPageUrl: (m as any).metaLandingPageUrl,
                   metaPublisherPlatforms: m.metaPublisherPlatforms || m.publisherPlatforms,
                   metaPositions: m.metaPositions || m.positions,
-                  // Google Ads fields
-                  googleObjective: m.googleObjective,
-                  googleLandingPageUrl: m.googleLandingPageUrl,
+                   // Google Ads fields
+                   googleObjective: m.googleObjective,
+                   googleLandingPageUrl: m.googleLandingPageUrl,
+                   googleBidStrategy: m.googleBidStrategy,
+                   googleTargetCpa: m.googleTargetCpa,
+                   googleTargetRoas: m.googleTargetRoas,
+                   googleMaxCpcBid: m.googleMaxCpcBid,
                 })),
               };
             }, {}),
@@ -1391,9 +1430,13 @@ export function MediaPlanEditor() {
                 tiktokProductSet: m.tiktokProductSet,
                 tiktokOptimizationEvent: m.tiktokOptimizationEvent,
                 tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-                // Google Ads fields
-                googleObjective: m.googleObjective,
-                googleLandingPageUrl: m.googleLandingPageUrl,
+                 // Google Ads fields
+                 googleObjective: m.googleObjective,
+                 googleLandingPageUrl: m.googleLandingPageUrl,
+                 googleBidStrategy: m.googleBidStrategy,
+                 googleTargetCpa: m.googleTargetCpa,
+                 googleTargetRoas: m.googleTargetRoas,
+                 googleMaxCpcBid: m.googleMaxCpcBid,
               })),
             }),
             {},
@@ -1743,9 +1786,13 @@ export function MediaPlanEditor() {
                 tiktokProductSet: m.tiktokProductSet,
                 tiktokOptimizationEvent: m.tiktokOptimizationEvent,
                 tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-                // Google Ads fields
-                googleObjective: m.googleObjective,
-                googleLandingPageUrl: m.googleLandingPageUrl,
+                 // Google Ads fields
+                 googleObjective: m.googleObjective,
+                 googleLandingPageUrl: m.googleLandingPageUrl,
+                 googleBidStrategy: m.googleBidStrategy,
+                 googleTargetCpa: m.googleTargetCpa,
+                 googleTargetRoas: m.googleTargetRoas,
+                 googleMaxCpcBid: m.googleMaxCpcBid,
                 adFormats: m.adFormats,
                 phases: m.phases,
                 instagramActorId: m.instagramActorId,
@@ -2583,6 +2630,12 @@ export function MediaPlanEditor() {
                           metaProductSetId: singleMarket.productSet,
                           tiktokCatalogId: (singleMarket as any).tiktokCatalogId,
                           tiktokProductSetId: (singleMarket as any).tiktokProductSetId,
+                          // Google Ads defaults
+                          googleLandingPageUrl: (singleMarket as any).googleLandingPageUrl,
+                          googleBidStrategy: (singleMarket as any).googleBidStrategy,
+                          googleTargetCpa: (singleMarket as any).googleTargetCpa,
+                          googleTargetRoas: (singleMarket as any).googleTargetRoas,
+                          googleMaxCpcBid: (singleMarket as any).googleMaxCpcBid,
                         }}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets((prev) =>
@@ -2904,6 +2957,12 @@ export function MediaPlanEditor() {
                                               metaProductSetId: market.productSet,
                                               tiktokCatalogId: (market as any).tiktokCatalogId,
                                               tiktokProductSetId: (market as any).tiktokProductSetId,
+                                              // Google Ads defaults
+                                              googleLandingPageUrl: (market as any).googleLandingPageUrl,
+                                              googleBidStrategy: (market as any).googleBidStrategy,
+                                              googleTargetCpa: (market as any).googleTargetCpa,
+                                              googleTargetRoas: (market as any).googleTargetRoas,
+                                              googleMaxCpcBid: (market as any).googleMaxCpcBid,
                                             }}
                                             marketTargeting={{
                                               ageMin: market.ageMin || genericConfig.targeting?.ageMin,
