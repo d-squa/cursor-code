@@ -788,7 +788,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             </div>
             <Button 
               onClick={handleGenerateRecommendations}
-              disabled={generatingAI || !targeting.productBrief?.trim() || (!metaAdAccountId && !tiktokAdvertiserId)}
+              disabled={generatingAI || !targeting.productBrief?.trim() || (!metaAdAccountId && !tiktokAdvertiserId && !googleCustomerId)}
               className="w-full"
             >
               {generatingAI ? (
