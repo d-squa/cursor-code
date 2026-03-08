@@ -2880,6 +2880,17 @@ export function PhaseScheduler({
                         />
                       )}
 
+                      {/* Google Ads Advanced Settings - Platform-specific */}
+                      {(platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads') && (
+                        <GoogleAdsPhaseConfig
+                          phase={phase}
+                          onUpdate={(field, value) => {
+                            console.log("🔄 PhaseScheduler Google Ads onUpdate called:", { phaseId: phase.id, field, value });
+                            updatePhaseField(phase.id, field as keyof Phase, value);
+                          }}
+                        />
+                      )}
+
                       {/* Ad Set Split Manager - shown at bottom of phase */}
                       {/* Show split manager if phase has its own split OR inherits from basic targeting (when not overriding) */}
                       {(() => {
