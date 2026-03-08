@@ -253,8 +253,7 @@ serve(async (req) => {
     // Fetch accessible Google Ads accounts
     const { accounts, managerCustomerId } = await fetchGoogleAdsAccounts(
       access_token,
-      developerToken,
-      loginCustomerId || undefined
+      developerToken
     );
 
     if (accounts.length === 0) {
