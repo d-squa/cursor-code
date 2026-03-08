@@ -22,14 +22,14 @@ export interface StrategyDefinition {
   id: string;
   name: string;
   variant: "base" | "advantage+" | "smart";
-  platform: "meta" | "tiktok";
+  platform: "meta" | "tiktok" | "google";
   phases: StrategyPhase[];
 }
 
 export interface StrategyGroup {
   id: string;
   name: string;
-  platform: "meta" | "tiktok";
+  platform: "meta" | "tiktok" | "google";
   variants: StrategyDefinition[];
 }
 
