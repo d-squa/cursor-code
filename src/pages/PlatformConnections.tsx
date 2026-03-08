@@ -1062,9 +1062,10 @@ export default function PlatformConnections() {
                   const advertiserIds = platform.metadata?.advertiser_ids;
                    const isTikTok = platform.platform_type === "tiktok";
                    const isGoogle = platform.platform_type === "google";
-                   const Icon = isGoogle ? Search : isTikTok ? Video : Facebook;
-                   const iconColor = isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
-                   const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
+                   const isSnapchat = platform.platform_type === "snapchat";
+                   const Icon = isSnapchat ? Video : isGoogle ? Search : isTikTok ? Video : Facebook;
+                   const iconColor = isSnapchat ? "text-yellow-500" : isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
+                   const bgColor = isSnapchat ? "bg-yellow-50 dark:bg-yellow-900/10" : isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
 
                   return (
                     <div
