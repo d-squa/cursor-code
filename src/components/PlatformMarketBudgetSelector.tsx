@@ -85,6 +85,10 @@ export function PlatformMarketBudgetSelector({
   const [loadingTiktokProductSets, setLoadingTiktokProductSets] = useState(false);
   const [tiktokAdAccountDefaults, setTiktokAdAccountDefaults] = useState<Record<string, any>>({});
   
+  // Google Ads resources
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<Array<{ id: string; name: string; customerId: string; currency: string; timezone: string }>>([]);
+  const [loadingGoogleAdAccounts, setLoadingGoogleAdAccounts] = useState(false);
+  
   // Collapsible state for platforms and markets
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
