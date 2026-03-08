@@ -130,6 +130,56 @@ serve(async (req) => {
       }
     }
 
+    // Search Google Ads if customer ID is provided
+    const googleResults = new Map<string, any>();
+    if (googleCustomerId) {
+      console.log('Searching Google Ads...');
+      
+      const { data: googlePlatform } = await supabaseClient
+        .from('connected_platforms')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('platform_type', 'google')
+        .eq('is_active', true)
+        .single();
+
+      if (googlePlatform) {
+        const accessToken = await getAccessToken(supabaseClient, googlePlatform.id, googlePlatform.access_token);
+        
+        if (accessToken) {
+          const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');
+          const managerAccountId = Deno.env.get('GOOGLE_ADS_MANAGER_ACCOUNT_ID');
+          
+          if (developerToken) {
+            const cleanCustomerId = googleCustomerId.replace(/-/g, '');
+            const headers: Record<string, string> = {
+              Authorization: `Bearer ${accessToken}`,
+              'developer-token': developerToken,
+              'Content-Type': 'application/json',
+            };
+            if (managerAccountId) {
+              headers['login-customer-id'] = managerAccountId.replace(/-/g, '');
+            }
+
+            // Search keywords and locations in parallel
+            const [keywordResults, locationResults] = await Promise.all([
+              searchGoogleKeywords(headers, cleanCustomerId, query),
+              searchGoogleLocations(headers, query),
+            ]);
+
+            console.log(`Google Ads found ${keywordResults.length} keywords and ${locationResults.length} locations`);
+
+            keywordResults.forEach((item: any) => googleResults.set(item.name.toLowerCase(), { ...item, category: 'keyword' }));
+            locationResults.forEach((item: any) => googleResults.set(`loc_${item.id}`, { ...item, category: 'location' }));
+          } else {
+            console.error('GOOGLE_ADS_DEVELOPER_TOKEN not configured');
+          }
+        } else {
+          console.error('No Google Ads access token available');
+        }
+      }
+    }
+
     // Merge results - find matches and unique items
     const processedNames = new Set<string>();
 
@@ -138,7 +188,6 @@ serve(async (req) => {
       const tiktokItem = tiktokResults.get(key);
       
       if (tiktokItem) {
-        // Found on both platforms
         results.push({
           id: `unified-${key}`,
           name: metaItem.name,
@@ -150,7 +199,6 @@ serve(async (req) => {
         });
         processedNames.add(key);
       } else {
-        // Meta only
         results.push({
           id: `meta-${metaItem.id}`,
           name: metaItem.name,
@@ -175,6 +223,18 @@ serve(async (req) => {
           tiktokId: tiktokItem.id
         });
       }
+    });
+
+    // Add Google Ads results
+    googleResults.forEach((googleItem, key) => {
+      results.push({
+        id: `google-${googleItem.id}`,
+        name: googleItem.name,
+        description: googleItem.description || '',
+        category: googleItem.category,
+        platforms: ['google'],
+        googleId: googleItem.id
+      });
     });
 
     // Sort: Both platforms first, then by name
