@@ -1941,7 +1941,6 @@ export function PhaseScheduler({
                                        defaultAdSets: basicTargeting.defaultAdSets ? [...basicTargeting.defaultAdSets] : undefined,
                                        defaultAdSetsPerPlatform: basicTargeting.defaultAdSetsPerPlatform ? { ...basicTargeting.defaultAdSetsPerPlatform } : undefined,
                                        defaultAdSetSplitUseCBO: basicTargeting.defaultAdSetSplitUseCBO,
-                                       productBrief: basicTargeting.productBrief,
                                      };
                                      console.log('🔄 Setting override ON with targeting from basicTargeting:', phaseTargeting);
                                      updatePhaseFields(phase.id, { overrideTargeting: true, useBroadTargeting: false, targeting: phaseTargeting });
