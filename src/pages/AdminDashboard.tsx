@@ -18,6 +18,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import MetaDryRunValidation from "@/components/MetaDryRunValidation";
+import TikTokDryRunValidation from "@/components/TikTokDryRunValidation";
 
 const COLORS = [
   "hsl(var(--primary))",
