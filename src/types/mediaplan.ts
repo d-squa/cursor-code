@@ -74,6 +74,8 @@ export interface Market {
   googleMaxCpcBid?: number; // Max CPC bid for manual bidding
   googleConversionAction?: string; // Google Ads conversion action
   googleLandingPageUrl?: string; // Landing page URL
+  googleMerchantCenterId?: string; // Merchant Center ID for product feeds
+  googleFeedLabel?: string; // Feed label (e.g. US, EU)
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;
