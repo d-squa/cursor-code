@@ -504,7 +504,7 @@ export function getBillingEventForGoal(
  * Get default optimization goal for an objective
  */
 export function getDefaultOptimizationGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string
 ): string | null {
   const goals = getOptimizationGoalsForObjective(platform, objective);
