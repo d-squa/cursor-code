@@ -37,6 +37,7 @@ interface PerformanceMetrics {
   budgetSpentPct: number;
   sov: number;
   cumulativeSov: number;
+  avgMonthlySearchVolume?: number;
 }
 
 interface WeeklyData {
