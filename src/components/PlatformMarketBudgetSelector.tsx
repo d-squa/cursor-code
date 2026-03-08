@@ -211,6 +211,8 @@ export function PlatformMarketBudgetSelector({
           customerId: acc.customer_id,
           currency: acc.currency || "USD",
           timezone: acc.timezone || "UTC",
+          merchantCenterId: acc.default_merchant_center_id || "",
+          feedLabel: acc.default_feed_label || "",
         })));
       }
     } catch (error) {
