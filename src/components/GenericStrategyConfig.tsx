@@ -287,11 +287,16 @@ export function GenericStrategyConfig({
     const generatedPhases = generatePhasesFromStrategyId(strategy.id, startDate, endDate);
     
     // Map to Phase format expected by the system
-    const phases = generatedPhases.map(p => ({
-      ...p,
-      objective: objectiveToLabel(p.objective) || p.objective,
-      optimizationGoal: optimizationToLabel(p.optimizationGoal) || p.optimizationGoal,
-    }));
+    const phases = generatedPhases.map(p => {
+      const resolved = resolveObjectiveForPlatform(
+        p.objective || "", p.optimizationGoal || "", platformName
+      );
+      return {
+        ...p,
+        objective: resolved.objective || p.objective,
+        optimizationGoal: resolved.optimizationGoal || p.optimizationGoal,
+      };
+    });
 
     setConfig({
       ...config,
