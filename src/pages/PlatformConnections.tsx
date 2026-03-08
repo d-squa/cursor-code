@@ -330,6 +330,7 @@ export default function PlatformConnections() {
       if (platformsRes.error) throw platformsRes.error;
       if (metaAccountsRes.error) throw metaAccountsRes.error;
       if (tiktokAccountsRes.error) throw tiktokAccountsRes.error;
+      if (googleAccountsRes.error) throw googleAccountsRes.error;
 
       setPlatforms(platformsRes.data || []);
       setMetaAdAccounts(metaAccountsRes.data || []);
