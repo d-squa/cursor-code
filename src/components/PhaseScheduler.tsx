@@ -695,7 +695,8 @@ export function PhaseScheduler({
     
     const isTikTok = platformName.toLowerCase().includes('tiktok');
     const isMeta = platformName.toLowerCase().includes('meta');
-    const platformType = isTikTok ? "tiktok" : "meta";
+    const isGoogle = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads' || platformName.toLowerCase().includes('google');
+    const platformType = isTikTok ? "tiktok" : isMeta ? "meta" : "google";
     
     let hasUpdates = false;
     const updatedPhases = phases.map(phase => {
