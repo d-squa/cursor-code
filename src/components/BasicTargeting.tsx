@@ -40,6 +40,7 @@ interface BasicTargetingProps {
   onUpdate: (targeting: BasicTargetingConfig) => void;
   metaAdAccountId?: string;
   tiktokAdvertiserId?: string;
+  googleCustomerId?: string;
 }
 
 interface TargetingOption {
