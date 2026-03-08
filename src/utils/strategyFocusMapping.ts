@@ -59,7 +59,14 @@ export function determineStrategyFocus(input: StrategyFocusInput): StrategyFocus
     formatString.includes("video ads") ||
     formatString.includes("in-stream") ||
     formatString.includes("in-feed video") ||
-    formatString.includes("story ads")
+    formatString.includes("story ads") ||
+    formatString.includes("bumper") ||
+    formatString.includes("shorts ads") ||
+    formatString.includes("audio ads") ||
+    formatString.includes("efficient reach") ||
+    formatString.includes("non-skippable") ||
+    formatString.includes("target frequency") ||
+    formatString.includes("responsive display")
   ) {
     return "brand-awareness";
   }
