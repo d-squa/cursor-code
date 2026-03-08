@@ -2587,23 +2587,48 @@ export function PlatformMarketBudgetSelector({
                                 </div>
 
                                 <div className="space-y-1">
-                                  <Label className="text-xs">Bid Strategy</Label>
+                                  <Label className="text-xs">Campaign Objective</Label>
                                   <Select
-                                    value={market.googleBidStrategy || "MAXIMIZE_CONVERSIONS"}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'googleBidStrategy', value)}
+                                    value={market.googleObjective || ""}
+                                    onValueChange={(value) => {
+                                      // Set the objective
+                                      updateMarketField(platformIndex, market.id, 'googleObjective', value);
+                                      // Map objective to strategyFocus
+                                      const objectiveToFocus: Record<string, string> = {
+                                        SALES: "purchase",
+                                        LEADS: "leads",
+                                        WEBSITE_TRAFFIC: "conversions",
+                                        APP_PROMOTION: "app-installs",
+                                        AWARENESS_CONSIDERATION: "brand-awareness",
+                                        LOCAL_STORE: "conversions",
+                                      };
+                                      const focus = objectiveToFocus[value] || "conversions";
+                                      updateMarketField(platformIndex, market.id, 'strategyFocus', focus);
+                                      // Auto-set default bid strategy based on objective
+                                      const objectiveToBid: Record<string, string> = {
+                                        SALES: "MAXIMIZE_CONVERSIONS",
+                                        LEADS: "MAXIMIZE_CONVERSIONS",
+                                        WEBSITE_TRAFFIC: "MAXIMIZE_CLICKS",
+                                        APP_PROMOTION: "MAXIMIZE_CONVERSIONS",
+                                        AWARENESS_CONSIDERATION: "MAXIMIZE_CLICKS",
+                                        LOCAL_STORE: "MAXIMIZE_CONVERSIONS",
+                                      };
+                                      updateMarketField(platformIndex, market.id, 'googleBidStrategy', objectiveToBid[value] || "MAXIMIZE_CONVERSIONS");
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
-                                      <SelectValue placeholder="Select bid strategy" />
+                                      <SelectValue placeholder="Choose your objective" />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
-                                      <SelectItem value="MAXIMIZE_CONVERSIONS">Maximize Conversions</SelectItem>
-                                      <SelectItem value="MAXIMIZE_CLICKS">Maximize Clicks</SelectItem>
-                                      <SelectItem value="MAXIMIZE_CONVERSION_VALUE">Maximize Conversion Value</SelectItem>
-                                      <SelectItem value="TARGET_CPA">Target CPA</SelectItem>
-                                      <SelectItem value="TARGET_ROAS">Target ROAS</SelectItem>
-                                      <SelectItem value="MANUAL_CPC">Manual CPC</SelectItem>
+                                      <SelectItem value="SALES">Sales</SelectItem>
+                                      <SelectItem value="LEADS">Leads</SelectItem>
+                                      <SelectItem value="WEBSITE_TRAFFIC">Website traffic</SelectItem>
+                                      <SelectItem value="APP_PROMOTION">App promotion</SelectItem>
+                                      <SelectItem value="AWARENESS_CONSIDERATION">Awareness and consideration</SelectItem>
+                                      <SelectItem value="LOCAL_STORE">Local store visits and promotions</SelectItem>
                                     </SelectContent>
                                   </Select>
+                                  <p className="text-[10px] text-muted-foreground">Select an objective to tailor your experience to the goals and settings that will work best for your campaign</p>
                                 </div>
 
                                 {market.googleBidStrategy === "TARGET_CPA" && (

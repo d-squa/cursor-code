@@ -68,6 +68,7 @@ export interface Market {
     threads?: string[];
   }; // Meta Positions per publisher
   // Google Ads-specific fields
+  googleObjective?: string; // SALES, LEADS, WEBSITE_TRAFFIC, APP_PROMOTION, AWARENESS_CONSIDERATION, LOCAL_STORE
   googleBidStrategy?: string; // MAXIMIZE_CONVERSIONS, MAXIMIZE_CLICKS, TARGET_CPA, TARGET_ROAS, MANUAL_CPC
   googleTargetCpa?: number; // Target CPA amount
   googleTargetRoas?: number; // Target ROAS percentage
