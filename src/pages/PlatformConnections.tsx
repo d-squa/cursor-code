@@ -695,12 +695,12 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleDeleteAccount = async (accountId: string, platform: "meta" | "tiktok" = "meta") => {
+  const handleDeleteAccount = async (accountId: string, platform: "meta" | "tiktok" | "google" = "meta") => {
     if (!confirm("Are you sure you want to delete this ad account? This action cannot be undone.")) return;
 
     try {
-      const table = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
-      const { error } = await supabase.from(table).delete().eq("id", accountId);
+      const table = platform === "tiktok" ? "tiktok_ad_accounts" : platform === "google" ? "google_ad_accounts" : "meta_ad_accounts";
+      const { error } = await supabase.from(table as any).delete().eq("id", accountId);
 
       if (error) throw error;
 
