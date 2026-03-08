@@ -57,6 +57,34 @@ const optimizationToLabel = (goal?: string): string | undefined => {
   }
 };
 
+/**
+ * Converts raw objective/optimizationGoal from phaseObjectiveMapping to
+ * values the PhaseScheduler dropdowns understand.
+ * For Meta: translates API values → display labels (legacy behavior).
+ * For Google/TikTok/Snapchat: uses raw values directly (they already match dropdown values).
+ */
+const resolveObjectiveForPlatform = (
+  rawObjective: string,
+  rawOptGoal: string,
+  platformName?: string
+): { objective: string; optimizationGoal: string } => {
+  const lower = (platformName || "meta").toLowerCase();
+  const isMeta = lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram");
+  
+  if (isMeta) {
+    return {
+      objective: objectiveToLabel(rawObjective) || "Conversions",
+      optimizationGoal: optimizationToLabel(rawOptGoal) || "Conversions",
+    };
+  }
+  
+  // For Google Ads, TikTok, Snapchat — use raw values directly (they match dropdown values)
+  return {
+    objective: rawObjective,
+    optimizationGoal: rawOptGoal,
+  };
+};
+
 export interface GenericConfig {
   strategy?: "auto-detect" | "full-funnel" | "manual";
   strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness" | "auto";
@@ -166,11 +194,15 @@ export function GenericStrategyConfig({
       if (strategy === "full-funnel" && focus && focus !== "auto" && !updatedConfig.selectedStrategyId) {
         const templateKey = mapFocusToTemplate(focus as string);
         if (templateKey && startDate && endDate) {
-          const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
+          const platformForMapping = (platformName || "meta").toLowerCase().includes("google") ? "google" 
+            : (platformName || "meta").toLowerCase().includes("tiktok") ? "tiktok"
+            : (platformName || "meta").toLowerCase().includes("snapchat") ? "snapchat" : "meta";
+          const defaultPhases = getDefaultPhases(templateKey, startDate, endDate, platformForMapping);
           updatedConfig.phases = defaultPhases.map(phase => {
-            const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
-            const objective = objectiveToLabel(objectiveData.objective) || "Conversions";
-            const optimizationGoal = optimizationToLabel(objectiveData.optimizationGoal) || "Conversions";
+            const objectiveData = getObjectiveFromPhaseName(phase.name, focus, platformForMapping);
+            const { objective, optimizationGoal } = resolveObjectiveForPlatform(
+              objectiveData.objective, objectiveData.optimizationGoal, platformName
+            );
             const audienceStrategy = getAudienceStrategyConfig(platformName || "meta", objective, optimizationGoal);
             return {
               ...phase,
@@ -192,11 +224,15 @@ export function GenericStrategyConfig({
         if (focus && startDate && endDate) {
           const templateKey = mapFocusToTemplate(focus === "auto" ? "conversions" : focus as string);
           if (templateKey) {
-            const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
+            const platformForMapping2 = (platformName || "meta").toLowerCase().includes("google") ? "google" 
+              : (platformName || "meta").toLowerCase().includes("tiktok") ? "tiktok"
+              : (platformName || "meta").toLowerCase().includes("snapchat") ? "snapchat" : "meta";
+            const defaultPhases = getDefaultPhases(templateKey, startDate, endDate, platformForMapping2);
             updatedConfig.phases = defaultPhases.map(phase => {
-              const objectiveData = getObjectiveFromPhaseName(phase.name, focus === "auto" ? "conversions" : focus);
-              const objective = objectiveToLabel(objectiveData.objective) || "Conversions";
-              const optimizationGoal = optimizationToLabel(objectiveData.optimizationGoal) || "Conversions";
+              const objectiveData = getObjectiveFromPhaseName(phase.name, focus === "auto" ? "conversions" : focus, platformForMapping2);
+              const { objective, optimizationGoal } = resolveObjectiveForPlatform(
+                objectiveData.objective, objectiveData.optimizationGoal, platformName
+              );
               const audienceStrategy = getAudienceStrategyConfig(platformName || "meta", objective, optimizationGoal);
               return {
                 ...phase,
@@ -250,12 +286,30 @@ export function GenericStrategyConfig({
     
     const generatedPhases = generatePhasesFromStrategyId(strategy.id, startDate, endDate);
     
+    const lower = (platformName || "meta").toLowerCase();
+    const isMeta = lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram");
+    const platformForMapping = lower.includes("google") ? "google" 
+      : lower.includes("tiktok") ? "tiktok"
+      : lower.includes("snapchat") ? "snapchat" : "meta";
+    
     // Map to Phase format expected by the system
-    const phases = generatedPhases.map(p => ({
-      ...p,
-      objective: objectiveToLabel(p.objective) || p.objective,
-      optimizationGoal: optimizationToLabel(p.optimizationGoal) || p.optimizationGoal,
-    }));
+    const phases = generatedPhases.map(p => {
+      if (isMeta) {
+        // For Meta, translate API values to display labels (legacy behavior)
+        return {
+          ...p,
+          objective: objectiveToLabel(p.objective) || p.objective,
+          optimizationGoal: optimizationToLabel(p.optimizationGoal) || p.optimizationGoal,
+        };
+      }
+      // For non-Meta platforms, re-derive from phase name since strategy matrix stores Meta-style values
+      const objectiveData = getObjectiveFromPhaseName(p.name, config.strategyFocus || "conversions", platformForMapping);
+      return {
+        ...p,
+        objective: objectiveData.objective,
+        optimizationGoal: objectiveData.optimizationGoal,
+      };
+    });
 
     setConfig({
       ...config,
