@@ -32,6 +32,35 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId }: Goog
     [selectedType, selectedSubtype]
   );
 
+  // Auto-set campaign type from objective when not manually set
+  useEffect(() => {
+    if (phase.googleCampaignType || !phase.objective) return;
+    const objectiveToType: Record<string, string> = {
+      AWARENESS_DISPLAY: "Display",
+      AWARENESS_VIDEO_EFFICIENT_REACH: "Video",
+      AWARENESS_VIDEO_NON_SKIPPABLE: "Video",
+      AWARENESS_VIDEO_TARGET_FREQUENCY: "Video",
+      AWARENESS_AD_SEQUENCE: "Video",
+      AWARENESS_VIDEO_VIEWS: "Video",
+      AWARENESS_AUDIO_REACH: "Video",
+      CONVERSION_SEARCH: "Search",
+      CONSIDERATION_PMAX: "Performance Max",
+      CONSIDERATION_APP_INSTALLS: "App Promotion",
+      CONSIDERATION_APP_ENGAGEMENT: "App Promotion",
+      CONSIDERATION_APP_PRE_REGISTRATION: "App Promotion",
+      CONSIDERATION_DEMAND_GEN: "Demand Gen",
+      CONVERSION_SHOPPING: "Shopping",
+    };
+    const mapped = objectiveToType[phase.objective];
+    if (mapped && campaignTypes.includes(mapped)) {
+      onUpdate("googleCampaignType", mapped);
+      const newConfig = getGoogleAdsCampaignConfig(mapped);
+      if (newConfig?.bidStrategies?.length) {
+        onUpdate("googleBidStrategy", newConfig.bidStrategies[0]);
+      }
+    }
+  }, [phase.objective, phase.googleCampaignType]);
+
   const [merchantCenters, setMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);
   const [feedLabels, setFeedLabels] = useState<Array<{ label: string; country: string }>>([]);
   const [loadingMC, setLoadingMC] = useState(false);
