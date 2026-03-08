@@ -1774,6 +1774,57 @@ export function PhaseScheduler({
                     </div>
                   </div>
 
+                  {/* Keyword Strategy Sub-rows for Google Search phases */}
+                  {isGoogleSearchPhase && keywordStrategyGroups.length > 0 && (
+                    <div className="border-t bg-muted/10">
+                      {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol }) => {
+                        const strategyConfig: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
+                          brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" />, colorClass: "text-blue-700 dark:text-blue-400" },
+                          generic: { label: "Generic", icon: <Target className="h-3 w-3" />, colorClass: "text-emerald-700 dark:text-emerald-400" },
+                          competition: { label: "Competition", icon: <Swords className="h-3 w-3" />, colorClass: "text-amber-700 dark:text-amber-400" },
+                        };
+                        const meta = strategyConfig[strategy];
+                        const formatVol = (vol: number) => {
+                          if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
+                          if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`;
+                          return String(vol);
+                        };
+                        return (
+                          <div key={strategy} className="flex items-center gap-3 px-4 py-2 border-b last:border-b-0">
+                            <div className="w-3" />
+                            <div className={`flex items-center gap-1.5 ${meta.colorClass}`}>
+                              {meta.icon}
+                              <span className="text-xs font-medium">{meta.label}</span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px]">
+                              {positives.length} keyword{positives.length !== 1 ? 's' : ''}
+                            </Badge>
+                            {negatives.length > 0 && (
+                              <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">
+                                <Ban className="h-2.5 w-2.5 mr-0.5" />{negatives.length} neg
+                              </Badge>
+                            )}
+                            {totalVol > 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                                <Search className="h-2.5 w-2.5 mr-0.5" />{formatVol(totalVol)} vol/mo
+                              </Badge>
+                            )}
+                            <div className="ml-auto flex gap-1">
+                              {positives.slice(0, 3).map(kw => (
+                                <Badge key={kw.id} variant="secondary" className="text-[9px]">
+                                  {kw.name}
+                                </Badge>
+                              ))}
+                              {positives.length > 3 && (
+                                <span className="text-[9px] text-muted-foreground">+{positives.length - 3}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
                       {/* Campaign & Ad Set Taxonomy - Right after phase name */}
