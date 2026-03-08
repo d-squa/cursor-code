@@ -341,6 +341,8 @@ export interface Phase {
   googleInventoryType?: string; // Expanded, Standard, Limited (Video only)
   googleCustomerAcquisition?: string; // "New Customers Only" or "Everyone"
   googleProductFeed?: boolean; // Product feed enabled
+  googleMerchantCenterId?: string; // Google Merchant Center ID
+  googleFeedLabel?: string; // Feed label (e.g. US, EU)
   googleOptimizedTargeting?: boolean; // Optimized targeting
   googleAiMax?: boolean; // AI maximization
   googleAiMaxOptions?: string[]; // Text customization, Final URL expansion
