@@ -27,6 +27,10 @@ export function getObjectiveFromPhaseName(
   if (platformLower === "google" || platformLower === "google_ads") {
     return getGoogleAdsObjectiveFromPhaseName(phaseName, strategyFocus);
   }
+
+  if (platformLower === "snapchat") {
+    return getSnapchatObjectiveFromPhaseName(phaseName, strategyFocus);
+  }
   
   // Default to Meta mapping
   return getMetaObjectiveFromPhaseName(phaseName, strategyFocus);
