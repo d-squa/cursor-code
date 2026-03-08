@@ -18,6 +18,7 @@ interface Campaign {
   end_date: string;
   total_budget: number;
   forecast_data?: any;
+  market_splits?: any;
   status: string;
 }
 
