@@ -1175,6 +1175,9 @@ export default function PlatformConnections() {
                   allowed={adAccountLimits.tiktok.swapsAllowed}
                   subscriptionEnd={subscriptionEnd}
                 />
+                <Badge variant="outline" className="gap-1">
+                  Google Accounts: {googleAdAccounts.length}
+                </Badge>
               </div>
             </div>
           </CardHeader>
