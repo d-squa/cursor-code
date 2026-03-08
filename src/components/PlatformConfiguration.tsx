@@ -163,7 +163,7 @@ const platformObjectives: Record<string, string[]> = {
     "Lead Generation",
     "Conversions",
   ],
-  google: ["Search", "Display", "Video", "Shopping", "Performance Max", "App", "Discovery", "Local"],
+  google: ["Display", "Search", "Performance Max", "Video", "Demand Gen", "App Promotion", "Shopping"],
   linkedin: [
     "Brand Awareness",
     "Website Visits",
