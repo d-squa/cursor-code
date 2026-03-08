@@ -11,10 +11,11 @@ interface UnifiedTargetingItem {
   id: string;
   name: string;
   description?: string;
-  category: 'interest' | 'behavior' | 'demographic';
-  platforms: ('meta' | 'tiktok')[];
+  category: 'interest' | 'behavior' | 'demographic' | 'keyword' | 'location' | 'topic';
+  platforms: ('meta' | 'tiktok' | 'google')[];
   metaId?: string;
   tiktokId?: string;
+  googleId?: string;
 }
 
 // Minimum relevance score required for inclusion
