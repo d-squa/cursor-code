@@ -272,8 +272,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     // Determine which platforms are actually active
     const { hasMeta, hasTiktok } = getActivePlatforms();
     
-    if (!hasMeta && !hasTiktok) {
-      toast.error('At least one ad account must be selected (Meta or TikTok)');
+    if (!hasMeta && !hasTiktok && !hasGoogle) {
+      toast.error('At least one ad account must be selected (Meta, TikTok, or Google)');
       return;
     }
 
