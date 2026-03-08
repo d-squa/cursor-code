@@ -11,7 +11,9 @@ import {
   getGoogleAdsCampaignConfig,
   type GoogleAdsCampaignType,
 } from "@/utils/googleAdsCampaignMatrix";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface GoogleAdsPhaseConfigProps {
   phase: Phase;
