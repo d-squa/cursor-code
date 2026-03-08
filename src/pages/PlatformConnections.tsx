@@ -749,7 +749,11 @@ export default function PlatformConnections() {
           console.log("OAuth callback - platformType:", platformType);
           console.log("OAuth callback - platformId:", platformId);
 
-          const callbackFunction = platformType === "tiktok" ? "tiktok-oauth-callback" : "meta-oauth-callback";
+          const callbackFunction = platformType === "tiktok" 
+            ? "tiktok-oauth-callback" 
+            : platformType === "google" 
+              ? "google-ads-oauth-callback" 
+              : "meta-oauth-callback";
 
           console.log("OAuth callback - calling function:", callbackFunction);
 
