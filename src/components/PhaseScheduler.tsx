@@ -856,24 +856,15 @@ export function PhaseScheduler({
   }, [adAccountDefaults, platformName]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
-    const isTikTok = platformName.toLowerCase().includes("tiktok");
+    const normalizedPlatformId = (platformId || "").toLowerCase();
+    const platformForMapping = detectedPlatform
+      ?? (normalizedPlatformId === "google_ads" ? "google"
+        : normalizedPlatformId === "google" ? "google"
+        : normalizedPlatformId === "tiktok" ? "tiktok"
+        : normalizedPlatformId === "snapchat" ? "snapchat"
+        : "meta");
 
-    // Strategy focus values in this app are typically: purchase | leads | app-installs | conversions | brand-awareness
-    if (isTikTok) {
-      if (focus === "brand-awareness") return "REACH";
-      if (focus === "app-installs") return "APP_PROMOTION";
-      if (focus === "leads") return phaseName === "Conversion" ? "LEAD_GENERATION" : "TRAFFIC";
-      // purchase + conversions default
-      return phaseName === "Awareness" ? "REACH" : phaseName === "Consideration" ? "TRAFFIC" : "CONVERSIONS";
-    }
-
-    // Meta
-    if (focus === "brand-awareness") return "OUTCOME_AWARENESS";
-    if (focus === "app-installs") return phaseName === "Awareness" ? "OUTCOME_AWARENESS" : "OUTCOME_APP_PROMOTION";
-    if (focus === "leads") return phaseName === "Conversion" ? "OUTCOME_LEADS" : "OUTCOME_TRAFFIC";
-
-    // purchase + conversions default
-    return phaseName === "Awareness" ? "OUTCOME_AWARENESS" : phaseName === "Consideration" ? "OUTCOME_TRAFFIC" : "OUTCOME_SALES";
+    return getObjectiveFromPhaseName(phaseName, focus, platformForMapping).objective;
   };
 
   const campaignStart = parseISO(startDate);
