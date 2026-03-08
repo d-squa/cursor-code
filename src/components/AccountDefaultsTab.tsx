@@ -820,6 +820,57 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
+  const updateGoogleDefault = (accountId: string, field: keyof GoogleAdAccountDefaults, value: any) => {
+    setGoogleLocalDefaults((prev) => ({
+      ...prev,
+      [accountId]: {
+        ...prev[accountId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveGoogleDefaults = async (accountId: string) => {
+    setSavingGoogleDefaults(accountId);
+    try {
+      const updates = googleLocalDefaults[accountId];
+      if (!updates) return;
+
+      const validFields = [
+        "default_landing_page_url",
+        "default_bid_strategy",
+        "default_target_cpa",
+        "default_target_roas",
+        "default_max_cpc_bid",
+        "default_conversion_budget_type",
+        "default_non_conversion_budget_type",
+        "main_markets",
+      ];
+
+      const updateData: Record<string, any> = {};
+      validFields.forEach((field) => {
+        if (updates && Object.prototype.hasOwnProperty.call(updates, field)) {
+          updateData[field] = (updates as any)[field];
+        }
+      });
+
+      const { error } = await supabase
+        .from("google_ad_accounts")
+        .update(updateData)
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast.success("Google Ads defaults saved successfully");
+      await loadData();
+    } catch (error: any) {
+      console.error("Error saving Google Ads defaults:", error);
+      toast.error("Failed to save Google Ads defaults");
+    } finally {
+      setSavingGoogleDefaults(null);
+    }
+  };
+
   const updateDefault = (accountId: string, field: keyof AdAccount, value: any) => {
     console.log(`[AccountDefaultsTab] updateDefault called:`, { accountId, field, value });
     setLocalDefaults((prev) => {
