@@ -86,7 +86,8 @@ serve(async (req: Request) => {
             language: "languageConstants/1000",
             geoTargetConstants: [`geoTargetConstants/${geoId}`],
             keywordSeed: { keywords: [query] },
-            pageSize: 25,
+            pageSize: 100,
+            keywordPlanNetwork: "GOOGLE_SEARCH_AND_PARTNERS",
           };
 
           const resp = await fetch(keywordUrl, {
