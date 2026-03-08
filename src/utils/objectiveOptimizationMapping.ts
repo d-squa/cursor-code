@@ -479,7 +479,7 @@ export function getObjectiveForOptimizationGoal(
  * Validate if an objective and optimization goal combination is valid
  */
 export function isValidObjectiveGoalCombination(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string,
   optimizationGoal: string
 ): boolean {
