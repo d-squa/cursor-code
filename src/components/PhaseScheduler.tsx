@@ -131,6 +131,8 @@ interface PhaseSchedulerProps {
     metaProductSetId?: string;
     tiktokCatalogId?: string;
     tiktokProductSetId?: string;
+    // Google Ads defaults
+    googleCustomerId?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -2884,6 +2886,7 @@ export function PhaseScheduler({
                       {(platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads') && (
                         <GoogleAdsPhaseConfig
                           phase={phase}
+                          googleCustomerId={adAccountDefaults?.googleCustomerId}
                           onUpdate={(field, value) => {
                             console.log("🔄 PhaseScheduler Google Ads onUpdate called:", { phaseId: phase.id, field, value });
                             updatePhaseField(phase.id, field as keyof Phase, value);

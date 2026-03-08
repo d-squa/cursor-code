@@ -62,6 +62,8 @@ export function PlatformConfigFields({
   const [tiktokIdentities, setTiktokIdentities] = useState<Resource[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<Resource[]>([]);
   const [tiktokProductSets, setTiktokProductSets] = useState<Resource[]>([]);
+  const [googleMerchantCenters, setGoogleMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);
+  const [googleFeedLabels, setGoogleFeedLabels] = useState<Array<{ label: string; country: string }>>([]);
   const [googleAccount, setGoogleAccount] = useState<{ merchant_center_id?: string; feed_label?: string } | null>(null);
 
   useEffect(() => {
@@ -162,15 +164,27 @@ export function PlatformConfigFields({
   const loadGoogleAdsResources = async () => {
     setLoading(true);
     try {
+      // Fetch defaults from DB
       const { data, error } = await supabase
         .from("google_ad_accounts")
-        .select("default_merchant_center_id, default_feed_label")
+        .select("default_merchant_center_id, default_feed_label, customer_id")
         .eq("user_id", userId!)
         .eq("account_id", selectedAdAccountId!)
         .maybeSingle();
 
       if (error) throw error;
       setGoogleAccount(data ? { merchant_center_id: data.default_merchant_center_id || '', feed_label: data.default_feed_label || '' } : null);
+
+      // Fetch Merchant Center links from Google Ads API
+      if (data?.customer_id) {
+        const { data: mcData, error: mcError } = await supabase.functions.invoke("fetch-google-merchant-centers", {
+          body: { customerId: data.customer_id },
+        });
+        if (!mcError && mcData) {
+          setGoogleMerchantCenters(mcData.merchantCenters || []);
+          setGoogleFeedLabels(mcData.feedLabels || []);
+        }
+      }
     } catch (error) {
       console.error("Error loading Google Ads resources:", error);
     } finally {
@@ -415,13 +429,17 @@ export function PlatformConfigFields({
                 onValueChange={(value) => onUpdate("merchantCenterId", value)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Enter Merchant Center ID" />
+                  <SelectValue placeholder="Select Merchant Center" />
                 </SelectTrigger>
                 <SelectContent>
-                  {googleAccount?.merchant_center_id && (
-                    <SelectItem value={googleAccount.merchant_center_id}>
-                      {googleAccount.merchant_center_id}
-                    </SelectItem>
+                  {googleMerchantCenters.length === 0 ? (
+                    <SelectItem value="none" disabled>No Merchant Centers linked</SelectItem>
+                  ) : (
+                    googleMerchantCenters.map((mc) => (
+                      <SelectItem key={mc.id} value={mc.merchantCenterId}>
+                        {mc.merchantCenterName} ({mc.merchantCenterId})
+                      </SelectItem>
+                    ))
                   )}
                 </SelectContent>
               </Select>
@@ -440,10 +458,14 @@ export function PlatformConfigFields({
                   <SelectValue placeholder="Select feed label" />
                 </SelectTrigger>
                 <SelectContent>
-                  {googleAccount?.feed_label && (
-                    <SelectItem value={googleAccount.feed_label}>
-                      {googleAccount.feed_label}
-                    </SelectItem>
+                  {googleFeedLabels.length === 0 ? (
+                    <SelectItem value="none" disabled>No feed labels found</SelectItem>
+                  ) : (
+                    googleFeedLabels.map((fl) => (
+                      <SelectItem key={fl.label} value={fl.label}>
+                        {fl.label}
+                      </SelectItem>
+                    ))
                   )}
                 </SelectContent>
               </Select>

@@ -88,6 +88,9 @@ export function PlatformMarketBudgetSelector({
   // Google Ads resources
   const [googleAdAccounts, setGoogleAdAccounts] = useState<Array<{ id: string; name: string; customerId: string; currency: string; timezone: string; merchantCenterId: string; feedLabel: string }>>([]);
   const [loadingGoogleAdAccounts, setLoadingGoogleAdAccounts] = useState(false);
+  const [googleMerchantCenters, setGoogleMerchantCenters] = useState<Record<string, Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>>({});
+  const [googleFeedLabels, setGoogleFeedLabels] = useState<Record<string, Array<{ label: string; country: string }>>>({});
+  const [loadingGoogleMC, setLoadingGoogleMC] = useState<Record<string, boolean>>({});
   
   // Collapsible state for platforms and markets
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
@@ -2544,6 +2547,20 @@ export function PlatformMarketBudgetSelector({
                                           };
                                         })
                                       );
+                                      // Fetch merchant centers for this account
+                                      if (account?.customerId) {
+                                        setLoadingGoogleMC(prev => ({ ...prev, [market.id]: true }));
+                                        supabase.functions.invoke("fetch-google-merchant-centers", {
+                                          body: { customerId: account.customerId },
+                                        }).then(({ data, error }) => {
+                                          if (!error && data) {
+                                            setGoogleMerchantCenters(prev => ({ ...prev, [market.id]: data.merchantCenters || [] }));
+                                            setGoogleFeedLabels(prev => ({ ...prev, [market.id]: data.feedLabels || [] }));
+                                          }
+                                        }).finally(() => {
+                                          setLoadingGoogleMC(prev => ({ ...prev, [market.id]: false }));
+                                        });
+                                      }
                                     }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
@@ -2648,22 +2665,52 @@ export function PlatformMarketBudgetSelector({
                                 {/* Product Feed (Merchant Center) */}
                                 <div className="space-y-1">
                                   <Label className="text-xs">Merchant Center ID (Product Feed)</Label>
-                                  <Input
-                                    className="h-7 text-xs"
-                                    placeholder="Enter Merchant Center ID"
-                                    value={market.googleMerchantCenterId || ""}
-                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleMerchantCenterId', e.target.value)}
-                                  />
+                                  {loadingGoogleMC[market.id] ? (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground h-7"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</div>
+                                  ) : (
+                                    <Select
+                                      value={market.googleMerchantCenterId || undefined}
+                                      onValueChange={(v) => updateMarketField(platformIndex, market.id, 'googleMerchantCenterId', v)}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue placeholder="Select Merchant Center" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {(googleMerchantCenters[market.id] || []).length === 0 ? (
+                                          <SelectItem value="none" disabled>No Merchant Centers linked</SelectItem>
+                                        ) : (
+                                          (googleMerchantCenters[market.id] || []).map((mc) => (
+                                            <SelectItem key={mc.id} value={mc.merchantCenterId}>
+                                              {mc.merchantCenterName} ({mc.merchantCenterId})
+                                            </SelectItem>
+                                          ))
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
                                 </div>
 
                                 <div className="space-y-1">
                                   <Label className="text-xs">Feed Label</Label>
-                                  <Input
-                                    className="h-7 text-xs"
-                                    placeholder="e.g., US, EU, ALL"
-                                    value={market.googleFeedLabel || ""}
-                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleFeedLabel', e.target.value)}
-                                  />
+                                  <Select
+                                    value={market.googleFeedLabel || undefined}
+                                    onValueChange={(v) => updateMarketField(platformIndex, market.id, 'googleFeedLabel', v)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Select feed label" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(googleFeedLabels[market.id] || []).length === 0 ? (
+                                        <SelectItem value="none" disabled>No feed labels found</SelectItem>
+                                      ) : (
+                                        (googleFeedLabels[market.id] || []).map((fl) => (
+                                          <SelectItem key={fl.label} value={fl.label}>
+                                            {fl.label}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
                             )}
@@ -2781,6 +2828,11 @@ export function PlatformMarketBudgetSelector({
                                     tiktokClickWindow: (market as any).tiktokClickWindow,
                                     tiktokViewWindow: (market as any).tiktokViewWindow,
                                     tiktokBillingEvent: (market as any).tiktokBillingEvent,
+                                    // Google Ads defaults
+                                    googleCustomerId: (() => {
+                                      const account = googleAdAccounts.find(a => a.id === market.adAccountId);
+                                      return account?.customerId;
+                                    })(),
                                   }}
                                   marketBudget={marketBudget}
                                 />
