@@ -482,6 +482,7 @@ export function MediaPlanEditor() {
   const [phaseAudiences, setPhaseAudiences] = useState<Record<string, SelectedAudience[]>>({});
   const [firstAdAccountId, setFirstAdAccountId] = useState<string | null>(null);
   const [firstTiktokAdvertiserId, setFirstTiktokAdvertiserId] = useState<string | null>(null);
+  const [firstGoogleCustomerId, setFirstGoogleCustomerId] = useState<string | null>(null);
 
   // Update ad account IDs based on selected platforms
   // Derive the account IDs via useMemo instead of useEffect to avoid re-render loops
@@ -499,6 +500,13 @@ export function MediaPlanEditor() {
     );
   }, [platformsWithMarkets]);
 
+  const derivedGoogleAccountId = useMemo(() => {
+    return (
+      platformsWithMarkets.find((p) => p.id === "google_ads" || p.name.toLowerCase().includes("google"))?.markets[0]
+        ?.adAccountId ?? null
+    );
+  }, [platformsWithMarkets]);
+
   // Sync derived values to state only when they actually change
   useEffect(() => {
     if (derivedMetaAccountId !== firstAdAccountId) {
@@ -511,6 +519,12 @@ export function MediaPlanEditor() {
       setFirstTiktokAdvertiserId(derivedTiktokAccountId);
     }
   }, [derivedTiktokAccountId, firstTiktokAdvertiserId]);
+
+  useEffect(() => {
+    if (derivedGoogleAccountId !== firstGoogleCustomerId) {
+      setFirstGoogleCustomerId(derivedGoogleAccountId);
+    }
+  }, [derivedGoogleAccountId, firstGoogleCustomerId]);
 
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
@@ -2231,6 +2245,7 @@ export function MediaPlanEditor() {
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
                 tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
+                googleCustomerId={firstGoogleCustomerId || undefined}
                 platformId={
                   platformsWithMarkets.find((p) => p.id === "meta")?.id || platformsWithMarkets[0]?.id || "meta"
                 }
@@ -2243,7 +2258,7 @@ export function MediaPlanEditor() {
                     id: p.id,
                     name: p.name,
                     adAccountId:
-                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : undefined,
+                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : p.id === "google_ads" ? firstGoogleCustomerId : undefined,
                   }))}
               />
               <div className="mt-6 flex justify-between">

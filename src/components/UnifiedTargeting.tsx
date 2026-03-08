@@ -69,6 +69,7 @@ interface UnifiedTargetingProps {
   onUpdate: (targeting: UnifiedTargetingConfig) => void;
   metaAdAccountId?: string;
   tiktokAdvertiserId?: string;
+  googleCustomerId?: string;
   // Split functionality props
   currentSplitDimension?: AdSetSplitDimension;
   onSplitDimensionChange?: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
@@ -84,6 +85,7 @@ export function UnifiedTargeting({
   onUpdate, 
   metaAdAccountId, 
   tiktokAdvertiserId,
+  googleCustomerId,
   currentSplitDimension,
   onSplitDimensionChange,
   platformId = 'meta',
@@ -131,7 +133,7 @@ export function UnifiedTargeting({
       return;
     }
 
-    if (!metaAdAccountId && !tiktokAdvertiserId) {
+    if (!metaAdAccountId && !tiktokAdvertiserId && !googleCustomerId) {
       toast.error('At least one ad account must be selected');
       return;
     }

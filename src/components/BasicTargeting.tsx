@@ -40,6 +40,7 @@ interface BasicTargetingProps {
   onUpdate: (targeting: BasicTargetingConfig) => void;
   metaAdAccountId?: string;
   tiktokAdvertiserId?: string;
+  googleCustomerId?: string;
 }
 
 interface TargetingOption {
@@ -48,7 +49,7 @@ interface TargetingOption {
   name: string;
 }
 
-export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdvertiserId }: BasicTargetingProps) {
+export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdvertiserId, googleCustomerId }: BasicTargetingProps) {
   const [loading, setLoading] = useState(false);
   const [genderOptions, setGenderOptions] = useState<TargetingOption[]>([]);
   const [deviceOptions, setDeviceOptions] = useState<TargetingOption[]>([]);
@@ -83,7 +84,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
   const getActivePlatforms = () => ({
     hasMeta: !!metaAdAccountId,
     hasTiktok: !!tiktokAdvertiserId,
-    hasMultiple: !!metaAdAccountId && !!tiktokAdvertiserId
+    hasGoogle: !!googleCustomerId,
+    hasMultiple: [!!metaAdAccountId, !!tiktokAdvertiserId, !!googleCustomerId].filter(Boolean).length > 1
   });
 
   // Controlled tab state for AI recommendations
@@ -268,10 +270,10 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     }
     
     // Determine which platforms are actually active
-    const { hasMeta, hasTiktok } = getActivePlatforms();
+    const { hasMeta, hasTiktok, hasGoogle } = getActivePlatforms();
     
-    if (!hasMeta && !hasTiktok) {
-      toast.error('At least one ad account must be selected (Meta or TikTok)');
+    if (!hasMeta && !hasTiktok && !hasGoogle) {
+      toast.error('At least one ad account must be selected (Meta, TikTok, or Google)');
       return;
     }
 
@@ -350,7 +352,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       return;
     }
     
-    if (!metaAdAccountId && !tiktokAdvertiserId) {
+    if (!metaAdAccountId && !tiktokAdvertiserId && !googleCustomerId) {
       toast.error('At least one ad account must be selected');
       return;
     }
@@ -786,7 +788,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             </div>
             <Button 
               onClick={handleGenerateRecommendations}
-              disabled={generatingAI || !targeting.productBrief?.trim() || (!metaAdAccountId && !tiktokAdvertiserId)}
+              disabled={generatingAI || !targeting.productBrief?.trim() || (!metaAdAccountId && !tiktokAdvertiserId && !googleCustomerId)}
               className="w-full"
             >
               {generatingAI ? (
