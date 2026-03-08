@@ -7,6 +7,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function fetchAllPages(baseUrl: string, accessToken: string): Promise<any[]> {
+  let allData: any[] = [];
+  let url: string | null = `${baseUrl}&limit=200&access_token=${accessToken}`;
+  let pageCount = 0;
+  const maxPages = 10; // Safety limit
+
+  while (url && pageCount < maxPages) {
+    pageCount++;
+    console.log(`Fetching page ${pageCount}...`);
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Meta API error:', response.status, errorText);
+      throw new Error(`Meta API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    const pageData = result.data || [];
+    allData.push(...pageData);
+    console.log(`Page ${pageCount}: got ${pageData.length} items (total: ${allData.length})`);
+
+    // Check for next page
+    url = result.paging?.next || null;
+  }
+
+  return allData;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -21,13 +50,11 @@ serve(async (req) => {
       );
     }
 
-    // Create Supabase client with service role for querying
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    // Get user from JWT (already verified by verify_jwt = true in config)
     const jwt = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt);
     
@@ -45,7 +72,7 @@ serve(async (req) => {
       throw new Error('Ad Account ID is required');
     }
 
-    console.log('Fetching audiences:', { adAccountId, sources, type });
+    console.log('Fetching audiences:', { adAccountId, sources, type, userId: user.id });
 
     // Get user's Meta platform connection
     const { data: platformData, error: platformError } = await supabaseClient
@@ -68,7 +95,7 @@ serve(async (req) => {
     }
     const apiVersion = 'v21.0';
     
-    // Remove 'act_' prefix if already present
+    // Remove 'act_' prefix if already present, then always add it
     const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
     
     let allAudiences: any[] = [];
@@ -84,7 +111,7 @@ serve(async (req) => {
         "LEAD_GEN": "Lead Form",
         "LOOKALIKE": "Lookalikes",
         "CATALOG_BASED": "Catalog",
-        "ENGAGEMENT": "Events", // Default for engagement type
+        "ENGAGEMENT": "Events",
       };
       return subtypeToSource[subtype] || "Unknown";
     };
@@ -92,54 +119,53 @@ serve(async (req) => {
     // Check if we need to fetch saved audiences
     const fetchSavedAudiences = !sources || sources.length === 0 || sources.includes("Saved Audience");
     
-    // Check if we need to fetch custom audiences (everything except Native Audience and Saved Audience)
+    // Check if we need to fetch custom audiences
     const fetchCustomAudiences = !sources || sources.length === 0 || 
       sources.some((s: string) => s !== "Native Audience" && s !== "Saved Audience");
 
-    // Fetch custom audiences if needed
+    // Fetch custom audiences with pagination
     if (fetchCustomAudiences) {
-      const url = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound&access_token=${accessToken}`;
+      const baseUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound`;
       
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Meta API error:', response.status, errorText);
-        throw new Error(`Meta API error: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      const customAudiences = (result.data || []).map((aud: any) => ({
-        ...aud,
-        source: getSourceFromSubtype(aud.subtype)
-      }));
+      try {
+        const rawAudiences = await fetchAllPages(baseUrl, accessToken);
+        const customAudiences = rawAudiences.map((aud: any) => ({
+          ...aud,
+          source: getSourceFromSubtype(aud.subtype)
+        }));
 
-      // Filter by sources if provided
-      if (sources && sources.length > 0) {
-        const filteredCustom = customAudiences.filter((aud: any) => sources.includes(aud.source));
-        allAudiences.push(...filteredCustom);
-      } else {
-        allAudiences.push(...customAudiences);
+        // Filter by sources if provided
+        if (sources && sources.length > 0) {
+          const filteredCustom = customAudiences.filter((aud: any) => sources.includes(aud.source));
+          allAudiences.push(...filteredCustom);
+        } else {
+          allAudiences.push(...customAudiences);
+        }
+        console.log(`Custom audiences fetched: ${customAudiences.length}`);
+      } catch (err) {
+        console.error('Error fetching custom audiences:', err);
       }
     }
 
-    // Fetch saved audiences if needed
+    // Fetch saved audiences with pagination
     if (fetchSavedAudiences) {
-      const savedUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/saved_audiences?fields=id,name,approximate_count&access_token=${accessToken}`;
-      const savedResponse = await fetch(savedUrl);
+      const savedBaseUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/saved_audiences?fields=id,name,approximate_count`;
       
-      if (savedResponse.ok) {
-        const savedResult = await savedResponse.json();
-        const savedAudiences = (savedResult.data || []).map((aud: any) => ({
+      try {
+        const rawSaved = await fetchAllPages(savedBaseUrl, accessToken);
+        const savedAudiences = rawSaved.map((aud: any) => ({
           ...aud,
           source: "Saved Audience",
           subtype: "SAVED"
         }));
         allAudiences.push(...savedAudiences);
+        console.log(`Saved audiences fetched: ${savedAudiences.length}`);
+      } catch (err) {
+        console.error('Error fetching saved audiences:', err);
       }
     }
 
-    console.log(`Found ${allAudiences.length} audiences for sources: ${sources?.join(', ') || 'all'}`);
+    console.log(`Total audiences found: ${allAudiences.length} for sources: ${sources?.join(', ') || 'all'}`);
 
     return new Response(
       JSON.stringify(allAudiences),
