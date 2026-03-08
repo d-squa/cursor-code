@@ -789,6 +789,28 @@ export function PhaseScheduler({
           phaseHasUpdates = true;
           updatedPhase.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
         }
+      } else if (isGoogle) {
+        // Auto-populate Google Ads landing page URL and bid strategy from defaults
+        if (!phase.googleLandingPageUrl && adAccountDefaults.googleLandingPageUrl) {
+          phaseHasUpdates = true;
+          updatedPhase.googleLandingPageUrl = adAccountDefaults.googleLandingPageUrl;
+        }
+        if (!phase.googleBidStrategy && adAccountDefaults.googleBidStrategy) {
+          phaseHasUpdates = true;
+          updatedPhase.googleBidStrategy = adAccountDefaults.googleBidStrategy;
+        }
+        if (phase.googleTargetCpa === undefined && adAccountDefaults.googleTargetCpa) {
+          phaseHasUpdates = true;
+          updatedPhase.googleTargetCpa = adAccountDefaults.googleTargetCpa;
+        }
+        if (phase.googleTargetRoas === undefined && adAccountDefaults.googleTargetRoas) {
+          phaseHasUpdates = true;
+          updatedPhase.googleTargetRoas = adAccountDefaults.googleTargetRoas;
+        }
+        if (phase.googleMaxCpcBid === undefined && adAccountDefaults.googleMaxCpcBid) {
+          phaseHasUpdates = true;
+          updatedPhase.googleMaxCpcBid = adAccountDefaults.googleMaxCpcBid;
+        }
       }
       
       // Mark this phase as processed with this objective
