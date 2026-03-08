@@ -745,6 +745,17 @@ export default function Performance() {
                     planned={plannedMetrics?.frequency || 2}
                     actual={actualMetrics.frequency}
                   />
+                  {/* Search Volume - only for keyword-based campaigns */}
+                  {(selectedCampaign.platforms || []).some((p: any) => {
+                    const name = (typeof p === 'string' ? p : p?.id || p?.name || '').toLowerCase();
+                    return name.includes('google') || name.includes('search');
+                  }) && (
+                    <MetricCard
+                      title="Avg Monthly Search Vol"
+                      planned={plannedMetrics?.avgMonthlySearchVolume || 0}
+                      actual={actualMetrics.avgMonthlySearchVolume || plannedMetrics?.avgMonthlySearchVolume || 0}
+                    />
+                  )}
                 </div>
 
                 {/* Weekly Charts */}
