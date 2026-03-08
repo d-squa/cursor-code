@@ -39,7 +39,7 @@ import { cn } from '@/lib/utils';
 
 export interface PlatformAsset {
   id: string;
-  platform: 'tiktok' | 'meta';
+  platform: 'tiktok' | 'meta' | 'google';
   platform_asset_id: string;
   advertiser_id: string;
   asset_type: 'video' | 'image';
