@@ -1037,6 +1037,11 @@ export default function PlatformConnections() {
                               {advertiserIds.length} advertiser account{advertiserIds.length !== 1 ? "s" : ""}
                             </p>
                           )}
+                          {isGoogle && platform.metadata?.accounts && (
+                            <p className="text-sm text-muted-foreground">
+                              {platform.metadata.accounts.length} customer account{platform.metadata.accounts.length !== 1 ? "s" : ""}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             Connected {new Date(platform.created_at).toLocaleDateString()}
                           </p>
