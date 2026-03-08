@@ -24,6 +24,10 @@ export function getObjectiveFromPhaseName(
     return getTikTokObjectiveFromPhaseName(phaseName, strategyFocus);
   }
   
+  if (platformLower === "google" || platformLower === "google_ads") {
+    return getGoogleAdsObjectiveFromPhaseName(phaseName, strategyFocus);
+  }
+  
   // Default to Meta mapping
   return getMetaObjectiveFromPhaseName(phaseName, strategyFocus);
 }
