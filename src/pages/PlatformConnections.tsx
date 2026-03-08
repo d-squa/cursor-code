@@ -1015,10 +1015,11 @@ export default function PlatformConnections() {
                 {platforms.map((platform) => {
                   const businessName = platform.metadata?.businesses?.[0]?.name;
                   const advertiserIds = platform.metadata?.advertiser_ids;
-                  const isTikTok = platform.platform_type === "tiktok";
-                  const Icon = isTikTok ? Video : Facebook;
-                  const iconColor = isTikTok ? "text-black dark:text-white" : "text-blue-600";
-                  const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : "";
+                   const isTikTok = platform.platform_type === "tiktok";
+                   const isGoogle = platform.platform_type === "google";
+                   const Icon = isGoogle ? Search : isTikTok ? Video : Facebook;
+                   const iconColor = isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
+                   const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
 
                   return (
                     <div
