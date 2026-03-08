@@ -60,9 +60,11 @@ async function fetchGoogleAdsAccounts(
   // Extract customer IDs from resource names (format: "customers/1234567890")
   const customerIds = resourceNames.map((rn: string) => rn.split("/")[1]);
 
-  // Step 2: Fetch details for each customer
+  // Step 2: Fetch details for each directly accessible customer
   const accounts: any[] = [];
+  const seenCustomerIds = new Set<string>();
   let detectedManagerId: string | null = null;
+  const managerIds: string[] = [];
 
   for (const customerId of customerIds) {
     try {
@@ -97,43 +99,51 @@ async function fetchGoogleAdsAccounts(
         const errorBody = await queryResponse.text();
         console.warn(`[${FUNCTION_NAME}] Failed to query customer ${customerId}:`, errorBody);
         
-        // Still add with minimal info
-        accounts.push({
-          customer_id: customerId,
-          name: `Account ${customerId}`,
-          currency: "USD",
-          timezone: "UTC",
-          is_manager: false,
-          status: "UNKNOWN",
-          is_test_account: false,
-        });
+        if (!seenCustomerIds.has(customerId)) {
+          seenCustomerIds.add(customerId);
+          accounts.push({
+            customer_id: customerId,
+            name: `Account ${customerId}`,
+            currency: "USD",
+            timezone: "UTC",
+            is_manager: false,
+            status: "UNKNOWN",
+            is_test_account: false,
+          });
+        }
         continue;
       }
 
       const queryData = await queryResponse.json();
-      
-      // searchStream returns array of result batches
       const results = queryData[0]?.results || queryData?.results || [];
       const customer = results[0]?.customer;
 
       if (customer) {
         const isManager = customer.manager === true;
+        const cid = customer.id?.toString() || customerId;
         
-        if (isManager && !detectedManagerId) {
-          detectedManagerId = customer.id?.toString();
-          console.log(`[${FUNCTION_NAME}] Detected manager account: ${customer.descriptiveName} (${customer.id})`);
+        if (isManager) {
+          managerIds.push(cid);
+          if (!detectedManagerId) {
+            detectedManagerId = cid;
+            console.log(`[${FUNCTION_NAME}] Detected manager account: ${customer.descriptiveName} (${cid})`);
+          }
         }
 
-        accounts.push({
-          customer_id: customer.id?.toString() || customerId,
-          name: customer.descriptiveName || `Account ${customerId}`,
-          currency: customer.currencyCode || "USD",
-          timezone: customer.timeZone || "UTC",
-          is_manager: isManager,
-          status: customer.status || "UNKNOWN",
-          is_test_account: customer.testAccount === true,
-        });
-      } else {
+        if (!seenCustomerIds.has(cid)) {
+          seenCustomerIds.add(cid);
+          accounts.push({
+            customer_id: cid,
+            name: customer.descriptiveName || `Account ${customerId}`,
+            currency: customer.currencyCode || "USD",
+            timezone: customer.timeZone || "UTC",
+            is_manager: isManager,
+            status: customer.status || "UNKNOWN",
+            is_test_account: customer.testAccount === true,
+          });
+        }
+      } else if (!seenCustomerIds.has(customerId)) {
+        seenCustomerIds.add(customerId);
         accounts.push({
           customer_id: customerId,
           name: `Account ${customerId}`,
@@ -146,15 +156,86 @@ async function fetchGoogleAdsAccounts(
       }
     } catch (err) {
       console.error(`[${FUNCTION_NAME}] Error fetching customer ${customerId}:`, err);
-      accounts.push({
-        customer_id: customerId,
-        name: `Account ${customerId}`,
-        currency: "USD",
-        timezone: "UTC",
-        is_manager: false,
-        status: "UNKNOWN",
-        is_test_account: false,
+      if (!seenCustomerIds.has(customerId)) {
+        seenCustomerIds.add(customerId);
+        accounts.push({
+          customer_id: customerId,
+          name: `Account ${customerId}`,
+          currency: "USD",
+          timezone: "UTC",
+          is_manager: false,
+          status: "UNKNOWN",
+          is_test_account: false,
+        });
+      }
+    }
+  }
+
+  // Step 3: For each manager account, fetch sub-accounts (client accounts under MCC)
+  for (const managerId of managerIds) {
+    try {
+      console.log(`[${FUNCTION_NAME}] Fetching sub-accounts under manager ${managerId}...`);
+      const queryUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${managerId}/googleAds:searchStream`;
+      
+      const queryHeaders: Record<string, string> = {
+        Authorization: `Bearer ${accessToken}`,
+        "developer-token": developerToken,
+        "login-customer-id": managerId,
+        "Content-Type": "application/json",
+      };
+
+      const query = `
+        SELECT
+          customer_client.client_customer,
+          customer_client.descriptive_name,
+          customer_client.currency_code,
+          customer_client.time_zone,
+          customer_client.manager,
+          customer_client.status,
+          customer_client.test_account,
+          customer_client.id
+        FROM customer_client
+        WHERE customer_client.manager = false
+          AND customer_client.status = 'ENABLED'
+      `;
+
+      const queryResponse = await fetch(queryUrl, {
+        method: "POST",
+        headers: queryHeaders,
+        body: JSON.stringify({ query }),
       });
+
+      if (!queryResponse.ok) {
+        const errorBody = await queryResponse.text();
+        console.warn(`[${FUNCTION_NAME}] Failed to fetch sub-accounts for manager ${managerId}:`, errorBody);
+        continue;
+      }
+
+      const queryData = await queryResponse.json();
+      const results = queryData[0]?.results || queryData?.results || [];
+      
+      console.log(`[${FUNCTION_NAME}] Found ${results.length} sub-accounts under manager ${managerId}`);
+
+      for (const result of results) {
+        const cc = result.customerClient;
+        if (!cc) continue;
+        
+        const clientId = cc.id?.toString() || cc.clientCustomer?.split("/")[1];
+        if (!clientId || seenCustomerIds.has(clientId)) continue;
+
+        seenCustomerIds.add(clientId);
+        accounts.push({
+          customer_id: clientId,
+          name: cc.descriptiveName || `Account ${clientId}`,
+          currency: cc.currencyCode || "USD",
+          timezone: cc.timeZone || "UTC",
+          is_manager: false,
+          status: cc.status || "UNKNOWN",
+          is_test_account: cc.testAccount === true,
+        });
+      }
+    } catch (err) {
+      console.error(`[${FUNCTION_NAME}] Error fetching sub-accounts for manager ${managerId}:`, err);
     }
   }
 
