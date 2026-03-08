@@ -259,7 +259,7 @@ serve(async (req) => {
     console.log(`[${FUNCTION_NAME}] Successfully obtained access token (expires in ${expires_in}s)`);
 
     // Fetch the login customer ID from secrets (MCC account)
-    const loginCustomerId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+    const loginCustomerId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID")?.replace(/\D/g, "");
 
     // Fetch accessible Google Ads accounts
     const { accounts, managerCustomerId } = await fetchGoogleAdsAccounts(
