@@ -216,22 +216,30 @@ export function PhaseAudienceSelector({
       const isTikTok = platformLower.includes('tiktok');
       const isGoogle = platformLower.includes('google');
 
-      // For TikTok and Google, audience loading is not yet implemented
-      if (isTikTok || isGoogle) {
-        console.log(`${isGoogle ? 'Google Ads' : 'TikTok'} audience loading not yet implemented`);
+      // TikTok audience loading not yet implemented
+      if (isTikTok) {
+        console.log('TikTok audience loading not yet implemented');
         setAudiencesByType({});
         return;
       }
 
-      // Meta audience loading (fetch ALL audiences; no objective/goal filtering)
-      const { data, error } = await supabase.functions.invoke('fetch-meta-audiences', {
-        body: { adAccountId }
-      });
+      let audiences: any[] = [];
 
-      if (error) throw error;
-
-      // data is now an array of audiences with source field
-      const audiences = Array.isArray(data) ? data : [];
+      if (isGoogle) {
+        // Google Ads audience loading
+        const { data, error } = await supabase.functions.invoke('fetch-google-audiences', {
+          body: { customerId: adAccountId }
+        });
+        if (error) throw error;
+        audiences = Array.isArray(data) ? data : [];
+      } else {
+        // Meta audience loading (fetch ALL audiences; no objective/goal filtering)
+        const { data, error } = await supabase.functions.invoke('fetch-meta-audiences', {
+          body: { adAccountId }
+        });
+        if (error) throw error;
+        audiences = Array.isArray(data) ? data : [];
+      }
 
       // Group by source
       const grouped = audiences.reduce((acc: Record<string, FetchedAudience[]>, audience: any) => {
