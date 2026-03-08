@@ -166,23 +166,50 @@ export function KeywordTargeting({
         {/* Selected Keywords */}
         {selectedKeywords.length > 0 && (
           <div>
-            <p className="text-sm font-medium mb-2">
-              Selected Keywords ({selectedKeywords.length})
-            </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium">
+                Selected Keywords ({selectedKeywords.length})
+              </p>
+              <div className="flex gap-3 text-xs text-muted-foreground">
+                <span>
+                  Total Vol: <span className="font-semibold text-foreground">{formatSearchVolume(totalSearchVolume)}</span>
+                </span>
+                <span>
+                  Avg Vol: <span className="font-semibold text-foreground">{formatSearchVolume(avgSearchVolume)}</span>
+                </span>
+              </div>
+            </div>
+            <div className="space-y-1.5">
               {selectedKeywords.map((kw) => (
-                <Badge
+                <div
                   key={kw.id}
-                  variant="secondary"
-                  className="flex items-center gap-1 cursor-pointer hover:bg-destructive/20"
-                  onClick={() => handleRemove(kw)}
+                  className="flex items-center justify-between p-2 rounded-md border border-border bg-muted/30 hover:bg-destructive/10 group"
                 >
-                  {kw.name}
-                  <span className="text-[10px] opacity-60">
-                    ({kw.platform === "google" ? "G" : "TT"})
-                  </span>
-                  <X className="h-3 w-3 ml-1" />
-                </Badge>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-sm font-medium truncate">{kw.name}</span>
+                    <Badge variant="outline" className={`text-[10px] shrink-0 ${getPlatformColor(kw.platform)}`}>
+                      {kw.platform === "google" ? "G" : "TT"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatSearchVolume(kw.avgMonthlySearches)}/mo
+                    </span>
+                    {kw.competition && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {kw.competition}
+                      </Badge>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 opacity-50 group-hover:opacity-100"
+                      onClick={() => handleRemove(kw)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
