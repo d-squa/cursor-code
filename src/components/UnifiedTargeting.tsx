@@ -89,6 +89,8 @@ interface UnifiedTargetingProps {
   platformName?: string;
   // NEW: All selected platforms for per-platform configuration
   selectedPlatforms?: PlatformInfo[];
+  // When true, skip writing to localStorage (used for phase override targeting)
+  skipLocalStorage?: boolean;
 }
 
 export function UnifiedTargeting({ 
@@ -102,6 +104,7 @@ export function UnifiedTargeting({
   platformId = 'meta',
   platformName = 'Meta',
   selectedPlatforms,
+  skipLocalStorage = false,
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -131,11 +134,17 @@ export function UnifiedTargeting({
   // Ensure selectedItems is always an array
   const selectedItems = Array.isArray(targeting.selectedItems) ? targeting.selectedItems : [];
 
+  // Helper to persist to localStorage only for Step 2 basic targeting, not phase overrides
+  const persistToLocalStorage = (updated: UnifiedTargetingConfig) => {
+    if (!skipLocalStorage) {
+      localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    }
+  };
+
   const updateField = (field: keyof UnifiedTargetingConfig, value: any) => {
     const updated = { ...targeting, selectedItems, [field]: value };
     onUpdate(updated);
-    // Persist immediately to localStorage
-    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    persistToLocalStorage(updated);
   };
 
   const handleSearch = async () => {
@@ -196,7 +205,7 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    persistToLocalStorage(updated);
     toast.success(`Added: ${item.name}`);
   };
 
@@ -214,7 +223,7 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    persistToLocalStorage(updated);
     toast.success(`Added ${newItems.length} targeting options`);
   };
 
@@ -226,7 +235,7 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    persistToLocalStorage(updated);
   };
 
   const getPlatformBadge = (platforms: ('meta' | 'tiktok' | 'google')[]) => {
@@ -537,7 +546,7 @@ export function UnifiedTargeting({
                 defaultAdSetSplitUseCBO: useCBO,
               };
               onUpdate(updated);
-              localStorage.setItem('basicTargeting', JSON.stringify(updated));
+              persistToLocalStorage(updated);
             };
             
             // Handler for dimension selection - shows CBO/ABO dialog first
@@ -613,7 +622,7 @@ export function UnifiedTargeting({
                           defaultAdSets: adSets,
                         };
                         onUpdate(updated);
-                        localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                        persistToLocalStorage(updated);
                       }}
                       onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
                       adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
@@ -704,7 +713,7 @@ export function UnifiedTargeting({
                               defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
                             };
                             onUpdate(updated);
-                            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                            persistToLocalStorage(updated);
                           }}
                           onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
                           adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
@@ -771,7 +780,7 @@ export function UnifiedTargeting({
               defaultAdSetSplitUseCBO: true,
             };
             onUpdate(updated);
-            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+            persistToLocalStorage(updated);
           }
           setPendingSplitSelection(null);
         }}
@@ -807,7 +816,7 @@ export function UnifiedTargeting({
               defaultAdSetSplitUseCBO: false,
             };
             onUpdate(updated);
-            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+            persistToLocalStorage(updated);
           }
           setPendingSplitSelection(null);
         }}
