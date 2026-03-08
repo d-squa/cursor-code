@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink, Lock, Info } from "lucide-react";
+import { Plus, X, GripVertical, Link2, ChevronDown, ChevronRight, Copy, Trash2, ExternalLink, Lock, Info, Search, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
@@ -1649,6 +1649,17 @@ export function PhaseScheduler({
             const phaseDays = phase.startDate && phase.endDate ? 
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
             const availableObjectives = getAvailableObjectives();
+            const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+            const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
+            const phaseKeywords = isGoogleSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
+            const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
+            const keywordStrategyGroups = isGoogleSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
+              const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
+              const positives = kws.filter(kw => !kw.isNegative);
+              const negatives = kws.filter(kw => kw.isNegative);
+              const totalVol = positives.reduce((s, kw) => s + (kw.avgMonthlySearches || 0), 0);
+              return { strategy, positives, negatives, totalVol, count: positives.length + negatives.length };
+            }).filter(g => g.count > 0) : [];
             
             return (
               <Collapsible
@@ -1679,6 +1690,12 @@ export function PhaseScheduler({
                           <Badge variant="secondary" className="text-xs">
                             {phase.budgetPercentage}% budget
                           </Badge>
+                          {isGoogleSearchPhase && phaseSearchVolume > 0 && (
+                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                              <Search className="h-3 w-3 mr-1" />
+                              {phaseSearchVolume >= 1_000_000 ? `${(phaseSearchVolume / 1_000_000).toFixed(1)}M` : phaseSearchVolume >= 1_000 ? `${(phaseSearchVolume / 1_000).toFixed(1)}K` : phaseSearchVolume} vol/mo
+                            </Badge>
+                          )}
                           {adAccountId && (
                             <PhaseTaxonomyPreview
                               adAccountId={adAccountId}
@@ -1756,6 +1773,57 @@ export function PhaseScheduler({
                       </CollapsibleTrigger>
                     </div>
                   </div>
+
+                  {/* Keyword Strategy Sub-rows for Google Search phases */}
+                  {isGoogleSearchPhase && keywordStrategyGroups.length > 0 && (
+                    <div className="border-t bg-muted/10">
+                      {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol }) => {
+                        const strategyConfig: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
+                          brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" />, colorClass: "text-blue-700 dark:text-blue-400" },
+                          generic: { label: "Generic", icon: <Target className="h-3 w-3" />, colorClass: "text-emerald-700 dark:text-emerald-400" },
+                          competition: { label: "Competition", icon: <Swords className="h-3 w-3" />, colorClass: "text-amber-700 dark:text-amber-400" },
+                        };
+                        const meta = strategyConfig[strategy];
+                        const formatVol = (vol: number) => {
+                          if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
+                          if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`;
+                          return String(vol);
+                        };
+                        return (
+                          <div key={strategy} className="flex items-center gap-3 px-4 py-2 border-b last:border-b-0">
+                            <div className="w-3" />
+                            <div className={`flex items-center gap-1.5 ${meta.colorClass}`}>
+                              {meta.icon}
+                              <span className="text-xs font-medium">{meta.label}</span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px]">
+                              {positives.length} keyword{positives.length !== 1 ? 's' : ''}
+                            </Badge>
+                            {negatives.length > 0 && (
+                              <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">
+                                <Ban className="h-2.5 w-2.5 mr-0.5" />{negatives.length} neg
+                              </Badge>
+                            )}
+                            {totalVol > 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                                <Search className="h-2.5 w-2.5 mr-0.5" />{formatVol(totalVol)} vol/mo
+                              </Badge>
+                            )}
+                            <div className="ml-auto flex gap-1">
+                              {positives.slice(0, 3).map(kw => (
+                                <Badge key={kw.id} variant="secondary" className="text-[9px]">
+                                  {kw.name}
+                                </Badge>
+                              ))}
+                              {positives.length > 3 && (
+                                <span className="text-[9px] text-muted-foreground">+{positives.length - 3}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
