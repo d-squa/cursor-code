@@ -1690,6 +1690,12 @@ export function PhaseScheduler({
                           <Badge variant="secondary" className="text-xs">
                             {phase.budgetPercentage}% budget
                           </Badge>
+                          {isGoogleSearchPhase && phaseSearchVolume > 0 && (
+                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                              <Search className="h-3 w-3 mr-1" />
+                              {phaseSearchVolume >= 1_000_000 ? `${(phaseSearchVolume / 1_000_000).toFixed(1)}M` : phaseSearchVolume >= 1_000 ? `${(phaseSearchVolume / 1_000).toFixed(1)}K` : phaseSearchVolume} vol/mo
+                            </Badge>
+                          )}
                           {adAccountId && (
                             <PhaseTaxonomyPreview
                               adAccountId={adAccountId}
