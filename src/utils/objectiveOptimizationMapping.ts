@@ -432,12 +432,15 @@ export const GOOGLE_ADS_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
 /**
  * Get all objectives for a platform
  */
-export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat"): ObjectiveMapping[] {
+export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat" | "google"): ObjectiveMapping[] {
   if (platform === "meta") {
     return [...META_OBJECTIVE_MAPPING, ...META_LEGACY_OBJECTIVES];
   }
   if (platform === "snapchat") {
     return SNAPCHAT_OBJECTIVE_MAPPING;
+  }
+  if (platform === "google") {
+    return GOOGLE_ADS_OBJECTIVE_MAPPING;
   }
   return TIKTOK_OBJECTIVE_MAPPING;
 }
