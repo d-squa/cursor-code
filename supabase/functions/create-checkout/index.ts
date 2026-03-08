@@ -408,7 +408,7 @@ serve(async (req) => {
             },
           },
           success_url: successUrl,
-          cancel_url: `${origin}/settings/plans?canceled=true`,
+          cancel_url: `${origin}/choose-plan?canceled=true`,
         });
 
         logStep("Plan change checkout session created", {
