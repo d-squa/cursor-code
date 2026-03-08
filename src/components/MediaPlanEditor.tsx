@@ -274,14 +274,16 @@ export function MediaPlanEditor() {
       return;
     }
 
-    // Fetch all ad accounts linked to this client for Meta and TikTok
-    const [metaAccountsResult, tiktokAccountsResult] = await Promise.all([
+    // Fetch all ad accounts linked to this client for Meta, TikTok, and Google Ads
+    const [metaAccountsResult, tiktokAccountsResult, googleAccountsResult] = await Promise.all([
       supabase.from("meta_ad_accounts").select("*").eq("client_id", selectedClientId),
       supabase.from("tiktok_ad_accounts").select("*").eq("client_id", selectedClientId),
+      supabase.from("google_ad_accounts").select("*").eq("client_id", selectedClientId),
     ]);
 
     const metaAdAccounts = metaAccountsResult.data || [];
     const tiktokAdAccounts = tiktokAccountsResult.data || [];
+    const googleAdAccounts = googleAccountsResult.data || [];
 
     console.log("📦 Meta ad accounts for client:", metaAdAccounts);
     console.log("📦 TikTok ad accounts for client:", tiktokAdAccounts);
