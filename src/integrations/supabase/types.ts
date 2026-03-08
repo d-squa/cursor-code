@@ -1666,6 +1666,89 @@ export type Database = {
           },
         ]
       }
+      google_ad_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_status: string | null
+          client_id: string | null
+          created_at: string | null
+          currency: string | null
+          customer_id: string
+          descriptive_name: string | null
+          id: string
+          manager_customer_id: string | null
+          platform_id: string | null
+          team_id: string | null
+          timezone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          account_status?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          customer_id: string
+          descriptive_name?: string | null
+          id?: string
+          manager_customer_id?: string | null
+          platform_id?: string | null
+          team_id?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_status?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          customer_id?: string
+          descriptive_name?: string | null
+          id?: string
+          manager_customer_id?: string | null
+          platform_id?: string | null
+          team_id?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ad_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ad_accounts_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ad_accounts_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ad_accounts_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null

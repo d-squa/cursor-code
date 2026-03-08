@@ -43,5 +43,13 @@ export const PLATFORM_CONFIG = {
     tokenEndpoint: "https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/",
     apiVersion: "v1.3",
     responseType: "code"
+  },
+  google: {
+    clientId: import.meta.env.VITE_GOOGLE_ADS_CLIENT_ID || "",
+    oauthScopes: "https://www.googleapis.com/auth/adwords openid email profile",
+    authEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenEndpoint: "https://oauth2.googleapis.com/token",
+    apiVersion: "v18",
+    responseType: "code"
   }
 } as const;
