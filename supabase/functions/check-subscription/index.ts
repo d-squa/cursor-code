@@ -95,8 +95,8 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // STRICT: Only use billing_customers mapping - no email-based lookup
-    // This prevents cross-account subscription leakage
+    // Look up Stripe customer ID from billing_customers mapping
+    // If not found, fallback to Stripe email search and auto-create the mapping
     const getCustomerIdFromMapping = async (userId: string): Promise<string | null> => {
       const { data: billingCustomer, error } = await supabaseClient
         .from("billing_customers")
@@ -104,16 +104,51 @@ serve(async (req) => {
         .eq("user_id", userId)
         .single();
 
-      if (error || !billingCustomer) {
-        logStep("No billing_customers mapping found for user", { userId });
+      if (!error && billingCustomer) {
+        logStep("Found billing_customers mapping", {
+          userId,
+          stripeCustomerId: billingCustomer.stripe_customer_id,
+        });
+        return billingCustomer.stripe_customer_id;
+      }
+
+      // No mapping found — attempt self-heal by searching Stripe by email
+      logStep("No billing_customers mapping found, attempting email-based self-heal", { userId });
+
+      // Get user email from profiles
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("email")
+        .eq("id", userId)
+        .single();
+
+      if (!profile?.email) {
+        logStep("No profile/email found for user, cannot self-heal", { userId });
         return null;
       }
 
-      logStep("Found billing_customers mapping", {
+      // Search Stripe for customers with this email
+      const customers = await stripe.customers.list({ email: profile.email, limit: 1 });
+      if (customers.data.length === 0) {
+        logStep("No Stripe customer found for email", { email: profile.email });
+        return null;
+      }
+
+      const stripeCustomerId = customers.data[0].id;
+      logStep("Found Stripe customer by email, creating billing_customers mapping", {
         userId,
-        stripeCustomerId: billingCustomer.stripe_customer_id,
+        stripeCustomerId,
+        email: profile.email,
       });
-      return billingCustomer.stripe_customer_id;
+
+      // Auto-create the mapping (service role client bypasses RLS)
+      await supabaseClient.from("billing_customers").upsert({
+        user_id: userId,
+        email: profile.email,
+        stripe_customer_id: stripeCustomerId,
+      }, { onConflict: "user_id" });
+
+      return stripeCustomerId;
     };
 
     // Determine if we're checking personal workspace or a team workspace
