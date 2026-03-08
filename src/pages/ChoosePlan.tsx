@@ -106,10 +106,55 @@ const plans = [
 
 export default function ChoosePlan() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading, signOut, isEmailConfirmed } = useAuth();
-  const { isSubscribed, loading: subLoading } = useSubscription();
+  const { isSubscribed, loading: subLoading, refetch } = useSubscription();
   const [isYearly, setIsYearly] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+  // Handle successful checkout redirect
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      setCheckoutSuccess(true);
+      const planName = searchParams.get("plan_name") || "your plan";
+      const isTrial = searchParams.get("is_trial") === "true";
+
+      // Fire conversion tracking
+      fireSubscribeConversion({
+        planName,
+        priceId: searchParams.get("stripe_price_id") || "",
+        billingCycle: searchParams.get("billing_cycle") || "",
+        price: searchParams.get("price") || "",
+        currency: searchParams.get("currency") || "USD",
+        isTrial,
+      });
+
+      // Poll subscription status and redirect when ready
+      const pollInterval = setInterval(async () => {
+        await refetch({ force: true, showLoading: false });
+      }, 3000);
+
+      // Auto-redirect after max 15 seconds regardless
+      const timeout = setTimeout(() => {
+        clearInterval(pollInterval);
+        navigate("/overview");
+      }, 15000);
+
+      return () => {
+        clearInterval(pollInterval);
+        clearTimeout(timeout);
+      };
+    }
+  }, [searchParams]);
+
+  // Redirect to overview once subscription is confirmed after checkout
+  useEffect(() => {
+    if (checkoutSuccess && isSubscribed) {
+      toast.success("Welcome! Your subscription is now active.");
+      navigate("/overview");
+    }
+  }, [checkoutSuccess, isSubscribed, navigate]);
 
   useEffect(() => {
     // Redirect to auth if not logged in
