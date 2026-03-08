@@ -152,10 +152,25 @@ function getAutoDetectStrategyId(
   adFormats: string[],
   hasPixel: boolean,
   hasCatalog: boolean,
-  platform: string
+  platform: string,
+  hasKeywords: boolean = false
 ): string {
-  const normalizedPlatform = platform.toLowerCase().includes("tiktok") ? "tiktok" : "meta";
+  const p = platform.toLowerCase();
+  const normalizedPlatform = p.includes("tiktok") ? "tiktok" : p.includes("google") ? "google" : "meta";
   const formatString = adFormats.join(" ").toLowerCase();
+
+  // ── Google Ads ──
+  if (normalizedPlatform === "google") {
+    if (formatString.includes("app")) return "google-app-growth-base";
+    if (formatString.includes("shopping") || formatString.includes("product") || hasCatalog) return "google-shopping-base";
+    if (formatString.includes("video") || formatString.includes("in-stream") || formatString.includes("shorts") || formatString.includes("bumper")) return "google-video-awareness-base";
+    if (formatString.includes("demand gen") || formatString.includes("carousel") || formatString.includes("single image")) return "google-demand-gen-base";
+    if (formatString.includes("asset group") || formatString.includes("performance max")) return "google-pmax-full-funnel-base";
+    // Keywords present → must include Search
+    if (hasKeywords || formatString.includes("search") || formatString.includes("responsive search")) return "google-search-conversions-base";
+    // Default: PMax full funnel (includes a Search phase)
+    return "google-pmax-full-funnel-base";
+  }
 
   if (normalizedPlatform === "tiktok") {
     if (formatString.includes("lead") || formatString.includes("instant form")) {
