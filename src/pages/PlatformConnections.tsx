@@ -70,6 +70,21 @@ interface TikTokAdAccount {
   } | null;
 }
 
+interface GoogleAdAccount {
+  id: string;
+  account_id: string;
+  account_name: string;
+  customer_id: string;
+  account_status: string | null;
+  client_id: string | null;
+  currency?: string | null;
+  timezone?: string | null;
+  clients?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
 interface ConnectedPlatform {
   id: string;
   platform_type: string;
