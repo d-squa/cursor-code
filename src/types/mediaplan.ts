@@ -327,6 +327,31 @@ export interface Phase {
   snapchatFrequencyCap?: number; // Frequency cap (impressions per day)
   snapchatPlacementType?: string; // AUTOMATIC or MANUAL
   snapchatPlacements?: string[]; // Manual placement selections
+  // Google Ads-specific fields at phase level
+  googleCampaignType?: string; // Display, Search, Performance Max, Video, App Promotion, Demand Gen, Shopping
+  googleCampaignSubtype?: string; // Efficient Reach, Non-skippable Reach, Target Frequency, Ad Sequence, etc.
+  googleBidStrategy?: string; // Maximize Conversions, Target CPA, Target ROAS, Manual CPC, etc.
+  googleTargetCpa?: number; // Target CPA amount
+  googleTargetRoas?: number; // Target ROAS percentage
+  googleMaxCpcBid?: number; // Max CPC bid
+  googleLandingPageUrl?: string; // Landing page URL
+  googleConversionAction?: string; // Conversion action
+  googleSearchPartner?: boolean; // Include Search Partners
+  googleDisplayNetwork?: boolean; // Include Display Network
+  googleInventoryType?: string; // Expanded, Standard, Limited (Video only)
+  googleCustomerAcquisition?: string; // "New Customers Only" or "Everyone"
+  googleProductFeed?: boolean; // Product feed enabled
+  googleOptimizedTargeting?: boolean; // Optimized targeting
+  googleAiMax?: boolean; // AI maximization
+  googleAiMaxOptions?: string[]; // Text customization, Final URL expansion
+  googleAppPlatform?: string; // iOS, Android (App Promotion only)
+  googleAppId?: string; // App ID
+  googleExclude?: boolean; // Exclusion enabled
+  googleDemographics?: string[]; // Gender, Age, Parental Status, Household Income
+  googleTopics?: boolean; // Topics targeting
+  googlePlacements?: string[]; // Websites, YouTube Channels, YouTube Videos, Apps, App Categories
+  googleKeywords?: string[]; // Keywords
+  googleSearchThemes?: string[]; // Search themes (PMax)
 }
 
 export interface Campaign {
