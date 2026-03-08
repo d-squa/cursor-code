@@ -352,7 +352,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       return;
     }
     
-    if (!metaAdAccountId && !tiktokAdvertiserId) {
+    if (!metaAdAccountId && !tiktokAdvertiserId && !googleCustomerId) {
       toast.error('At least one ad account must be selected');
       return;
     }
