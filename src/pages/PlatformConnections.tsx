@@ -556,6 +556,43 @@ export default function PlatformConnections() {
         console.error("Error connecting to Google Ads:", error);
         toast.error(error.message || "Failed to connect to Google Ads");
       }
+    } else if (platformType === "snapchat") {
+      try {
+        const redirectUri = OAUTH_REDIRECT_URI;
+        const clientId = PLATFORM_CONFIG.snapchat.clientId;
+
+        console.log("Snapchat OAuth - Client ID:", clientId ? "Configured" : "Missing");
+
+        if (!clientId) {
+          toast.error("Snapchat Client ID not configured. Please contact support.");
+          return;
+        }
+
+        if (platformId) {
+          sessionStorage.setItem("reconnecting_platform_id", platformId);
+          sessionStorage.setItem("reconnecting_platform_type", "snapchat");
+        }
+
+        const oauthParams = new URLSearchParams({
+          response_type: "code",
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope: PLATFORM_CONFIG.snapchat.oauthScopes,
+          state: "snapchat",
+        });
+
+        const oauthUrl = `${PLATFORM_CONFIG.snapchat.authEndpoint}?${oauthParams.toString()}`;
+
+        console.log("Snapchat OAuth - Redirecting...");
+        toast.loading("Redirecting to Snapchat...");
+
+        setTimeout(() => {
+          window.location.href = oauthUrl;
+        }, 100);
+      } catch (error: any) {
+        console.error("Error connecting to Snapchat:", error);
+        toast.error(error.message || "Failed to connect to Snapchat");
+      }
     } else {
       toast.error("This platform is not yet supported");
     }
