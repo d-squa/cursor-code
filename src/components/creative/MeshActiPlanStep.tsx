@@ -18,9 +18,9 @@ interface Campaign {
 interface MeshActiPlanStepProps {
   initialCampaignId?: string;
   onSelect: (campaignId: string, campaignName: string, platforms: string[]) => void;
-  onPlatformSelect: (platform: 'meta' | 'tiktok') => void;
+  onPlatformSelect: (platform: 'meta' | 'tiktok' | 'google') => void;
   selectedCampaignId?: string;
-  selectedPlatform?: 'meta' | 'tiktok';
+  selectedPlatform?: 'meta' | 'tiktok' | 'google';
 }
 
 export function MeshActiPlanStep({
