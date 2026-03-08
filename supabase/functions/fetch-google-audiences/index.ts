@@ -52,9 +52,9 @@ serve(async (req) => {
       .from('connected_platforms')
       .select('id')
       .eq('user_id', user.id)
-      .eq('platform_type', 'google_ads')
+      .eq('platform_type', 'google')
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (platformError || !platformData) {
       console.error('Platform error:', platformError);
