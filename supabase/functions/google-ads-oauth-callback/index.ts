@@ -74,11 +74,6 @@ async function fetchGoogleAdsAccounts(
         "Content-Type": "application/json",
       };
 
-      // Use the customer itself as login-customer-id for the query
-      if (loginCustomerId) {
-        queryHeaders["login-customer-id"] = loginCustomerId.replace(/-/g, "");
-      }
-
       const query = `
         SELECT
           customer.id,
