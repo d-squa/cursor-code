@@ -52,26 +52,30 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
   // Auto-set campaign type from objective when not manually set
   useEffect(() => {
     if (phase.googleCampaignType || !phase.objective) return;
-    const objectiveToType: Record<string, string> = {
-      AWARENESS_DISPLAY: "Display",
-      AWARENESS_VIDEO_EFFICIENT_REACH: "Video",
-      AWARENESS_VIDEO_NON_SKIPPABLE: "Video",
-      AWARENESS_VIDEO_TARGET_FREQUENCY: "Video",
-      AWARENESS_AD_SEQUENCE: "Video",
-      AWARENESS_VIDEO_VIEWS: "Video",
-      AWARENESS_AUDIO_REACH: "Video",
-      CONVERSION_SEARCH: "Search",
-      CONSIDERATION_PMAX: "Performance Max",
-      CONSIDERATION_APP_INSTALLS: "App Promotion",
-      CONSIDERATION_APP_ENGAGEMENT: "App Promotion",
-      CONSIDERATION_APP_PRE_REGISTRATION: "App Promotion",
-      CONSIDERATION_DEMAND_GEN: "Demand Gen",
-      CONVERSION_SHOPPING: "Shopping",
+    const objectiveToTypeAndSubtype: Record<string, { type: string; subtype?: string }> = {
+      AWARENESS_DISPLAY: { type: "Display" },
+      AWARENESS_VIDEO_EFFICIENT_REACH: { type: "Video", subtype: "Efficient Reach" },
+      AWARENESS_VIDEO_NON_SKIPPABLE: { type: "Video", subtype: "Non-skippable Reach" },
+      AWARENESS_VIDEO_TARGET_FREQUENCY: { type: "Video", subtype: "Target Frequency" },
+      AWARENESS_AD_SEQUENCE: { type: "Video", subtype: "Ad Sequence" },
+      AWARENESS_VIDEO_VIEWS: { type: "Video", subtype: "Video Views" },
+      AWARENESS_AUDIO_REACH: { type: "Video", subtype: "Audio Reach" },
+      CONVERSION_SEARCH: { type: "Search" },
+      CONSIDERATION_PMAX: { type: "Performance Max" },
+      CONSIDERATION_APP_INSTALLS: { type: "App Promotion", subtype: "App Installs" },
+      CONSIDERATION_APP_ENGAGEMENT: { type: "App Promotion", subtype: "App Engagement" },
+      CONSIDERATION_APP_PRE_REGISTRATION: { type: "App Promotion", subtype: "App Pre-registration" },
+      CONSIDERATION_DEMAND_GEN: { type: "Demand Gen" },
+      CONVERSION_SHOPPING: { type: "Shopping" },
     };
-    const mapped = objectiveToType[phase.objective];
-    if (mapped && campaignTypes.includes(mapped)) {
-      onUpdate("googleCampaignType", mapped);
-      const newConfig = getGoogleAdsCampaignConfig(mapped);
+    const mapping = objectiveToTypeAndSubtype[phase.objective];
+    if (mapping && campaignTypes.includes(mapping.type)) {
+      onUpdate("googleCampaignType", mapping.type);
+      const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
+      if (mapping.subtype && availableSubtypes.includes(mapping.subtype)) {
+        onUpdate("googleCampaignSubtype", mapping.subtype);
+      }
+      const newConfig = getGoogleAdsCampaignConfig(mapping.type, mapping.subtype);
       if (newConfig?.bidStrategies?.length) {
         onUpdate("googleBidStrategy", newConfig.bidStrategies[0]);
       }
