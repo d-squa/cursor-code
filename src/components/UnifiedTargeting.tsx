@@ -21,10 +21,11 @@ export interface UnifiedTargetingItem {
   id: string;
   name: string;
   description?: string;
-  category: 'interest' | 'behavior' | 'demographic';
-  platforms: ('meta' | 'tiktok')[];
+  category: 'interest' | 'behavior' | 'demographic' | 'keyword' | 'location' | 'topic';
+  platforms: ('meta' | 'tiktok' | 'google')[];
   metaId?: string;
   tiktokId?: string;
+  googleId?: string;
 }
 
 import { AdSetConfig } from "@/types/mediaplan";
@@ -218,14 +219,20 @@ export function UnifiedTargeting({
     localStorage.setItem('basicTargeting', JSON.stringify(updated));
   };
 
-  const getPlatformBadge = (platforms: ('meta' | 'tiktok')[]) => {
+  const getPlatformBadge = (platforms: ('meta' | 'tiktok' | 'google')[]) => {
+    if (platforms.length >= 3) {
+      return <Badge variant="secondary" className="ml-2">All</Badge>;
+    }
     if (platforms.length === 2) {
-      return <Badge variant="secondary" className="ml-2">Both</Badge>;
+      return <Badge variant="secondary" className="ml-2">{platforms.map(p => p === 'meta' ? 'Meta' : p === 'tiktok' ? 'TikTok' : 'Google').join(' + ')}</Badge>;
     }
     if (platforms.includes('meta')) {
-      return <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-700 border-blue-200">Meta</Badge>;
+      return <Badge variant="outline" className="ml-2 border-blue-200">Meta</Badge>;
     }
-    return <Badge variant="outline" className="ml-2 bg-pink-50 text-pink-700 border-pink-200">TikTok</Badge>;
+    if (platforms.includes('google')) {
+      return <Badge variant="outline" className="ml-2 border-green-200">Google</Badge>;
+    }
+    return <Badge variant="outline" className="ml-2 border-pink-200">TikTok</Badge>;
   };
 
   return (
