@@ -546,7 +546,7 @@ export function UnifiedTargeting({
                 defaultAdSetSplitUseCBO: useCBO,
               };
               onUpdate(updated);
-              localStorage.setItem('basicTargeting', JSON.stringify(updated));
+              persistToLocalStorage(updated);
             };
             
             // Handler for dimension selection - shows CBO/ABO dialog first
