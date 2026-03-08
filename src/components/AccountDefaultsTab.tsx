@@ -894,7 +894,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     );
   }
 
-  if (adAccounts.length === 0) {
+  if (adAccounts.length === 0 && googleAdAccounts.length === 0) {
     return (
       <Card className="p-8">
         <p className="text-muted-foreground text-center">
