@@ -19,6 +19,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
