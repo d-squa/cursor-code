@@ -1223,9 +1223,13 @@ export function MediaPlanEditor() {
                   metaLandingPageUrl: (m as any).metaLandingPageUrl,
                   metaPublisherPlatforms: m.metaPublisherPlatforms || m.publisherPlatforms,
                   metaPositions: m.metaPositions || m.positions,
-                  // Google Ads fields
-                  googleObjective: m.googleObjective,
-                  googleLandingPageUrl: m.googleLandingPageUrl,
+                   // Google Ads fields
+                   googleObjective: m.googleObjective,
+                   googleLandingPageUrl: m.googleLandingPageUrl,
+                   googleBidStrategy: m.googleBidStrategy,
+                   googleTargetCpa: m.googleTargetCpa,
+                   googleTargetRoas: m.googleTargetRoas,
+                   googleMaxCpcBid: m.googleMaxCpcBid,
                 })),
               };
             }, {}),
