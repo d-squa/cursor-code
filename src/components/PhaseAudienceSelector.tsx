@@ -100,7 +100,7 @@ export function PhaseAudienceSelector({
 
   const getAudienceGroupType = (aud: FetchedAudience): Exclude<AudienceGroupType, "Detailed Targeting"> => {
     if (aud.source === "Saved Audience") return "Saved Audience";
-    if (aud.subtype?.toUpperCase() === "LOOKALIKE" || aud.source === "Lookalikes") return "Lookalike Audience";
+    if (aud.subtype?.toUpperCase() === "LOOKALIKE" || aud.subtype?.toUpperCase() === "SIMILAR" || aud.source === "Lookalikes" || aud.source === "Lookalike Audience") return "Lookalike Audience";
     return "Custom Audience";
   };
 
