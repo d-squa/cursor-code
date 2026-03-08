@@ -1675,10 +1675,15 @@ export type Database = {
           created_at: string | null
           currency: string | null
           customer_id: string
+          default_bid_strategy: string | null
           default_conversion_budget_type: string | null
           default_feed_label: string | null
+          default_landing_page_url: string | null
+          default_max_cpc_bid: number | null
           default_merchant_center_id: string | null
           default_non_conversion_budget_type: string | null
+          default_target_cpa: number | null
+          default_target_roas: number | null
           descriptive_name: string | null
           id: string
           manager_customer_id: string | null
@@ -1696,10 +1701,15 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           customer_id: string
+          default_bid_strategy?: string | null
           default_conversion_budget_type?: string | null
           default_feed_label?: string | null
+          default_landing_page_url?: string | null
+          default_max_cpc_bid?: number | null
           default_merchant_center_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_target_cpa?: number | null
+          default_target_roas?: number | null
           descriptive_name?: string | null
           id?: string
           manager_customer_id?: string | null
@@ -1717,10 +1727,15 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           customer_id?: string
+          default_bid_strategy?: string | null
           default_conversion_budget_type?: string | null
           default_feed_label?: string | null
+          default_landing_page_url?: string | null
+          default_max_cpc_bid?: number | null
           default_merchant_center_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_target_cpa?: number | null
+          default_target_roas?: number | null
           descriptive_name?: string | null
           id?: string
           manager_customer_id?: string | null
