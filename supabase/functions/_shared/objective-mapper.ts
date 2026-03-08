@@ -155,6 +155,65 @@ export class ObjectiveMapper {
       };
     }
 
+    if (targetPlatform.toLowerCase() === "google" || targetPlatform.toLowerCase() === "google_ads") {
+      // Meta/TikTok -> Google Ads fallback mappings
+      if (upper.includes("AWARENESS") || upper.includes("REACH")) {
+        return {
+          sourceObjective: upper,
+          targetObjective: "AWARENESS",
+          targetPlatform: "google",
+          notes: "Fallback: awareness/reach → Display/Video awareness",
+        };
+      }
+      if (upper.includes("TRAFFIC") || upper.includes("LINK") || upper.includes("CLICK")) {
+        return {
+          sourceObjective: upper,
+          targetObjective: "WEBSITE_TRAFFIC",
+          targetPlatform: "google",
+          notes: "Fallback: traffic/clicks → Search/Display traffic",
+        };
+      }
+      if (upper.includes("ENGAGEMENT") || upper.includes("VIDEO")) {
+        return {
+          sourceObjective: upper,
+          targetObjective: "CONSIDERATION",
+          targetPlatform: "google",
+          notes: "Fallback: engagement/video → Video consideration",
+        };
+      }
+      if (upper.includes("LEAD")) {
+        return {
+          sourceObjective: upper,
+          targetObjective: "LEADS",
+          targetPlatform: "google",
+          notes: "Fallback: leads → PMax/Search leads",
+        };
+      }
+      if (upper.includes("CONVERSION") || upper.includes("SALES") || upper.includes("PURCHASE")) {
+        return {
+          sourceObjective: upper,
+          targetObjective: "SALES",
+          targetPlatform: "google",
+          notes: "Fallback: conversions/sales → PMax/Search sales",
+        };
+      }
+      if (upper.includes("APP")) {
+        return {
+          sourceObjective: upper,
+          targetObjective: "APP_PROMOTION",
+          targetPlatform: "google",
+          notes: "Fallback: app promotion → UAC",
+        };
+      }
+
+      return {
+        sourceObjective: upper,
+        targetObjective: "WEBSITE_TRAFFIC",
+        targetPlatform: "google",
+        notes: "Default fallback to website traffic",
+      };
+    }
+
     // Default catch-all
     return {
       sourceObjective: upper,

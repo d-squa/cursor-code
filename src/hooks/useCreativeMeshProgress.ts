@@ -11,7 +11,7 @@ export type CreativeSource = 'upload' | 'page_assets' | 'ad_account_assets';
 export interface SelectedAsset {
   id: string;
   source: CreativeSource;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   assetType: 'image' | 'video';
   thumbnailUrl?: string;
   name?: string;
@@ -29,7 +29,7 @@ export interface SelectedAsset {
 export interface MeshProgress {
   campaignId: string;
   campaignName: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   currentStep: MeshStep;
   selectedAssets: SelectedAsset[];
   meshedCreativeIds: string[];
@@ -42,7 +42,7 @@ interface UseCreativeMeshProgressReturn {
   currentStep: MeshStep;
   // Step 1: ActiPlan & Platform
   selectActiPlan: (campaignId: string, campaignName: string, platforms: string[]) => void;
-  selectPlatform: (platform: 'meta' | 'tiktok') => void;
+  selectPlatform: (platform: 'meta' | 'tiktok' | 'google') => void;
   // Step 2: Creative Source
   addAsset: (asset: SelectedAsset) => void;
   removeAsset: (assetId: string) => void;
@@ -117,7 +117,7 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
     }
   }, []);
 
-  const selectPlatform = useCallback((platform: 'meta' | 'tiktok') => {
+  const selectPlatform = useCallback((platform: 'meta' | 'tiktok' | 'google') => {
     setProgress(prev => prev ? {
       ...prev,
       platform,

@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface OrganicPost {
   id: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   postId: string;
   pageId?: string;
   identityId?: string;
@@ -52,7 +52,7 @@ interface OrganicPost {
 }
 
 interface PageConfig {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   pageId?: string;
   identityId?: string;
   advertiserId?: string;
@@ -87,7 +87,7 @@ export function UnifiedPageAssetsLibrary({
   const [posts, setPosts] = useState<OrganicPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok' | 'google'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
   const [networkFilter, setNetworkFilter] = useState<'all' | 'facebook' | 'instagram'>('all');
 
