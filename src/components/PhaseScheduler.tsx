@@ -1917,6 +1917,11 @@ export function PhaseScheduler({
                                    // When enabling override, always initialize from basicTargeting (Step 2)
                                    // Always prefer basicTargeting values so the user sees their Step 2 settings
                                    if (basicTargeting) {
+                                     const filteredItems = basicTargeting.selectedItems ? 
+                                         filterItemsForPlatform(basicTargeting.selectedItems) : [];
+                                     // If platform filter removed all items, fall back to all items (platforms field may not be set)
+                                     const finalItems = filteredItems.length === 0 && basicTargeting.selectedItems?.length 
+                                       ? [...basicTargeting.selectedItems] : filteredItems;
                                      const phaseTargeting: UnifiedTargetingConfig = {
                                        ageMin: basicTargeting.ageMin,
                                        ageMax: basicTargeting.ageMax,
@@ -1924,13 +1929,18 @@ export function PhaseScheduler({
                                        devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
                                        os: basicTargeting.os ? [...basicTargeting.os] : [],
                                        languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
-                                       selectedItems: basicTargeting.selectedItems ? 
-                                         filterItemsForPlatform(basicTargeting.selectedItems) : [],
+                                       selectedItems: finalItems,
                                        selectedKeywords: basicTargeting.selectedKeywords ? [...basicTargeting.selectedKeywords] : [],
                                        useBroadTargeting: false,
                                        retargetingAudienceIds: basicTargeting.retargetingAudienceIds ? [...basicTargeting.retargetingAudienceIds] : [],
                                        lookalikeAudienceIds: basicTargeting.lookalikeAudienceIds ? [...basicTargeting.lookalikeAudienceIds] : [],
                                        customAudienceIds: basicTargeting.customAudienceIds ? [...basicTargeting.customAudienceIds] : [],
+                                       // Copy ad set split settings
+                                       defaultAdSetSplitDimension: basicTargeting.defaultAdSetSplitDimension,
+                                       defaultAdSetSplitDimensionPerPlatform: basicTargeting.defaultAdSetSplitDimensionPerPlatform ? { ...basicTargeting.defaultAdSetSplitDimensionPerPlatform } : undefined,
+                                       defaultAdSets: basicTargeting.defaultAdSets ? [...basicTargeting.defaultAdSets] : undefined,
+                                       defaultAdSetsPerPlatform: basicTargeting.defaultAdSetsPerPlatform ? { ...basicTargeting.defaultAdSetsPerPlatform } : undefined,
+                                       defaultAdSetSplitUseCBO: basicTargeting.defaultAdSetSplitUseCBO,
                                      };
                                      console.log('🔄 Setting override ON with targeting from basicTargeting:', phaseTargeting);
                                      updatePhaseFields(phase.id, { overrideTargeting: true, useBroadTargeting: false, targeting: phaseTargeting });
