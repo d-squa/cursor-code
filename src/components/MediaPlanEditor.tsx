@@ -1786,9 +1786,13 @@ export function MediaPlanEditor() {
                 tiktokProductSet: m.tiktokProductSet,
                 tiktokOptimizationEvent: m.tiktokOptimizationEvent,
                 tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-                // Google Ads fields
-                googleObjective: m.googleObjective,
-                googleLandingPageUrl: m.googleLandingPageUrl,
+                 // Google Ads fields
+                 googleObjective: m.googleObjective,
+                 googleLandingPageUrl: m.googleLandingPageUrl,
+                 googleBidStrategy: m.googleBidStrategy,
+                 googleTargetCpa: m.googleTargetCpa,
+                 googleTargetRoas: m.googleTargetRoas,
+                 googleMaxCpcBid: m.googleMaxCpcBid,
                 adFormats: m.adFormats,
                 phases: m.phases,
                 instagramActorId: m.instagramActorId,
