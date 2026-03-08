@@ -89,6 +89,8 @@ interface UnifiedTargetingProps {
   platformName?: string;
   // NEW: All selected platforms for per-platform configuration
   selectedPlatforms?: PlatformInfo[];
+  // When true, skip writing to localStorage (used for phase override targeting)
+  skipLocalStorage?: boolean;
 }
 
 export function UnifiedTargeting({ 

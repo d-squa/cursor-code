@@ -1874,21 +1874,22 @@ export function PhaseScheduler({
                                   items.filter(item => item.platforms?.includes(platformFilter));
                                 
                                 if (checked) {
-                                   // When enabling override, always initialize from latest basicTargeting
-                                   // Also turn off broad targeting
+                                   // When enabling override, always initialize from basicTargeting (Step 2)
+                                   // Always prefer basicTargeting values so the user sees their Step 2 settings
                                    if (basicTargeting) {
                                      const phaseTargeting: UnifiedTargetingConfig = {
-                                       ageMin: phase.targeting?.ageMin ?? basicTargeting.ageMin,
-                                       ageMax: phase.targeting?.ageMax ?? basicTargeting.ageMax,
-                                       genders: phase.targeting?.genders?.length ? [...phase.targeting.genders] : (basicTargeting.genders ? [...basicTargeting.genders] : []),
-                                       devices: phase.targeting?.devices?.length ? [...phase.targeting.devices] : (basicTargeting.devices ? [...basicTargeting.devices] : []),
-                                       os: phase.targeting?.os?.length ? [...phase.targeting.os] : (basicTargeting.os ? [...basicTargeting.os] : []),
-                                       languages: phase.targeting?.languages?.length ? [...phase.targeting.languages] : (basicTargeting.languages ? [...basicTargeting.languages] : []),
+                                       ageMin: basicTargeting.ageMin,
+                                       ageMax: basicTargeting.ageMax,
+                                       genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                       devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                       os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                       languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
                                        selectedItems: basicTargeting.selectedItems ? 
                                          filterItemsForPlatform(basicTargeting.selectedItems) : [],
+                                       selectedKeywords: basicTargeting.selectedKeywords ? [...basicTargeting.selectedKeywords] : [],
                                        useBroadTargeting: false,
                                      };
-                                     console.log('🔄 Setting override ON with targeting:', phaseTargeting);
+                                     console.log('🔄 Setting override ON with targeting from basicTargeting:', phaseTargeting);
                                      updatePhaseFields(phase.id, { overrideTargeting: true, useBroadTargeting: false, targeting: phaseTargeting });
                                    } else {
                                      console.log('🔄 Setting override ON (no basicTargeting available)');
