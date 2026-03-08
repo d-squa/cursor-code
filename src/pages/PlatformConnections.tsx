@@ -99,6 +99,7 @@ const PLATFORM_TYPES = [
   { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
   { id: "tiktok", name: "TikTok Ads", icon: Video, color: "bg-black" },
   { id: "google", name: "Google Ads", icon: Search, color: "bg-yellow-500" },
+  { id: "snapchat", name: "Snapchat Ads", icon: Video, color: "bg-yellow-400" },
 ];
 
 // IMPORTANT: Must exactly match the URL configured in Meta/TikTok/Google app settings.
