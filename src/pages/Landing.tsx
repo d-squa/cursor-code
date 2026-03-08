@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Autoplay from "embla-carousel-autoplay";
 import SEO from "@/components/SEO";
-import HeroVideoPlayer from "@/components/HeroVideoPlayer";
+import HeroVideoPlayer, { triggerHeroVideo } from "@/components/HeroVideoPlayer";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -420,6 +420,9 @@ const Landing = () => {
               </Button>
               <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")} data-gtm="hero-see-capabilities">
                 See Capabilities
+              </Button>
+              <Button size="lg" variant="ghost" onClick={triggerHeroVideo} className="gap-2" data-gtm="hero-watch-demo">
+                ▶ See How It Works
               </Button>
             </div>
             <ul className="flex flex-col sm:grid sm:grid-cols-2 gap-x-6 gap-y-2 max-w-lg mx-auto text-left mb-0 px-0 py-[20px]">
