@@ -4,8 +4,15 @@ export const platformIdToAdFormatKey: Record<string, string> = {
   "Meta": "Facebook (Meta)",
   "instagram": "Instagram (Meta)",
   "Instagram": "Instagram (Meta)",
-  "google": "YouTube (Google)",
-  "Google Ads": "YouTube (Google)",
+  "google": "Google Ads",
+  "Google Ads": "Google Ads",
+  "google_search": "Google Ads — Search",
+  "google_display": "Google Ads — Display",
+  "google_video": "Google Ads — Video",
+  "google_pmax": "Google Ads — Performance Max",
+  "google_demand_gen": "Google Ads — Demand Gen",
+  "google_shopping": "Google Ads — Shopping",
+  "google_app": "Google Ads — App Promotion",
   "x": "X (formerly Twitter)",
   "twitter": "X (formerly Twitter)",
   "linkedin": "LinkedIn",
@@ -91,6 +98,70 @@ export const platformAdFormats: Record<string, string[]> = {
     "Masthead",
     "Text Ads",
   ],
+  "Google Ads": [
+    // Search
+    "Responsive Search Ads",
+    "Text Ads",
+    // Display
+    "Responsive Display Ads",
+    "Uploaded Image Ads",
+    "HTML5 Ads",
+    // Video
+    "In-stream Ads (Bumper, Skippable)",
+    "Non-skippable In-stream Ads",
+    "In-feed Ads",
+    "Shorts Ads",
+    "Audio Ads",
+    // Demand Gen
+    "Single Image Ads",
+    "Video Ads",
+    "Carousel Ads",
+    "Product Ads",
+    // Shopping
+    "Product Shopping Ads",
+    "Showcase Shopping Ads",
+    // PMax
+    "Asset Groups (Auto-generated)",
+    // App
+    "App Install Ads (Auto-generated)",
+  ],
+  "Google Ads — Search": [
+    "Responsive Search Ads",
+    "Text Ads",
+  ],
+  "Google Ads — Display": [
+    "Responsive Display Ads",
+    "Uploaded Image Ads",
+    "HTML5 Ads",
+  ],
+  "Google Ads — Video": [
+    "In-stream Ads (Bumper, Skippable)",
+    "Non-skippable In-stream Ads",
+    "In-feed Ads",
+    "Shorts Ads",
+    "Multi-format Ads (Skippable In-stream, Bumper, In-feed, Shorts)",
+    "Audio Ads",
+    "Bumper Ads",
+    "Skippable In-stream Ads",
+  ],
+  "Google Ads — Performance Max": [
+    "Asset Groups (Auto-generated)",
+  ],
+  "Google Ads — Demand Gen": [
+    "Single Image Ads",
+    "Video Ads",
+    "Carousel Ads",
+    "Product Ads",
+  ],
+  "Google Ads — Shopping": [
+    "Product Shopping Ads",
+    "Showcase Shopping Ads",
+  ],
+  "Google Ads — App Promotion": [
+    "App Install Ads (Auto-generated)",
+    "App Engagement Ads (Auto-generated)",
+    "App Pre-registration Ads (Auto-generated)",
+  ],
 };
 
 // Ad format to funnel stage and objective mapping
@@ -169,6 +240,28 @@ export const adFormatMatrix: Record<string, Record<string, AdFormatMapping>> = {
     "Outstream ads": { funnelStage: "Awareness", objective: "Reach (Mobile)" },
     "Masthead": { funnelStage: "Awareness", objective: "Mass Reach / Product Launch" },
     "Text Ads": { funnelStage: "Conversion", objective: "Search-Based Action / Sales" },
+  },
+  "Google Ads": {
+    "Responsive Search Ads": { funnelStage: "Conversion", objective: "Search-Based Conversions" },
+    "Text Ads": { funnelStage: "Conversion", objective: "Search-Based Action / Sales" },
+    "Responsive Display Ads": { funnelStage: "Awareness", objective: "Reach / Display" },
+    "Uploaded Image Ads": { funnelStage: "Awareness", objective: "Display Awareness" },
+    "HTML5 Ads": { funnelStage: "Awareness", objective: "Interactive Display" },
+    "In-stream Ads (Bumper, Skippable)": { funnelStage: "Awareness", objective: "Video Reach" },
+    "Non-skippable In-stream Ads": { funnelStage: "Awareness", objective: "Guaranteed Reach" },
+    "In-feed Ads": { funnelStage: "Consideration", objective: "Engagement / Discovery" },
+    "Shorts Ads": { funnelStage: "Awareness", objective: "Short-form Reach" },
+    "Audio Ads": { funnelStage: "Awareness", objective: "Audio Reach" },
+    "Single Image Ads": { funnelStage: "Consideration", objective: "Demand Gen Traffic" },
+    "Video Ads": { funnelStage: "Consideration", objective: "Demand Gen Engagement" },
+    "Carousel Ads": { funnelStage: "Consideration", objective: "Demand Gen Discovery" },
+    "Product Ads": { funnelStage: "Conversion", objective: "Product Sales" },
+    "Product Shopping Ads": { funnelStage: "Conversion", objective: "Shopping Sales" },
+    "Showcase Shopping Ads": { funnelStage: "Consideration", objective: "Shopping Discovery" },
+    "Asset Groups (Auto-generated)": { funnelStage: "Consideration", objective: "PMax Multi-Channel" },
+    "App Install Ads (Auto-generated)": { funnelStage: "Consideration", objective: "App Installs" },
+    "App Engagement Ads (Auto-generated)": { funnelStage: "Consideration", objective: "App Engagement" },
+    "App Pre-registration Ads (Auto-generated)": { funnelStage: "Consideration", objective: "App Pre-registration" },
   },
 };
 

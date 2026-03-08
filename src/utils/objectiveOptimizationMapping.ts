@@ -289,18 +289,158 @@ export const SNAPCHAT_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
 ];
 
 // =============================================================================
+// GOOGLE ADS OBJECTIVE ↔ OPTIMIZATION GOAL (BID STRATEGY) MAPPING
+// Based on comprehensive Google Ads campaign type matrix
+// =============================================================================
+
+export const GOOGLE_ADS_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
+  {
+    value: "AWARENESS_DISPLAY",
+    label: "Awareness — Display",
+    optimizationGoals: [
+      { value: "VIEWABLE_IMPRESSIONS", label: "Viewable Impressions", billingEvent: "CPM" },
+      { value: "CPM", label: "CPM", billingEvent: "CPM" },
+      { value: "MAXIMIZE_CLICKS", label: "Maximize Clicks", billingEvent: "CPC" },
+      { value: "MAXIMUM_CPC", label: "Maximum CPC", billingEvent: "CPC" },
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "MAXIMIZE_CONVERSION_VALUE", label: "Maximize Conversion Value", billingEvent: "ROAS" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+    ],
+  },
+  {
+    value: "AWARENESS_VIDEO_EFFICIENT_REACH",
+    label: "Awareness — Video (Efficient Reach)",
+    optimizationGoals: [
+      { value: "TARGET_CPM", label: "Target CPM", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "AWARENESS_VIDEO_NON_SKIPPABLE",
+    label: "Awareness — Video (Non-skippable Reach)",
+    optimizationGoals: [
+      { value: "TARGET_CPM", label: "Target CPM", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "AWARENESS_VIDEO_TARGET_FREQUENCY",
+    label: "Awareness — Video (Target Frequency)",
+    optimizationGoals: [
+      { value: "TARGET_CPM", label: "Target CPM", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "AWARENESS_AD_SEQUENCE",
+    label: "Awareness — Video (Ad Sequence)",
+    optimizationGoals: [
+      { value: "TARGET_CPM", label: "Target CPM", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "AWARENESS_VIDEO_VIEWS",
+    label: "Awareness — Video Views",
+    optimizationGoals: [
+      { value: "TARGET_CPM", label: "Target CPM", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "AWARENESS_AUDIO_REACH",
+    label: "Awareness — Audio Reach",
+    optimizationGoals: [
+      { value: "TARGET_CPM", label: "Target CPM", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "CONVERSION_SEARCH",
+    label: "Conversion — Search",
+    optimizationGoals: [
+      { value: "MANUAL_CPC", label: "Manual CPC", billingEvent: "CPC" },
+      { value: "MAXIMIZE_CLICKS", label: "Maximize Clicks", billingEvent: "CPC" },
+      { value: "MAXIMUM_CPC", label: "Maximum CPC", billingEvent: "CPC" },
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "MAXIMIZE_CONVERSION_VALUE", label: "Maximize Conversion Value", billingEvent: "ROAS" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+      { value: "TARGET_IMPRESSION_SHARE", label: "Target Impression Share", billingEvent: "CPM" },
+    ],
+  },
+  {
+    value: "CONSIDERATION_PMAX",
+    label: "Consideration — Performance Max",
+    optimizationGoals: [
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+      { value: "MAXIMIZE_CONVERSION_VALUE", label: "Maximize Conversion Value", billingEvent: "ROAS" },
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+    ],
+  },
+  {
+    value: "CONSIDERATION_APP_INSTALLS",
+    label: "Consideration — App Installs",
+    optimizationGoals: [
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+    ],
+  },
+  {
+    value: "CONSIDERATION_APP_ENGAGEMENT",
+    label: "Consideration — App Engagement",
+    optimizationGoals: [
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+    ],
+  },
+  {
+    value: "CONSIDERATION_APP_PRE_REGISTRATION",
+    label: "Consideration — App Pre-registration",
+    optimizationGoals: [
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+    ],
+  },
+  {
+    value: "CONSIDERATION_DEMAND_GEN",
+    label: "Consideration — Demand Gen",
+    optimizationGoals: [
+      { value: "MAXIMIZE_CLICKS", label: "Maximize Clicks", billingEvent: "CPC" },
+      { value: "MAXIMUM_CPC", label: "Maximum CPC", billingEvent: "CPC" },
+      { value: "MAXIMIZE_CONVERSIONS", label: "Maximize Conversions", billingEvent: "CPA" },
+      { value: "TARGET_CPA", label: "Target CPA", billingEvent: "CPA" },
+      { value: "MAXIMIZE_CONVERSION_VALUE", label: "Maximize Conversion Value", billingEvent: "ROAS" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+    ],
+  },
+  {
+    value: "CONVERSION_SHOPPING",
+    label: "Conversion — Shopping",
+    optimizationGoals: [
+      { value: "MANUAL_CPC", label: "Manual CPC", billingEvent: "CPC" },
+      { value: "MAXIMUM_CPC", label: "Maximum CPC", billingEvent: "CPC" },
+      { value: "MAXIMIZE_CLICKS", label: "Maximize Clicks", billingEvent: "CPC" },
+      { value: "TARGET_ROAS", label: "Target ROAS", billingEvent: "ROAS" },
+    ],
+  },
+];
+
+// =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
 /**
  * Get all objectives for a platform
  */
-export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat"): ObjectiveMapping[] {
+export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat" | "google"): ObjectiveMapping[] {
   if (platform === "meta") {
     return [...META_OBJECTIVE_MAPPING, ...META_LEGACY_OBJECTIVES];
   }
   if (platform === "snapchat") {
     return SNAPCHAT_OBJECTIVE_MAPPING;
+  }
+  if (platform === "google") {
+    return GOOGLE_ADS_OBJECTIVE_MAPPING;
   }
   return TIKTOK_OBJECTIVE_MAPPING;
 }
@@ -309,7 +449,7 @@ export function getObjectivesForPlatform(platform: "meta" | "tiktok" | "snapchat
  * Get valid optimization goals for a specific objective
  */
 export function getOptimizationGoalsForObjective(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string
 ): OptimizationGoalOption[] {
   const objectives = getObjectivesForPlatform(platform);
@@ -321,7 +461,7 @@ export function getOptimizationGoalsForObjective(
  * Get the objective that corresponds to an optimization goal (reverse mapping)
  */
 export function getObjectiveForOptimizationGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   optimizationGoal: string
 ): string | null {
   const objectives = getObjectivesForPlatform(platform);
@@ -339,7 +479,7 @@ export function getObjectiveForOptimizationGoal(
  * Validate if an objective and optimization goal combination is valid
  */
 export function isValidObjectiveGoalCombination(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string,
   optimizationGoal: string
 ): boolean {
@@ -351,7 +491,7 @@ export function isValidObjectiveGoalCombination(
  * Get the billing event for an optimization goal under a specific objective
  */
 export function getBillingEventForGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string,
   optimizationGoal: string
 ): string | undefined {
@@ -364,7 +504,7 @@ export function getBillingEventForGoal(
  * Get default optimization goal for an objective
  */
 export function getDefaultOptimizationGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string
 ): string | null {
   const goals = getOptimizationGoalsForObjective(platform, objective);
@@ -374,13 +514,16 @@ export function getDefaultOptimizationGoal(
 /**
  * Detect platform from string (e.g., platform name)
  */
-export function detectPlatformType(platformName: string): "meta" | "tiktok" | "snapchat" | null {
+export function detectPlatformType(platformName: string): "meta" | "tiktok" | "snapchat" | "google" | null {
   const lower = platformName.toLowerCase();
   if (lower.includes("meta") || lower.includes("facebook") || lower.includes("instagram")) {
     return "meta";
   }
   if (lower.includes("tiktok")) {
     return "tiktok";
+  }
+  if (lower.includes("google")) {
+    return "google";
   }
   if (lower.includes("snapchat") || lower.includes("snap")) {
     return "snapchat";
@@ -393,7 +536,7 @@ export function detectPlatformType(platformName: string): "meta" | "tiktok" | "s
  * Returns corrected values if needed, or original values if valid
  */
 export function autoCorrectObjectiveGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string,
   optimizationGoal: string
 ): { objective: string; optimizationGoal: string; corrected: boolean } {

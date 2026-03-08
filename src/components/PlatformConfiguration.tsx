@@ -163,7 +163,7 @@ const platformObjectives: Record<string, string[]> = {
     "Lead Generation",
     "Conversions",
   ],
-  google: ["Search", "Display", "Video", "Shopping", "Performance Max", "App", "Discovery", "Local"],
+  google: ["Display", "Search", "Performance Max", "Video", "Demand Gen", "App Promotion", "Shopping"],
   linkedin: [
     "Brand Awareness",
     "Website Visits",
@@ -188,7 +188,11 @@ const platformObjectives: Record<string, string[]> = {
 
 const optimizationGoals: Record<string, string[]> = {
   meta: ["Impressions", "Link Clicks", "Landing Page Views", "Conversions", "Value", "Reach", "Thruplay"],
-  google: ["Clicks", "Conversions", "Conversion Value", "Impressions", "Views"],
+  google: [
+    "Maximize Clicks", "Maximum CPC", "Maximize Conversions", "Target CPA",
+    "Maximize Conversion Value", "Target ROAS", "Target CPM", "Target Impression Share",
+    "Viewable Impressions", "Manual CPC",
+  ],
   linkedin: ["Impressions", "Clicks", "Landing Page Actions", "Conversions"],
   tiktok: ["Reach", "Click", "Conversion", "Value"],
   snapchat: ["Impressions", "Swipes", "App Installs", "Pixel Purchases"],
@@ -224,10 +228,10 @@ const getFunnelObjectives = (platformId: string, stage: string, focus: string): 
       },
     },
     google: {
-      awareness: { purchase: "Display", leads: "Display", "app-installs": "App", conversions: "Display" },
-      consideration: { purchase: "Search", leads: "Search", "app-installs": "App", conversions: "Search" },
-      conversion: { purchase: "Shopping", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
-      loyalty: { purchase: "Performance Max", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
+      awareness: { purchase: "Display", leads: "Display", "app-installs": "Video", conversions: "Display" },
+      consideration: { purchase: "Demand Gen", leads: "Performance Max", "app-installs": "App Promotion", conversions: "Performance Max" },
+      conversion: { purchase: "Shopping", leads: "Search", "app-installs": "App Promotion", conversions: "Search" },
+      loyalty: { purchase: "Performance Max", leads: "Search", "app-installs": "App Promotion", conversions: "Performance Max" },
     },
   };
 
