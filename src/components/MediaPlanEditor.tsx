@@ -2245,6 +2245,7 @@ export function MediaPlanEditor() {
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
                 tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
+                googleCustomerId={firstGoogleCustomerId || undefined}
                 platformId={
                   platformsWithMarkets.find((p) => p.id === "meta")?.id || platformsWithMarkets[0]?.id || "meta"
                 }
@@ -2257,7 +2258,7 @@ export function MediaPlanEditor() {
                     id: p.id,
                     name: p.name,
                     adAccountId:
-                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : undefined,
+                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : p.id === "google_ads" ? firstGoogleCustomerId : undefined,
                   }))}
               />
               <div className="mt-6 flex justify-between">
