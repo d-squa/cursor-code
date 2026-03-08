@@ -11,7 +11,7 @@ export type CreativeSource = 'upload' | 'page_assets' | 'ad_account_assets';
 export interface SelectedAsset {
   id: string;
   source: CreativeSource;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   assetType: 'image' | 'video';
   thumbnailUrl?: string;
   name?: string;
