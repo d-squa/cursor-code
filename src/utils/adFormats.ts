@@ -241,6 +241,28 @@ export const adFormatMatrix: Record<string, Record<string, AdFormatMapping>> = {
     "Masthead": { funnelStage: "Awareness", objective: "Mass Reach / Product Launch" },
     "Text Ads": { funnelStage: "Conversion", objective: "Search-Based Action / Sales" },
   },
+  "Google Ads": {
+    "Responsive Search Ads": { funnelStage: "Conversion", objective: "Search-Based Conversions" },
+    "Text Ads": { funnelStage: "Conversion", objective: "Search-Based Action / Sales" },
+    "Responsive Display Ads": { funnelStage: "Awareness", objective: "Reach / Display" },
+    "Uploaded Image Ads": { funnelStage: "Awareness", objective: "Display Awareness" },
+    "HTML5 Ads": { funnelStage: "Awareness", objective: "Interactive Display" },
+    "In-stream Ads (Bumper, Skippable)": { funnelStage: "Awareness", objective: "Video Reach" },
+    "Non-skippable In-stream Ads": { funnelStage: "Awareness", objective: "Guaranteed Reach" },
+    "In-feed Ads": { funnelStage: "Consideration", objective: "Engagement / Discovery" },
+    "Shorts Ads": { funnelStage: "Awareness", objective: "Short-form Reach" },
+    "Audio Ads": { funnelStage: "Awareness", objective: "Audio Reach" },
+    "Single Image Ads": { funnelStage: "Consideration", objective: "Demand Gen Traffic" },
+    "Video Ads": { funnelStage: "Consideration", objective: "Demand Gen Engagement" },
+    "Carousel Ads": { funnelStage: "Consideration", objective: "Demand Gen Discovery" },
+    "Product Ads": { funnelStage: "Conversion", objective: "Product Sales" },
+    "Product Shopping Ads": { funnelStage: "Conversion", objective: "Shopping Sales" },
+    "Showcase Shopping Ads": { funnelStage: "Consideration", objective: "Shopping Discovery" },
+    "Asset Groups (Auto-generated)": { funnelStage: "Consideration", objective: "PMax Multi-Channel" },
+    "App Install Ads (Auto-generated)": { funnelStage: "Consideration", objective: "App Installs" },
+    "App Engagement Ads (Auto-generated)": { funnelStage: "Consideration", objective: "App Engagement" },
+    "App Pre-registration Ads (Auto-generated)": { funnelStage: "Consideration", objective: "App Pre-registration" },
+  },
 };
 
 // Get phases from selected ad formats
