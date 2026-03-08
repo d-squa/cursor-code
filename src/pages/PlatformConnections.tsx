@@ -313,11 +313,18 @@ export default function PlatformConnections() {
         .select("id, account_id, account_name, advertiser_id, account_status, client_id, team_id, clients(id, name)")
         .eq("team_id", activeWorkspaceId)
         .order("account_name");
+
+      const googleQuery = supabase
+        .from("google_ad_accounts")
+        .select("id, account_id, account_name, customer_id, account_status, client_id, currency, timezone, team_id, clients(id, name)")
+        .eq("team_id", activeWorkspaceId)
+        .order("account_name");
       
-      const [platformsRes, metaAccountsRes, tiktokAccountsRes] = await Promise.all([
+      const [platformsRes, metaAccountsRes, tiktokAccountsRes, googleAccountsRes] = await Promise.all([
         platformsQuery,
         metaQuery,
         tiktokQuery,
+        googleQuery,
       ]);
 
       if (platformsRes.error) throw platformsRes.error;
