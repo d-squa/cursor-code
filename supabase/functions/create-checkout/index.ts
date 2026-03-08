@@ -481,7 +481,7 @@ serve(async (req) => {
       },
       subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
       success_url: successUrl,
-      cancel_url: `${origin}/settings/plans?canceled=true`,
+      cancel_url: `${origin}/choose-plan?canceled=true`,
     });
 
     logStep("Checkout session created", {
