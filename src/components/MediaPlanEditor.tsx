@@ -2945,6 +2945,12 @@ export function MediaPlanEditor() {
                                               metaProductSetId: market.productSet,
                                               tiktokCatalogId: (market as any).tiktokCatalogId,
                                               tiktokProductSetId: (market as any).tiktokProductSetId,
+                                              // Google Ads defaults
+                                              googleLandingPageUrl: (market as any).googleLandingPageUrl,
+                                              googleBidStrategy: (market as any).googleBidStrategy,
+                                              googleTargetCpa: (market as any).googleTargetCpa,
+                                              googleTargetRoas: (market as any).googleTargetRoas,
+                                              googleMaxCpcBid: (market as any).googleMaxCpcBid,
                                             }}
                                             marketTargeting={{
                                               ageMin: market.ageMin || genericConfig.targeting?.ageMin,
