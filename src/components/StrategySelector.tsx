@@ -25,6 +25,7 @@ interface StrategySelectorProps {
   adFormats?: string[];
   hasPixel?: boolean;
   hasCatalog?: boolean;
+  hasKeywords?: boolean;
 }
 
 export function StrategySelector({
@@ -37,6 +38,7 @@ export function StrategySelector({
   adFormats = [],
   hasPixel = false,
   hasCatalog = false,
+  hasKeywords = false,
 }: StrategySelectorProps) {
   const normalizedPlatform = useMemo(() => {
     const p = (platformId || "meta").toLowerCase();
@@ -73,7 +75,7 @@ export function StrategySelector({
 
   const handleStrategyTypeChange = (value: string) => {
     if (value === "auto-detect") {
-      const newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platformId) || [];
+      const newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platformId, hasKeywords) || [];
       onStrategyChange(value, newPhases, undefined);
     } else if (value === "full-funnel") {
       // Don't generate phases yet — user needs to pick a strategy group

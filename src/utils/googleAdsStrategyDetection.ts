@@ -229,8 +229,14 @@ export function autoDetectGoogleAdsStrategy(input: GoogleAdsAutoDetectInput): Go
     .filter(([_, v]) => v.score > 0)
     .sort((a, b) => b[1].score - a[1].score);
 
+  // Track whether Search has already been added — Search can only appear in ONE phase
+  let searchAdded = false;
+
   for (const [campaignType, data] of sorted) {
     if (addedTypes.has(campaignType)) continue;
+
+    // Enforce single-Search constraint
+    if (campaignType === "Search" && searchAdded) continue;
 
     // Find best matching config from matrix
     const subtypeArr = [...data.subtypes];
@@ -274,6 +280,27 @@ export function autoDetectGoogleAdsStrategy(input: GoogleAdsAutoDetectInput): Go
     });
 
     addedTypes.add(campaignType);
+    if (campaignType === "Search") searchAdded = true;
+  }
+
+  // If keywords exist but Search wasn't added (e.g. scored too low), force-add it
+  if (keywords.length > 0 && !searchAdded) {
+    const searchConfig = GOOGLE_ADS_CAMPAIGN_MATRIX.find((c) => c.campaignType === "Search");
+    if (searchConfig) {
+      const effectiveBid =
+        bidStrategy && searchConfig.bidStrategies.includes(bidStrategy)
+          ? bidStrategy
+          : searchConfig.bidStrategies[0];
+      detected.push({
+        campaignType: "Search",
+        phase: searchConfig.phase,
+        optimizationGoal: searchConfig.optimizationGoal,
+        bidStrategy: effectiveBid,
+        adFormats: ["Responsive Search Ads"],
+        reason: `${keywords.length} keyword(s) require Search`,
+        confidence: "high",
+      });
+    }
   }
 
   return detected;
