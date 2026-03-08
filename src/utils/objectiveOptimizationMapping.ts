@@ -536,7 +536,7 @@ export function detectPlatformType(platformName: string): "meta" | "tiktok" | "s
  * Returns corrected values if needed, or original values if valid
  */
 export function autoCorrectObjectiveGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   objective: string,
   optimizationGoal: string
 ): { objective: string; optimizationGoal: string; corrected: boolean } {
