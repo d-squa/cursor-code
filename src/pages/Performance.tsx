@@ -18,6 +18,7 @@ interface Campaign {
   end_date: string;
   total_budget: number;
   forecast_data?: any;
+  market_splits?: any;
   status: string;
 }
 
@@ -37,6 +38,7 @@ interface PerformanceMetrics {
   budgetSpentPct: number;
   sov: number;
   cumulativeSov: number;
+  avgMonthlySearchVolume?: number;
 }
 
 interface WeeklyData {
@@ -321,7 +323,7 @@ export default function Performance() {
       
       const reach = Math.round((plannedMetrics.reach || 100000) * variance());
       const impressions = Math.round((plannedMetrics.impressions || 500000) * variance());
-      const spend = Math.round(totalBudget * 0.48 * 100) / 100; // Mid-campaign ~48% spent
+      const spend = Math.round(totalBudget * 0.48 * 100) / 100;
       const clicks = Math.round((plannedMetrics.clicks || 5000) * variance());
       const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
       const cpc = clicks > 0 ? spend / clicks : 0;
@@ -329,6 +331,31 @@ export default function Performance() {
       const results = Math.round(clicks * 0.08);
       const resultRate = clicks > 0 ? (results / clicks) * 100 : 0;
       const costPerResult = results > 0 ? spend / results : 0;
+
+      // Extract avg monthly search volume from market_splits keywords
+      let avgMonthlySearchVolume = plannedMetrics.avgMonthlySearchVolume || 0;
+      if (!avgMonthlySearchVolume && selectedCampaign?.market_splits) {
+        const splits = selectedCampaign.market_splits as Record<string, any>;
+        let totalVol = 0;
+        for (const [, markets] of Object.entries(splits)) {
+          const marketArr = Array.isArray(markets) ? markets : [];
+          for (const market of marketArr) {
+            const phases = Array.isArray(market?.phases) ? market.phases : [];
+            for (const phase of phases) {
+              const keywords = Array.isArray(phase?.keywords) ? phase.keywords : (Array.isArray(phase?.selectedKeywords) ? phase.selectedKeywords : []);
+              for (const kw of keywords) {
+                totalVol += (kw.avgMonthlySearches || kw.avgMonthlySearchVolume || 0);
+              }
+            }
+            // Also check market-level keywords
+            const marketKeywords = Array.isArray(market?.selectedKeywords) ? market.selectedKeywords : [];
+            for (const kw of marketKeywords) {
+              totalVol += (kw.avgMonthlySearches || kw.avgMonthlySearchVolume || 0);
+            }
+          }
+        }
+        avgMonthlySearchVolume = totalVol;
+      }
       
       setActualMetrics({
         reach,
@@ -346,6 +373,7 @@ export default function Performance() {
         budgetSpentPct: Math.round((spend / totalBudget) * 100 * 100) / 100,
         sov: Math.round((18 + Math.random() * 5) * 100) / 100,
         cumulativeSov: Math.round((17 + Math.random() * 4) * 100) / 100,
+        avgMonthlySearchVolume,
       });
       
       generateWeeklyData();
@@ -745,6 +773,17 @@ export default function Performance() {
                     planned={plannedMetrics?.frequency || 2}
                     actual={actualMetrics.frequency}
                   />
+                  {/* Search Volume - only for keyword-based campaigns */}
+                  {(selectedCampaign.platforms || []).some((p: any) => {
+                    const name = (typeof p === 'string' ? p : p?.id || p?.name || '').toLowerCase();
+                    return name.includes('google') || name.includes('search');
+                  }) && (
+                    <MetricCard
+                      title="Avg Monthly Search Vol"
+                      planned={plannedMetrics?.avgMonthlySearchVolume || 0}
+                      actual={actualMetrics.avgMonthlySearchVolume || plannedMetrics?.avgMonthlySearchVolume || 0}
+                    />
+                  )}
                 </div>
 
                 {/* Weekly Charts */}
