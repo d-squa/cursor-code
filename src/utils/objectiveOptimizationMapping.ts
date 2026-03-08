@@ -461,7 +461,7 @@ export function getOptimizationGoalsForObjective(
  * Get the objective that corresponds to an optimization goal (reverse mapping)
  */
 export function getObjectiveForOptimizationGoal(
-  platform: "meta" | "tiktok" | "snapchat",
+  platform: "meta" | "tiktok" | "snapchat" | "google",
   optimizationGoal: string
 ): string | null {
   const objectives = getObjectivesForPlatform(platform);
