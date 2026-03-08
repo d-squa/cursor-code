@@ -56,6 +56,9 @@ export interface UnifiedTargetingConfig {
     competition?: string;
     cpcLow?: number;
     cpcHigh?: number;
+    strategy?: "brand" | "generic" | "competition";
+    matchType?: "exact" | "phrase" | "broad";
+    isNegative?: boolean;
   }>;
   // Audience targeting mode
   useBroadTargeting?: boolean;
