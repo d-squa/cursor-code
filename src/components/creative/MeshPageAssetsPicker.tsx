@@ -3,7 +3,7 @@ import { UnifiedPageAssetsLibrary } from '@/components/creative/UnifiedPageAsset
 import type { SelectedAsset } from '@/hooks/useCreativeMeshProgress';
 
 type OrganicPost = {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   postId: string;
   thumbnailUrl?: string;
   mediaType?: 'image' | 'video' | 'carousel';
@@ -15,7 +15,7 @@ type OrganicPost = {
 };
 
 type PageConfig = {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   pageId?: string;
   identityId?: string;
   advertiserId?: string;
@@ -29,7 +29,7 @@ export function MeshPageAssetsPicker({
   onAddAsset,
   onRemoveAsset,
 }: {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   pageConfigs: PageConfig[];
   selectedAssets: SelectedAsset[];
   onAddAsset: (asset: SelectedAsset) => void;
