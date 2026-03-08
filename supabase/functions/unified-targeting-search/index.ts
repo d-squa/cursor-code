@@ -144,7 +144,7 @@ serve(async (req) => {
         .single();
 
       if (googlePlatform) {
-        const accessTWithRefresh(supabaseClient, googlePlatform.id, googlePlatform.access_token, 'google'googlePlatform.access_token);
+        const accessToken = await getAccessTokenWithRefresh(supabaseClient, googlePlatform.id, googlePlatform.access_token, 'google');
         
         if (accessToken) {
           const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');
