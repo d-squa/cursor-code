@@ -434,3 +434,67 @@ async function searchTikTokActions(accessToken: string, advertiserId: string, qu
     description: item.description || ''
   }));
 }
+
+// Google Ads helper functions
+const GOOGLE_ADS_API_VERSION = 'v23';
+
+async function searchGoogleKeywords(headers: Record<string, string>, customerId: string, query: string) {
+  try {
+    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:generateKeywordIdeas`;
+    const body = {
+      language: 'languageConstants/1000',
+      geoTargetConstants: ['geoTargetConstants/2840'],
+      keywordSeed: { keywords: [query] },
+      pageSize: 20,
+    };
+
+    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      return (data.results || []).map((r: any) => ({
+        id: r.text,
+        name: r.text,
+        description: `Avg searches: ${r.keywordIdeaMetrics?.avgMonthlySearches || 'N/A'}, Competition: ${r.keywordIdeaMetrics?.competition || 'N/A'}`,
+      }));
+    } else {
+      const errText = await resp.text();
+      console.error('Google keyword search failed:', errText);
+      return [];
+    }
+  } catch (err) {
+    console.error('Google keyword search error:', err);
+    return [];
+  }
+}
+
+async function searchGoogleLocations(headers: Record<string, string>, query: string) {
+  try {
+    const url = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/geoTargetConstants:suggest`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        locale: 'en',
+        countryCode: 'US',
+        locationNames: { names: [query] },
+      }),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      return (data.geoTargetConstantSuggestions || []).map((s: any) => ({
+        id: String(s.geoTargetConstant.id),
+        name: s.geoTargetConstant.canonicalName || s.geoTargetConstant.name,
+        description: `Type: ${s.geoTargetConstant.targetType || 'Location'}`,
+      }));
+    } else {
+      const errText = await resp.text();
+      console.error('Google location search failed:', errText);
+      return [];
+    }
+  } catch (err) {
+    console.error('Google location search error:', err);
+    return [];
+  }
+}
