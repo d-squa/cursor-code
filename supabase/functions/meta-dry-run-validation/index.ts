@@ -378,7 +378,7 @@ serve(async (req: Request) => {
     }
 
     // Determine ad account
-    let rawAdAccountId = adAccountIdOverride || platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+    let rawAdAccountId = adAccountIdOverride || platformAdAccountId || Deno.env.get("META_AD_ACCOUNT_ID");
     if (!rawAdAccountId) {
       // Try to get from meta_ad_accounts
       const { data: metaAccounts } = await supabase
