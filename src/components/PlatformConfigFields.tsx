@@ -62,12 +62,15 @@ export function PlatformConfigFields({
   const [tiktokIdentities, setTiktokIdentities] = useState<Resource[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<Resource[]>([]);
   const [tiktokProductSets, setTiktokProductSets] = useState<Resource[]>([]);
+  const [googleAccount, setGoogleAccount] = useState<{ merchant_center_id?: string; feed_label?: string } | null>(null);
 
   useEffect(() => {
     if (userId && platformName.toLowerCase() === 'meta') {
       loadMetaResources();
     } else if (userId && platformName.toLowerCase() === 'tiktok' && selectedAdAccountId) {
       loadTiktokResources();
+    } else if (userId && (platformName.toLowerCase() === 'google' || platformName.toLowerCase() === 'google_ads') && selectedAdAccountId) {
+      loadGoogleAdsResources();
     }
   }, [userId, platformName, selectedAdAccountId]);
 
@@ -151,6 +154,25 @@ export function PlatformConfigFields({
       });
     } catch (error) {
       console.error("Error loading TikTok resources:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadGoogleAdsResources = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("google_ad_accounts")
+        .select("default_merchant_center_id, default_feed_label")
+        .eq("user_id", userId!)
+        .eq("account_id", selectedAdAccountId!)
+        .maybeSingle();
+
+      if (error) throw error;
+      setGoogleAccount(data ? { merchant_center_id: data.default_merchant_center_id || '', feed_label: data.default_feed_label || '' } : null);
+    } catch (error) {
+      console.error("Error loading Google Ads resources:", error);
     } finally {
       setLoading(false);
     }
@@ -377,6 +399,51 @@ export function PlatformConfigFields({
                         {ps.product_set_name}
                       </SelectItem>
                     ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+
+        {(platformName.toLowerCase() === 'google' || platformName.toLowerCase() === 'google_ads') && (
+          <>
+            <div className="space-y-2">
+              <Label>Merchant Center ID (Product Feed)</Label>
+              <Select
+                value={googleAccount?.merchant_center_id || undefined}
+                onValueChange={(value) => onUpdate("merchantCenterId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Enter Merchant Center ID" />
+                </SelectTrigger>
+                <SelectContent>
+                  {googleAccount?.merchant_center_id && (
+                    <SelectItem value={googleAccount.merchant_center_id}>
+                      {googleAccount.merchant_center_id}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Link your Google Merchant Center to enable product feeds for Shopping & PMax campaigns
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Feed Label</Label>
+              <Select
+                value={googleAccount?.feed_label || undefined}
+                onValueChange={(value) => onUpdate("feedLabel", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select feed label" />
+                </SelectTrigger>
+                <SelectContent>
+                  {googleAccount?.feed_label && (
+                    <SelectItem value={googleAccount.feed_label}>
+                      {googleAccount.feed_label}
+                    </SelectItem>
                   )}
                 </SelectContent>
               </Select>

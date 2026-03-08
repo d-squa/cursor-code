@@ -86,7 +86,7 @@ export function PlatformMarketBudgetSelector({
   const [tiktokAdAccountDefaults, setTiktokAdAccountDefaults] = useState<Record<string, any>>({});
   
   // Google Ads resources
-  const [googleAdAccounts, setGoogleAdAccounts] = useState<Array<{ id: string; name: string; customerId: string; currency: string; timezone: string }>>([]);
+  const [googleAdAccounts, setGoogleAdAccounts] = useState<Array<{ id: string; name: string; customerId: string; currency: string; timezone: string; merchantCenterId: string; feedLabel: string }>>([]);
   const [loadingGoogleAdAccounts, setLoadingGoogleAdAccounts] = useState(false);
   
   // Collapsible state for platforms and markets
@@ -211,6 +211,8 @@ export function PlatformMarketBudgetSelector({
           customerId: acc.customer_id,
           currency: acc.currency || "USD",
           timezone: acc.timezone || "UTC",
+          merchantCenterId: acc.default_merchant_center_id || "",
+          feedLabel: acc.default_feed_label || "",
         })));
       }
     } catch (error) {
@@ -2533,6 +2535,8 @@ export function PlatformMarketBudgetSelector({
                                                   ...m,
                                                   adAccountId: value,
                                                   accountName: account?.name || "",
+                                                  googleMerchantCenterId: account?.merchantCenterId || "",
+                                                  googleFeedLabel: account?.feedLabel || "",
                                                 };
                                               }
                                               return m;
@@ -2638,6 +2642,27 @@ export function PlatformMarketBudgetSelector({
                                     placeholder="https://example.com/landing"
                                     value={market.googleLandingPageUrl || ""}
                                     onChange={(e) => updateMarketField(platformIndex, market.id, 'googleLandingPageUrl', e.target.value)}
+                                  />
+                                </div>
+
+                                {/* Product Feed (Merchant Center) */}
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Merchant Center ID (Product Feed)</Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Enter Merchant Center ID"
+                                    value={market.googleMerchantCenterId || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleMerchantCenterId', e.target.value)}
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Feed Label</Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="e.g., US, EU, ALL"
+                                    value={market.googleFeedLabel || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'googleFeedLabel', e.target.value)}
                                   />
                                 </div>
                               </div>

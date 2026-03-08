@@ -307,6 +307,24 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate }: GoogleAdsPhaseConfigPr
                 <label htmlFor={`gads-product-feed-${phase.id}`} className="text-xs">Product Feed</label>
               </div>
             )}
+            {config.features.productFeed && phase.googleProductFeed && (
+              <div className="w-full space-y-2">
+                <Label className="text-xs">Merchant Center ID</Label>
+                <Input
+                  className="h-8 text-xs"
+                  value={phase.googleMerchantCenterId || ""}
+                  onChange={(e) => onUpdate("googleMerchantCenterId", e.target.value)}
+                  placeholder="Enter Merchant Center ID"
+                />
+                <Label className="text-xs">Feed Label</Label>
+                <Input
+                  className="h-8 text-xs"
+                  value={phase.googleFeedLabel || ""}
+                  onChange={(e) => onUpdate("googleFeedLabel", e.target.value)}
+                  placeholder="e.g. US, EU, ALL"
+                />
+              </div>
+            )}
             {config.targeting.optimizedTargeting && (
               <div className="flex items-center gap-1.5">
                 <Checkbox
