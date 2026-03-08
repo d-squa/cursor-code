@@ -131,6 +131,8 @@ interface PhaseSchedulerProps {
     metaProductSetId?: string;
     tiktokCatalogId?: string;
     tiktokProductSetId?: string;
+    // Google Ads defaults
+    googleCustomerId?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
