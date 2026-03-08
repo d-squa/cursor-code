@@ -13,15 +13,32 @@ import {
 } from "@/utils/googleAdsCampaignMatrix";
 import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldCheck, Target, Swords, Ban } from "lucide-react";
+import { KeywordItem, KeywordStrategy } from "./KeywordTargeting";
 
 interface GoogleAdsPhaseConfigProps {
   phase: Phase;
   onUpdate: (field: string, value: any) => void;
   googleCustomerId?: string;
+  selectedKeywords?: KeywordItem[];
 }
 
-export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId }: GoogleAdsPhaseConfigProps) {
+const STRATEGY_CONFIG: Record<KeywordStrategy, { label: string; icon: React.ReactNode; colorClass: string }> = {
+  brand: { label: "Brand", icon: <ShieldCheck className="h-3.5 w-3.5" />, colorClass: "bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800" },
+  generic: { label: "Generic", icon: <Target className="h-3.5 w-3.5" />, colorClass: "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" },
+  competition: { label: "Competition", icon: <Swords className="h-3.5 w-3.5" />, colorClass: "bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800" },
+};
+
+const MATCH_LABELS: Record<string, string> = { exact: "[Exact]", phrase: '"Phrase"', broad: "Broad" };
+
+function formatVol(vol?: number) {
+  if (!vol) return "—";
+  if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
+  if (vol >= 1_000) return `${(vol / 1_000).toFixed(1)}K`;
+  return String(vol);
+}
+
+export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, selectedKeywords }: GoogleAdsPhaseConfigProps) {
   const campaignTypes = getGoogleAdsCampaignTypes();
   const selectedType = phase.googleCampaignType || "";
   const subtypes = useMemo(() => selectedType ? getGoogleAdsSubtypes(selectedType) : [], [selectedType]);
@@ -89,6 +106,31 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId }: Goog
     }
   };
 
+  // Keyword strategy summary for Search campaigns
+  const isSearchCampaign = selectedType === "Search";
+  const keywordStrategySummary = useMemo(() => {
+    if (!isSearchCampaign || !selectedKeywords || selectedKeywords.length === 0) return null;
+
+    const strategies: KeywordStrategy[] = ["brand", "generic", "competition"];
+    return strategies.map((strategy) => {
+      const kws = selectedKeywords.filter((kw) => kw.strategy === strategy);
+      const positives = kws.filter((kw) => !kw.isNegative);
+      const negatives = kws.filter((kw) => kw.isNegative);
+      const totalVol = positives.reduce((s, kw) => s + (kw.avgMonthlySearches || 0), 0);
+      const avgVol = positives.length > 0 ? Math.round(totalVol / positives.length) : 0;
+      const avgCpc = positives.length > 0
+        ? positives.reduce((s, kw) => s + ((kw.cpcLow || 0) + (kw.cpcHigh || 0)) / 2, 0) / positives.length
+        : 0;
+      const matchTypes = positives.reduce<Record<string, number>>((acc, kw) => {
+        const mt = kw.matchType || "broad";
+        acc[mt] = (acc[mt] || 0) + 1;
+        return acc;
+      }, {});
+
+      return { strategy, positives, negatives, totalVol, avgVol, avgCpc, matchTypes };
+    });
+  }, [isSearchCampaign, selectedKeywords]);
+
   return (
     <div className="space-y-4 border-t pt-4">
       <div className="flex items-center gap-2">
@@ -130,6 +172,95 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId }: Goog
           </div>
         )}
       </div>
+
+      {/* Keyword Strategy Summary for Search Campaigns */}
+      {isSearchCampaign && keywordStrategySummary && (
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">Keyword Strategy Breakdown</Label>
+            <Badge variant="secondary" className="text-[10px]">
+              {selectedKeywords?.filter(k => !k.isNegative).length || 0} positive · {selectedKeywords?.filter(k => k.isNegative).length || 0} negative
+            </Badge>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {keywordStrategySummary.map(({ strategy, positives, negatives, totalVol, avgVol, avgCpc, matchTypes }) => {
+              const meta = STRATEGY_CONFIG[strategy];
+              const hasKeywords = positives.length > 0 || negatives.length > 0;
+
+              return (
+                <div
+                  key={strategy}
+                  className={`rounded-lg border p-3 space-y-2 ${hasKeywords ? meta.colorClass : "bg-muted/30 border-border opacity-60"}`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    {meta.icon}
+                    <span className="text-xs font-semibold">{meta.label}</span>
+                    {positives.length > 0 && (
+                      <Badge variant="secondary" className="text-[10px] ml-auto h-4 px-1.5">
+                        {positives.length}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {hasKeywords ? (
+                    <div className="space-y-1.5">
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <div>
+                          <span className="text-muted-foreground">Total Vol</span>
+                          <p className="font-semibold">{formatVol(totalVol)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Avg Vol</span>
+                          <p className="font-semibold">{formatVol(avgVol)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Avg CPC</span>
+                          <p className="font-semibold">{avgCpc > 0 ? `$${avgCpc.toFixed(2)}` : "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Negatives</span>
+                          <p className="font-semibold flex items-center gap-0.5">
+                            {negatives.length > 0 ? (
+                              <><Ban className="h-2.5 w-2.5" />{negatives.length}</>
+                            ) : "—"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Match type breakdown */}
+                      {Object.keys(matchTypes).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(matchTypes).map(([mt, count]) => (
+                            <Badge key={mt} variant="outline" className="text-[9px] h-4 px-1">
+                              {MATCH_LABELS[mt] || mt}: {count}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Top keywords preview */}
+                      <div className="space-y-0.5 mt-1">
+                        {positives.slice(0, 3).map((kw) => (
+                          <div key={kw.id} className="flex items-center justify-between text-[10px]">
+                            <span className="truncate flex-1">{kw.name}</span>
+                            <span className="text-muted-foreground ml-1 shrink-0">{formatVol(kw.avgMonthlySearches)}</span>
+                          </div>
+                        ))}
+                        {positives.length > 3 && (
+                          <p className="text-[10px] text-muted-foreground">+{positives.length - 3} more</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">No keywords assigned</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {config && (
         <>
