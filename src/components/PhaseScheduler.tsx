@@ -28,6 +28,7 @@ import { BroadTargetingAudiences } from "./BroadTargetingAudiences";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 import { MetaPhaseConfig } from "./MetaPhaseConfig";
+import { GoogleAdsPhaseConfig } from "./GoogleAdsPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
 import { SplittableSection } from "./SplittableSection";
