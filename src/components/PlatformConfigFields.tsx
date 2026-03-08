@@ -62,6 +62,8 @@ export function PlatformConfigFields({
   const [tiktokIdentities, setTiktokIdentities] = useState<Resource[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<Resource[]>([]);
   const [tiktokProductSets, setTiktokProductSets] = useState<Resource[]>([]);
+  const [googleMerchantCenters, setGoogleMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);
+  const [googleFeedLabels, setGoogleFeedLabels] = useState<Array<{ label: string; country: string }>>([]);
   const [googleAccount, setGoogleAccount] = useState<{ merchant_center_id?: string; feed_label?: string } | null>(null);
 
   useEffect(() => {
