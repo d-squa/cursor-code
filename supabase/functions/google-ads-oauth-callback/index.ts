@@ -217,9 +217,10 @@ serve(async (req) => {
     const isReconnection = !!platformId;
 
     // Get Google OAuth credentials
-    const clientId = Deno.env.get("GOOGLE_ADS_OAUTH_CLIENT_ID");
-    const clientSecret = Deno.env.get("GOOGLE_ADS_CLIENT_SECRET");
-    const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
+    const clientId = Deno.env.get("GOOGLE_ADS_OAUTH_CLIENT_ID")?.trim();
+    const clientSecret = Deno.env.get("GOOGLE_ADS_CLIENT_SECRET")?.trim();
+    const rawDeveloperToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") ?? "";
+    const developerToken = rawDeveloperToken.replace(/\s+/g, "");
 
     if (!clientId || !clientSecret) {
       throw new Error("Google OAuth credentials not configured");
@@ -228,6 +229,10 @@ serve(async (req) => {
     if (!developerToken) {
       throw new Error("Google Ads Developer Token not configured");
     }
+
+    console.log(
+      `[${FUNCTION_NAME}] developer-token fingerprint: len=${developerToken.length}, start=${developerToken.slice(0, 5)}, end=${developerToken.slice(-5)}`
+    );
 
     // Exchange authorization code for tokens
     console.log(`[${FUNCTION_NAME}] Exchanging code for access token...`);
