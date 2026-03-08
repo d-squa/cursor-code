@@ -69,6 +69,8 @@ export function PlatformConfigFields({
       loadMetaResources();
     } else if (userId && platformName.toLowerCase() === 'tiktok' && selectedAdAccountId) {
       loadTiktokResources();
+    } else if (userId && (platformName.toLowerCase() === 'google' || platformName.toLowerCase() === 'google_ads') && selectedAdAccountId) {
+      loadGoogleAdsResources();
     }
   }, [userId, platformName, selectedAdAccountId]);
 
