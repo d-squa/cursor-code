@@ -745,6 +745,9 @@ export default function AdminDashboard() {
         {/* Meta API Dry-Run Validation */}
         <MetaDryRunValidation />
 
+        {/* TikTok API Dry-Run Validation */}
+        <TikTokDryRunValidation />
+
         {/* Subscription Override Management */}
         <div>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
