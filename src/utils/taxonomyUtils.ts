@@ -796,6 +796,8 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): T
       type: 'options',
       options: platform === 'meta'
         ? ['RCH', 'IMP', 'CLK', 'LPV', 'CVN', 'VAL', 'VV']
+        : platform === 'google'
+        ? ['CVN', 'CLK', 'IMP', 'VV', 'VAL']
         : ['RCH', 'CLK', 'CVT', 'VV', '6SV', 'FCV'],
       system: true,
       required: true,
