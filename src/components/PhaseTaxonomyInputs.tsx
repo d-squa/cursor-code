@@ -191,7 +191,7 @@ export function PhaseTaxonomyInputs({
   }
 
   const missingCount = getMissingRequiredCount(template, mergedValues);
-  const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' ? 'Ad Group' : 'Ad Set');
+  const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' || platform === 'google' ? 'Ad Group' : 'Ad Set');
   
   // Check if all system params have values (for different badge display)
   const systemParamsFilled = template
