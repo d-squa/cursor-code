@@ -1841,12 +1841,13 @@ export function PhaseScheduler({
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
                       {/* Campaign & Ad Set Taxonomy - Right after phase name */}
-                      {adAccountId && (
+                      {adAccountId && !taxonomyLoading && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <PhaseTaxonomyInputs
-                            adAccountId={adAccountId}
                             platform={taxonomyPlatform}
                             entityType="campaign"
+                            template={taxonomyTemplates.campaign}
+                            onRefresh={refreshTaxonomy}
                             context={{
                               platform: taxonomyPlatform,
                               activationName: activationContext?.activationName,
@@ -1870,9 +1871,10 @@ export function PhaseScheduler({
                             onValidationChange={(isComplete, missing) => handleTaxonomyValidation(phase.id, 'campaign', isComplete, missing)}
                           />
                           <PhaseTaxonomyInputs
-                            adAccountId={adAccountId}
                             platform={taxonomyPlatform}
                             entityType="adset"
+                            template={taxonomyTemplates.adset}
+                            onRefresh={refreshTaxonomy}
                             context={{
                               platform: taxonomyPlatform,
                               optimizationGoal: phase.optimizationGoal,
