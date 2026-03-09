@@ -540,39 +540,51 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
         const id = String(ca.id ?? '');
         const name = ca.name ?? '';
         if (!id || !name) return null;
-
-        return {
-          id,
-          name,
-          description: 'Data segment: Custom combination',
-        };
+        return { id, name, description: 'Data segment: Custom combination' };
       })
       .filter(Boolean);
 
-    const typeLabel: Record<string, string> = {
-      IN_MARKET: 'In-market',
-      AFFINITY: 'Affinity',
-      LIFE_EVENT: 'Life event',
-      DETAILED_DEMOGRAPHIC: 'Detailed demographic',
-    };
-
-    const mappedSegments = audienceSegmentRows
+    const mappedInMarket = inMarketRows
       .map((r: any) => {
-        const seg = r.audienceSegment || r.audience_segment || {};
+        const seg = r.inMarketAudience || r.in_market_audience || {};
         const id = String(seg.id ?? '');
         const name = seg.name ?? '';
-        const segType = seg.type ?? '';
         if (!id || !name) return null;
-
-        return {
-          id,
-          name,
-          description: typeLabel[segType] || segType,
-        };
+        return { id, name, description: 'In-market' };
       })
       .filter(Boolean);
 
-    return [...mappedUserLists, ...mappedCombined, ...mappedSegments];
+    const mappedAffinity = affinityRows
+      .map((r: any) => {
+        const seg = r.affinity || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        if (!id || !name) return null;
+        return { id, name, description: 'Affinity' };
+      })
+      .filter(Boolean);
+
+    const mappedLifeEvents = lifeEventRows
+      .map((r: any) => {
+        const seg = r.lifeEvent || r.life_event || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        if (!id || !name) return null;
+        return { id, name, description: 'Life event' };
+      })
+      .filter(Boolean);
+
+    const mappedDetailedDemo = detailedDemoRows
+      .map((r: any) => {
+        const seg = r.detailedDemographic || r.detailed_demographic || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        if (!id || !name) return null;
+        return { id, name, description: 'Detailed demographic' };
+      })
+      .filter(Boolean);
+
+    return [...mappedUserLists, ...mappedCombined, ...mappedInMarket, ...mappedAffinity, ...mappedLifeEvents, ...mappedDetailedDemo];
   } catch (err) {
     console.error('Google audience segment search error:', err);
     return [];
