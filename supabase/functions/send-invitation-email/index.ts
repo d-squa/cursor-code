@@ -11,6 +11,7 @@ interface InvitationRequest {
   teamName: string;
   role: string;
   invitationToken: string;
+  origin?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
