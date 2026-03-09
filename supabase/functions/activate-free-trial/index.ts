@@ -43,9 +43,26 @@ serve(async (req) => {
     if (!user?.email || !user?.id) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    // Skip trial activation for invited users (they use team owner's subscription)
+    const { data: invitedRoles } = await supabaseClient
+      .from("user_roles")
+      .select("id, role, team_id")
+      .eq("user_id", user.id)
+      .neq("role", "owner");
+
+    if (invitedRoles && invitedRoles.length > 0) {
+      logStep("User is an invited team member, skipping trial activation", {
+        roles: invitedRoles.map(r => ({ role: r.role, team_id: r.team_id })),
+      });
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: "invited_user" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      );
+    }
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // Check billing_customers mapping first
+    // Check billing_customers mapping first — use upsert-style logic to prevent race conditions
     let customerId: string | undefined;
 
     const { data: billingCustomer } = await supabaseClient
@@ -58,23 +75,39 @@ serve(async (req) => {
       customerId = billingCustomer.stripe_customer_id;
       logStep("Found existing billing_customers mapping", { customerId });
     } else {
-      // Create new Stripe customer
-      const newCustomer = await stripe.customers.create({
-        email: user.email,
-        metadata: { supabase_user_id: user.id },
-      });
-      customerId = newCustomer.id;
-      logStep("Created new Stripe customer", { customerId });
+      // Try to insert a placeholder first to "claim" the slot (prevents race condition)
+      // Search Stripe by email first to avoid creating duplicates
+      const existingCustomers = await stripe.customers.list({ email: user.email, limit: 5 });
+      
+      // Filter to find one that matches this user ID in metadata, or take the first one
+      const matchingCustomer = existingCustomers.data.find(
+        (c: any) => c.metadata?.supabase_user_id === user.id
+      ) || existingCustomers.data[0];
 
-      // Store the mapping
-      const { error: insertError } = await supabaseClient.from("billing_customers").insert({
-        user_id: user.id,
-        email: user.email,
-        stripe_customer_id: customerId,
-      });
+      if (matchingCustomer) {
+        customerId = matchingCustomer.id;
+        logStep("Found existing Stripe customer by email, reusing", { customerId });
+      } else {
+        // Create new Stripe customer
+        const newCustomer = await stripe.customers.create({
+          email: user.email,
+          metadata: { supabase_user_id: user.id },
+        });
+        customerId = newCustomer.id;
+        logStep("Created new Stripe customer", { customerId });
+      }
 
-      if (insertError) {
-        logStep("Warning: Failed to store billing_customers mapping", { error: insertError.message });
+      // Store the mapping — use upsert to handle race conditions
+      const { error: upsertError } = await supabaseClient
+        .from("billing_customers")
+        .upsert({
+          user_id: user.id,
+          email: user.email,
+          stripe_customer_id: customerId,
+        }, { onConflict: "user_id" });
+
+      if (upsertError) {
+        logStep("Warning: Failed to store billing_customers mapping", { error: upsertError.message });
       } else {
         logStep("Stored billing_customers mapping");
       }
