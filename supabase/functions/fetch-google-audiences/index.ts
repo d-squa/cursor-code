@@ -203,28 +203,7 @@ serve(async (req) => {
     }
     console.log(`Data segments: ${yourDataRows.length}`);
 
-    // --- Process Custom Segments ---
-    for (const r of customSegmentRows) {
-      const ca = r.customAudience || r.custom_audience || {};
-      const id = String(ca.id ?? '');
-      const name = ca.name ?? '';
-      if (!id || !name) continue;
-
-      const caType = ca.type ?? '';
-      let subtype = 'CUSTOM_SEGMENT';
-      if (caType === 'SEARCH') subtype = 'CUSTOM_SEARCH_TERMS';
-      else if (caType === 'INTEREST') subtype = 'CUSTOM_INTEREST';
-
-      allAudiences.push({
-        id, name, subtype,
-        source: 'Custom segments',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Custom segments: ${customSegmentRows.length}`);
-
-    // --- Process Combined Segments ---
+    // --- Process Custom combinations ---
     for (const r of combinedRows) {
       const ca = r.combinedAudience || r.combined_audience || {};
       const id = String(ca.id ?? '');
@@ -232,84 +211,21 @@ serve(async (req) => {
       if (!id || !name) continue;
 
       allAudiences.push({
-        id, name,
-        subtype: 'COMBINED',
-        source: 'Combined segments',
+        id,
+        name,
+        subtype: 'Custom combination',
+        source: 'Custom combination',
         approximate_count_lower_bound: null,
         approximate_count_upper_bound: null,
       });
     }
-    console.log(`Combined segments: ${combinedRows.length}`);
+    console.log(`Custom combinations: ${combinedRows.length}`);
 
-    // --- Process Affinity Segments ---
-    for (const r of affinityRows) {
-      const ui = r.userInterest || r.user_interest || {};
-      const id = String(ui.userInterestId ?? ui.user_interest_id ?? '');
-      const name = ui.name ?? '';
-      if (!id || !name) continue;
+    const dedupedAudiences = Array.from(
+      new Map(allAudiences.map((aud) => [`${aud.id}:${aud.subtype}`, aud])).values()
+    );
 
-      allAudiences.push({
-        id, name,
-        subtype: 'AFFINITY',
-        source: 'Affinity',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Affinity segments: ${affinityRows.length}`);
-
-    // --- Process In-Market Segments ---
-    for (const r of inMarketRows) {
-      const ui = r.userInterest || r.user_interest || {};
-      const id = String(ui.userInterestId ?? ui.user_interest_id ?? '');
-      const name = ui.name ?? '';
-      if (!id || !name) continue;
-
-      allAudiences.push({
-        id, name,
-        subtype: 'IN_MARKET',
-        source: 'In-market',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`In-market segments: ${inMarketRows.length}`);
-
-    // --- Process Life Events ---
-    for (const r of lifeEventRows) {
-      const le = r.lifeEvent || r.life_event || {};
-      const id = String(le.id ?? '');
-      const name = le.name ?? '';
-      if (!id || !name) continue;
-
-      allAudiences.push({
-        id, name,
-        subtype: 'LIFE_EVENT',
-        source: 'Life events',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Life event segments: ${lifeEventRows.length}`);
-
-    // --- Process Detailed Demographics ---
-    for (const r of detailedDemoRows) {
-      const dd = r.detailedDemographic || r.detailed_demographic || {};
-      const id = String(dd.id ?? '');
-      const name = dd.name ?? '';
-      if (!id || !name) continue;
-
-      allAudiences.push({
-        id, name,
-        subtype: 'DETAILED_DEMOGRAPHICS',
-        source: 'Detailed demographics',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Detailed demographic segments: ${detailedDemoRows.length}`);
-
-    console.log(`Total Audience Manager segments: ${allAudiences.length}`);
+    console.log(`Total Audience Manager data segments: ${dedupedAudiences.length}`);
 
     return new Response(
       JSON.stringify(allAudiences),
