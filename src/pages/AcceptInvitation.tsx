@@ -264,7 +264,9 @@ export default function AcceptInvitation() {
 
       await acceptInvitationBackend({ accessToken });
 
-      finishInvite();
+      // Get the user ID from the session for workspace assignment
+      const { data: { user: sessionUser } } = await supabase.auth.getUser();
+      finishInvite(undefined, sessionUser?.id);
       toast.success("Welcome to ActiPlan! You've joined the team.");
       navigate("/overview");
     } catch (err: any) {
