@@ -769,6 +769,8 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google')
       type: 'options', 
       options: platform === 'meta' 
         ? ['AWR', 'ENG', 'TRF', 'LED', 'APP', 'SAL']
+        : platform === 'google'
+        ? ['SAL', 'LED', 'TRF', 'AWR', 'APP', 'VV']
         : ['RCH', 'VV', 'TRF', 'CVN', 'API', 'LDG', 'PSL'],
       system: true, 
       required: true, 
