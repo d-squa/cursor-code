@@ -413,7 +413,7 @@ export const GOOGLE_ADS_CAMPAIGN_MATRIX: GoogleAdsCampaignType[] = [
       aiMax: "optional",
       aiMaxOptions: ["Text customization", "Final URL expansion"],
       audienceTargetingLevel: "Campaign",
-      audienceSegments: ["Detailed Demographics", "Affinity", "In-market", "Your Data Segments"],
+      audienceSegments: ["Website visitors", "Customer segments", "YouTube users", "App users", "Custom combination", "Callers"],
       searchThemes: false,
       keywords: true,
       demographics: [],
