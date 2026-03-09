@@ -23,7 +23,7 @@ import {
 export interface GoogleAdsAutoDetectInput {
   adFormats: string[];
   bidStrategy?: string;
-  audienceSegments: string[]; // e.g. "Affinity", "In-market", "Detailed Demographics", "Your Data Segments", "Lookalikes"
+  audienceSegments: string[]; // e.g. "Website visitors", "Customer segments", "YouTube users", "App users", "Custom combination", "Callers"
   keywords: string[];
   hasProductFeed?: boolean;
   hasApp?: boolean;

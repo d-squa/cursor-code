@@ -18,6 +18,51 @@ interface AudienceResult {
   approximate_count_upper_bound: number | null;
 }
 
+type GoogleDataSegment =
+  | 'Website visitors'
+  | 'Customer segments'
+  | 'YouTube users'
+  | 'App users'
+  | 'Custom combination'
+  | 'Callers';
+
+function mapUserListToDataSegment(listTypeRaw: string, listNameRaw: string): GoogleDataSegment | null {
+  const listType = (listTypeRaw || '').toUpperCase();
+  const listName = (listNameRaw || '').toLowerCase();
+
+  if (listType === 'CRM_BASED' || listType === 'CUSTOMER_MATCH_USER_LIST' || listName.includes('customer')) {
+    return 'Customer segments';
+  }
+
+  if (listType === 'YOUTUBE_USERS' || listName.includes('youtube')) {
+    return 'YouTube users';
+  }
+
+  if (listType === 'BASIC' || listType === 'APP_USERS' || listName.includes('app')) {
+    return 'App users';
+  }
+
+  if (listType === 'CALLERS' || listName.includes('call')) {
+    return 'Callers';
+  }
+
+  if (listType === 'LOGICAL' || listName.includes('combination')) {
+    return 'Custom combination';
+  }
+
+  if (
+    listType === 'RULE_BASED' ||
+    listType === 'REMARKETING' ||
+    listType === 'EXTERNAL_REMARKETING' ||
+    listName.includes('website') ||
+    listName.includes('visitor')
+  ) {
+    return 'Website visitors';
+  }
+
+  return null;
+}
+
 async function searchStream(
   url: string,
   headers: Record<string, string>,
