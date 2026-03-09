@@ -182,7 +182,7 @@ export default function AcceptInvitation() {
     return data as { ok: boolean; already_member?: boolean };
   };
 
-  const finishInvite = (choice?: SubscriptionChoice) => {
+  const finishInvite = (choice?: SubscriptionChoice, userIdOverride?: string) => {
     const mode = choice ?? subscriptionChoice;
 
     if (mode) {
@@ -201,8 +201,9 @@ export default function AcceptInvitation() {
     }
 
     // Set active workspace to the invited team so subscription check uses team owner's plan
-    if (invitation?.team_id && user?.id) {
-      localStorage.setItem(`actiplan.activeWorkspaceId:${user.id}`, invitation.team_id);
+    const uid = userIdOverride ?? user?.id;
+    if (invitation?.team_id && uid) {
+      localStorage.setItem(`actiplan.activeWorkspaceId:${uid}`, invitation.team_id);
     }
   };
 
