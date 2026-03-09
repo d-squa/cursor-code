@@ -810,6 +810,8 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): T
       type: 'options',
       options: platform === 'meta'
         ? ['ONAD', 'WEB', 'APP', 'MSG', 'CALL', 'SHOP', 'FORM']
+        : platform === 'google'
+        ? ['WEB', 'APP', 'CALL']
         : ['ONAD', 'WEB', 'APP', 'MSG', 'FORM', 'SHOP', 'TTIP'],
       system: true,
       required: true,
