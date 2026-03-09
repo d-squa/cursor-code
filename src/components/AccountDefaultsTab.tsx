@@ -713,6 +713,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_whatsapp_number",
         "default_zalo_account_id",
         "default_line_business_id",
+        // UTM Parameters
+        "default_utm_mode",
+        "default_url_parameters",
       ];
 
       const validFields = platform === "tiktok" ? tiktokFields : metaFields;
