@@ -194,28 +194,37 @@ serve(async (req) => {
       customerId = billingCustomer.stripe_customer_id;
       logStep("Found existing billing_customers mapping", { customerId });
     } else {
-      // No mapping exists - create a new Stripe customer
-      logStep("No billing_customers mapping, creating new Stripe customer");
+      // No mapping exists — search Stripe by email first to avoid duplicates
+      logStep("No billing_customers mapping, searching Stripe by email first");
 
-      const newCustomer = await stripe.customers.create({
-        email: user.email,
-        metadata: {
-          supabase_user_id: user.id,
-        },
-      });
-      customerId = newCustomer.id;
-      logStep("Created new Stripe customer", { customerId });
+      const existingCustomers = await stripe.customers.list({ email: user.email, limit: 5 });
+      const matchingCustomer = existingCustomers.data.find(
+        (c: any) => c.metadata?.supabase_user_id === user.id
+      ) || existingCustomers.data[0];
 
-      // Store the mapping in billing_customers
-      const { error: insertError } = await supabaseClient.from("billing_customers").insert({
-        user_id: user.id,
-        email: user.email,
-        stripe_customer_id: customerId,
-      });
+      if (matchingCustomer) {
+        customerId = matchingCustomer.id;
+        logStep("Found existing Stripe customer by email, reusing", { customerId });
+      } else {
+        const newCustomer = await stripe.customers.create({
+          email: user.email,
+          metadata: { supabase_user_id: user.id },
+        });
+        customerId = newCustomer.id;
+        logStep("Created new Stripe customer", { customerId });
+      }
 
-      if (insertError) {
-        logStep("Warning: Failed to store billing_customers mapping", { error: insertError.message });
-        // Continue anyway - the customer was created
+      // Store the mapping — use upsert to handle race conditions
+      const { error: upsertError } = await supabaseClient
+        .from("billing_customers")
+        .upsert({
+          user_id: user.id,
+          email: user.email,
+          stripe_customer_id: customerId,
+        }, { onConflict: "user_id" });
+
+      if (upsertError) {
+        logStep("Warning: Failed to store billing_customers mapping", { error: upsertError.message });
       } else {
         logStep("Stored billing_customers mapping");
       }
