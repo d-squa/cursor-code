@@ -1095,10 +1095,10 @@ export function MediaPlanEditor() {
   }, [user]);
 
   // Auto-fill missing adAccountId on markets after hydration + ad account IDs are loaded
-  const hasAutoFilledAdAccountIds = useRef(false);
+  // Track which platforms have been auto-filled so we re-run when new platform IDs arrive
+  const autoFilledPlatforms = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!isHydrated) return;
-    if (hasAutoFilledAdAccountIds.current) return;
     if (!firstAdAccountId && !firstTiktokAdvertiserId && !firstGoogleCustomerId) return;
     if (platformsWithMarkets.length === 0) return;
 
@@ -1110,13 +1110,20 @@ export function MediaPlanEditor() {
       const isTikTok = p.id === 'tiktok' || p.name.toLowerCase().includes('tiktok');
       const isGoogle = p.id === 'google_ads' || p.id === 'google' || p.name.toLowerCase().includes('google');
 
+      const platformKey = isMeta ? 'meta' : isTikTok ? 'tiktok' : isGoogle ? 'google' : null;
+      if (!platformKey || autoFilledPlatforms.current.has(platformKey)) return p;
+
       const fallbackId = isMeta ? firstAdAccountId : isTikTok ? firstTiktokAdvertiserId : isGoogle ? firstGoogleCustomerId : null;
       if (!fallbackId) return p;
 
       const needsFill = p.markets.some((m) => !m.adAccountId);
-      if (!needsFill) return p;
+      if (!needsFill) {
+        autoFilledPlatforms.current.add(platformKey);
+        return p;
+      }
 
       hasChanges = true;
+      autoFilledPlatforms.current.add(platformKey);
       return {
         ...p,
         markets: p.markets.map((m) =>
@@ -1125,7 +1132,6 @@ export function MediaPlanEditor() {
       };
     });
 
-    hasAutoFilledAdAccountIds.current = true;
     if (hasChanges) {
       console.log('🔧 Auto-filled missing adAccountId on markets from linked ad accounts');
       setPlatformsWithMarkets(updated);
