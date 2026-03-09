@@ -1241,6 +1241,12 @@ export const TIKTOK_STRATEGY_GROUPS: StrategyGroup[] = [
     platform: "tiktok",
     variants: [TIKTOK_AWARENESS_BASE, TIKTOK_AWARENESS_SMART],
   },
+  {
+    id: "tiktok-search-keywords",
+    name: "TikTok Search Keywords",
+    platform: "tiktok",
+    variants: [TIKTOK_SEARCH_KEYWORDS_BASE],
+  },
 ];
 
 /**
