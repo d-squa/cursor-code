@@ -473,8 +473,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           advantage_plus_sitelinks: acc.platform === "meta" ? (acc as any).advantage_plus_sitelinks ?? false : null,
           advantage_plus_products: acc.platform === "meta" ? (acc as any).advantage_plus_products ?? false : null,
           // UTM Parameters
-          default_utm_mode: acc.platform === "meta" ? (acc as any).default_utm_mode || "auto" : null,
-          default_url_parameters: acc.platform === "meta" ? (acc as any).default_url_parameters || null : null,
+          default_utm_mode: (acc as any).default_utm_mode || "auto",
+          default_url_parameters: (acc as any).default_url_parameters || null,
         };
       });
 
