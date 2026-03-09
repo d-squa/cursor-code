@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { PRICE_IDS } from "@/config/subscriptionTiers";
 import { fireSubscribeConversion } from "@/utils/conversionTracking";
 
