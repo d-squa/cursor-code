@@ -1809,9 +1809,12 @@ export function PhaseScheduler({
                               </Badge>
                             )}
                             {totalVol > 0 && (
-                              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
-                                <Search className="h-2.5 w-2.5 mr-0.5" />{formatVol(totalVol)} vol/mo
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                                  <Search className="h-2.5 w-2.5 mr-0.5" />{formatVol(totalVol)} vol/mo
+                                </Badge>
+                                <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
+                              </div>
                             )}
                             <div className="ml-auto flex gap-1">
                               {positives.slice(0, 3).map(kw => (

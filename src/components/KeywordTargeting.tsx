@@ -391,9 +391,12 @@ export function KeywordTargeting({
               <p className="text-sm font-medium">
                 Keyword Lists ({selectedKeywords.length} total)
               </p>
-              <span className="text-xs text-muted-foreground">
-                Total Vol: <span className="font-semibold text-foreground">{formatSearchVolume(totalSearchVolume)}</span>
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">
+                  Total Vol: <span className="font-semibold text-foreground">{formatSearchVolume(totalSearchVolume)}</span>
+                </span>
+                <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
+              </div>
             </div>
             <Tabs defaultValue="brand" className="w-full">
               <TabsList className="w-full grid grid-cols-3">
