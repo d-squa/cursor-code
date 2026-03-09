@@ -68,12 +68,13 @@ export default function AcceptInvitation() {
 
   const loadInvitation = async () => {
     try {
+      // NOTE: We intentionally avoid joining `teams` here because the teams
+      // table RLS requires authentication. Unauthenticated invited users
+      // would get a query error, causing "Invalid Invitation" even for
+      // valid pending invitations.
       const { data, error: fetchError } = await supabase
         .from("invitations")
-        .select(`
-          *,
-          teams (id, name)
-        `)
+        .select("*")
         .eq("token", token)
         .eq("status", "pending")
         .single();
@@ -87,7 +88,16 @@ export default function AcceptInvitation() {
         return;
       }
 
-      setInvitation(data);
+      // Fetch team name separately — use the invitation-account-status edge
+      // function which runs with service role and can read teams.
+      // For now, store the team_name from the invitations table if available,
+      // otherwise we'll resolve it after auth or show a fallback.
+      const enriched = {
+        ...data,
+        teams: { id: data.team_id, name: data.team_name || "the team" },
+      };
+
+      setInvitation(enriched);
     } catch (err: any) {
       setError("Invalid or expired invitation");
     } finally {
