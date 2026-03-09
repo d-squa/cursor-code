@@ -1819,6 +1819,17 @@ export function CampaignForecast({
           </>
         )}
 
+        {/* Keyword Strategy Breakdown */}
+        {(googleCustomerId || tiktokAdvertiserId) && onKeywordsUpdate && (
+          <KeywordTargeting
+            selectedKeywords={selectedKeywords || []}
+            onUpdate={onKeywordsUpdate}
+            googleCustomerId={googleCustomerId}
+            tiktokAdvertiserId={tiktokAdvertiserId}
+          />
+        )}
+
+
         <div className="flex justify-between pt-4 border-t">
           <Button variant="outline" onClick={onBack}>
             Back
