@@ -187,8 +187,37 @@ export function PhaseAudienceSelector({
     return detailed;
   })();
 
-  // Group ALL fetched audiences by broad "type" buckets
+  // Group ALL fetched audiences by bucket
   const groupedAudiences = (() => {
+    const fetched = Object.values(audiencesByType).flat();
+
+    if (isGooglePlatform) {
+      const dataSegmentOrder = [
+        "Website visitors",
+        "Customer segments",
+        "YouTube users",
+        "App users",
+        "Custom combination",
+        "Callers",
+      ];
+
+      const groups: Record<string, FetchedAudience[]> = Object.fromEntries(
+        dataSegmentOrder.map((key) => [key, [] as FetchedAudience[]])
+      );
+
+      fetched.forEach((aud) => {
+        const key = dataSegmentOrder.includes(aud.source || "") ? (aud.source as string) : "Uncategorized";
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(aud);
+      });
+
+      if (detailedTargetingAudiences.length > 0) {
+        groups["Detailed Targeting"] = detailedTargetingAudiences;
+      }
+
+      return groups;
+    }
+
     const groups: Record<AudienceGroupType, FetchedAudience[]> = {
       "Custom Audience": [],
       "Lookalike Audience": [],
@@ -196,7 +225,6 @@ export function PhaseAudienceSelector({
       "Detailed Targeting": detailedTargetingAudiences,
     };
 
-    const fetched = Object.values(audiencesByType).flat();
     fetched.forEach((aud) => {
       const key = getAudienceGroupType(aud);
       groups[key].push(aud);
@@ -205,12 +233,23 @@ export function PhaseAudienceSelector({
     return groups;
   })();
 
-  const groupOrder: AudienceGroupType[] = [
-    "Custom Audience",
-    "Lookalike Audience",
-    "Saved Audience",
-    ...(groupedAudiences["Detailed Targeting"].length > 0 ? (["Detailed Targeting"] as const) : []),
-  ];
+  const groupOrder: AudienceGroupType[] = isGooglePlatform
+    ? [
+        "Website visitors",
+        "Customer segments",
+        "YouTube users",
+        "App users",
+        "Custom combination",
+        "Callers",
+        ...(groupedAudiences["Uncategorized"]?.length ? ["Uncategorized"] : []),
+        ...(groupedAudiences["Detailed Targeting"]?.length ? ["Detailed Targeting"] : []),
+      ]
+    : [
+        "Custom Audience",
+        "Lookalike Audience",
+        "Saved Audience",
+        ...(groupedAudiences["Detailed Targeting"].length > 0 ? (["Detailed Targeting"] as const) : []),
+      ];
 
 
   const loadAudiences = async () => {
