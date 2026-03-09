@@ -780,126 +780,86 @@ export function CampaignForecast({
           destination,
         };
       } else if (isTikTok) {
-        // TikTok forecast using hybrid approach (benchmarks + estimates)
-        console.log("=== 🎵 TIKTOK FORECAST START (Hybrid Benchmarks) ===");
-        console.log("TikTok Forecast Parameters:", {
-          marketName: market.name,
-          budget,
-          startDate,
-          endDate,
-          phaseName: market.phaseName,
-          phaseObjective: market.phaseObjective,
-          phaseOptimizationGoal: market.phaseOptimizationGoal,
-          strategyFocus: market.strategyFocus,
-          genericStrategyFocus: genericConfig.strategyFocus
-        });
-
-        // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
-        let optimizationGoal: string;
-        let objective: string;
-        let destination: string;
+        console.log("=== 🎵 TIKTOK FORECAST START (AI-powered) ===");
         
-        console.log("🎯 Determining TikTok Objective & Optimization Goal:");
+        // Determine objective and optimization goal
+        let objective: string;
+        let optimizationGoal: string;
+        let destination: string;
+        const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
         
         if (market.phaseObjective && market.phaseOptimizationGoal && 
             market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
           objective = market.phaseObjective;
           optimizationGoal = market.phaseOptimizationGoal;
           destination = "Website";
-          console.log("  ✓ Using phase-defined objective:", {
-            objective,
-            optimizationGoal,
-            destination,
-            source: "phase config"
-          });
         } else if (market.phaseName) {
-          const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
           const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue, 'tiktok');
           objective = autoDetected.objective;
           optimizationGoal = autoDetected.optimizationGoal;
           destination = autoDetected.destination;
-          console.log("  ✓ Auto-detected from phase name:", {
-            phaseName: market.phaseName,
-            strategyFocus: strategyFocusValue,
-            objective,
-            optimizationGoal,
-            destination,
-            source: "auto-detection"
-          });
         } else {
-          const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
           const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue, 'tiktok');
           objective = autoDetected.objective;
           optimizationGoal = autoDetected.optimizationGoal;
           destination = autoDetected.destination;
-          console.log("  ✓ Using default objective:", {
-            strategyFocus: strategyFocusValue,
-            objective,
-            optimizationGoal,
-            destination,
-            source: "default fallback"
-          });
         }
 
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
         
-        // Use benchmark data for TikTok forecasts
-        const benchmarkKey = `${market.name}_${optimizationGoal}`;
-        const benchmark = benchmarks.get(benchmarkKey);
-        
-        // Estimate reach and impressions based on budget and platform benchmarks
-        const estimatedCPM = 8.5; // TikTok average CPM
-        const estimatedFrequency = 1.8; // TikTok average frequency
-        const impressions = (budget / estimatedCPM) * 1000;
-        const reach = impressions / estimatedFrequency;
-        const audienceSize = reach * 15; // TikTok multiplier
-        
-        // Calculate results based on benchmarks or standard conversion rates
-        let costPerResult: number;
-        let result: number;
-        
-        if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
-          costPerResult = benchmark.avg_cost_per_result;
-          result = budget / costPerResult;
-          console.log(`✅ Using benchmark CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
-        } else {
-          result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
-          costPerResult = result > 0 ? budget / result : 0;
-          console.log(`✅ Using calculated result for TikTok ${market.name}/${optimizationGoal}`);
-        }
-        
-        const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
-        
-        console.log(`📊 TikTok forecast summary for ${market.name}:`, {
-          impressions: impressions.toFixed(0),
-          reach: reach.toFixed(0),
-          frequency: estimatedFrequency,
-          cpm: `$${estimatedCPM}`,
-          result: result.toFixed(0),
-          costPerResult: `$${costPerResult.toFixed(2)}`,
-          resultRate: `${resultRate.toFixed(2)}%`,
-          dataSource: 'estimated'
+        // Use AI forecast as primary source for TikTok
+        console.log("🤖 Calling AI forecast for TikTok...");
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
+          body: {
+            platform: 'TikTok',
+            market: marketCode,
+            budget,
+            strategyFocus: strategyFocusValue,
+            objective,
+            optimizationGoal,
+            destination,
+            ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+            ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+            gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
+            startDate: campaignStartDate || startDate,
+            endDate: campaignEndDate || endDate,
+            industry: resolvedIndustry,
+            phaseName: market.phaseName,
+          }
         });
-        
+
+        if (aiError) {
+          console.error("AI forecast failed for TikTok:", aiError);
+          throw aiError;
+        }
+
+        const aiReach = aiData.reach || Math.round((aiData.impressions || 0) * 0.6);
+        const aiImpressions = aiData.impressions || Math.round((budget / (aiData.cpm || 10)) * 1000);
+        const aiAudienceSize = aiData.audienceSize || aiReach * 10;
+        const aiResults = aiData.results || Math.max(1, Math.round(aiImpressions * 0.001));
+        const aiCostPerResult = aiData.costPerResult || (aiResults > 0 ? parseFloat((budget / aiResults).toFixed(2)) : 0);
+        const aiResultRate = aiData.resultRate || (aiImpressions > 0 ? parseFloat(((aiResults / aiImpressions) * 100).toFixed(2)) : 0);
+        const aiFrequency = aiData.frequency || (aiReach > 0 ? parseFloat((aiImpressions / aiReach).toFixed(1)) : 2);
+
         const tiktokForecastResult = {
-          audienceSize: Math.round(audienceSize),
-          reach: Math.round(reach),
-          impressions: Math.round(impressions),
-          cpm: estimatedCPM,
-          frequency: estimatedFrequency,
-          result: Math.round(result),
+          audienceSize: aiAudienceSize,
+          reach: aiReach,
+          impressions: aiImpressions,
+          cpm: aiData.cpm || 10,
+          frequency: aiFrequency,
+          result: aiResults,
           resultLabel: getResultLabel(optimizationGoal),
           resultKPI: goalMetrics?.kpi || optimizationGoal,
-          costPerResult: parseFloat(costPerResult.toFixed(2)),
-          resultRate: parseFloat(resultRate.toFixed(2)),
+          costPerResult: aiCostPerResult,
+          resultRate: aiResultRate,
           resultRateName: goalMetrics?.rateName || "Rate",
           objective,
           optimizationGoal,
           destination,
-          dataSource: 'estimated' as const,
+          dataSource: 'ai_predicted' as const,
         };
         
-        console.log("✅ TikTok Campaign Forecast FINAL Result:", tiktokForecastResult);
+        console.log("✅ TikTok AI Forecast Result:", tiktokForecastResult);
         console.log("=== 🎵 TIKTOK FORECAST END ===\n");
         
         return tiktokForecastResult;
