@@ -6,6 +6,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface SubscriptionGuardProps {
   children: React.ReactNode;
@@ -14,7 +15,7 @@ interface SubscriptionGuardProps {
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const navigate = useNavigate();
   const { user, loading: authLoading, isEmailConfirmed } = useAuth();
-  const { isSubscribed, loading: subLoading, error: subError } = useSubscription();
+  const { isSubscribed, loading: subLoading, error: subError, refetch: refetchSubscription } = useSubscription();
   const { loading: workspaceLoading, activeWorkspaceId, workspaces } = useWorkspace();
   
   // Track if user was ever subscribed in this session to prevent redirect during transient errors
@@ -22,6 +23,9 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   // Track if we've already attempted workspace recovery
   const [recoveringWorkspace, setRecoveringWorkspace] = useState(false);
   const recoveryAttemptedRef = useRef(false);
+  // Track pending invitation processing
+  const [processingInvitation, setProcessingInvitation] = useState(false);
+  const invitationProcessedRef = useRef(false);
   
   // Update the ref when subscription status is confirmed
   useEffect(() => {
@@ -29,6 +33,67 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
       wasSubscribedRef.current = true;
     }
   }, [isSubscribed]);
+
+  // Check and process pending invitation after sign-in
+  useEffect(() => {
+    if (authLoading || !user || !isEmailConfirmed) return;
+    if (invitationProcessedRef.current) return;
+
+    const pendingRaw = localStorage.getItem("actiplan_pending_invitation");
+    if (!pendingRaw) return;
+
+    invitationProcessedRef.current = true;
+    setProcessingInvitation(true);
+
+    (async () => {
+      try {
+        const pending = JSON.parse(pendingRaw);
+        const { data: session } = await supabase.auth.getSession();
+        const accessToken = session?.session?.access_token;
+        if (!accessToken) throw new Error("No session");
+
+        const { data, error } = await supabase.functions.invoke("accept-invitation", {
+          body: {
+            token: pending.token,
+            subscriptionChoice: null,
+          },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (error) throw error;
+
+        // Set workspace to the invited team
+        if (pending.teamId && user.id) {
+          localStorage.setItem(`actiplan.activeWorkspaceId:${user.id}`, pending.teamId);
+        }
+        localStorage.removeItem("actiplan_signup_source");
+        
+        // Ensure onboarding is marked complete
+        const existingOnboarding = localStorage.getItem("actiplan_onboarding");
+        if (!existingOnboarding) {
+          localStorage.setItem(
+            "actiplan_onboarding",
+            JSON.stringify({
+              completedAt: new Date().toISOString(),
+              skippedViaTeamInvite: true,
+            })
+          );
+        }
+
+        localStorage.removeItem("actiplan_pending_invitation");
+        toast.success("Welcome to the team!");
+
+        // Reload to pick up new workspace and subscription
+        window.location.href = "/overview";
+      } catch (err: any) {
+        console.error("Failed to auto-accept invitation:", err);
+        localStorage.removeItem("actiplan_pending_invitation");
+        setProcessingInvitation(false);
+      }
+    })();
+  }, [authLoading, user, isEmailConfirmed]);
 
   // If user is authenticated but has no workspaces, attempt to recreate via ensure_user_workspace
   useEffect(() => {
@@ -56,8 +121,8 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // Wait for workspace to load - subscription check depends on activeWorkspaceId
     if (workspaceLoading) return;
 
-    // Still recovering workspace
-    if (recoveringWorkspace) return;
+    // Still recovering workspace or processing invitation
+    if (recoveringWorkspace || processingInvitation) return;
     
     // For subscription refreshes, don't disrupt if we already know the user is subscribed
     // or if they were subscribed before (prevents redirect during transient errors)
@@ -101,11 +166,11 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
       }
       return;
     }
-  }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed, workspaceLoading, activeWorkspaceId, recoveringWorkspace]);
+  }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed, workspaceLoading, activeWorkspaceId, recoveringWorkspace, processingInvitation]);
 
   // Show loading while checking auth, workspace, and subscription (only when we *don't* already have
   // a subscribed user). This prevents UI unmounts on background token refreshes.
-  if (authLoading || workspaceLoading || recoveringWorkspace || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
+  if (authLoading || workspaceLoading || recoveringWorkspace || processingInvitation || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

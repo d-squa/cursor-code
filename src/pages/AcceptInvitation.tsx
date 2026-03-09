@@ -265,7 +265,7 @@ export default function AcceptInvitation() {
       // With auto-confirm enabled, signUp returns a session directly
       let accessToken = signUpData.session?.access_token;
 
-      // If no session from signUp, sign in immediately (auto-confirm is enabled)
+      // If no session from signUp, try to sign in
       if (!accessToken) {
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: invitation.email,
@@ -273,9 +273,22 @@ export default function AcceptInvitation() {
         });
 
         if (signInError) {
-          // This shouldn't happen with auto-confirm, but handle gracefully
-          console.error("Sign-in after signup failed:", signInError);
-          toast.error("Failed to sign in. Please try signing in manually.");
+          // Email confirmation is likely required - store invitation for post-confirmation acceptance
+          console.log("No session after signup - email confirmation likely required");
+          localStorage.setItem("actiplan_pending_invitation", JSON.stringify({
+            token,
+            teamId: invitation.team_id,
+          }));
+          // Also pre-set onboarding as complete for invited users
+          localStorage.setItem(
+            "actiplan_onboarding",
+            JSON.stringify({
+              completedAt: new Date().toISOString(),
+              skippedViaTeamInvite: true,
+            })
+          );
+          localStorage.removeItem("actiplan_signup_source");
+          toast.success("Account created! Please check your email to confirm, then sign in.");
           navigate(`/auth?email=${encodeURIComponent(invitation.email)}`);
           return;
         }
@@ -284,7 +297,22 @@ export default function AcceptInvitation() {
       }
 
       if (!accessToken) {
-        throw new Error("Failed to obtain session after signup");
+        // No session at all - likely needs email confirmation
+        localStorage.setItem("actiplan_pending_invitation", JSON.stringify({
+          token,
+          teamId: invitation.team_id,
+        }));
+        localStorage.setItem(
+          "actiplan_onboarding",
+          JSON.stringify({
+            completedAt: new Date().toISOString(),
+            skippedViaTeamInvite: true,
+          })
+        );
+        localStorage.removeItem("actiplan_signup_source");
+        toast.success("Account created! Please check your email to confirm, then sign in.");
+        navigate(`/auth?email=${encodeURIComponent(invitation.email)}`);
+        return;
       }
 
       await acceptInvitationBackend({ accessToken });
