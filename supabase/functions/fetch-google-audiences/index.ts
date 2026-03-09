@@ -188,20 +188,20 @@ serve(async (req) => {
       const sizeSearch = ul.sizeForSearch ?? ul.size_for_search ?? 0;
       if (!id || !name) continue;
 
-      let subtype = 'YOUR_DATA';
-      if (listType === 'CRM_BASED') subtype = 'CUSTOMER_LIST';
-      else if (listType === 'RULE_BASED' || listType === 'LOGICAL') subtype = 'WEBSITE_VISITORS';
-      else if (listType === 'BASIC') subtype = 'APP_USERS';
+      const mappedSegment = mapUserListToDataSegment(listType, name);
+      if (!id || !name || !mappedSegment) continue;
 
       const size = Math.max(Number(sizeDisplay) || 0, Number(sizeSearch) || 0);
       allAudiences.push({
-        id, name, subtype,
-        source: 'Your data segments',
+        id,
+        name,
+        subtype: mappedSegment,
+        source: mappedSegment,
         approximate_count_lower_bound: size || null,
         approximate_count_upper_bound: size || null,
       });
     }
-    console.log(`Your data segments: ${yourDataRows.length}`);
+    console.log(`Data segments: ${yourDataRows.length}`);
 
     // --- Process Custom Segments ---
     for (const r of customSegmentRows) {
