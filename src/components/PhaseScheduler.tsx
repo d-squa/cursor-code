@@ -32,6 +32,7 @@ import { MetaPhaseConfig } from "./MetaPhaseConfig";
 import { GoogleAdsPhaseConfig } from "./GoogleAdsPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
+import { useTaxonomyTemplates } from "@/hooks/useTaxonomyTemplates";
 import { SplittableSection } from "./SplittableSection";
 import { AdSetSplitManager } from "./AdSetSplitManager";
 import { createInitialAdSets } from "@/utils/adSetSplitUtils";
