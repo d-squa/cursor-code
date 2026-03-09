@@ -1131,6 +1131,44 @@ const TIKTOK_AWARENESS_SMART: StrategyDefinition = {
   ],
 };
 
+// ─── TIKTOK SEARCH KEYWORDS STRATEGY ──────────────────────────
+
+const TIKTOK_SEARCH_KEYWORDS_BASE: StrategyDefinition = {
+  id: "tiktok-search-keywords-base",
+  name: "TikTok Search Keywords",
+  variant: "base",
+  platform: "tiktok",
+  phases: [
+    {
+      name: "Search — Keyword Conversion",
+      funnelStage: "BOF",
+      durationPercent: 60,
+      recommendedDurationDays: [30, 90],
+      budgetPercent: 60,
+      objective: "PRODUCT_SALES",
+      optimizationGoal: "CONVERT",
+      optimizationLocation: "Website",
+      billingType: "oCPM",
+      audienceTypes: "Search Keywords",
+      adFormats: "Search Ads",
+      automationFeatures: "Keyword Targeting",
+    },
+    {
+      name: "MOF - Engagement Retargeting",
+      funnelStage: "MOF",
+      durationPercent: 40,
+      recommendedDurationDays: [14, 60],
+      budgetPercent: 40,
+      objective: "PRODUCT_SALES",
+      optimizationGoal: "CONVERT",
+      optimizationLocation: "Website",
+      billingType: "oCPM",
+      audienceTypes: "Video Viewers + Engagers",
+      adFormats: "In-Feed + Spark Ads",
+      automationFeatures: "Manual Retargeting",
+    },
+  ],
+};
 // ─── STRATEGY GROUPS (for UI dropdown) ─────────────────────────
 
 export const META_STRATEGY_GROUPS: StrategyGroup[] = [
