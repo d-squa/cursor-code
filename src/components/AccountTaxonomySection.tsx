@@ -20,7 +20,7 @@ export default function AccountTaxonomySection({
         <FileText className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-medium">Naming Taxonomy</h3>
         <Badge variant="secondary" className="text-xs">
-          {platform === 'meta' ? 'Meta' : 'TikTok'}
+          {platform === 'meta' ? 'Meta' : platform === 'google' ? 'Google Ads' : 'TikTok'}
         </Badge>
       </div>
       
