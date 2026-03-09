@@ -36,11 +36,16 @@ serve(async (req) => {
       throw new Error("Account ID is required");
     }
 
-    if (platform !== "meta") {
-      throw new Error("Only Meta account asset sync is currently supported");
+    if (!platform || (platform !== "meta" && platform !== "google")) {
+      throw new Error("Platform must be 'meta' or 'google'");
     }
 
-    console.log(`[SYNC-ACCOUNT-ASSETS] Starting asset sync for Meta account ${accountId}, user ${user.id}`);
+    console.log(`[SYNC-ACCOUNT-ASSETS] Starting asset sync for ${platform} account ${accountId}, user ${user.id}`);
+
+    // Route to Google Ads sync if platform is google
+    if (platform === "google") {
+      return await syncGoogleAdsAssets(supabase, user, accountId, req.headers.get("authorization")!);
+    }
 
     // Get user's active Meta platform connection
     const { data: platformData, error: platformError } = await supabase
