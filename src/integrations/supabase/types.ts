@@ -3631,6 +3631,10 @@ export type Database = {
       }
       is_owner: { Args: { _user_id: string }; Returns: boolean }
       is_team_owner: { Args: { _user_id: string }; Returns: boolean }
+      is_team_owner_or_admin: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
       migrate_tokens_to_vault: { Args: never; Returns: undefined }
       store_adlibrary_token: {
         Args: { token_value: string; user_id_param: string }
