@@ -262,9 +262,12 @@ export function KeywordTargeting({
         </Badge>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatSearchVolume(kw.avgMonthlySearches)}/mo
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatSearchVolume(kw.avgMonthlySearches)}/mo
+          </span>
+          <DataSourceBadge dataSource="live_api" platformName={kw.platform === "google" ? "Google Ads" : "TikTok"} />
+        </div>
         <Select
           value={kw.matchType || "broad"}
           onValueChange={(val) => updateMatchType(kw.id, val as KeywordMatchType)}
