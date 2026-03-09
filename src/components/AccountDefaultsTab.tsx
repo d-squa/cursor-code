@@ -2611,6 +2611,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         </div>
                       </div>
 
+                      {/* Naming Taxonomy Section */}
+                      <Separator className="my-6" />
+                      <AccountTaxonomySection adAccountId={gAccount.id} platform="google" userId={userId} />
+
                       <div className="flex justify-end gap-2 pt-4">
                         <Button onClick={() => handleSaveGoogleDefaults(gAccount.id)} disabled={savingGoogleDefaults === gAccount.id}>
                           {savingGoogleDefaults === gAccount.id ? (
