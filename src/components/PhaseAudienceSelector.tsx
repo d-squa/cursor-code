@@ -121,9 +121,8 @@ export function PhaseAudienceSelector({
     if (!basicTargeting || !isBrandAwareness || overrideTargeting) return [];
 
     const detailed: FetchedAudience[] = [];
-    const platformLower = platform?.toLowerCase() || "";
-    const isTikTok = platformLower.includes("tiktok");
-    const isMeta = platformLower.includes("meta") || platformLower.includes("facebook") || platformLower.includes("instagram");
+    const isTikTok = isTikTokPlatform;
+    const isMeta = isMetaPlatform;
 
     if (isMeta) {
       basicTargeting.metaInterests?.forEach((interest) => {
