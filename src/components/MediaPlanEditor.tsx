@@ -2397,7 +2397,7 @@ export function MediaPlanEditor() {
                     id: p.id,
                     name: p.name,
                     adAccountId:
-                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : p.id === "google_ads" ? firstGoogleCustomerId : undefined,
+                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : (p.id === "google" || p.id === "google_ads") ? firstGoogleCustomerId : undefined,
                   }))}
               />
               <div className="mt-6 flex justify-between">

@@ -64,7 +64,10 @@ async function resolveDbAccountId(
     dbId = data?.id ?? null;
   }
 
-  dbAccountIdCache.set(cacheKey, dbId);
+  // Only cache non-null results to allow retry on failure
+  if (dbId) {
+    dbAccountIdCache.set(cacheKey, dbId);
+  }
   return dbId;
 }
 
