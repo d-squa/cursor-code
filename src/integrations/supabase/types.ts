@@ -1686,6 +1686,7 @@ export type Database = {
           default_target_roas: number | null
           descriptive_name: string | null
           id: string
+          main_markets: Json | null
           manager_customer_id: string | null
           platform_id: string | null
           team_id: string | null
@@ -1712,6 +1713,7 @@ export type Database = {
           default_target_roas?: number | null
           descriptive_name?: string | null
           id?: string
+          main_markets?: Json | null
           manager_customer_id?: string | null
           platform_id?: string | null
           team_id?: string | null
@@ -1738,6 +1740,7 @@ export type Database = {
           default_target_roas?: number | null
           descriptive_name?: string | null
           id?: string
+          main_markets?: Json | null
           manager_customer_id?: string | null
           platform_id?: string | null
           team_id?: string | null

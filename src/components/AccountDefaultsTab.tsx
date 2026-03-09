@@ -47,6 +47,8 @@ interface GoogleAdAccountDefaults {
   default_max_cpc_bid?: number | null;
   default_conversion_budget_type?: string | null;
   default_non_conversion_budget_type?: string | null;
+  default_merchant_center_id?: string | null;
+  default_feed_label?: string | null;
   main_markets?: string[] | null;
 }
 
@@ -349,14 +351,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Load Google Ads accounts for this client
       const { data: googleAccountsData, error: googleAccountsError } = await supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets")
         .eq("client_id", clientId);
 
       if (googleAccountsError) throw googleAccountsError;
 
       const googleAccounts: GoogleAdAccountDefaults[] = (googleAccountsData || []).map((acc: any) => ({
         ...acc,
-        main_markets: [],
+        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
       }));
       setGoogleAdAccounts(googleAccounts);
 
@@ -371,6 +373,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_max_cpc_bid: acc.default_max_cpc_bid || null,
           default_conversion_budget_type: acc.default_conversion_budget_type || null,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+          default_merchant_center_id: acc.default_merchant_center_id || null,
+          default_feed_label: acc.default_feed_label || null,
           main_markets: acc.main_markets || [],
         };
       });
@@ -844,6 +848,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_max_cpc_bid",
         "default_conversion_budget_type",
         "default_non_conversion_budget_type",
+        "default_merchant_center_id",
+        "default_feed_label",
         "main_markets",
       ];
 
@@ -2574,6 +2580,34 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      </div>
+
+                      <Separator className="my-4" />
+
+                      {/* Merchant Center & Feed Label */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Default Merchant Center ID</Label>
+                          <Input
+                            placeholder="e.g. 123456789"
+                            value={gDefaults.default_merchant_center_id || ""}
+                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_merchant_center_id", e.target.value || null)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Link your Google Merchant Center for Shopping & PMax campaigns
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Default Feed Label</Label>
+                          <Input
+                            placeholder="e.g. US or online"
+                            value={gDefaults.default_feed_label || ""}
+                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_feed_label", e.target.value || null)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Feed label used to filter product feeds by country/region
+                          </p>
                         </div>
                       </div>
 
