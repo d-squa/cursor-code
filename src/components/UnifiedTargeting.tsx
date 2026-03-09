@@ -383,7 +383,35 @@ export function UnifiedTargeting({
           {searchResults.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{searchResults.length} results found</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {(() => {
+                      const filtered = platformFilter === 'all' 
+                        ? searchResults 
+                        : searchResults.filter(r => r.platforms.includes(platformFilter));
+                      return `${filtered.length} results`;
+                    })()}
+                  </span>
+                  <div className="flex gap-1">
+                    {(['all', 'meta', 'tiktok', 'google'] as const).map(f => {
+                      const count = f === 'all' 
+                        ? searchResults.length 
+                        : searchResults.filter(r => r.platforms.includes(f)).length;
+                      if (f !== 'all' && count === 0) return null;
+                      return (
+                        <Button
+                          key={f}
+                          variant={platformFilter === f ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => setPlatformFilter(f)}
+                        >
+                          {f === 'all' ? 'All' : f === 'meta' ? 'Meta' : f === 'tiktok' ? 'TikTok' : 'Google'} ({count})
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -394,7 +422,9 @@ export function UnifiedTargeting({
               </div>
               <ScrollArea className="h-[300px] rounded-md border p-4">
                 <div className="space-y-2">
-                  {searchResults.map((result, index) => {
+                  {searchResults
+                    .filter(r => platformFilter === 'all' || r.platforms.includes(platformFilter))
+                    .map((result, index) => {
                     const isSelected = isItemSelected(result);
                     const uniqueKey = `${getItemKey(result)}_${index}`;
                     return (
