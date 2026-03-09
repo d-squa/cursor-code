@@ -191,6 +191,9 @@ export function PhaseScheduler({
   onTaxonomyValidationChange
 }: PhaseSchedulerProps) {
   const extensionMode = useExtensionModeOptional();
+  const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+  const taxonomyPlatform: 'meta' | 'tiktok' | 'google' = isGooglePlatform ? 'google' : platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta';
+  const { templates: taxonomyTemplates, loading: taxonomyLoading, refresh: refreshTaxonomy } = useTaxonomyTemplates(adAccountId, taxonomyPlatform);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
