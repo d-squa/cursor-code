@@ -342,7 +342,7 @@ export default function UserManagement() {
   };
 
   const handleInvite = () => {
-    if (!inviteEmail || !inviteRole || !inviteTeamId) {
+    if (!inviteEmail || !inviteRole || !activeWorkspaceId) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -350,7 +350,7 @@ export default function UserManagement() {
     createInvitation.mutate({
       email: inviteEmail,
       role: inviteRole,
-      teamId: inviteTeamId,
+      teamId: activeWorkspaceId,
     });
   };
 
