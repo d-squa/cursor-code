@@ -1684,6 +1684,8 @@ export type Database = {
           default_non_conversion_budget_type: string | null
           default_target_cpa: number | null
           default_target_roas: number | null
+          default_url_parameters: string | null
+          default_utm_mode: string | null
           descriptive_name: string | null
           id: string
           main_markets: Json | null
@@ -1711,6 +1713,8 @@ export type Database = {
           default_non_conversion_budget_type?: string | null
           default_target_cpa?: number | null
           default_target_roas?: number | null
+          default_url_parameters?: string | null
+          default_utm_mode?: string | null
           descriptive_name?: string | null
           id?: string
           main_markets?: Json | null
@@ -1738,6 +1742,8 @@ export type Database = {
           default_non_conversion_budget_type?: string | null
           default_target_cpa?: number | null
           default_target_roas?: number | null
+          default_url_parameters?: string | null
+          default_utm_mode?: string | null
           descriptive_name?: string | null
           id?: string
           main_markets?: Json | null
@@ -2930,6 +2936,8 @@ export type Database = {
           default_placement_type: string | null
           default_placements: Json | null
           default_product_set_id: string | null
+          default_url_parameters: string | null
+          default_utm_mode: string | null
           default_view_window: number | null
           default_whatsapp_number: string | null
           default_zalo_account_id: string | null
@@ -2977,6 +2985,8 @@ export type Database = {
           default_placement_type?: string | null
           default_placements?: Json | null
           default_product_set_id?: string | null
+          default_url_parameters?: string | null
+          default_utm_mode?: string | null
           default_view_window?: number | null
           default_whatsapp_number?: string | null
           default_zalo_account_id?: string | null
@@ -3024,6 +3034,8 @@ export type Database = {
           default_placement_type?: string | null
           default_placements?: Json | null
           default_product_set_id?: string | null
+          default_url_parameters?: string | null
+          default_utm_mode?: string | null
           default_view_window?: number | null
           default_whatsapp_number?: string | null
           default_zalo_account_id?: string | null
