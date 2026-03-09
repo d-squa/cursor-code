@@ -61,6 +61,7 @@ export function KeywordTargeting({
   const [platformFilter, setPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
 
   const hasGoogleOrTiktok = !!googleCustomerId || !!tiktokAdvertiserId;
+  const filteredResults = platformFilter === 'all' ? results : results.filter(r => r.platform === platformFilter);
 
   if (!hasGoogleOrTiktok) return null;
 
