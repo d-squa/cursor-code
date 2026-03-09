@@ -16,6 +16,7 @@ import { AdSetSplitDimension, AdSetSplitDimensionPerPlatform } from "@/types/med
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
+import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -503,6 +504,19 @@ export function UnifiedTargeting({
             </CollapsibleContent>
           </Card>
         </Collapsible>
+      )}
+
+      {/* Keyword Targeting for Search Campaigns */}
+      {(googleCustomerId || selectedPlatforms?.some(p => p.id === 'google_ads')) && (
+        <KeywordTargeting
+          selectedKeywords={targeting.selectedKeywords || []}
+          onUpdate={(keywords) => {
+            const updated = { ...targeting, selectedItems, selectedKeywords: keywords };
+            onUpdate(updated);
+            persistToLocalStorage(updated);
+          }}
+          googleCustomerId={googleCustomerId}
+        />
       )}
 
       {/* Default Ad Set Split Configuration */}
