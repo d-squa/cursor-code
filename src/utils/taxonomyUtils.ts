@@ -891,11 +891,15 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): T
       type: 'options',
       options: platform === 'meta'
         ? ['AUTO', 'FEED', 'STORY', 'REEL', 'MIX']
+        : platform === 'google'
+        ? ['AUTO', 'SEARCH', 'DISPLAY', 'VIDEO']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: true,
       description: platform === 'meta'
         ? 'Auto-filled from Phase Config → Specific ad positions. FEED=Feed placements, STORY=Stories, REEL=Reels, MIX=Multiple positions.'
+        : platform === 'google'
+        ? 'Auto-filled from Phase Config → Google Ads network positions.'
         : 'Auto-filled from Phase Config → Specific TikTok positions.',
     },
     {
