@@ -260,6 +260,9 @@ export default function UserManagement() {
       toast.error("Failed to remove user: " + error.message);
     },
   });
+
+  // Update user role mutation
+  const updateUserRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       if (!activeWorkspaceId) throw new Error("No active workspace");
 
