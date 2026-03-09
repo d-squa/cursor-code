@@ -759,7 +759,7 @@ export function extractTaxonomyValues(
 
 // Generate default campaign taxonomy params
 // Campaign: activation name, objective, market, phase budget, start date, end date, BO number, team name
-export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
+export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google'): TaxonomyParam[] {
   return [
     { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → Name field. The main identifier for this campaign activation.' },
     { 
