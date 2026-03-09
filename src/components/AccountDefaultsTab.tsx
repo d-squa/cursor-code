@@ -848,6 +848,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_max_cpc_bid",
         "default_conversion_budget_type",
         "default_non_conversion_budget_type",
+        "default_merchant_center_id",
+        "default_feed_label",
         "main_markets",
       ];
 
