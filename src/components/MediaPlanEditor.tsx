@@ -2623,7 +2623,7 @@ export function MediaPlanEditor() {
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
                         platformId={singlePlatform?.id || "meta"}
-                        adAccountId={singleMarket.adAccountId}
+                        adAccountId={singleMarket.adAccountId || (singlePlatform?.id === 'meta' ? firstAdAccountId : singlePlatform?.id === 'tiktok' ? firstTiktokAdvertiserId : singlePlatform?.id === 'google' || singlePlatform?.id === 'google_ads' ? firstGoogleCustomerId : undefined) || undefined}
                         basicTargeting={basicTargeting}
                         strategy={singleMarket.strategy || genericConfig.strategy}
                         strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
