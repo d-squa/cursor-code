@@ -2611,6 +2611,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         </div>
                       </div>
 
+                      <div className="flex justify-end gap-2 pt-4">
                         <Button onClick={() => handleSaveGoogleDefaults(gAccount.id)} disabled={savingGoogleDefaults === gAccount.id}>
                           {savingGoogleDefaults === gAccount.id ? (
                             <>
