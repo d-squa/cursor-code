@@ -51,7 +51,7 @@ export default function AccountTaxonomySection({
           <AccordionTrigger className="px-4 py-2 hover:no-underline">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
-                {platform === 'tiktok' ? 'Ad Group' : 'Ad Set'} Taxonomy
+                {platform === 'tiktok' ? 'Ad Group' : platform === 'google' ? 'Ad Group' : 'Ad Set'} Taxonomy
               </span>
             </div>
           </AccordionTrigger>

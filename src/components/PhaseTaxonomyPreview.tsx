@@ -12,7 +12,7 @@ import {
 
 interface PhaseTaxonomyPreviewProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   // Context values automatically extracted from ActiPlan phase/market data
   context: TaxonomyContext;
   // Custom parameter values filled by user

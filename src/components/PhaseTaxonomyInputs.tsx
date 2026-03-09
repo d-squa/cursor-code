@@ -33,7 +33,7 @@ import {
 
 interface PhaseTaxonomyInputsProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   entityType: 'campaign' | 'adset';
   // Context values automatically extracted from ActiPlan
   context: TaxonomyContext;

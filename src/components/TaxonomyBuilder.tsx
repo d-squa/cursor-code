@@ -41,7 +41,7 @@ import {
 
 interface TaxonomyBuilderProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   userId: string;
   entityType: 'campaign' | 'adset' | 'ad';
   onSave?: () => void;
