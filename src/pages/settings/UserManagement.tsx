@@ -211,7 +211,7 @@ export default function UserManagement() {
       setInviteDialogOpen(false);
       setInviteEmail("");
       setInviteRole("member");
-      setInviteTeamId("");
+      setInviteTeamId(activeWorkspaceId || "");
     },
     onError: (error) => {
       toast.error("Failed to send invitation: " + error.message);
@@ -342,7 +342,7 @@ export default function UserManagement() {
   };
 
   const handleInvite = () => {
-    if (!inviteEmail || !inviteRole || !inviteTeamId) {
+    if (!inviteEmail || !inviteRole || !activeWorkspaceId) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -350,7 +350,7 @@ export default function UserManagement() {
     createInvitation.mutate({
       email: inviteEmail,
       role: inviteRole,
-      teamId: inviteTeamId,
+      teamId: activeWorkspaceId,
     });
   };
 
@@ -401,18 +401,11 @@ export default function UserManagement() {
                 
                 <div>
                   <Label htmlFor="team">Team</Label>
-                  <Select value={inviteTeamId} onValueChange={setInviteTeamId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams?.map((team) => (
-                        <SelectItem key={team.id} value={team.id}>
-                          {team.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    value={activeWorkspace?.name || "Current Workspace"}
+                    disabled
+                    className="bg-muted"
+                  />
                 </div>
 
                 <div>
