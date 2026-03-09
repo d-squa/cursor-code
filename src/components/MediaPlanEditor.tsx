@@ -2128,6 +2128,7 @@ export function MediaPlanEditor() {
             {/* Client Selection - Now after required fields */}
             <div className="space-y-2">
               <Label htmlFor="client">Client (Optional)</Label>
+              <div className="flex gap-2">
               <Select
                 value={selectedClientId || undefined}
                 onValueChange={(value) => {
@@ -2200,7 +2201,27 @@ export function MediaPlanEditor() {
                     </TooltipProvider>
                   )}
                 </SelectContent>
-              </Select>
+               </Select>
+               <Button
+                 type="button"
+                 variant="outline"
+                 size="sm"
+                 disabled={!selectedClientId || !totalBudget || !startDate || !endDate}
+                 onClick={() => {
+                   clientSelectionIsUserAction.current = true;
+                   // Re-trigger by setting same client id
+                   const currentClient = selectedClientId;
+                   setSelectedClientId("");
+                   setTimeout(() => {
+                     clientSelectionIsUserAction.current = true;
+                     setSelectedClientId(currentClient || "");
+                   }, 0);
+                 }}
+                 className="shrink-0"
+               >
+                 Apply Defaults
+               </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Selecting a client will auto-populate platforms, markets, and ad account defaults
               </p>
