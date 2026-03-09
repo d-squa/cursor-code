@@ -1584,7 +1584,8 @@ export function CampaignForecast({
         const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
         // Check if any market forecast used AI prediction
         const hasAiPredicted = campaignForecasts.some(f => f.metrics.dataSource === 'ai_predicted');
-        const dataSource: 'live_api' | 'estimated' | 'ai_predicted' = hasAiPredicted ? 'ai_predicted' : (isMeta ? 'live_api' : 'estimated');
+        const hasLiveApi = campaignForecasts.some(f => f.metrics.dataSource === 'live_api') || isMeta;
+        const dataSource: 'live_api' | 'estimated' | 'ai_predicted' = hasAiPredicted ? 'ai_predicted' : (hasLiveApi ? 'live_api' : 'estimated');
 
         platformForecasts.push({
           platformId: platform.id,
