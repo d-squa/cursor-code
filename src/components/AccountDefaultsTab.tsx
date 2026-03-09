@@ -2583,7 +2583,34 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-2 pt-4">
+                      <Separator className="my-4" />
+
+                      {/* Merchant Center & Feed Label */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Default Merchant Center ID</Label>
+                          <Input
+                            placeholder="e.g. 123456789"
+                            value={gDefaults.default_merchant_center_id || ""}
+                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_merchant_center_id", e.target.value || null)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Link your Google Merchant Center for Shopping & PMax campaigns
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Default Feed Label</Label>
+                          <Input
+                            placeholder="e.g. US or online"
+                            value={gDefaults.default_feed_label || ""}
+                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_feed_label", e.target.value || null)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Feed label used to filter product feeds by country/region
+                          </p>
+                        </div>
+                      </div>
+
                         <Button onClick={() => handleSaveGoogleDefaults(gAccount.id)} disabled={savingGoogleDefaults === gAccount.id}>
                           {savingGoogleDefaults === gAccount.id ? (
                             <>
