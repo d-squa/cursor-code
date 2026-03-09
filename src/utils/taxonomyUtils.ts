@@ -873,11 +873,15 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): T
       type: 'options',
       options: platform === 'meta'
         ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        : platform === 'google'
+        ? ['SEARCH', 'DISPLAY', 'VIDEO', 'PMAX', 'SHOP']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: true,
       description: platform === 'meta'
         ? 'Auto-filled from Phase Config → Placement Type. AUTO=Advantage+ placements, FB=Facebook, IG=Instagram, AN=Audience Network, MIX=Multiple platforms.'
+        : platform === 'google'
+        ? 'Auto-filled from Phase Config → Campaign Type. SEARCH=Search, DISPLAY=Display, VIDEO=Video, PMAX=Performance Max, SHOP=Shopping.'
         : 'Auto-filled from Phase Config → Placement Type. AUTO=Automatic, TT=TikTok, GAB=Global App Bundle, PAN=Pangle.',
     },
     {
