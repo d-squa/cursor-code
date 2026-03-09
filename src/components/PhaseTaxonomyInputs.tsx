@@ -23,13 +23,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { 
+import {
   TaxonomyParam, 
   TaxonomyContext,
   extractTaxonomyValues,
   generateTaxonomyString,
-  getMissingRequiredCount
+  getMissingRequiredCount,
+  getDefaultCampaignParams,
+  getDefaultAdSetParams,
 } from "@/utils/taxonomyUtils";
+import type { Json } from "@/integrations/supabase/types";
 
 interface PhaseTaxonomyInputsProps {
   adAccountId: string;
@@ -138,6 +141,31 @@ export function PhaseTaxonomyInputs({
       if (data?.template) {
         const templateData = data.template as unknown as TaxonomyParam[];
         setTemplate(templateData);
+      } else {
+        // No template exists yet — auto-create default template
+        const defaultParams = entityType === 'campaign' 
+          ? getDefaultCampaignParams(platform) 
+          : getDefaultAdSetParams(platform);
+        
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && dbAccountId) {
+            const { error: insertError } = await supabase
+              .from('taxonomy_templates')
+              .insert([{
+                ad_account_id: dbAccountId,
+                platform,
+                entity_type: entityType,
+                template: JSON.parse(JSON.stringify(defaultParams)) as Json,
+                user_id: user.id,
+              }]);
+            if (!insertError) {
+              setTemplate(defaultParams);
+            }
+          }
+        } catch {
+          // Silently fail — template will just not show
+        }
       }
     } catch (err) {
       console.error('Error loading taxonomy template:', err);

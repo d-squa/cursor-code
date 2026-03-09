@@ -7,8 +7,11 @@ import {
   TaxonomyContext,
   extractTaxonomyValues,
   generateTaxonomyString,
-  getMissingRequiredCount
+  getMissingRequiredCount,
+  getDefaultCampaignParams,
+  getDefaultAdSetParams,
 } from "@/utils/taxonomyUtils";
+import type { Json } from "@/integrations/supabase/types";
 
 interface PhaseTaxonomyPreviewProps {
   adAccountId: string;
@@ -105,6 +108,39 @@ export function PhaseTaxonomyPreview({
             newTemplates[row.entity_type] = row.template as unknown as TaxonomyParam[];
           }
         });
+
+        // Auto-create missing default templates for platforms that haven't been configured yet
+        const missingTypes: ('campaign' | 'adset')[] = [];
+        if (newTemplates.campaign.length === 0) missingTypes.push('campaign');
+        if (newTemplates.adset.length === 0) missingTypes.push('adset');
+
+        if (missingTypes.length > 0 && dbAccountId) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              for (const et of missingTypes) {
+                const defaultParams = et === 'campaign'
+                  ? getDefaultCampaignParams(platform)
+                  : getDefaultAdSetParams(platform);
+                const { error: insertError } = await supabase
+                  .from('taxonomy_templates')
+                  .insert([{
+                    ad_account_id: dbAccountId,
+                    platform,
+                    entity_type: et,
+                    template: JSON.parse(JSON.stringify(defaultParams)) as Json,
+                    user_id: user.id,
+                  }]);
+                if (!insertError) {
+                  newTemplates[et] = defaultParams;
+                }
+              }
+            }
+          } catch {
+            // Silently continue with whatever templates we have
+          }
+        }
+
         setTemplates(newTemplates);
       } catch (err) {
         console.error('Error loading taxonomy templates:', err);
