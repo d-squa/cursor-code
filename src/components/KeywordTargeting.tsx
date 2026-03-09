@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Loader2, Search, X, Plus, KeyRound, Ban, ChevronDown, ChevronRight, Target, ShieldCheck, Swords } from "lucide-react";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -261,9 +262,12 @@ export function KeywordTargeting({
         </Badge>
       </div>
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {formatSearchVolume(kw.avgMonthlySearches)}/mo
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatSearchVolume(kw.avgMonthlySearches)}/mo
+          </span>
+          <DataSourceBadge dataSource="live_api" platformName={kw.platform === "google" ? "Google Ads" : "TikTok"} />
+        </div>
         <Select
           value={kw.matchType || "broad"}
           onValueChange={(val) => updateMatchType(kw.id, val as KeywordMatchType)}
@@ -387,9 +391,12 @@ export function KeywordTargeting({
               <p className="text-sm font-medium">
                 Keyword Lists ({selectedKeywords.length} total)
               </p>
-              <span className="text-xs text-muted-foreground">
-                Total Vol: <span className="font-semibold text-foreground">{formatSearchVolume(totalSearchVolume)}</span>
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">
+                  Total Vol: <span className="font-semibold text-foreground">{formatSearchVolume(totalSearchVolume)}</span>
+                </span>
+                <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
+              </div>
             </div>
             <Tabs defaultValue="brand" className="w-full">
               <TabsList className="w-full grid grid-cols-3">

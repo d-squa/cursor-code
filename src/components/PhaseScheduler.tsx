@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, X, GripVertical, Link2, ChevronDown, ChevronRight, Copy, Trash2, ExternalLink, Lock, Info, Search, ShieldCheck, Target, Swords, Ban } from "lucide-react";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
@@ -1691,10 +1692,13 @@ export function PhaseScheduler({
                             {phase.budgetPercentage}% budget
                           </Badge>
                           {isGoogleSearchPhase && phaseSearchVolume > 0 && (
-                            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
-                              <Search className="h-3 w-3 mr-1" />
-                              {phaseSearchVolume >= 1_000_000 ? `${(phaseSearchVolume / 1_000_000).toFixed(1)}M` : phaseSearchVolume >= 1_000 ? `${(phaseSearchVolume / 1_000).toFixed(1)}K` : phaseSearchVolume} vol/mo
-                            </Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                                <Search className="h-3 w-3 mr-1" />
+                                {phaseSearchVolume >= 1_000_000 ? `${(phaseSearchVolume / 1_000_000).toFixed(1)}M` : phaseSearchVolume >= 1_000 ? `${(phaseSearchVolume / 1_000).toFixed(1)}K` : phaseSearchVolume} vol/mo
+                              </Badge>
+                              <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
+                            </div>
                           )}
                           {adAccountId && (
                             <PhaseTaxonomyPreview
@@ -1805,9 +1809,12 @@ export function PhaseScheduler({
                               </Badge>
                             )}
                             {totalVol > 0 && (
-                              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
-                                <Search className="h-2.5 w-2.5 mr-0.5" />{formatVol(totalVol)} vol/mo
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
+                                  <Search className="h-2.5 w-2.5 mr-0.5" />{formatVol(totalVol)} vol/mo
+                                </Badge>
+                                <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
+                              </div>
                             )}
                             <div className="ml-auto flex gap-1">
                               {positives.slice(0, 3).map(kw => (
