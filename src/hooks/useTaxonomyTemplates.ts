@@ -161,7 +161,9 @@ export function useTaxonomyTemplates(
   const mountedRef = useRef(true);
 
   const load = useCallback(async () => {
+    console.log(`[TaxonomyTemplates] load called: platform=${platform}, adAccountId=${adAccountId}`);
     if (!adAccountId) {
+      console.log(`[TaxonomyTemplates] No adAccountId, skipping`);
       setTemplates({ campaign: [], adset: [] });
       setLoading(false);
       return;
