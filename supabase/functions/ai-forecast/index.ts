@@ -93,7 +93,7 @@ serve(async (req) => {
       durationDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
     }
 
-    const prompt = `You are a digital advertising performance forecasting expert. Based on the following campaign configuration, predict the campaign performance metrics. Return ONLY a valid JSON object with no additional text.
+    const prompt = `You are a digital advertising performance forecasting expert with deep knowledge of platform-specific benchmarks across all major ad platforms (Meta, TikTok, Google Ads, Snapchat, LinkedIn, Pinterest). Based on the following campaign configuration, predict the campaign performance metrics. Return ONLY a valid JSON object with no additional text.
 
 Campaign Configuration:
 - Platform: ${platform || "Meta"}
@@ -110,7 +110,12 @@ Campaign Configuration:
 - Phase: ${phaseName || "N/A"}
 ${benchmarkContext}
 
-Based on current ${platform || "Meta"} advertising benchmarks for ${market} market in the ${industry || "general"} industry, predict:
+IMPORTANT platform-specific guidance for ${platform || "Meta"}:
+- Use REALISTIC CPMs for ${market}. CPMs vary dramatically by country and platform. For example, UAE CPMs on TikTok are typically $5-15, on Google Search $8-25, on LinkedIn $20-60.
+- Cost per conversion in ${market} for ${industry || "general"} industry is typically much higher than basic benchmarks. For conversion objectives in premium markets like UAE/GCC, cost per conversion is often $15-80+ depending on the industry.
+- Do NOT use generic global averages. Use region-specific data for ${market}.
+- Consider the optimization goal "${optimizationGoal || "OFFSITE_CONVERSIONS"}" carefully — awareness goals have very different metrics than conversion goals.
+- If benchmark data is provided above, weight it heavily in your predictions as it represents actual historical performance.
 
 Return this exact JSON structure:
 {
@@ -127,13 +132,7 @@ Return this exact JSON structure:
   "confidence": <string - "high", "medium", or "low" based on data availability>
 }
 
-Important guidelines:
-- Use realistic ${platform || "Meta"} benchmarks for ${market}
-- CPM should reflect actual market rates for ${market} (varies significantly by country)
-- Consider the optimization goal "${optimizationGoal || "OFFSITE_CONVERSIONS"}" when calculating results
-- If benchmark data is provided above, use it to ground your predictions
-- Scale metrics proportionally to the $${budget} budget over ${durationDays} days
-- Be conservative rather than optimistic in estimates`;
+Scale metrics proportionally to the $${budget} budget over ${durationDays} days. Be conservative rather than optimistic.`;
 
     console.log("Calling Lovable AI for forecast prediction...");
 
