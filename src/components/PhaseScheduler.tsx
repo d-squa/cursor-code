@@ -1866,10 +1866,10 @@ export function PhaseScheduler({
                           />
                           <PhaseTaxonomyInputs
                             adAccountId={adAccountId}
-                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            platform={taxonomyPlatform}
                             entityType="adset"
                             context={{
-                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              platform: taxonomyPlatform,
                               optimizationGoal: phase.optimizationGoal,
                               optimizationLocation: phase.metaOptimizationLocation || phase.tiktokOptimizationLocation,
                               phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
