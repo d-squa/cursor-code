@@ -101,9 +101,10 @@ export function PhaseAudienceSelector({
   // Collapsible sections state - all start collapsed
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
-  type AudienceGroupType = "Custom Audience" | "Lookalike Audience" | "Saved Audience" | "Detailed Targeting";
+  type AudienceGroupType = string;
 
-  const getAudienceGroupType = (aud: FetchedAudience): Exclude<AudienceGroupType, "Detailed Targeting"> => {
+  const getAudienceGroupType = (aud: FetchedAudience): AudienceGroupType => {
+    if (isGooglePlatform) return aud.source || "Uncategorized";
     if (aud.source === "Saved Audience") return "Saved Audience";
     if (aud.subtype?.toUpperCase() === "LOOKALIKE" || aud.subtype?.toUpperCase() === "SIMILAR" || aud.source === "Lookalikes" || aud.source === "Lookalike Audience") return "Lookalike Audience";
     return "Custom Audience";
