@@ -550,8 +550,8 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
 
     const mappedInMarket = inMarketRows
       .map((r: any) => {
-        const seg = r.inMarketAudience || r.in_market_audience || {};
-        const id = String(seg.id ?? '');
+        const seg = r.userInterest || r.user_interest || {};
+        const id = String(seg.userInterestId ?? seg.user_interest_id ?? '');
         const name = seg.name ?? '';
         if (!id || !name) return null;
         return { id, name, description: 'In-market' };
@@ -560,8 +560,8 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
 
     const mappedAffinity = affinityRows
       .map((r: any) => {
-        const seg = r.affinity || {};
-        const id = String(seg.id ?? '');
+        const seg = r.userInterest || r.user_interest || {};
+        const id = String(seg.userInterestId ?? seg.user_interest_id ?? '');
         const name = seg.name ?? '';
         if (!id || !name) return null;
         return { id, name, description: 'Affinity' };
