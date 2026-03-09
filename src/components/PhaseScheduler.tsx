@@ -1655,10 +1655,13 @@ export function PhaseScheduler({
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
             const availableObjectives = getAvailableObjectives();
             const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+            const isTikTokPlatform = platformId?.toLowerCase() === 'tiktok';
             const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
-            const phaseKeywords = isGoogleSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
+            const isTikTokSearchPhase = isTikTokPlatform && phase.tiktokCampaignType === "Search";
+            const isSearchPhase = isGoogleSearchPhase || isTikTokSearchPhase;
+            const phaseKeywords = isSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
-            const keywordStrategyGroups = isGoogleSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
+            const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
               const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
               const positives = kws.filter(kw => !kw.isNegative);
               const negatives = kws.filter(kw => kw.isNegative);
