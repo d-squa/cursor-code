@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { PRICE_IDS } from "@/config/subscriptionTiers";
 import { fireSubscribeConversion } from "@/utils/conversionTracking";
 
@@ -290,7 +291,8 @@ export default function ChoosePlan() {
               <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
               <p className="text-xs text-muted-foreground hidden md:block">Choose Your Plan</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <WorkspaceSwitcher />
               <span className="text-sm text-muted-foreground">{user?.email}</span>
               <Button variant="outline" size="sm" onClick={signOut}>
                 Sign Out
