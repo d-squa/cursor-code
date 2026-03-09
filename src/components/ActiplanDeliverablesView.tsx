@@ -11,6 +11,7 @@ import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
 
 interface ActiplanDeliverablesViewProps {
+  selectedKeywords?: KeywordItem[];
   actiplanForecast: {
     totalBudget: number;
     totalAudienceSize: number;
