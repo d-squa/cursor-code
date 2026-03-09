@@ -887,7 +887,7 @@ export function MediaPlanEditor() {
       console.log("🔄 URL campaign ID changed, resetting for new campaign:", urlCampaignId);
       lastCampaignIdRef.current = urlCampaignId;
       setIsHydrated(false);
-      hasAutoFilledAdAccountIds.current = false;
+      autoFilledPlatforms.current = new Set();
       // Clear form state to prevent stale data
       setCampaignName("");
       setBoNumber("");
