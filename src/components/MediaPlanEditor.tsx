@@ -2135,6 +2135,7 @@ export function MediaPlanEditor() {
                     navigate("/settings/accounts");
                     return;
                   }
+                  clientSelectionIsUserAction.current = true;
                   setSelectedClientId(value || "");
                   ensureDraft();
                 }}
