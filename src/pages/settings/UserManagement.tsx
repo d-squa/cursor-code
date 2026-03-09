@@ -198,6 +198,7 @@ export default function UserManagement() {
           teamName: team?.name || "Team",
           role,
           invitationToken: token,
+          origin: window.location.origin,
         },
       });
 
