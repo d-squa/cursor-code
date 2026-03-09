@@ -543,24 +543,25 @@ export function MediaPlanEditor() {
     );
   }, [platformsWithMarkets]);
 
-  // Sync derived values to state only when they actually change
+  // Sync derived values to state only when they provide a non-null value
+  // (don't override DB-fetched values with null derived values)
   useEffect(() => {
-    if (derivedMetaAccountId !== firstAdAccountId) {
+    if (derivedMetaAccountId && derivedMetaAccountId !== firstAdAccountId) {
       setFirstAdAccountId(derivedMetaAccountId);
     }
-  }, [derivedMetaAccountId, firstAdAccountId]);
+  }, [derivedMetaAccountId]);
 
   useEffect(() => {
-    if (derivedTiktokAccountId !== firstTiktokAdvertiserId) {
+    if (derivedTiktokAccountId && derivedTiktokAccountId !== firstTiktokAdvertiserId) {
       setFirstTiktokAdvertiserId(derivedTiktokAccountId);
     }
-  }, [derivedTiktokAccountId, firstTiktokAdvertiserId]);
+  }, [derivedTiktokAccountId]);
 
   useEffect(() => {
-    if (derivedGoogleAccountId !== firstGoogleCustomerId) {
+    if (derivedGoogleAccountId && derivedGoogleAccountId !== firstGoogleCustomerId) {
       setFirstGoogleCustomerId(derivedGoogleAccountId);
     }
-  }, [derivedGoogleAccountId, firstGoogleCustomerId]);
+  }, [derivedGoogleAccountId]);
 
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
