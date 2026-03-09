@@ -30,8 +30,24 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Trash2, Mail, Send, Copy } from "lucide-react";
+import { UserPlus, Trash2, Mail, Send, Copy, MoreHorizontal, UserMinus, AlertTriangle } from "lucide-react";
 import { FeatureGate } from "@/components/FeatureGate";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function UserManagement() {
   const { user } = useAuth();
@@ -41,6 +57,7 @@ export default function UserManagement() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteTeamId, setInviteTeamId] = useState<string>("");
+  const [removeConfirm, setRemoveConfirm] = useState<{ userId: string; email: string; type: "team" | "platform" } | null>(null);
 
   useEffect(() => {
     if (activeWorkspaceId) setInviteTeamId(activeWorkspaceId);
@@ -216,7 +233,28 @@ export default function UserManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
-      toast.success("User removed from team");
+      toast.success(`User removed from ${activeWorkspaceName}`);
+      setRemoveConfirm(null);
+    },
+    onError: (error) => {
+      toast.error("Failed to remove user: " + error.message);
+    },
+  });
+
+  // Remove user from ALL teams (platform-wide)
+  const removeUserFromPlatform = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      toast.success("User removed from all teams");
+      setRemoveConfirm(null);
     },
     onError: (error) => {
       toast.error("Failed to remove user: " + error.message);
@@ -531,18 +569,28 @@ export default function UserManagement() {
                   {canManageUsers && (
                     <TableCell>
                       {canModify && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm(`Remove ${userItem.email} from this workspace?`)) {
-                              removeUserFromTeam.mutate(userItem.id);
-                            }
-                          }}
-                          title="Remove from team"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "team" })}
+                            >
+                              <UserMinus className="mr-2 h-4 w-4" />
+                              Remove from this team
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "platform" })}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove from all teams
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   )}
@@ -552,6 +600,47 @@ export default function UserManagement() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!removeConfirm} onOpenChange={(open) => !open && setRemoveConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from all teams"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeConfirm?.type === "team" ? (
+                <>
+                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>{activeWorkspaceName}</strong> only.
+                  They will retain access to any other teams they belong to.
+                </>
+              ) : (
+                <>
+                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>all assigned teams</strong> on the platform.
+                  They will lose access to every workspace. This action cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!removeConfirm) return;
+                if (removeConfirm.type === "team") {
+                  removeUserFromTeam.mutate(removeConfirm.userId);
+                } else {
+                  removeUserFromPlatform.mutate(removeConfirm.userId);
+                }
+              }}
+            >
+              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from all teams"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </FeatureGate>
   );
