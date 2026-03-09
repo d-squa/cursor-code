@@ -1,0 +1,1 @@
+ALTER TABLE public.google_ad_accounts ADD COLUMN IF NOT EXISTS main_markets jsonb DEFAULT '[]'::jsonb;
