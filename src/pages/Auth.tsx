@@ -171,8 +171,10 @@ export default function Auth() {
               }
 
               const signupSource = localStorage.getItem("actiplan_signup_source");
-              if (signupSource === "landing") {
+              const alreadyActivating = sessionStorage.getItem("actiplan_trial_activating");
+              if (signupSource === "landing" && !alreadyActivating) {
                 try {
+                  sessionStorage.setItem("actiplan_trial_activating", "true");
                   const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
                     headers: {
                       Authorization: `Bearer ${session.access_token}`,
@@ -181,18 +183,22 @@ export default function Auth() {
 
                   if (trialError) {
                     console.error("Error activating free trial:", trialError);
+                    sessionStorage.removeItem("actiplan_trial_activating");
                     navigate("/choose-plan");
                     return;
                   }
 
                   if (trialData?.success) {
                     localStorage.removeItem("actiplan_signup_source");
+                    sessionStorage.removeItem("actiplan_trial_activating");
                     toast.success("Welcome! Your 30-day free trial has started.");
                     navigate("/overview");
                     return;
                   }
+                  sessionStorage.removeItem("actiplan_trial_activating");
                 } catch (err) {
                   console.error("Error activating free trial:", err);
+                  sessionStorage.removeItem("actiplan_trial_activating");
                 }
               }
 

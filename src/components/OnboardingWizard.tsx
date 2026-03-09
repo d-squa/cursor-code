@@ -304,20 +304,25 @@ export const OnboardingWizard = () => {
           navigate("/overview");
         } else {
           const signupSource = localStorage.getItem("actiplan_signup_source");
-          if (signupSource === "landing") {
+          const alreadyActivating = sessionStorage.getItem("actiplan_trial_activating");
+          if (signupSource === "landing" && !alreadyActivating) {
             try {
+              sessionStorage.setItem("actiplan_trial_activating", "true");
               const { data: trialData } = await supabase.functions.invoke("activate-free-trial", {
                 headers: { Authorization: `Bearer ${session.access_token}` },
               });
               if (trialData?.success || trialData?.alreadySubscribed) {
                 localStorage.removeItem("actiplan_signup_source");
+                sessionStorage.removeItem("actiplan_trial_activating");
                 fireSubscribeConversion(`auto-trial:${session.user.id}`);
                 toast.success("Welcome! Your 30-day free trial has started.");
                 navigate("/overview");
                 return;
               }
+              sessionStorage.removeItem("actiplan_trial_activating");
             } catch (err) {
               console.error("Error activating free trial:", err);
+              sessionStorage.removeItem("actiplan_trial_activating");
             }
             localStorage.removeItem("actiplan_signup_source");
             navigate("/overview");
