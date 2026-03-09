@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Loader2, Search, X, Plus, KeyRound, Ban, ChevronDown, ChevronRight, Target, ShieldCheck, Swords } from "lucide-react";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
