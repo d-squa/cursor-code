@@ -201,6 +201,50 @@ export default function UserManagement() {
     },
   });
 
+  // Remove user from team mutation
+  const removeUserFromTeam = useMutation({
+    mutationFn: async (userId: string) => {
+      if (!activeWorkspaceId) throw new Error("No active workspace");
+      
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("team_id", activeWorkspaceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      toast.success("User removed from team");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove user: " + error.message);
+    },
+  });
+
+  // Update user role mutation
+  const updateUserRole = useMutation({
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+      if (!activeWorkspaceId) throw new Error("No active workspace");
+
+      const { error } = await supabase
+        .from("user_roles")
+        .update({ role: newRole as any })
+        .eq("user_id", userId)
+        .eq("team_id", activeWorkspaceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      toast.success("Role updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update role: " + error.message);
+    },
+  });
+
   // Cancel invitation mutation
   const cancelInvitation = useMutation({
     mutationFn: async (invitationId: string) => {
@@ -223,14 +267,12 @@ export default function UserManagement() {
   // Resend invitation mutation
   const resendInvitation = useMutation({
     mutationFn: async (invitation: any) => {
-      // Get team name for email
       const { data: team } = await supabase
         .from("teams")
         .select("name")
         .eq("id", invitation.team_id)
         .single();
 
-      // Send invitation email
       const { error: emailError } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email: invitation.email,
