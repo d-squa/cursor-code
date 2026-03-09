@@ -401,18 +401,11 @@ export default function UserManagement() {
                 
                 <div>
                   <Label htmlFor="team">Team</Label>
-                  <Select value={inviteTeamId} onValueChange={setInviteTeamId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams?.map((team) => (
-                        <SelectItem key={team.id} value={team.id}>
-                          {team.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    value={activeWorkspace?.name || "Current Workspace"}
+                    disabled
+                    className="bg-muted"
+                  />
                 </div>
 
                 <div>
