@@ -373,6 +373,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_max_cpc_bid: acc.default_max_cpc_bid || null,
           default_conversion_budget_type: acc.default_conversion_budget_type || null,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+          default_merchant_center_id: acc.default_merchant_center_id || null,
+          default_feed_label: acc.default_feed_label || null,
           main_markets: acc.main_markets || [],
         };
       });
