@@ -1065,23 +1065,28 @@ export function CampaignForecast({
       }
     }
 
-    // Mock forecast calculation for non-Meta platforms or fallback
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // AI-powered forecast for all non-Meta platforms (Google, Snapchat, LinkedIn, etc.)
+    const platformLabel = platformId.includes("google") ? "Google Ads" :
+                          platformId.includes("linkedin") ? "LinkedIn" :
+                          platformId.includes("snapchat") ? "Snapchat" :
+                          platformId.includes("pinterest") ? "Pinterest" : platformId;
 
-    const baseCPM = platformId.includes("google") ? 8 :
-                    platformId.includes("linkedin") ? 25 : 12;
-    
-    const impressions = Math.floor((budget / baseCPM) * 1000);
-    const avgFrequency = 3.5;
-    const reach = Math.floor(impressions / avgFrequency);
-    
-    // Map strategy focus to optimization goal for mock
     const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
     let optimizationGoal = "OFFSITE_CONVERSIONS";
     let objective = "OUTCOME_SALES";
     let destination = "Website";
     
-    if (strategyFocusValue === 'brand-awareness') {
+    if (market.phaseObjective && market.phaseOptimizationGoal && 
+        market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
+      objective = market.phaseObjective;
+      optimizationGoal = market.phaseOptimizationGoal;
+      destination = "Website";
+    } else if (market.phaseName) {
+      const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue);
+      objective = autoDetected.objective;
+      optimizationGoal = autoDetected.optimizationGoal;
+      destination = autoDetected.destination;
+    } else if (strategyFocusValue === 'brand-awareness') {
       objective = "OUTCOME_AWARENESS";
       optimizationGoal = "IMPRESSIONS";
       destination = "On Your Ad";
@@ -1103,40 +1108,92 @@ export function CampaignForecast({
       destination = "Website";
     }
     const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
-    
-    let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
-    
-    // Apply benchmark if available
-    const benchmarkKey = `${market.name}_${optimizationGoal}`;
-    const benchmark = benchmarks.get(benchmarkKey);
-    
-    let costPerResult: number;
-    if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
-      costPerResult = benchmark.avg_cost_per_result;
-      result = budget / costPerResult;
-      console.log(`✓ Using benchmark CPR (mock) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
-    } else {
-      costPerResult = result > 0 ? budget / result : 0;
-    }
-    
-    const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
 
-    return {
-      audienceSize: reach * 10,
-      reach,
-      impressions,
-      cpm: baseCPM,
-      result,
-      resultLabel: getResultLabel(optimizationGoal),
-      resultKPI: goalMetrics?.kpi || optimizationGoal,
-      costPerResult: parseFloat(costPerResult.toFixed(2)),
-      resultRate: parseFloat(resultRate.toFixed(2)),
-      resultRateName: goalMetrics?.rateName || "Rate",
-      objective,
-      optimizationGoal,
-      destination,
-      dataSource: 'estimated' as const, // Mock data uses estimated
-    };
+    // Validate market code for AI forecast
+    const marketCodeForAI = market.name.substring(0, 2).trim().toUpperCase();
+
+    try {
+      console.log(`🤖 Calling AI forecast for ${platformLabel} - ${marketCodeForAI}...`);
+      const { supabase } = await import("@/integrations/supabase/client");
+      
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
+        body: {
+          platform: platformLabel,
+          market: marketCodeForAI,
+          budget,
+          strategyFocus: strategyFocusValue,
+          objective,
+          optimizationGoal,
+          destination,
+          ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+          ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+          gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
+          startDate: campaignStartDate || startDate,
+          endDate: campaignEndDate || endDate,
+          industry: resolvedIndustry,
+          phaseName: market.phaseName,
+        }
+      });
+
+      if (aiError) throw aiError;
+      
+      const aiReach = aiData.reach || Math.round((aiData.impressions || 0) * 0.6);
+      const aiImpressions = aiData.impressions || Math.round((budget / (aiData.cpm || 10)) * 1000);
+      const aiAudienceSize = aiData.audienceSize || aiReach * 10;
+      const aiResults = aiData.results || Math.max(1, Math.round(aiImpressions * 0.001));
+      const aiCostPerResult = aiData.costPerResult || (aiResults > 0 ? parseFloat((budget / aiResults).toFixed(2)) : 0);
+      const aiResultRate = aiData.resultRate || (aiImpressions > 0 ? parseFloat(((aiResults / aiImpressions) * 100).toFixed(2)) : 0);
+      const aiFrequency = aiData.frequency || (aiReach > 0 ? parseFloat((aiImpressions / aiReach).toFixed(1)) : 2);
+
+      console.log(`✅ AI forecast for ${platformLabel}:`, { reach: aiReach, impressions: aiImpressions, cpm: aiData.cpm, costPerResult: aiCostPerResult });
+
+      return {
+        audienceSize: aiAudienceSize,
+        reach: aiReach,
+        impressions: aiImpressions,
+        cpm: aiData.cpm || 10,
+        frequency: aiFrequency,
+        result: aiResults,
+        resultLabel: getResultLabel(optimizationGoal),
+        resultKPI: goalMetrics?.kpi || optimizationGoal,
+        costPerResult: aiCostPerResult,
+        resultRate: aiResultRate,
+        resultRateName: goalMetrics?.rateName || "Rate",
+        objective,
+        optimizationGoal,
+        destination,
+        dataSource: 'ai_predicted' as const,
+      };
+    } catch (aiErr) {
+      console.error(`AI forecast failed for ${platformLabel}:`, aiErr);
+      toast.error(`AI forecast failed for ${platformLabel}. Using basic estimates.`);
+      
+      // Minimal static fallback only if AI fails
+      const baseCPM = platformId.includes("google") ? 8 :
+                      platformId.includes("linkedin") ? 25 : 12;
+      const impressions = Math.floor((budget / baseCPM) * 1000);
+      const reach = Math.floor(impressions / 3.5);
+      let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+      const costPerResult = result > 0 ? budget / result : 0;
+      const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
+
+      return {
+        audienceSize: reach * 10,
+        reach,
+        impressions,
+        cpm: baseCPM,
+        result,
+        resultLabel: getResultLabel(optimizationGoal),
+        resultKPI: goalMetrics?.kpi || optimizationGoal,
+        costPerResult: parseFloat(costPerResult.toFixed(2)),
+        resultRate: parseFloat(resultRate.toFixed(2)),
+        resultRateName: goalMetrics?.rateName || "Rate",
+        objective,
+        optimizationGoal,
+        destination,
+        dataSource: 'estimated' as const,
+      };
+    }
   };
 
   const handleFetchForecasts = async () => {
