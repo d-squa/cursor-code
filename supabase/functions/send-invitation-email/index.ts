@@ -91,8 +91,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Email service not configured");
     }
 
-    // Get the base URL for the invitation link
-    const baseUrl = "https://actiplan.app";
+    // Get the base URL for the invitation link - use origin from frontend if provided
+    const baseUrl = origin || "https://actiplan.app";
     const invitationUrl = `${baseUrl}/accept-invitation?token=${invitationToken}`;
 
     console.log("Invitation URL:", invitationUrl);
