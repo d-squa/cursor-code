@@ -669,7 +669,7 @@ export const GOOGLE_ADS_CAMPAIGN_MATRIX: GoogleAdsCampaignType[] = [
       language: "All",
       aiMax: false,
       audienceTargetingLevel: "Ad Group",
-      audienceSegments: ["Detailed Demographics", "Affinity", "In-market", "Your Data Segments"],
+      audienceSegments: ["Website visitors", "Customer segments", "YouTube users", "App users", "Custom combination", "Callers"],
       searchThemes: false,
       keywords: false,
       demographics: ["Gender", "Age", "Parental Status", "Household Income"],
