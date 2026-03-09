@@ -487,16 +487,20 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
           AND combined_audience.name LIKE '%${escapedQuery}%'
         LIMIT 50
       `),
+      // In-market audiences via user_interest resource
       runGaqlSearch(`
-        SELECT in_market_audience.id, in_market_audience.name
-        FROM in_market_audience
-        WHERE in_market_audience.name LIKE '%${escapedQuery}%'
+        SELECT user_interest.user_interest_id, user_interest.name, user_interest.taxonomy_type
+        FROM user_interest
+        WHERE user_interest.taxonomy_type = 'IN_MARKET'
+          AND user_interest.name LIKE '%${escapedQuery}%'
         LIMIT 50
       `),
+      // Affinity audiences via user_interest resource
       runGaqlSearch(`
-        SELECT affinity.id, affinity.name
-        FROM affinity
-        WHERE affinity.name LIKE '%${escapedQuery}%'
+        SELECT user_interest.user_interest_id, user_interest.name, user_interest.taxonomy_type
+        FROM user_interest
+        WHERE user_interest.taxonomy_type = 'AFFINITY'
+          AND user_interest.name LIKE '%${escapedQuery}%'
         LIMIT 50
       `),
       runGaqlSearch(`
@@ -546,8 +550,8 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
 
     const mappedInMarket = inMarketRows
       .map((r: any) => {
-        const seg = r.inMarketAudience || r.in_market_audience || {};
-        const id = String(seg.id ?? '');
+        const seg = r.userInterest || r.user_interest || {};
+        const id = String(seg.userInterestId ?? seg.user_interest_id ?? '');
         const name = seg.name ?? '';
         if (!id || !name) return null;
         return { id, name, description: 'In-market' };
@@ -556,8 +560,8 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
 
     const mappedAffinity = affinityRows
       .map((r: any) => {
-        const seg = r.affinity || {};
-        const id = String(seg.id ?? '');
+        const seg = r.userInterest || r.user_interest || {};
+        const id = String(seg.userInterestId ?? seg.user_interest_id ?? '');
         const name = seg.name ?? '';
         if (!id || !name) return null;
         return { id, name, description: 'Affinity' };
