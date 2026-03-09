@@ -58,6 +58,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
           <MarketingGTM />
+          <DataLayerUserID />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
