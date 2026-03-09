@@ -23,13 +23,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { 
+import {
   TaxonomyParam, 
   TaxonomyContext,
   extractTaxonomyValues,
   generateTaxonomyString,
-  getMissingRequiredCount
+  getMissingRequiredCount,
+  getDefaultCampaignParams,
+  getDefaultAdSetParams,
 } from "@/utils/taxonomyUtils";
+import type { Json } from "@/integrations/supabase/types";
 
 interface PhaseTaxonomyInputsProps {
   adAccountId: string;

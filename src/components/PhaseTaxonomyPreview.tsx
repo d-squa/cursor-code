@@ -7,8 +7,11 @@ import {
   TaxonomyContext,
   extractTaxonomyValues,
   generateTaxonomyString,
-  getMissingRequiredCount
+  getMissingRequiredCount,
+  getDefaultCampaignParams,
+  getDefaultAdSetParams,
 } from "@/utils/taxonomyUtils";
+import type { Json } from "@/integrations/supabase/types";
 
 interface PhaseTaxonomyPreviewProps {
   adAccountId: string;
