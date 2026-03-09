@@ -1094,9 +1094,12 @@ export function MediaPlanEditor() {
   }, [user]);
 
   // Auto-fill missing adAccountId on markets after hydration + ad account IDs are loaded
+  const hasAutoFilledAdAccountIds = useRef(false);
   useEffect(() => {
     if (!isHydrated) return;
+    if (hasAutoFilledAdAccountIds.current) return;
     if (!firstAdAccountId && !firstTiktokAdvertiserId && !firstGoogleCustomerId) return;
+    if (platformsWithMarkets.length === 0) return;
 
     let hasChanges = false;
     const updated = platformsWithMarkets.map((p) => {
@@ -1121,11 +1124,13 @@ export function MediaPlanEditor() {
       };
     });
 
+    hasAutoFilledAdAccountIds.current = true;
     if (hasChanges) {
       console.log('🔧 Auto-filled missing adAccountId on markets from linked ad accounts');
       setPlatformsWithMarkets(updated);
     }
   }, [isHydrated, firstAdAccountId, firstTiktokAdvertiserId, firstGoogleCustomerId, platformsWithMarkets]);
+
 
   const [platforms, setPlatforms] = useState<Platform[]>([
     { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
