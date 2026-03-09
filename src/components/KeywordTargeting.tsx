@@ -334,17 +334,36 @@ export function KeywordTargeting({
         {results.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-muted-foreground">
-                Suggestions ({results.length})
-              </p>
-              <div className="flex gap-1.5">
-                <BulkStrategyDropdown isNegative={false} />
-                <BulkStrategyDropdown isNegative={true} />
+              <span className="text-sm text-muted-foreground">
+                Suggestions ({filteredResults.length})
+              </span>
+              <div className="flex gap-1">
+                {(['all', 'google', 'tiktok'] as const).map(f => {
+                  const count = f === 'all' 
+                    ? results.length 
+                    : results.filter(r => r.platform === f).length;
+                  if (f !== 'all' && count === 0) return null;
+                  return (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={platformFilter === f ? "default" : "outline"}
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setPlatformFilter(f)}
+                    >
+                      {f === 'all' ? 'All' : f === 'google' ? 'Google' : 'TikTok'} ({count})
+                    </Button>
+                  );
+                })}
               </div>
+            </div>
+            <div className="flex items-center justify-end gap-1.5 mb-2">
+              <BulkStrategyDropdown isNegative={false} />
+              <BulkStrategyDropdown isNegative={true} />
             </div>
             <ScrollArea className="h-[320px]">
               <div className="space-y-2">
-                {results.map((kw) => {
+                {filteredResults.map((kw) => {
                   const existing = selectedKeywords.find((s) => s.id === kw.id);
                   return (
                     <div
