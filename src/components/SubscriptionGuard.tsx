@@ -105,7 +105,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
 
   // Show loading while checking auth, workspace, and subscription (only when we *don't* already have
   // a subscribed user). This prevents UI unmounts on background token refreshes.
-  if (authLoading || workspaceLoading || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
+  if (authLoading || workspaceLoading || recoveringWorkspace || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
