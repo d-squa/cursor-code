@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Plus, X, GripVertical, Link2, ChevronDown, ChevronRight, Copy, Trash2, ExternalLink, Lock, Info, Search, ShieldCheck, Target, Swords, Ban } from "lucide-react";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
