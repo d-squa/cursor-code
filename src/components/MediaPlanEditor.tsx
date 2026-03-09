@@ -198,10 +198,11 @@ export function MediaPlanEditor() {
       isHydrated,
     });
 
-    if (selectedClientId && totalBudget && startDate && endDate && isHydrated) {
+    if (selectedClientId && totalBudget && startDate && endDate && isHydrated && clientSelectionIsUserAction.current) {
       console.log("✅ All conditions met, auto-populating from client...");
       autoPopulateFromClient();
-    } else if (selectedClientId && (!totalBudget || !startDate || !endDate)) {
+      clientSelectionIsUserAction.current = false;
+    } else if (selectedClientId && clientSelectionIsUserAction.current && (!totalBudget || !startDate || !endDate)) {
       console.log("⚠️ Client selected but missing required fields");
       toast.error("Please fill in budget, start date, and end date first");
     }
