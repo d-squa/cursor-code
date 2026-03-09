@@ -228,7 +228,7 @@ serve(async (req) => {
     console.log(`Total Audience Manager data segments: ${dedupedAudiences.length}`);
 
     return new Response(
-      JSON.stringify(allAudiences),
+      JSON.stringify(dedupedAudiences),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

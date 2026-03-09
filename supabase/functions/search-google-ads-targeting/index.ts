@@ -7,7 +7,7 @@ import { getAccessToken } from "../_shared/vault-helper.ts";
  * 
  * Searches Google Ads targeting options:
  * - Keywords (via KeywordPlanIdeaService)
- * - Audience segments (affinity, in-market, custom)
+ * - Audience Manager data segments (website visitors, customer segments, YouTube users, app users, custom combination, callers)
  * - Demographics (age, gender, parental status, household income)
  * - Geo targets (locations)
  * - Topics

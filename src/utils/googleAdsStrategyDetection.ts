@@ -134,11 +134,12 @@ const BID_STRATEGY_AFFINITY: Record<string, string[]> = {
 // ============================================================================
 
 const AUDIENCE_SEGMENT_AFFINITY: Record<string, string[]> = {
-  "Lookalikes": ["Demand Gen"],
-  "Affinity": ["Display", "Video", "Demand Gen"],
-  "In-market": ["Display", "Video", "Demand Gen", "Search"],
-  "Detailed Demographics": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
-  "Your Data Segments": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
+  "Website visitors": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
+  "Customer segments": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
+  "YouTube users": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
+  "App users": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
+  "Custom combination": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
+  "Callers": ["Display", "Video", "Search", "Performance Max", "Demand Gen", "Shopping", "App Promotion"],
 };
 
 // ============================================================================
