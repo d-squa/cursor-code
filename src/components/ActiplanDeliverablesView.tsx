@@ -236,7 +236,10 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                       <div className="text-sm font-semibold">{formatNumber(market.impressions)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Reach</div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        Reach
+                        {platform.dataSource && <DataSourceBadge dataSource={platform.dataSource} platformName={platform.platformName} />}
+                      </div>
                       <div className="text-sm font-semibold">{formatNumber(market.reach)}</div>
                     </div>
                     <div>
@@ -244,7 +247,10 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                       <div className="text-sm font-semibold">${market.cpm.toFixed(2)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Frequency</div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        Frequency
+                        {platform.dataSource && <DataSourceBadge dataSource={platform.dataSource} platformName={platform.platformName} />}
+                      </div>
                       <div className="text-sm font-semibold">{market.frequency.toFixed(2)}</div>
                     </div>
                     <div>
