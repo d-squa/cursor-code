@@ -1049,30 +1049,41 @@ export function MediaPlanEditor() {
     const fetchAdAccountIds = async () => {
       if (!user) return;
 
-      // Fetch Meta ad account
-      const { data: metaData, error: metaError } = await supabase
-        .from("meta_ad_accounts")
-        .select("account_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
+      // Fetch all platform ad accounts in parallel
+      const [metaResult, tiktokResult, googleResult] = await Promise.all([
+        supabase
+          .from("meta_ad_accounts")
+          .select("account_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .single(),
+        supabase
+          .from("tiktok_ad_accounts")
+          .select("advertiser_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .single(),
+        supabase
+          .from("google_ad_accounts")
+          .select("customer_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .single(),
+      ]);
 
-      if (!metaError && metaData) {
-        setFirstAdAccountId(metaData.account_id);
-        console.log("✅ Loaded Meta Ad Account ID:", metaData.account_id);
+      if (!metaResult.error && metaResult.data) {
+        setFirstAdAccountId(metaResult.data.account_id);
+        console.log("✅ Loaded Meta Ad Account ID:", metaResult.data.account_id);
       }
 
-      // Fetch TikTok advertiser account
-      const { data: tiktokData, error: tiktokError } = await supabase
-        .from("tiktok_ad_accounts")
-        .select("advertiser_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
+      if (!tiktokResult.error && tiktokResult.data) {
+        setFirstTiktokAdvertiserId(tiktokResult.data.advertiser_id);
+        console.log("✅ Loaded TikTok Advertiser ID:", tiktokResult.data.advertiser_id);
+      }
 
-      if (!tiktokError && tiktokData) {
-        setFirstTiktokAdvertiserId(tiktokData.advertiser_id);
-        console.log("✅ Loaded TikTok Advertiser ID:", tiktokData.advertiser_id);
+      if (!googleResult.error && googleResult.data) {
+        setFirstGoogleCustomerId(googleResult.data.customer_id);
+        console.log("✅ Loaded Google Customer ID:", googleResult.data.customer_id);
       }
     };
     fetchAdAccountIds();
