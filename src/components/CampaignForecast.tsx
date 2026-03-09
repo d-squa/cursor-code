@@ -20,6 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
+import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
 
 // Helper to normalize strategyFocus, filtering out "auto" placeholder
 const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
