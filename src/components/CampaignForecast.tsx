@@ -1754,6 +1754,112 @@ export function CampaignForecast({
     };
   };
 
+  // Keyword Strategy Forecast sub-component
+  const KeywordStrategyForecast = ({ keywords }: { keywords: KeywordItem[] }) => {
+    const strategies = ["brand", "generic", "competition"] as const;
+    const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
+      brand: { label: "Brand", icon: <ShieldCheck className="h-4 w-4" />, colorClass: "bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800" },
+      generic: { label: "Generic", icon: <TargetIcon className="h-4 w-4" />, colorClass: "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" },
+      competition: { label: "Competition", icon: <Swords className="h-4 w-4" />, colorClass: "bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800" },
+    };
+
+    const strategyData = strategies.map(strategy => {
+      const kws = keywords.filter(k => k.strategy === strategy && !k.isNegative);
+      const negatives = keywords.filter(k => k.strategy === strategy && k.isNegative);
+      const totalVol = kws.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
+      const avgCpcLow = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcLow || 0), 0) / kws.length : 0;
+      const avgCpcHigh = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcHigh || 0), 0) / kws.length : 0;
+      const avgCpc = (avgCpcLow + avgCpcHigh) / 2;
+      // Estimated clicks = budget portion / avg CPC (rough estimate)
+      const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0; // ~3% CTR estimate
+      return { strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks };
+    }).filter(s => s.kws.length > 0);
+
+    if (strategyData.length === 0) return null;
+
+    const fmtNum = (n: number) => {
+      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+      if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+      return String(Math.round(n));
+    };
+
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 text-xs">Google Ads</Badge>
+            Keyword Strategy Forecast
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Strategy</TableHead>
+                <TableHead className="text-xs text-right">Keywords</TableHead>
+                <TableHead className="text-xs text-right">Avg. Monthly Searches</TableHead>
+                <TableHead className="text-xs text-right">Est. Impressions</TableHead>
+                <TableHead className="text-xs text-right">CPC Range</TableHead>
+                <TableHead className="text-xs text-right">Avg. CPC</TableHead>
+                <TableHead className="text-xs text-right">Est. Clicks</TableHead>
+                <TableHead className="text-xs text-right">Negatives</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {strategyData.map(({ strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks }) => {
+                const meta = STRATEGY_META[strategy];
+                return (
+                  <TableRow key={strategy}>
+                    <TableCell>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${meta.colorClass}`}>
+                        {meta.icon}
+                        {meta.label}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-right font-medium">{kws.length}</TableCell>
+                    <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
+                    <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
+                    <TableCell className="text-xs text-right">
+                      {avgCpcLow > 0 ? `$${avgCpcLow.toFixed(2)} – $${avgCpcHigh.toFixed(2)}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-right font-medium">
+                      {avgCpc > 0 ? `$${avgCpc.toFixed(2)}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-right">{estimatedClicks > 0 ? fmtNum(estimatedClicks) : "—"}</TableCell>
+                    <TableCell className="text-xs text-right">
+                      {negatives.length > 0 ? (
+                        <span className="flex items-center justify-end gap-1 text-destructive">
+                          <Ban className="h-3 w-3" />{negatives.length}
+                        </span>
+                      ) : "—"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {/* Totals row */}
+              <TableRow className="font-semibold border-t-2">
+                <TableCell className="text-xs">Total</TableCell>
+                <TableCell className="text-xs text-right">{strategyData.reduce((s, d) => s + d.kws.length, 0)}</TableCell>
+                <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.totalVol, 0))}</TableCell>
+                <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.totalVol, 0))}</TableCell>
+                <TableCell className="text-xs text-right">—</TableCell>
+                <TableCell className="text-xs text-right">
+                  {(() => {
+                    const allKws = strategyData.flatMap(d => d.kws);
+                    const avg = allKws.length > 0 ? allKws.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / allKws.length : 0;
+                    return avg > 0 ? `$${avg.toFixed(2)}` : "—";
+                  })()}
+                </TableCell>
+                <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.estimatedClicks, 0))}</TableCell>
+                <TableCell className="text-xs text-right">{strategyData.reduce((s, d) => s + d.negatives.length, 0) || "—"}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <Card>
       <CardHeader>
