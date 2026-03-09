@@ -131,39 +131,88 @@ serve(async (req: Request) => {
       }
 
       case "audiences": {
-        // Search audience segments via GAQL
-        const gaql = `
-          SELECT
-            audience.id,
-            audience.name,
-            audience.description,
-            audience.status
-          FROM audience
-          WHERE audience.name LIKE '%${query.replace(/'/g, "''")}%'
-          LIMIT 30
-        `;
-
+        const escapedQuery = query.replace(/'/g, "''");
         const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}/googleAds:searchStream`;
-        const resp = await fetch(searchUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ query: gaql }),
-        });
 
-        if (resp.ok) {
+        const runGaqlSearch = async (gaql: string): Promise<any[]> => {
+          const resp = await fetch(searchUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ query: gaql }),
+          });
+
+          if (!resp.ok) {
+            const errText = await resp.text();
+            console.error("Google data segment search failed:", errText);
+            return [];
+          }
+
           const data = await resp.json();
-          const rows = data?.[0]?.results || [];
-          results = rows.map((r: any) => ({
-            id: String(r.audience.id),
-            name: r.audience.name,
-            description: r.audience.description || "",
-            type: "audience",
-            status: r.audience.status,
-          }));
-        } else {
-          const errText = await resp.text();
-          console.error("Audience search failed:", errText);
-        }
+          const batches = Array.isArray(data) ? data : [];
+          return batches.flatMap((batch: any) => batch?.results || []);
+        };
+
+        const [userListRows, combinedRows] = await Promise.all([
+          runGaqlSearch(`
+            SELECT
+              user_list.id,
+              user_list.name,
+              user_list.type,
+              user_list.membership_status
+            FROM user_list
+            WHERE user_list.membership_status = 'OPEN'
+              AND user_list.name LIKE '%${escapedQuery}%'
+            LIMIT 50
+          `),
+          runGaqlSearch(`
+            SELECT
+              combined_audience.id,
+              combined_audience.name,
+              combined_audience.status
+            FROM combined_audience
+            WHERE combined_audience.status = 'ENABLED'
+              AND combined_audience.name LIKE '%${escapedQuery}%'
+            LIMIT 50
+          `),
+        ]);
+
+        const mappedUserLists = userListRows
+          .map((r: any) => {
+            const ul = r.userList || r.user_list || {};
+            const id = String(ul.id ?? "");
+            const name = ul.name ?? "";
+            const segment = mapGoogleUserListToDataSegment(ul.type ?? "", name);
+
+            if (!id || !name || !segment) return null;
+
+            return {
+              id,
+              name,
+              description: `Data segment: ${segment}`,
+              type: "audience",
+              status: "OPEN",
+            };
+          })
+          .filter(Boolean);
+
+        const mappedCombined = combinedRows
+          .map((r: any) => {
+            const ca = r.combinedAudience || r.combined_audience || {};
+            const id = String(ca.id ?? "");
+            const name = ca.name ?? "";
+            if (!id || !name) return null;
+
+            return {
+              id,
+              name,
+              description: "Data segment: Custom combination",
+              type: "audience",
+              status: ca.status || "ENABLED",
+            };
+          })
+          .filter(Boolean);
+
+        results = [...mappedUserLists, ...mappedCombined];
         break;
       }
 
