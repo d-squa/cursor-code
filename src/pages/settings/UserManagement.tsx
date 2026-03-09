@@ -201,6 +201,50 @@ export default function UserManagement() {
     },
   });
 
+  // Remove user from team mutation
+  const removeUserFromTeam = useMutation({
+    mutationFn: async (userId: string) => {
+      if (!activeWorkspaceId) throw new Error("No active workspace");
+      
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .eq("team_id", activeWorkspaceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      toast.success("User removed from team");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove user: " + error.message);
+    },
+  });
+
+  // Update user role mutation
+  const updateUserRole = useMutation({
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+      if (!activeWorkspaceId) throw new Error("No active workspace");
+
+      const { error } = await supabase
+        .from("user_roles")
+        .update({ role: newRole as any })
+        .eq("user_id", userId)
+        .eq("team_id", activeWorkspaceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      toast.success("Role updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update role: " + error.message);
+    },
+  });
+
   // Cancel invitation mutation
   const cancelInvitation = useMutation({
     mutationFn: async (invitationId: string) => {
@@ -223,14 +267,12 @@ export default function UserManagement() {
   // Resend invitation mutation
   const resendInvitation = useMutation({
     mutationFn: async (invitation: any) => {
-      // Get team name for email
       const { data: team } = await supabase
         .from("teams")
         .select("name")
         .eq("id", invitation.team_id)
         .single();
 
-      // Send invitation email
       const { error: emailError } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email: invitation.email,
@@ -440,27 +482,73 @@ export default function UserManagement() {
               <TableHead>Role</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Joined</TableHead>
+              {canManageUsers && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map((userItem: any) => (
-              <TableRow key={userItem.id}>
-                <TableCell>{userItem.email}</TableCell>
-                <TableCell>
-                  {userItem.role ? (
-                    <Badge variant={userItem.role === 'owner' ? 'default' : userItem.role === 'admin' ? 'secondary' : 'outline'}>
-                      {userItem.role.replace('_', ' ')}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
+            {users?.map((userItem: any) => {
+              const isOwner = userItem.role === "owner";
+              const isSelf = userItem.id === user?.id;
+              const canModify = canManageUsers && !isOwner && !isSelf;
+
+              return (
+                <TableRow key={userItem.id}>
+                  <TableCell>{userItem.email}</TableCell>
+                  <TableCell>
+                    {canModify ? (
+                      <Select
+                        value={userItem.role}
+                        onValueChange={(newRole) =>
+                          updateUserRole.mutate({ userId: userItem.id, newRole })
+                        }
+                      >
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : userItem.role ? (
+                      <Badge
+                        variant={
+                          isOwner ? "default" : userItem.role === "admin" ? "secondary" : "outline"
+                        }
+                      >
+                        {userItem.role.replace("_", " ")}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{userItem.company_name || "—"}</TableCell>
+                  <TableCell>
+                    {new Date(userItem.created_at).toLocaleDateString()}
+                  </TableCell>
+                  {canManageUsers && (
+                    <TableCell>
+                      {canModify && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`Remove ${userItem.email} from this workspace?`)) {
+                              removeUserFromTeam.mutate(userItem.id);
+                            }
+                          }}
+                          title="Remove from team"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </TableCell>
                   )}
-                </TableCell>
-                <TableCell>{userItem.company_name || "—"}</TableCell>
-                <TableCell>
-                  {new Date(userItem.created_at).toLocaleDateString()}
-                </TableCell>
-              </TableRow>
-            ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
