@@ -83,6 +83,7 @@ async function fetchTemplates(
   const promise = (async () => {
     try {
       const dbAccountId = await resolveDbAccountId(adAccountId, platform);
+      console.log(`[TaxonomyTemplates] resolveDbAccountId: ${adAccountId} -> ${dbAccountId}`);
       if (!dbAccountId) return { campaign: [], adset: [] };
 
       const { data, error } = await supabase
