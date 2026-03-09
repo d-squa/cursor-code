@@ -5,7 +5,7 @@ import TaxonomyBuilder from "./TaxonomyBuilder";
 
 interface AccountTaxonomySectionProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   userId: string;
 }
 
