@@ -180,7 +180,10 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                 <div className="text-lg font-semibold">{formatNumber(platform.totalImpressions)}</div>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Reach</div>
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  Reach
+                  {platform.dataSource && <DataSourceBadge dataSource={platform.dataSource} platformName={platform.platformName} />}
+                </div>
                 <div className="text-lg font-semibold">{formatNumber(platform.totalReach)}</div>
               </div>
               <div>
@@ -188,7 +191,10 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                 <div className="text-lg font-semibold">${platform.avgCPM.toFixed(2)}</div>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Frequency</div>
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  Frequency
+                  {platform.dataSource && <DataSourceBadge dataSource={platform.dataSource} platformName={platform.platformName} />}
+                </div>
                 <div className="text-lg font-semibold">{platform.frequency.toFixed(2)}</div>
               </div>
               <div>
