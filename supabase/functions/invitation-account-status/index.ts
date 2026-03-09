@@ -30,7 +30,7 @@ serve(async (req) => {
 
     const { data: invitation, error: invitationError } = await supabase
       .from("invitations")
-      .select("email, expires_at, status")
+      .select("email, expires_at, status, team_id")
       .eq("token", token)
       .maybeSingle();
 
@@ -40,6 +40,17 @@ serve(async (req) => {
 
     if (new Date(invitation.expires_at) < new Date()) {
       return json(410, { error: "Invitation expired" });
+    }
+
+    // Fetch team name (service role bypasses RLS)
+    let teamName = "the team";
+    if (invitation.team_id) {
+      const { data: team } = await supabase
+        .from("teams")
+        .select("name")
+        .eq("id", invitation.team_id)
+        .maybeSingle();
+      if (team?.name) teamName = team.name;
     }
 
     const email = String(invitation.email || "").trim().toLowerCase();
@@ -52,14 +63,13 @@ serve(async (req) => {
       const { data } = await admin.getUserByEmail(email);
       exists = Boolean(data?.user);
     } else if (admin?.listUsers) {
-      // Fallback for older client APIs
       const { data } = await admin.listUsers({ page: 1, perPage: 1000 });
       exists = Boolean(
         (data?.users ?? []).some((u: any) => String(u?.email || "").toLowerCase() === email)
       );
     }
 
-    return json(200, { exists });
+    return json(200, { exists, teamName });
   } catch (_e) {
     return json(500, { error: "Unable to check account status" });
   }

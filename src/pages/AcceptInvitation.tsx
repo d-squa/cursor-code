@@ -68,12 +68,13 @@ export default function AcceptInvitation() {
 
   const loadInvitation = async () => {
     try {
+      // NOTE: We intentionally avoid joining `teams` here because the teams
+      // table RLS requires authentication. Unauthenticated invited users
+      // would get a query error, causing "Invalid Invitation" even for
+      // valid pending invitations.
       const { data, error: fetchError } = await supabase
         .from("invitations")
-        .select(`
-          *,
-          teams (id, name)
-        `)
+        .select("*")
         .eq("token", token)
         .eq("status", "pending")
         .single();
@@ -87,7 +88,15 @@ export default function AcceptInvitation() {
         return;
       }
 
-      setInvitation(data);
+      // Build a teams-like object for display.
+      // We can't join teams (RLS blocks unauthenticated users), so we'll
+      // resolve the team name after the user authenticates. Use a placeholder.
+      const enriched = {
+        ...data,
+        teams: { id: data.team_id, name: "the team" },
+      };
+
+      setInvitation(enriched);
     } catch (err: any) {
       setError("Invalid or expired invitation");
     } finally {
@@ -101,29 +110,31 @@ export default function AcceptInvitation() {
     setEmailStatus("checking");
     
     try {
-      // Use a backend check (based on the invitation token) to determine if the invited email already has an account.
-      // This avoids relying on public profile rows which may not exist for all accounts.
       const { data, error: statusError } = await supabase.functions.invoke("invitation-account-status", {
         body: { token },
       });
 
       if (statusError) {
-        // If we can't check, assume new user
         setEmailStatus("new");
         return;
       }
 
+      // Update team name from backend (which can read teams via service role)
+      if (data?.teamName && invitation) {
+        setInvitation((prev: any) => ({
+          ...prev,
+          teams: { ...prev?.teams, name: data.teamName },
+        }));
+      }
+
       if (data?.exists) {
-        // Existing user: they should sign in (no password creation)
         setEmailStatus("exists_other_subscription");
         setExistingSubscriptionInfo("You already have an ActiPlan account. Sign in to join this workspace.");
       } else {
-        // New user: needs to create password
         setEmailStatus("new");
       }
     } catch (err) {
       console.error("Error checking email status:", err);
-      // If we can't determine, assume new user
       setEmailStatus("new");
     }
   };
