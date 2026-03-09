@@ -4,10 +4,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronDown, ChevronUp, Database, Calculator } from "lucide-react";
+import { ChevronDown, ChevronUp, Database, Calculator, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
+import type { KeywordItem } from "@/components/KeywordTargeting";
 
 interface ActiplanDeliverablesViewProps {
   actiplanForecast: {
