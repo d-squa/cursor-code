@@ -1306,24 +1306,35 @@ export function CampaignForecast({
               
               const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
               
-              // Calculate results using optimization goal modifiers
-              let result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+              // Calculate results: prefer market-level AI ratio, then benchmarks, then static rates
+              let result: number;
+              let costPerResult: number;
+              let isBenchmarkBased = false;
               
               // Apply benchmark if available (industry + market + optimization_goal must all match)
-              // Use uppercase for case-insensitive matching
               const benchmarkKey = `${(market.name || '').toUpperCase()}_${(optimizationGoal || '').toUpperCase()}`;
               const benchmark = benchmarks.get(benchmarkKey);
               
-              let costPerResult: number;
-              let isBenchmarkBased = false;
               if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
                 isBenchmarkBased = true;
                 console.log(`✓ Using benchmark CPR (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
-              } else {
+              } else if (marketMetrics.dataSource === 'ai_predicted' && marketMetrics.costPerResult && marketMetrics.costPerResult > 0) {
+                // Use AI-predicted cost per result from market-level forecast
+                costPerResult = marketMetrics.costPerResult;
+                result = campaignBudget / costPerResult;
+                isBenchmarkBased = false;
+                console.log(`✓ Using AI-predicted CPR (phase) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+              } else if (marketMetrics.result && marketMetrics.result > 0) {
+                // Proportionally allocate market-level results
+                result = Math.round(marketMetrics.result * budgetRatio);
                 costPerResult = result > 0 ? campaignBudget / result : 0;
-                console.log(`ℹ No benchmark found for ${resolvedIndustry || 'no-industry'}/${market.name}/${optimizationGoal} - using estimation`);
+                console.log(`✓ Using proportional market results for ${market.name}/${optimizationGoal}`);
+              } else {
+                result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+                costPerResult = result > 0 ? campaignBudget / result : 0;
+                console.log(`ℹ No AI/benchmark data, using static estimation for ${market.name}/${optimizationGoal}`);
               }
               
               const resultRate = phaseImpressions > 0 ? (result / phaseImpressions) * 100 : 0;
