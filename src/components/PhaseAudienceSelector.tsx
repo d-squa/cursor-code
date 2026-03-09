@@ -72,6 +72,11 @@ export function PhaseAudienceSelector({
   autoExcludeEnabled = false,
   onAutoExcludeChange,
 }: PhaseAudienceSelectorProps) {
+  const platformLower = platform?.toLowerCase() || "";
+  const isGooglePlatform = platformLower.includes("google");
+  const isTikTokPlatform = platformLower.includes("tiktok");
+  const isMetaPlatform = platformLower.includes("meta") || platformLower.includes("facebook") || platformLower.includes("instagram");
+
   // Determine if this is a brand awareness campaign first (needed for state initialization)
   const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
                            phaseObjective?.toLowerCase().includes('reach') ||
