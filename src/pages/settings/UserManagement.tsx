@@ -211,7 +211,7 @@ export default function UserManagement() {
       setInviteDialogOpen(false);
       setInviteEmail("");
       setInviteRole("member");
-      setInviteTeamId("");
+      setInviteTeamId(activeWorkspaceId || "");
     },
     onError: (error) => {
       toast.error("Failed to send invitation: " + error.message);
