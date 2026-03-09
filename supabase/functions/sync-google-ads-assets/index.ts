@@ -58,8 +58,8 @@ serve(async (req: Request) => {
 
     if (!platform) throw new Error("Google Ads platform not connected");
 
-    const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
-    if (!accessToken) throw new Error("Google Ads access token not found");
+    const accessToken = await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, "google");
+    if (!accessToken) throw new Error("Google Ads access token not found or refresh failed");
 
     const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
     if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not set");
