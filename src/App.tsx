@@ -47,6 +47,7 @@ import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 import { MarketingGTM } from "./components/MarketingGTM";
+import { DataLayerUserID } from "./components/DataLayerUserID";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
           <MarketingGTM />
+          <DataLayerUserID />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
