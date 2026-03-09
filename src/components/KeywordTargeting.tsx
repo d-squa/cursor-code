@@ -79,7 +79,8 @@ export function KeywordTargeting({
 
       if (error) throw error;
 
-      setResults(data.results || []);
+      const sorted = (data.results || []).sort((a: KeywordItem, b: KeywordItem) => (b.avgMonthlySearches || 0) - (a.avgMonthlySearches || 0));
+      setResults(sorted);
       if (data.results?.length > 0) {
         toast.success(`Found ${data.results.length} keyword suggestions`);
       } else {
