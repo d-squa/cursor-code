@@ -46,6 +46,10 @@ interface CampaignForecastProps {
   campaignId?: string;
   basicTargeting?: BasicTargetingConfig;
   clientIndustry?: string;
+  selectedKeywords?: KeywordItem[];
+  onKeywordsUpdate?: (keywords: KeywordItem[]) => void;
+  googleCustomerId?: string;
+  tiktokAdvertiserId?: string;
   onBack: () => void;
   onFinalize: () => void;
 }
