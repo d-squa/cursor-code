@@ -1704,9 +1704,9 @@ export function PhaseScheduler({
                           {adAccountId && (
                             <PhaseTaxonomyPreview
                               adAccountId={adAccountId}
-                              platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                              platform={taxonomyPlatform}
                               context={{
-                                platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                                platform: taxonomyPlatform,
                                 activationName: activationContext?.activationName,
                                 boNumber: activationContext?.boNumber,
                                 clientName: activationContext?.clientName,
