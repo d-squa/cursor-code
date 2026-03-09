@@ -349,6 +349,51 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   <TableCell className="text-muted-foreground">${adSet.costPerResult.toFixed(3)}</TableCell>
                                 </TableRow>
                               ))}
+                              {/* Keyword strategy sub-rows for Search phases */}
+                              {selectedKeywords && selectedKeywords.length > 0 && 
+                               phase.phaseName.toLowerCase().includes('search') && (() => {
+                                const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode }> = {
+                                  brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" /> },
+                                  generic: { label: "Generic", icon: <Target className="h-3 w-3" /> },
+                                  competition: { label: "Competition", icon: <Swords className="h-3 w-3" /> },
+                                };
+                                const strategies = (['brand', 'generic', 'competition'] as const)
+                                  .map(s => ({
+                                    strategy: s,
+                                    positives: selectedKeywords.filter(k => k.strategy === s && !k.isNegative),
+                                    negatives: selectedKeywords.filter(k => k.strategy === s && k.isNegative),
+                                  }))
+                                  .filter(s => s.positives.length > 0 || s.negatives.length > 0);
+                                if (strategies.length === 0) return null;
+                                return strategies.map(({ strategy, positives, negatives }) => {
+                                  const meta = STRATEGY_META[strategy];
+                                  const totalVol = positives.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
+                                  const fmtVol = totalVol >= 1_000_000 ? `${(totalVol / 1_000_000).toFixed(1)}M` : totalVol >= 1_000 ? `${(totalVol / 1_000).toFixed(1)}K` : String(totalVol);
+                                  return (
+                                    <TableRow key={`${idx}-kw-${strategy}`} className="bg-muted/20">
+                                      <TableCell className="pl-8 text-muted-foreground">
+                                        <div className="flex items-center gap-1.5">
+                                          {meta.icon}
+                                          <span className="text-xs font-medium">{meta.label}</span>
+                                          <Badge variant="outline" className="text-[10px] ml-1">{positives.length} kw</Badge>
+                                          {negatives.length > 0 && (
+                                            <span className="flex items-center gap-0.5 text-destructive text-[10px]">
+                                              <Ban className="h-2.5 w-2.5" />{negatives.length}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">{totalVol > 0 ? `${fmtVol} vol/mo` : "—"}</TableCell>
+                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                    </TableRow>
+                                  );
+                                });
+                              })()}
                             </>
                           ))}
                         </TableBody>
