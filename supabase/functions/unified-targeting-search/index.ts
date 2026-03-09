@@ -472,7 +472,7 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       return batches.flatMap((batch: any) => batch?.results || []);
     };
 
-    const [userListRows, combinedRows] = await Promise.all([
+    const [userListRows, combinedRows, audienceSegmentRows] = await Promise.all([
       runGaqlSearch(`
         SELECT
           user_list.id,
@@ -494,7 +494,21 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
           AND combined_audience.name LIKE '%${escapedQuery}%'
         LIMIT 50
       `),
+      // In-market, Affinity, Life events, Detailed demographics
+      runGaqlSearch(`
+        SELECT
+          audience_segment.id,
+          audience_segment.name,
+          audience_segment.type,
+          audience_segment.description
+        FROM audience_segment
+        WHERE audience_segment.name LIKE '%${escapedQuery}%'
+          AND audience_segment.type IN ('IN_MARKET', 'AFFINITY', 'LIFE_EVENT', 'DETAILED_DEMOGRAPHIC')
+        LIMIT 50
+      `),
     ]);
+
+    console.log(`Google: ${userListRows.length} user_lists, ${combinedRows.length} combined, ${audienceSegmentRows.length} audience_segments`);
 
     const mappedUserLists = userListRows
       .map((r: any) => {
@@ -529,7 +543,30 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       })
       .filter(Boolean);
 
-    return [...mappedUserLists, ...mappedCombined];
+    const typeLabel: Record<string, string> = {
+      IN_MARKET: 'In-market',
+      AFFINITY: 'Affinity',
+      LIFE_EVENT: 'Life event',
+      DETAILED_DEMOGRAPHIC: 'Detailed demographic',
+    };
+
+    const mappedSegments = audienceSegmentRows
+      .map((r: any) => {
+        const seg = r.audienceSegment || r.audience_segment || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        const segType = seg.type ?? '';
+        if (!id || !name) return null;
+
+        return {
+          id,
+          name,
+          description: typeLabel[segType] || segType,
+        };
+      })
+      .filter(Boolean);
+
+    return [...mappedUserLists, ...mappedCombined, ...mappedSegments];
   } catch (err) {
     console.error('Google audience segment search error:', err);
     return [];
