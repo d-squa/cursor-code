@@ -1672,6 +1672,22 @@ export function generatePhasesFromStrategy(
       overrideTargeting: useBroadTargeting ? false : undefined,
     };
 
+    // Google Ads: auto-set googleCampaignType from objective
+    if (strategy.platform === "google") {
+      const objToType: Record<string, string> = {
+        CONVERSION_SEARCH: "Search",
+        AWARENESS_DISPLAY: "Display",
+        CONSIDERATION_PMAX: "Performance Max",
+        AWARENESS_VIDEO_EFFICIENT_REACH: "Video",
+        CONSIDERATION_DEMAND_GEN: "Demand Gen",
+        CONVERSION_SHOPPING: "Shopping",
+        CONSIDERATION_APP_INSTALLS: "App Promotion",
+      };
+      if (objToType[phase.objective]) {
+        result.googleCampaignType = objToType[phase.objective];
+      }
+    }
+
     // Meta Advantage+ variant auto-configuration
     if (strategy.platform === "meta" && isAdvantagePlus) {
       result.metaAdvantagePlusCampaign = phase.objective === "OUTCOME_SALES";
@@ -1679,11 +1695,17 @@ export function generatePhasesFromStrategy(
       result.metaAdvantagePlusCreative = true;
     }
 
-    // TikTok Smart variant auto-configuration
-    if (strategy.platform === "tiktok" && isSmart) {
-      result.tiktokSmartPlusEnabled = true;
-      result.tiktokSmartCreativeEnabled = true;
-      result.tiktokAutoTargetingEnabled = true;
+    // TikTok: mark Search keyword phases
+    if (strategy.platform === "tiktok") {
+      if (phase.adFormats.toLowerCase().includes("search")) {
+        result.tiktokCampaignType = "Search";
+      }
+      // Smart variant auto-configuration
+      if (isSmart) {
+        result.tiktokSmartPlusEnabled = true;
+        result.tiktokSmartCreativeEnabled = true;
+        result.tiktokAutoTargetingEnabled = true;
+      }
     }
 
     return result;
