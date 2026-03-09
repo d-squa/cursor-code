@@ -58,6 +58,7 @@ export function KeywordTargeting({
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<KeywordItem[]>([]);
   const [defaultMatchType, setDefaultMatchType] = useState<KeywordMatchType>("broad");
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
 
   const hasGoogleOrTiktok = !!googleCustomerId || !!tiktokAdvertiserId;
 
