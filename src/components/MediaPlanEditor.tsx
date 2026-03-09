@@ -3177,6 +3177,39 @@ export function MediaPlanEditor() {
           clientIndustry={
             clients.find((c) => c.id === selectedClientId)?.industry || (genericConfig as any)?.clientIndustry
           }
+          selectedKeywords={basicTargeting.selectedKeywords || []}
+          onKeywordsUpdate={(keywords) => {
+            const updated = { ...basicTargeting, selectedKeywords: keywords };
+            setBasicTargeting(updated);
+            localStorage.setItem("basicTargeting", JSON.stringify(updated));
+            
+            // Save to database
+            if (savedCampaignId && user) {
+              (async () => {
+                try {
+                  const { data: currentCampaign } = await supabase
+                    .from("campaigns")
+                    .select("generic_config")
+                    .eq("id", savedCampaignId)
+                    .single();
+                  const currentConfig =
+                    currentCampaign?.generic_config && typeof currentCampaign.generic_config === "object"
+                      ? (currentCampaign.generic_config as Record<string, unknown>)
+                      : {};
+                  await supabase
+                    .from("campaigns")
+                    .update({
+                      generic_config: { ...currentConfig, basicTargeting: updated } as any,
+                    })
+                    .eq("id", savedCampaignId);
+                } catch (error) {
+                  console.error("Error saving keywords:", error);
+                }
+              })();
+            }
+          }}
+          googleCustomerId={firstGoogleCustomerId || undefined}
+          tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
