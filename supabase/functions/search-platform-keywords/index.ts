@@ -133,7 +133,7 @@ serve(async (req: Request) => {
 
         if (accessToken) {
           const apiVersion = "v1.3";
-          const fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/keyword_recommend/?advertiser_id=${tiktokAdvertiserId}&keywords=["${encodeURIComponent(query)}"]&language=en&limit=50`;
+          const fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/interest_keyword/recommend/?advertiser_id=${tiktokAdvertiserId}&keywords=["${encodeURIComponent(query)}"]&language=en&limit=50`;
 
           const resp = await fetch(fetchUrl, {
             method: "GET",
