@@ -33,7 +33,7 @@ import {
 
 interface PhaseTaxonomyInputsProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   entityType: 'campaign' | 'adset';
   // Context values automatically extracted from ActiPlan
   context: TaxonomyContext;
@@ -90,6 +90,22 @@ export function PhaseTaxonomyInputs({
             .eq('advertiser_id', adAccountId)
             .maybeSingle();
           dbAccountId = accountData?.id ?? null;
+        } else if (platform === 'google') {
+          const { data: accountData } = await supabase
+            .from('google_ad_accounts')
+            .select('id')
+            .eq('customer_id', adAccountId)
+            .maybeSingle();
+          if (!accountData) {
+            const { data: accountData2 } = await supabase
+              .from('google_ad_accounts')
+              .select('id')
+              .eq('account_id', adAccountId)
+              .maybeSingle();
+            dbAccountId = accountData2?.id ?? null;
+          } else {
+            dbAccountId = accountData?.id ?? null;
+          }
         } else {
           const { data: accountData } = await supabase
             .from('meta_ad_accounts')
@@ -175,7 +191,7 @@ export function PhaseTaxonomyInputs({
   }
 
   const missingCount = getMissingRequiredCount(template, mergedValues);
-  const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' ? 'Ad Group' : 'Ad Set');
+  const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' || platform === 'google' ? 'Ad Group' : 'Ad Set');
   
   // Check if all system params have values (for different badge display)
   const systemParamsFilled = template

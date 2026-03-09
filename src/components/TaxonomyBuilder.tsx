@@ -41,7 +41,7 @@ import {
 
 interface TaxonomyBuilderProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   userId: string;
   entityType: 'campaign' | 'adset' | 'ad';
   onSave?: () => void;
@@ -91,6 +91,24 @@ export default function TaxonomyBuilder({
           .select('id')
           .eq('advertiser_id', adAccountId)
           .maybeSingle();
+        return data?.id || adAccountId;
+      }
+
+      if (platform === 'google') {
+        const { data } = await supabase
+          .from('google_ad_accounts')
+          .select('id')
+          .eq('customer_id', adAccountId)
+          .maybeSingle();
+        if (!data) {
+          // Also try account_id
+          const { data: data2 } = await supabase
+            .from('google_ad_accounts')
+            .select('id')
+            .eq('account_id', adAccountId)
+            .maybeSingle();
+          return data2?.id || adAccountId;
+        }
         return data?.id || adAccountId;
       }
 
@@ -340,7 +358,7 @@ export default function TaxonomyBuilder({
   const previewString = previewTaxonomy(params.filter(p => p.required !== false || p.system));
 
   const entityLabel = entityType === 'adset' 
-    ? (platform === 'tiktok' ? 'Ad Group' : 'Ad Set') 
+    ? (platform === 'tiktok' || platform === 'google' ? 'Ad Group' : 'Ad Set') 
     : entityType.charAt(0).toUpperCase() + entityType.slice(1);
 
   if (loading) {

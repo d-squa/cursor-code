@@ -5,7 +5,7 @@ import TaxonomyBuilder from "./TaxonomyBuilder";
 
 interface AccountTaxonomySectionProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   userId: string;
 }
 
@@ -20,7 +20,7 @@ export default function AccountTaxonomySection({
         <FileText className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-medium">Naming Taxonomy</h3>
         <Badge variant="secondary" className="text-xs">
-          {platform === 'meta' ? 'Meta' : 'TikTok'}
+          {platform === 'meta' ? 'Meta' : platform === 'google' ? 'Google Ads' : 'TikTok'}
         </Badge>
       </div>
       
@@ -51,7 +51,7 @@ export default function AccountTaxonomySection({
           <AccordionTrigger className="px-4 py-2 hover:no-underline">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
-                {platform === 'tiktok' ? 'Ad Group' : 'Ad Set'} Taxonomy
+                {platform === 'tiktok' ? 'Ad Group' : platform === 'google' ? 'Ad Group' : 'Ad Set'} Taxonomy
               </span>
             </div>
           </AccordionTrigger>

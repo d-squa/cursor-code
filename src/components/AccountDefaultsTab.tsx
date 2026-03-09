@@ -50,6 +50,8 @@ interface GoogleAdAccountDefaults {
   default_merchant_center_id?: string | null;
   default_feed_label?: string | null;
   main_markets?: string[] | null;
+  default_utm_mode?: string | null;
+  default_url_parameters?: string | null;
 }
 
 interface AdAccount {
@@ -351,7 +353,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Load Google Ads accounts for this client
       const { data: googleAccountsData, error: googleAccountsError } = await supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters")
         .eq("client_id", clientId);
 
       if (googleAccountsError) throw googleAccountsError;
@@ -376,6 +378,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_merchant_center_id: acc.default_merchant_center_id || null,
           default_feed_label: acc.default_feed_label || null,
           main_markets: acc.main_markets || [],
+          default_utm_mode: acc.default_utm_mode || null,
+          default_url_parameters: acc.default_url_parameters || null,
         };
       });
       setGoogleLocalDefaults(gDefaults);
@@ -473,8 +477,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           advantage_plus_sitelinks: acc.platform === "meta" ? (acc as any).advantage_plus_sitelinks ?? false : null,
           advantage_plus_products: acc.platform === "meta" ? (acc as any).advantage_plus_products ?? false : null,
           // UTM Parameters
-          default_utm_mode: acc.platform === "meta" ? (acc as any).default_utm_mode || "auto" : null,
-          default_url_parameters: acc.platform === "meta" ? (acc as any).default_url_parameters || null : null,
+          default_utm_mode: (acc as any).default_utm_mode || "auto",
+          default_url_parameters: (acc as any).default_url_parameters || null,
         };
       });
 
@@ -709,6 +713,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_whatsapp_number",
         "default_zalo_account_id",
         "default_line_business_id",
+        // UTM Parameters
+        "default_utm_mode",
+        "default_url_parameters",
       ];
 
       const validFields = platform === "tiktok" ? tiktokFields : metaFields;
@@ -851,6 +858,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_merchant_center_id",
         "default_feed_label",
         "main_markets",
+        "default_utm_mode",
+        "default_url_parameters",
       ];
 
       const updateData: Record<string, any> = {};
@@ -1781,75 +1790,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Collapsible>
                           </div>
 
-                          {/* URL Parameters Section */}
-                          <div className="md:col-span-2">
-                            <Collapsible>
-                              <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-left">
-                                <Link2 className="h-4 w-4 text-primary" />
-                                <span className="font-medium">URL Parameters</span>
-                                <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                              </CollapsibleTrigger>
-                              <CollapsibleContent className="space-y-4 pt-4">
-                                <p className="text-sm text-muted-foreground mb-4">
-                                  Configure how tracking parameters are added to your destination URLs
-                                </p>
-                                <div className="space-y-4">
-                                  <div className="space-y-2">
-                                    <Label>URL Parameters Template</Label>
-                                    <Select
-                                      value={(defaults as any).default_utm_mode || "none"}
-                                      onValueChange={(value) => {
-                                        updateDefault(account.id, "default_utm_mode" as any, value);
-                                        // Set default URL parameters based on selection
-                                        if (value === "meta_dynamic") {
-                                          updateDefault(account.id, "default_url_parameters" as any, "utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}");
-                                        } else if (value === "basic") {
-                                          updateDefault(account.id, "default_url_parameters" as any, "utm_source=meta&utm_medium=cpc&utm_campaign={{campaign.name}}");
-                                        } else if (value === "advanced") {
-                                          updateDefault(account.id, "default_url_parameters" as any, "utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}&utm_id={{campaign.id}}");
-                                        } else if (value === "none") {
-                                          updateDefault(account.id, "default_url_parameters" as any, null);
-                                        }
-                                        // For custom, keep existing value or clear it
-                                      }}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Select URL parameters template" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="none">No URL Parameters</SelectItem>
-                                        <SelectItem value="meta_dynamic">Meta Dynamic Parameters</SelectItem>
-                                        <SelectItem value="basic">Basic UTM (Source, Medium, Campaign)</SelectItem>
-                                        <SelectItem value="advanced">Advanced UTM (Full Tracking)</SelectItem>
-                                        <SelectItem value="custom">Custom Parameters</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-muted-foreground">
-                                      Choose a preset template or define custom parameters for tracking.
-                                    </p>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>URL Parameters Value</Label>
-                                    <Input
-                                      placeholder="utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}"
-                                      value={(defaults as any).default_url_parameters || ""}
-                                      onChange={(e) => {
-                                        updateDefault(account.id, "default_url_parameters" as any, e.target.value);
-                                        // If user manually edits, switch to custom mode
-                                        if ((defaults as any).default_utm_mode !== "custom") {
-                                          updateDefault(account.id, "default_utm_mode" as any, "custom");
-                                        }
-                                      }}
-                                      disabled={(defaults as any).default_utm_mode === "none"}
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                      Parameters without leading "?". Use {"{{campaign.name}}"}, {"{{adset.name}}"}, {"{{ad.name}}"}, {"{{site_source_name}}"} for dynamic values.
-                                    </p>
-                                  </div>
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          </div>
                         </>
                       )}
 
@@ -2379,6 +2319,85 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       )}
                     </div>
 
+                    {/* URL Parameters Section - Shared across all platforms */}
+                    <Separator className="my-6" />
+                    <div className="space-y-4">
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-left">
+                          <Link2 className="h-4 w-4 text-primary" />
+                          <span className="font-medium">URL Parameters</span>
+                          <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-4 pt-4">
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Configure how tracking parameters are added to your destination URLs
+                          </p>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>URL Parameters Template</Label>
+                              <Select
+                                value={((localDefaults[account.id] as any)?.default_utm_mode === 'meta_dynamic' ? 'platform_dynamic' : (localDefaults[account.id] as any)?.default_utm_mode) || "none"}
+                                onValueChange={(value) => {
+                                  updateDefault(account.id, "default_utm_mode" as any, value);
+                                  const platformSource = account.platform === 'tiktok' ? 'tiktok' : 'meta';
+                                  if (value === "platform_dynamic") {
+                                    if (account.platform === 'meta') {
+                                      updateDefault(account.id, "default_url_parameters" as any, "utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}");
+                                    } else if (account.platform === 'tiktok') {
+                                      updateDefault(account.id, "default_url_parameters" as any, "utm_source=tiktok&utm_medium=paid&utm_campaign=__CAMPAIGN_NAME__&utm_content=__AID_NAME__&utm_term=__CID_NAME__");
+                                    }
+                                  } else if (value === "basic") {
+                                    updateDefault(account.id, "default_url_parameters" as any, `utm_source=${platformSource}&utm_medium=cpc&utm_campaign={{campaign.name}}`);
+                                  } else if (value === "advanced") {
+                                    updateDefault(account.id, "default_url_parameters" as any, `utm_source=${platformSource}&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}&utm_id={{campaign.id}}`);
+                                  } else if (value === "none") {
+                                    updateDefault(account.id, "default_url_parameters" as any, null);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select URL parameters template" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No URL Parameters</SelectItem>
+                                  <SelectItem value="platform_dynamic">{account.platform === 'meta' ? 'Meta' : 'TikTok'} Dynamic Parameters</SelectItem>
+                                  <SelectItem value="basic">Basic UTM (Source, Medium, Campaign)</SelectItem>
+                                  <SelectItem value="advanced">Advanced UTM (Full Tracking)</SelectItem>
+                                  <SelectItem value="custom">Custom Parameters</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                Choose a preset template or define custom parameters for tracking.
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>URL Parameters Value</Label>
+                              <Input
+                                placeholder={account.platform === 'tiktok' 
+                                  ? "utm_source=tiktok&utm_medium=paid&utm_campaign=__CAMPAIGN_NAME__"
+                                  : "utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}"
+                                }
+                                value={(localDefaults[account.id] as any)?.default_url_parameters || ""}
+                                onChange={(e) => {
+                                  updateDefault(account.id, "default_url_parameters" as any, e.target.value);
+                                  if ((localDefaults[account.id] as any)?.default_utm_mode !== "custom") {
+                                    updateDefault(account.id, "default_utm_mode" as any, "custom");
+                                  }
+                                }}
+                                disabled={(localDefaults[account.id] as any)?.default_utm_mode === "none"}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                {account.platform === 'tiktok'
+                                  ? 'Parameters without leading "?". Use __CAMPAIGN_NAME__, __AID_NAME__, __CID_NAME__ for TikTok dynamic macros.'
+                                  : 'Parameters without leading "?". Use {{campaign.name}}, {{adset.name}}, {{ad.name}}, {{site_source_name}} for dynamic values.'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </div>
+
                     {/* Naming Taxonomy Section */}
                     <Separator className="my-6" />
                     <AccountTaxonomySection adAccountId={account.id} platform={account.platform} userId={userId} />
@@ -2610,6 +2629,75 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           </p>
                         </div>
                       </div>
+
+                      {/* URL Parameters Section */}
+                      <Separator className="my-4" />
+                      <div className="space-y-4">
+                        <Collapsible>
+                          <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-left">
+                            <Link2 className="h-4 w-4 text-primary" />
+                            <span className="font-medium">URL Parameters</span>
+                            <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-4 pt-4">
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Configure how tracking parameters are added to your destination URLs
+                            </p>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>URL Parameters Template</Label>
+                                <Select
+                                  value={(gDefaults as any).default_utm_mode || "none"}
+                                  onValueChange={(value) => {
+                                    updateGoogleDefault(gAccount.id, "default_utm_mode" as any, value);
+                                    if (value === "platform_dynamic") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&utm_term={keyword}");
+                                    } else if (value === "basic") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}");
+                                    } else if (value === "advanced") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&utm_term={keyword}&gclid={gclid}");
+                                    } else if (value === "none") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, null);
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select URL parameters template" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">No URL Parameters</SelectItem>
+                                    <SelectItem value="platform_dynamic">Google Ads Dynamic Parameters</SelectItem>
+                                    <SelectItem value="basic">Basic UTM (Source, Medium, Campaign)</SelectItem>
+                                    <SelectItem value="advanced">Advanced UTM (Full Tracking)</SelectItem>
+                                    <SelectItem value="custom">Custom Parameters</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>URL Parameters Value</Label>
+                                <Input
+                                  placeholder="utm_source=google&utm_medium=cpc&utm_campaign={campaignid}"
+                                  value={(gDefaults as any).default_url_parameters || ""}
+                                  onChange={(e) => {
+                                    updateGoogleDefault(gAccount.id, "default_url_parameters" as any, e.target.value);
+                                    if ((gDefaults as any).default_utm_mode !== "custom") {
+                                      updateGoogleDefault(gAccount.id, "default_utm_mode" as any, "custom");
+                                    }
+                                  }}
+                                  disabled={(gDefaults as any).default_utm_mode === "none"}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  {'Parameters without leading "?". Use {campaignid}, {adgroupid}, {keyword}, {gclid} for Google Ads dynamic values.'}
+                                </p>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
+
+                      {/* Naming Taxonomy Section */}
+                      <Separator className="my-6" />
+                      <AccountTaxonomySection adAccountId={gAccount.id} platform="google" userId={userId} />
 
                       <div className="flex justify-end gap-2 pt-4">
                         <Button onClick={() => handleSaveGoogleDefaults(gAccount.id)} disabled={savingGoogleDefaults === gAccount.id}>

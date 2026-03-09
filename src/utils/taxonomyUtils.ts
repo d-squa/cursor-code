@@ -759,7 +759,7 @@ export function extractTaxonomyValues(
 
 // Generate default campaign taxonomy params
 // Campaign: activation name, objective, market, phase budget, start date, end date, BO number, team name
-export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
+export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google'): TaxonomyParam[] {
   return [
     { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → Name field. The main identifier for this campaign activation.' },
     { 
@@ -769,6 +769,8 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'options', 
       options: platform === 'meta' 
         ? ['AWR', 'ENG', 'TRF', 'LED', 'APP', 'SAL']
+        : platform === 'google'
+        ? ['SAL', 'LED', 'TRF', 'AWR', 'APP', 'VV']
         : ['RCH', 'VV', 'TRF', 'CVN', 'API', 'LDG', 'PSL'],
       system: true, 
       required: true, 
@@ -785,7 +787,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
 
 // Generate default ad set taxonomy params
 // AdSet: optimization goal, budget type, age, gender, location, device, placements, positions, targeting type
-export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
+export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): TaxonomyParam[] {
   return [
     {
       id: 'optimizationGoal',
@@ -794,6 +796,8 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: platform === 'meta'
         ? ['RCH', 'IMP', 'CLK', 'LPV', 'CVN', 'VAL', 'VV']
+        : platform === 'google'
+        ? ['CVN', 'CLK', 'IMP', 'VV', 'VAL']
         : ['RCH', 'CLK', 'CVT', 'VV', '6SV', 'FCV'],
       system: true,
       required: true,
@@ -806,6 +810,8 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: platform === 'meta'
         ? ['ONAD', 'WEB', 'APP', 'MSG', 'CALL', 'SHOP', 'FORM']
+        : platform === 'google'
+        ? ['WEB', 'APP', 'CALL']
         : ['ONAD', 'WEB', 'APP', 'MSG', 'FORM', 'SHOP', 'TTIP'],
       system: true,
       required: true,
@@ -867,11 +873,15 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: platform === 'meta'
         ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        : platform === 'google'
+        ? ['SEARCH', 'DISPLAY', 'VIDEO', 'PMAX', 'SHOP']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: true,
       description: platform === 'meta'
         ? 'Auto-filled from Phase Config → Placement Type. AUTO=Advantage+ placements, FB=Facebook, IG=Instagram, AN=Audience Network, MIX=Multiple platforms.'
+        : platform === 'google'
+        ? 'Auto-filled from Phase Config → Campaign Type. SEARCH=Search, DISPLAY=Display, VIDEO=Video, PMAX=Performance Max, SHOP=Shopping.'
         : 'Auto-filled from Phase Config → Placement Type. AUTO=Automatic, TT=TikTok, GAB=Global App Bundle, PAN=Pangle.',
     },
     {
@@ -881,11 +891,15 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: platform === 'meta'
         ? ['AUTO', 'FEED', 'STORY', 'REEL', 'MIX']
+        : platform === 'google'
+        ? ['AUTO', 'SEARCH', 'DISPLAY', 'VIDEO']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: true,
       description: platform === 'meta'
         ? 'Auto-filled from Phase Config → Specific ad positions. FEED=Feed placements, STORY=Stories, REEL=Reels, MIX=Multiple positions.'
+        : platform === 'google'
+        ? 'Auto-filled from Phase Config → Google Ads network positions.'
         : 'Auto-filled from Phase Config → Specific TikTok positions.',
     },
     {

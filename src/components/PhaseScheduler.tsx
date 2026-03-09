@@ -1651,6 +1651,7 @@ export function PhaseScheduler({
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
             const availableObjectives = getAvailableObjectives();
             const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+            const taxonomyPlatform: 'meta' | 'tiktok' | 'google' = isGooglePlatform ? 'google' : platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta';
             const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
             const phaseKeywords = isGoogleSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
@@ -1703,9 +1704,9 @@ export function PhaseScheduler({
                           {adAccountId && (
                             <PhaseTaxonomyPreview
                               adAccountId={adAccountId}
-                              platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                              platform={taxonomyPlatform}
                               context={{
-                                platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                                platform: taxonomyPlatform,
                                 activationName: activationContext?.activationName,
                                 boNumber: activationContext?.boNumber,
                                 clientName: activationContext?.clientName,
@@ -1839,10 +1840,10 @@ export function PhaseScheduler({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <PhaseTaxonomyInputs
                             adAccountId={adAccountId}
-                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            platform={taxonomyPlatform}
                             entityType="campaign"
                             context={{
-                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              platform: taxonomyPlatform,
                               activationName: activationContext?.activationName,
                               boNumber: activationContext?.boNumber,
                               clientName: activationContext?.clientName,
@@ -1865,10 +1866,10 @@ export function PhaseScheduler({
                           />
                           <PhaseTaxonomyInputs
                             adAccountId={adAccountId}
-                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            platform={taxonomyPlatform}
                             entityType="adset"
                             context={{
-                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              platform: taxonomyPlatform,
                               optimizationGoal: phase.optimizationGoal,
                               optimizationLocation: phase.metaOptimizationLocation || phase.tiktokOptimizationLocation,
                               phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,

@@ -12,7 +12,7 @@ import {
 
 interface PhaseTaxonomyPreviewProps {
   adAccountId: string;
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   // Context values automatically extracted from ActiPlan phase/market data
   context: TaxonomyContext;
   // Custom parameter values filled by user
@@ -55,6 +55,22 @@ export function PhaseTaxonomyPreview({
             .eq('advertiser_id', adAccountId)
             .maybeSingle();
           dbAccountId = accountData?.id ?? null;
+        } else if (platform === 'google') {
+          const { data: accountData } = await supabase
+            .from('google_ad_accounts')
+            .select('id')
+            .eq('customer_id', adAccountId)
+            .maybeSingle();
+          if (!accountData) {
+            const { data: accountData2 } = await supabase
+              .from('google_ad_accounts')
+              .select('id')
+              .eq('account_id', adAccountId)
+              .maybeSingle();
+            dbAccountId = accountData2?.id ?? null;
+          } else {
+            dbAccountId = accountData?.id ?? null;
+          }
         } else {
           const { data: accountData } = await supabase
             .from('meta_ad_accounts')
