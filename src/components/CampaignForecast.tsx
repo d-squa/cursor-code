@@ -1956,7 +1956,8 @@ export function CampaignForecast({
                 selectedKeywords={selectedKeywords}
               />
             )}
-
+          </>
+        )}
 
         <div className="flex justify-between pt-4 border-t">
           <Button variant="outline" onClick={onBack}>
