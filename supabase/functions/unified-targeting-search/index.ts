@@ -472,43 +472,49 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       return batches.flatMap((batch: any) => batch?.results || []);
     };
 
-    const [userListRows, combinedRows, audienceSegmentRows] = await Promise.all([
+    const [userListRows, combinedRows, inMarketRows, affinityRows, lifeEventRows, detailedDemoRows] = await Promise.all([
       runGaqlSearch(`
-        SELECT
-          user_list.id,
-          user_list.name,
-          user_list.type,
-          user_list.membership_status
+        SELECT user_list.id, user_list.name, user_list.type, user_list.membership_status
         FROM user_list
         WHERE user_list.membership_status = 'OPEN'
           AND user_list.name LIKE '%${escapedQuery}%'
         LIMIT 50
       `),
       runGaqlSearch(`
-        SELECT
-          combined_audience.id,
-          combined_audience.name,
-          combined_audience.status
+        SELECT combined_audience.id, combined_audience.name, combined_audience.status
         FROM combined_audience
         WHERE combined_audience.status = 'ENABLED'
           AND combined_audience.name LIKE '%${escapedQuery}%'
         LIMIT 50
       `),
-      // In-market, Affinity, Life events, Detailed demographics
       runGaqlSearch(`
-        SELECT
-          audience_segment.id,
-          audience_segment.name,
-          audience_segment.type,
-          audience_segment.description
-        FROM audience_segment
-        WHERE audience_segment.name LIKE '%${escapedQuery}%'
-          AND audience_segment.type IN ('IN_MARKET', 'AFFINITY', 'LIFE_EVENT', 'DETAILED_DEMOGRAPHIC')
+        SELECT in_market_audience.id, in_market_audience.name
+        FROM in_market_audience
+        WHERE in_market_audience.name LIKE '%${escapedQuery}%'
+        LIMIT 50
+      `),
+      runGaqlSearch(`
+        SELECT affinity.id, affinity.name
+        FROM affinity
+        WHERE affinity.name LIKE '%${escapedQuery}%'
+        LIMIT 50
+      `),
+      runGaqlSearch(`
+        SELECT life_event.id, life_event.name
+        FROM life_event
+        WHERE life_event.name LIKE '%${escapedQuery}%'
+        LIMIT 50
+      `),
+      runGaqlSearch(`
+        SELECT detailed_demographic.id, detailed_demographic.name, detailed_demographic.parent
+        FROM detailed_demographic
+        WHERE detailed_demographic.name LIKE '%${escapedQuery}%'
+          AND detailed_demographic.parent IS NOT NULL
         LIMIT 50
       `),
     ]);
 
-    console.log(`Google: ${userListRows.length} user_lists, ${combinedRows.length} combined, ${audienceSegmentRows.length} audience_segments`);
+    console.log(`Google: ${userListRows.length} user_lists, ${combinedRows.length} combined, ${inMarketRows.length} in-market, ${affinityRows.length} affinity, ${lifeEventRows.length} life-events, ${detailedDemoRows.length} detailed-demo`);
 
     const mappedUserLists = userListRows
       .map((r: any) => {
@@ -534,39 +540,51 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
         const id = String(ca.id ?? '');
         const name = ca.name ?? '';
         if (!id || !name) return null;
-
-        return {
-          id,
-          name,
-          description: 'Data segment: Custom combination',
-        };
+        return { id, name, description: 'Data segment: Custom combination' };
       })
       .filter(Boolean);
 
-    const typeLabel: Record<string, string> = {
-      IN_MARKET: 'In-market',
-      AFFINITY: 'Affinity',
-      LIFE_EVENT: 'Life event',
-      DETAILED_DEMOGRAPHIC: 'Detailed demographic',
-    };
-
-    const mappedSegments = audienceSegmentRows
+    const mappedInMarket = inMarketRows
       .map((r: any) => {
-        const seg = r.audienceSegment || r.audience_segment || {};
+        const seg = r.inMarketAudience || r.in_market_audience || {};
         const id = String(seg.id ?? '');
         const name = seg.name ?? '';
-        const segType = seg.type ?? '';
         if (!id || !name) return null;
-
-        return {
-          id,
-          name,
-          description: typeLabel[segType] || segType,
-        };
+        return { id, name, description: 'In-market' };
       })
       .filter(Boolean);
 
-    return [...mappedUserLists, ...mappedCombined, ...mappedSegments];
+    const mappedAffinity = affinityRows
+      .map((r: any) => {
+        const seg = r.affinity || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        if (!id || !name) return null;
+        return { id, name, description: 'Affinity' };
+      })
+      .filter(Boolean);
+
+    const mappedLifeEvents = lifeEventRows
+      .map((r: any) => {
+        const seg = r.lifeEvent || r.life_event || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        if (!id || !name) return null;
+        return { id, name, description: 'Life event' };
+      })
+      .filter(Boolean);
+
+    const mappedDetailedDemo = detailedDemoRows
+      .map((r: any) => {
+        const seg = r.detailedDemographic || r.detailed_demographic || {};
+        const id = String(seg.id ?? '');
+        const name = seg.name ?? '';
+        if (!id || !name) return null;
+        return { id, name, description: 'Detailed demographic' };
+      })
+      .filter(Boolean);
+
+    return [...mappedUserLists, ...mappedCombined, ...mappedInMarket, ...mappedAffinity, ...mappedLifeEvents, ...mappedDetailedDemo];
   } catch (err) {
     console.error('Google audience segment search error:', err);
     return [];
