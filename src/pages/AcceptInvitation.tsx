@@ -199,6 +199,11 @@ export default function AcceptInvitation() {
         })
       );
     }
+
+    // Set active workspace to the invited team so subscription check uses team owner's plan
+    if (invitation?.team_id && user?.id) {
+      localStorage.setItem(`actiplan.activeWorkspaceId:${user.id}`, invitation.team_id);
+    }
   };
 
   const handleCreateAccountAndJoin = async () => {
