@@ -50,6 +50,8 @@ interface GoogleAdAccountDefaults {
   default_merchant_center_id?: string | null;
   default_feed_label?: string | null;
   main_markets?: string[] | null;
+  default_utm_mode?: string | null;
+  default_url_parameters?: string | null;
 }
 
 interface AdAccount {
