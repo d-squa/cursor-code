@@ -94,6 +94,24 @@ export default function TaxonomyBuilder({
         return data?.id || adAccountId;
       }
 
+      if (platform === 'google') {
+        const { data } = await supabase
+          .from('google_ad_accounts')
+          .select('id')
+          .eq('customer_id', adAccountId)
+          .maybeSingle();
+        if (!data) {
+          // Also try account_id
+          const { data: data2 } = await supabase
+            .from('google_ad_accounts')
+            .select('id')
+            .eq('account_id', adAccountId)
+            .maybeSingle();
+          return data2?.id || adAccountId;
+        }
+        return data?.id || adAccountId;
+      }
+
       if (platform === 'meta') {
         const { data } = await supabase
           .from('meta_ad_accounts')
