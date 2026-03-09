@@ -109,12 +109,19 @@ export default function AcceptInvitation() {
     
     setEmailStatus("checking");
     
+    // Use AbortController to add a timeout so we never hang
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    
     try {
       const { data, error: statusError } = await supabase.functions.invoke("invitation-account-status", {
         body: { token },
       });
 
+      clearTimeout(timeout);
+
       if (statusError) {
+        console.warn("Email status check returned error, defaulting to new:", statusError);
         setEmailStatus("new");
         return;
       }
@@ -134,6 +141,7 @@ export default function AcceptInvitation() {
         setEmailStatus("new");
       }
     } catch (err) {
+      clearTimeout(timeout);
       console.error("Error checking email status:", err);
       setEmailStatus("new");
     }
