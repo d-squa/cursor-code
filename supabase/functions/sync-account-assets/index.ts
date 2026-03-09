@@ -36,11 +36,16 @@ serve(async (req) => {
       throw new Error("Account ID is required");
     }
 
-    if (platform !== "meta") {
-      throw new Error("Only Meta account asset sync is currently supported");
+    if (!platform || (platform !== "meta" && platform !== "google")) {
+      throw new Error("Platform must be 'meta' or 'google'");
     }
 
-    console.log(`[SYNC-ACCOUNT-ASSETS] Starting asset sync for Meta account ${accountId}, user ${user.id}`);
+    console.log(`[SYNC-ACCOUNT-ASSETS] Starting asset sync for ${platform} account ${accountId}, user ${user.id}`);
+
+    // Route to Google Ads sync if platform is google
+    if (platform === "google") {
+      return await syncGoogleAdsAssets(supabase, user, accountId, req.headers.get("authorization")!);
+    }
 
     // Get user's active Meta platform connection
     const { data: platformData, error: platformError } = await supabase
@@ -545,4 +550,241 @@ async function syncAccountBenchmarks(
   }
 
   return { synced: storedCount, error: null };
+}
+
+/**
+ * Sync Google Ads account assets (conversion actions, audiences, etc.)
+ */
+async function syncGoogleAdsAssets(
+  supabase: any,
+  user: any,
+  accountId: string,
+  authHeader: string
+): Promise<Response> {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+
+  try {
+    // Get user's active Google platform connection
+    const { data: platformData, error: platformError } = await supabase
+      .from("connected_platforms")
+      .select("id, access_token, refresh_token")
+      .eq("user_id", user.id)
+      .eq("platform_type", "google")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (platformError || !platformData) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Google platform lookup error:", platformError);
+      throw new Error("No active Google Ads platform connection found");
+    }
+
+    // Get access token from Vault (with fallback to database column)
+    const accessToken = await getAccessToken(supabase, platformData.id, platformData.access_token);
+    
+    if (!accessToken) {
+      throw new Error("Failed to retrieve Google access token");
+    }
+
+    const syncResults = {
+      conversionActions: 0,
+      audiences: 0,
+      geoTargets: 0,
+    };
+
+    const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
+    const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+    
+    if (!developerToken) {
+      console.warn("[SYNC-ACCOUNT-ASSETS] Google Ads developer token not configured");
+    }
+
+    // Clean account ID (remove 'customers/' prefix if present)
+    const cleanAccountId = accountId.replace("customers/", "").replace(/-/g, "");
+
+    // 1. Sync conversion actions
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Fetching conversion actions for Google account ${cleanAccountId}...`);
+      
+      const conversionQuery = `
+        SELECT 
+          conversion_action.id,
+          conversion_action.name,
+          conversion_action.type,
+          conversion_action.status,
+          conversion_action.category
+        FROM conversion_action
+        WHERE conversion_action.status = 'ENABLED'
+      `;
+
+      const conversionResponse = await fetch(
+        `https://googleads.googleapis.com/v18/customers/${cleanAccountId}/googleAds:searchStream`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "developer-token": developerToken || "",
+            "login-customer-id": managerAccountId || cleanAccountId,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: conversionQuery }),
+        }
+      );
+
+      if (conversionResponse.ok) {
+        const conversionData = await conversionResponse.json();
+        const conversions: any[] = [];
+        
+        if (Array.isArray(conversionData)) {
+          for (const chunk of conversionData) {
+            if (chunk.results) {
+              conversions.push(...chunk.results);
+            }
+          }
+        }
+
+        if (conversions.length > 0) {
+          // Delete existing conversion actions for this account
+          await supabase
+            .from("google_conversion_actions")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("customer_id", cleanAccountId);
+
+          const conversionsToInsert = conversions.map((conv: any) => ({
+            user_id: user.id,
+            customer_id: cleanAccountId,
+            conversion_action_id: conv.conversionAction?.id || "",
+            conversion_action_name: conv.conversionAction?.name || "",
+            conversion_type: conv.conversionAction?.type || "",
+            category: conv.conversionAction?.category || "",
+            status: conv.conversionAction?.status || "",
+            synced_at: new Date().toISOString(),
+          }));
+
+          const { error: insertError } = await supabase
+            .from("google_conversion_actions")
+            .insert(conversionsToInsert);
+
+          if (!insertError) {
+            syncResults.conversionActions = conversionsToInsert.length;
+            console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.conversionActions} Google conversion actions`);
+          } else {
+            console.error("[SYNC-ACCOUNT-ASSETS] Error inserting conversion actions:", insertError);
+          }
+        }
+      } else {
+        const errorText = await conversionResponse.text();
+        console.error("[SYNC-ACCOUNT-ASSETS] Error fetching conversion actions:", errorText);
+      }
+    } catch (error) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Error syncing conversion actions:", error);
+    }
+
+    // 2. Sync user lists/audiences
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Fetching audiences for Google account ${cleanAccountId}...`);
+      
+      const audienceQuery = `
+        SELECT 
+          user_list.id,
+          user_list.name,
+          user_list.type,
+          user_list.size_for_display,
+          user_list.size_for_search
+        FROM user_list
+        WHERE user_list.membership_status = 'OPEN'
+      `;
+
+      const audienceResponse = await fetch(
+        `https://googleads.googleapis.com/v18/customers/${cleanAccountId}/googleAds:searchStream`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "developer-token": developerToken || "",
+            "login-customer-id": managerAccountId || cleanAccountId,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: audienceQuery }),
+        }
+      );
+
+      if (audienceResponse.ok) {
+        const audienceData = await audienceResponse.json();
+        const audiences: any[] = [];
+        
+        if (Array.isArray(audienceData)) {
+          for (const chunk of audienceData) {
+            if (chunk.results) {
+              audiences.push(...chunk.results);
+            }
+          }
+        }
+
+        if (audiences.length > 0) {
+          // Delete existing audiences for this account
+          await supabase
+            .from("google_audiences")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("customer_id", cleanAccountId);
+
+          const audiencesToInsert = audiences.map((aud: any) => ({
+            user_id: user.id,
+            customer_id: cleanAccountId,
+            audience_id: aud.userList?.id || "",
+            audience_name: aud.userList?.name || "",
+            audience_type: aud.userList?.type || "",
+            size_for_display: aud.userList?.sizeForDisplay || 0,
+            size_for_search: aud.userList?.sizeForSearch || 0,
+            synced_at: new Date().toISOString(),
+          }));
+
+          const { error: insertError } = await supabase
+            .from("google_audiences")
+            .insert(audiencesToInsert);
+
+          if (!insertError) {
+            syncResults.audiences = audiencesToInsert.length;
+            console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.audiences} Google audiences`);
+          } else {
+            console.error("[SYNC-ACCOUNT-ASSETS] Error inserting audiences:", insertError);
+          }
+        }
+      } else {
+        const errorText = await audienceResponse.text();
+        console.error("[SYNC-ACCOUNT-ASSETS] Error fetching audiences:", errorText);
+      }
+    } catch (error) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Error syncing audiences:", error);
+    }
+
+    console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Google Ads asset sync complete for ${cleanAccountId}:`, syncResults);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        accountId: cleanAccountId,
+        platform: "google",
+        syncResults,
+        message: `Synced ${syncResults.conversionActions} conversion actions, ${syncResults.audiences} audiences`,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  } catch (error: any) {
+    console.error("[SYNC-ACCOUNT-ASSETS] Google sync error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
 }
