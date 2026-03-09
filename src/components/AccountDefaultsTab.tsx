@@ -2401,6 +2401,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       </Accordion>
 
       {/* Google Ads account defaults */}
+      {googleAdAccounts.length === 0 && adAccounts.length >= 0 && (
+        <Card className="p-6 text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            No Google Ads accounts linked to this client yet.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Go to <Link to="/settings/platforms" className="text-primary underline hover:no-underline">Platform Connections</Link> to sync and link your Google Ads accounts to this client.
+          </p>
+        </Card>
+      )}
       {googleAdAccounts.length > 0 && (
         <Accordion type="single" collapsible className="space-y-4">
           {googleAdAccounts.map((gAccount) => {
