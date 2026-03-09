@@ -112,6 +112,7 @@ export function UnifiedTargeting({
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok' | 'google'>('all');
   
   // State for CBO/ABO dialog
   const [pendingSplitSelection, setPendingSplitSelection] = useState<{
