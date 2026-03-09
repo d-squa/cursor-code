@@ -506,6 +506,19 @@ export function UnifiedTargeting({
         </Collapsible>
       )}
 
+      {/* Keyword Targeting for Search Campaigns */}
+      {(googleCustomerId || selectedPlatforms?.some(p => p.id === 'google_ads')) && (
+        <KeywordTargeting
+          selectedKeywords={targeting.selectedKeywords || []}
+          onUpdate={(keywords) => {
+            const updated = { ...targeting, selectedItems, selectedKeywords: keywords };
+            onUpdate(updated);
+            persistToLocalStorage(updated);
+          }}
+          googleCustomerId={googleCustomerId}
+        />
+      )}
+
       {/* Default Ad Set Split Configuration */}
       <Card>
         <CardHeader>

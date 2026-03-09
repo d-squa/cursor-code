@@ -1820,14 +1820,9 @@ export function CampaignForecast({
           </>
         )}
 
-        {/* Keyword Strategy Breakdown */}
-        {(googleCustomerId || tiktokAdvertiserId) && onKeywordsUpdate && (
-          <KeywordTargeting
-            selectedKeywords={selectedKeywords || []}
-            onUpdate={onKeywordsUpdate}
-            googleCustomerId={googleCustomerId}
-            tiktokAdvertiserId={tiktokAdvertiserId}
-          />
+        {/* Keyword Strategy Stats in Forecast */}
+        {selectedKeywords && selectedKeywords.filter(k => !k.isNegative).length > 0 && (
+          <KeywordStrategyForecast keywords={selectedKeywords} />
         )}
 
 
