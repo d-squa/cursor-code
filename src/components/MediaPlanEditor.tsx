@@ -97,6 +97,8 @@ export function MediaPlanEditor() {
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastCampaignIdRef = useRef<string | null>(null);
+  // Track whether client selection was an explicit user action (not hydration)
+  const clientSelectionIsUserAction = useRef<boolean>(false);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
@@ -196,10 +198,11 @@ export function MediaPlanEditor() {
       isHydrated,
     });
 
-    if (selectedClientId && totalBudget && startDate && endDate && isHydrated) {
+    if (selectedClientId && totalBudget && startDate && endDate && isHydrated && clientSelectionIsUserAction.current) {
       console.log("✅ All conditions met, auto-populating from client...");
       autoPopulateFromClient();
-    } else if (selectedClientId && (!totalBudget || !startDate || !endDate)) {
+      clientSelectionIsUserAction.current = false;
+    } else if (selectedClientId && clientSelectionIsUserAction.current && (!totalBudget || !startDate || !endDate)) {
       console.log("⚠️ Client selected but missing required fields");
       toast.error("Please fill in budget, start date, and end date first");
     }
@@ -2132,6 +2135,7 @@ export function MediaPlanEditor() {
                     navigate("/settings/accounts");
                     return;
                   }
+                  clientSelectionIsUserAction.current = true;
                   setSelectedClientId(value || "");
                   ensureDraft();
                 }}
