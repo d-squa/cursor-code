@@ -72,6 +72,11 @@ export function PhaseAudienceSelector({
   autoExcludeEnabled = false,
   onAutoExcludeChange,
 }: PhaseAudienceSelectorProps) {
+  const platformLower = platform?.toLowerCase() || "";
+  const isGooglePlatform = platformLower.includes("google");
+  const isTikTokPlatform = platformLower.includes("tiktok");
+  const isMetaPlatform = platformLower.includes("meta") || platformLower.includes("facebook") || platformLower.includes("instagram");
+
   // Determine if this is a brand awareness campaign first (needed for state initialization)
   const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
                            phaseObjective?.toLowerCase().includes('reach') ||
@@ -96,9 +101,10 @@ export function PhaseAudienceSelector({
   // Collapsible sections state - all start collapsed
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
-  type AudienceGroupType = "Custom Audience" | "Lookalike Audience" | "Saved Audience" | "Detailed Targeting";
+  type AudienceGroupType = string;
 
-  const getAudienceGroupType = (aud: FetchedAudience): Exclude<AudienceGroupType, "Detailed Targeting"> => {
+  const getAudienceGroupType = (aud: FetchedAudience): AudienceGroupType => {
+    if (isGooglePlatform) return aud.source || "Uncategorized";
     if (aud.source === "Saved Audience") return "Saved Audience";
     if (aud.subtype?.toUpperCase() === "LOOKALIKE" || aud.subtype?.toUpperCase() === "SIMILAR" || aud.source === "Lookalikes" || aud.source === "Lookalike Audience") return "Lookalike Audience";
     return "Custom Audience";
@@ -115,9 +121,8 @@ export function PhaseAudienceSelector({
     if (!basicTargeting || !isBrandAwareness || overrideTargeting) return [];
 
     const detailed: FetchedAudience[] = [];
-    const platformLower = platform?.toLowerCase() || "";
-    const isTikTok = platformLower.includes("tiktok");
-    const isMeta = platformLower.includes("meta") || platformLower.includes("facebook") || platformLower.includes("instagram");
+    const isTikTok = isTikTokPlatform;
+    const isMeta = isMetaPlatform;
 
     if (isMeta) {
       basicTargeting.metaInterests?.forEach((interest) => {
@@ -182,8 +187,37 @@ export function PhaseAudienceSelector({
     return detailed;
   })();
 
-  // Group ALL fetched audiences by broad "type" buckets
+  // Group ALL fetched audiences by bucket
   const groupedAudiences = (() => {
+    const fetched = Object.values(audiencesByType).flat();
+
+    if (isGooglePlatform) {
+      const dataSegmentOrder = [
+        "Website visitors",
+        "Customer segments",
+        "YouTube users",
+        "App users",
+        "Custom combination",
+        "Callers",
+      ];
+
+      const groups: Record<string, FetchedAudience[]> = Object.fromEntries(
+        dataSegmentOrder.map((key) => [key, [] as FetchedAudience[]])
+      );
+
+      fetched.forEach((aud) => {
+        const key = dataSegmentOrder.includes(aud.source || "") ? (aud.source as string) : "Uncategorized";
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(aud);
+      });
+
+      if (detailedTargetingAudiences.length > 0) {
+        groups["Detailed Targeting"] = detailedTargetingAudiences;
+      }
+
+      return groups;
+    }
+
     const groups: Record<AudienceGroupType, FetchedAudience[]> = {
       "Custom Audience": [],
       "Lookalike Audience": [],
@@ -191,7 +225,6 @@ export function PhaseAudienceSelector({
       "Detailed Targeting": detailedTargetingAudiences,
     };
 
-    const fetched = Object.values(audiencesByType).flat();
     fetched.forEach((aud) => {
       const key = getAudienceGroupType(aud);
       groups[key].push(aud);
@@ -200,12 +233,23 @@ export function PhaseAudienceSelector({
     return groups;
   })();
 
-  const groupOrder: AudienceGroupType[] = [
-    "Custom Audience",
-    "Lookalike Audience",
-    "Saved Audience",
-    ...(groupedAudiences["Detailed Targeting"].length > 0 ? (["Detailed Targeting"] as const) : []),
-  ];
+  const groupOrder: AudienceGroupType[] = isGooglePlatform
+    ? [
+        "Website visitors",
+        "Customer segments",
+        "YouTube users",
+        "App users",
+        "Custom combination",
+        "Callers",
+        ...(groupedAudiences["Uncategorized"]?.length ? ["Uncategorized"] : []),
+        ...(groupedAudiences["Detailed Targeting"]?.length ? ["Detailed Targeting"] : []),
+      ]
+    : [
+        "Custom Audience",
+        "Lookalike Audience",
+        "Saved Audience",
+        ...(groupedAudiences["Detailed Targeting"].length > 0 ? (["Detailed Targeting"] as const) : []),
+      ];
 
 
   const loadAudiences = async () => {

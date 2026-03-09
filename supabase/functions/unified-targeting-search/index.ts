@@ -436,55 +436,126 @@ const GOOGLE_ADS_API_VERSION = 'v23';
 
 async function searchGoogleAudiences(headers: Record<string, string>, customerId: string, query: string) {
   try {
-    // Search Google Ads audience segments (affinity + in-market)
-    const gaql = `
-      SELECT
-        user_interest.user_interest_id,
-        user_interest.name,
-        user_interest.taxonomy_type,
-        user_interest.availabilities
-      FROM user_interest
-      WHERE user_interest.name LIKE '%${query.replace(/'/g, "''")}%'
-      LIMIT 50
-    `;
-
+    const escapedQuery = query.replace(/'/g, "''");
     const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`;
-    const resp = await fetch(searchUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ query: gaql }),
-    });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error('Google audience segment search failed:', errText);
-      return [];
-    }
+    const runGaqlSearch = async (gaql: string): Promise<any[]> => {
+      const resp = await fetch(searchUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
 
-    const data = await resp.json();
-    const batches = Array.isArray(data) ? data : [];
-    const rows = batches.flatMap((batch: any) => batch?.results || []);
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error('Google data-segment search failed:', errText);
+        return [];
+      }
 
-    return rows
+      const data = await resp.json();
+      const batches = Array.isArray(data) ? data : [];
+      return batches.flatMap((batch: any) => batch?.results || []);
+    };
+
+    const [userListRows, combinedRows] = await Promise.all([
+      runGaqlSearch(`
+        SELECT
+          user_list.id,
+          user_list.name,
+          user_list.type,
+          user_list.membership_status
+        FROM user_list
+        WHERE user_list.membership_status = 'OPEN'
+          AND user_list.name LIKE '%${escapedQuery}%'
+        LIMIT 50
+      `),
+      runGaqlSearch(`
+        SELECT
+          combined_audience.id,
+          combined_audience.name,
+          combined_audience.status
+        FROM combined_audience
+        WHERE combined_audience.status = 'ENABLED'
+          AND combined_audience.name LIKE '%${escapedQuery}%'
+        LIMIT 50
+      `),
+    ]);
+
+    const mappedUserLists = userListRows
       .map((r: any) => {
-        const ui = r.userInterest || r.user_interest || {};
-        const id = String(ui.userInterestId ?? ui.user_interest_id ?? '');
-        const name = ui.name ?? '';
-        const taxonomyType = ui.taxonomyType ?? ui.taxonomy_type ?? '';
+        const ul = r.userList || r.user_list || {};
+        const id = String(ul.id ?? '');
+        const name = ul.name ?? '';
+        const listType = ul.type ?? '';
+        const segment = mapGoogleUserListToDataSegment(listType, name);
 
+        if (!id || !name || !segment) return null;
+
+        return {
+          id,
+          name,
+          description: `Data segment: ${segment}`,
+        };
+      })
+      .filter(Boolean);
+
+    const mappedCombined = combinedRows
+      .map((r: any) => {
+        const ca = r.combinedAudience || r.combined_audience || {};
+        const id = String(ca.id ?? '');
+        const name = ca.name ?? '';
         if (!id || !name) return null;
 
         return {
           id,
           name,
-          description: taxonomyType ? `Segment type: ${taxonomyType}` : '',
+          description: 'Data segment: Custom combination',
         };
       })
       .filter(Boolean);
+
+    return [...mappedUserLists, ...mappedCombined];
   } catch (err) {
     console.error('Google audience segment search error:', err);
     return [];
   }
+}
+
+function mapGoogleUserListToDataSegment(listTypeRaw: string, listNameRaw: string): string | null {
+  const listType = (listTypeRaw || '').toUpperCase();
+  const listName = (listNameRaw || '').toLowerCase();
+
+  if (listType === 'CRM_BASED' || listType === 'CUSTOMER_MATCH_USER_LIST' || listName.includes('customer')) {
+    return 'Customer segments';
+  }
+
+  if (listType === 'YOUTUBE_USERS' || listName.includes('youtube')) {
+    return 'YouTube users';
+  }
+
+  if (listType === 'BASIC' || listType === 'APP_USERS' || listName.includes('app')) {
+    return 'App users';
+  }
+
+  if (listType === 'CALLERS' || listName.includes('call')) {
+    return 'Callers';
+  }
+
+  if (listType === 'LOGICAL' || listName.includes('combination')) {
+    return 'Custom combination';
+  }
+
+  if (
+    listType === 'RULE_BASED' ||
+    listType === 'REMARKETING' ||
+    listType === 'EXTERNAL_REMARKETING' ||
+    listName.includes('website') ||
+    listName.includes('visitor')
+  ) {
+    return 'Website visitors';
+  }
+
+  return null;
 }
 
 async function searchGoogleLocations(headers: Record<string, string>, query: string) {

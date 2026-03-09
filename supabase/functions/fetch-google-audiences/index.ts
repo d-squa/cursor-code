@@ -18,6 +18,51 @@ interface AudienceResult {
   approximate_count_upper_bound: number | null;
 }
 
+type GoogleDataSegment =
+  | 'Website visitors'
+  | 'Customer segments'
+  | 'YouTube users'
+  | 'App users'
+  | 'Custom combination'
+  | 'Callers';
+
+function mapUserListToDataSegment(listTypeRaw: string, listNameRaw: string): GoogleDataSegment | null {
+  const listType = (listTypeRaw || '').toUpperCase();
+  const listName = (listNameRaw || '').toLowerCase();
+
+  if (listType === 'CRM_BASED' || listType === 'CUSTOMER_MATCH_USER_LIST' || listName.includes('customer')) {
+    return 'Customer segments';
+  }
+
+  if (listType === 'YOUTUBE_USERS' || listName.includes('youtube')) {
+    return 'YouTube users';
+  }
+
+  if (listType === 'BASIC' || listType === 'APP_USERS' || listName.includes('app')) {
+    return 'App users';
+  }
+
+  if (listType === 'CALLERS' || listName.includes('call')) {
+    return 'Callers';
+  }
+
+  if (listType === 'LOGICAL' || listName.includes('combination')) {
+    return 'Custom combination';
+  }
+
+  if (
+    listType === 'RULE_BASED' ||
+    listType === 'REMARKETING' ||
+    listType === 'EXTERNAL_REMARKETING' ||
+    listName.includes('website') ||
+    listName.includes('visitor')
+  ) {
+    return 'Website visitors';
+  }
+
+  return null;
+}
+
 async function searchStream(
   url: string,
   headers: Record<string, string>,
@@ -111,17 +156,9 @@ serve(async (req) => {
     const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}/googleAds:searchStream`;
     const allAudiences: AudienceResult[] = [];
 
-    // Run all audience queries in parallel for speed
-    const [
-      yourDataRows,
-      customSegmentRows,
-      combinedRows,
-      affinityRows,
-      inMarketRows,
-      lifeEventRows,
-      detailedDemoRows,
-    ] = await Promise.all([
-      // 1. Your Data Segments (user_list) — Website visitors, App users, Customer lists
+    // Run only Audience Manager data-segment queries in parallel
+    const [yourDataRows, combinedRows] = await Promise.all([
+      // 1. Data segments (user_list) — website visitors, customer segments, YouTube users, app users, callers
       searchStream(searchUrl, apiHeaders, `
         SELECT user_list.id, user_list.name, user_list.type,
                user_list.size_for_display, user_list.size_for_search,
@@ -129,57 +166,16 @@ serve(async (req) => {
         FROM user_list
         WHERE user_list.membership_status = 'OPEN'
         LIMIT 500
-      `).catch(e => { console.error('Your data segments error:', e); return []; }),
+      `).catch((e) => { console.error('Data segments error:', e); return []; }),
 
-      // 2. Custom Segments (custom_audience) — Keywords, URLs, Apps based
-      searchStream(searchUrl, apiHeaders, `
-        SELECT custom_audience.id, custom_audience.name,
-               custom_audience.type, custom_audience.status
-        FROM custom_audience
-        WHERE custom_audience.status = 'ENABLED'
-        LIMIT 500
-      `).catch(e => { console.error('Custom segments error:', e); return []; }),
-
-      // 3. Combined Segments (combined_audience)
+      // 2. Custom combinations (combined_audience)
       searchStream(searchUrl, apiHeaders, `
         SELECT combined_audience.id, combined_audience.name,
                combined_audience.status
         FROM combined_audience
         WHERE combined_audience.status = 'ENABLED'
         LIMIT 200
-      `).catch(e => { console.error('Combined segments error:', e); return []; }),
-
-      // 4. Affinity Segments (user_interest AFFINITY)
-      searchStream(searchUrl, apiHeaders, `
-        SELECT user_interest.user_interest_id, user_interest.name,
-               user_interest.taxonomy_type
-        FROM user_interest
-        WHERE user_interest.taxonomy_type = 'AFFINITY'
-        LIMIT 500
-      `).catch(e => { console.error('Affinity segments error:', e); return []; }),
-
-      // 5. In-Market Segments (user_interest IN_MARKET)
-      searchStream(searchUrl, apiHeaders, `
-        SELECT user_interest.user_interest_id, user_interest.name,
-               user_interest.taxonomy_type
-        FROM user_interest
-        WHERE user_interest.taxonomy_type = 'IN_MARKET'
-        LIMIT 500
-      `).catch(e => { console.error('In-Market segments error:', e); return []; }),
-
-      // 6. Life Events
-      searchStream(searchUrl, apiHeaders, `
-        SELECT life_event.id, life_event.name
-        FROM life_event
-        LIMIT 200
-      `).catch(e => { console.error('Life events error:', e); return []; }),
-
-      // 7. Detailed Demographics
-      searchStream(searchUrl, apiHeaders, `
-        SELECT detailed_demographic.id, detailed_demographic.name
-        FROM detailed_demographic
-        LIMIT 200
-      `).catch(e => { console.error('Detailed demographics error:', e); return []; }),
+      `).catch((e) => { console.error('Custom combinations error:', e); return []; }),
     ]);
 
     // --- Process Your Data Segments ---
@@ -192,43 +188,22 @@ serve(async (req) => {
       const sizeSearch = ul.sizeForSearch ?? ul.size_for_search ?? 0;
       if (!id || !name) continue;
 
-      let subtype = 'YOUR_DATA';
-      if (listType === 'CRM_BASED') subtype = 'CUSTOMER_LIST';
-      else if (listType === 'RULE_BASED' || listType === 'LOGICAL') subtype = 'WEBSITE_VISITORS';
-      else if (listType === 'BASIC') subtype = 'APP_USERS';
+      const mappedSegment = mapUserListToDataSegment(listType, name);
+      if (!id || !name || !mappedSegment) continue;
 
       const size = Math.max(Number(sizeDisplay) || 0, Number(sizeSearch) || 0);
       allAudiences.push({
-        id, name, subtype,
-        source: 'Your data segments',
+        id,
+        name,
+        subtype: mappedSegment,
+        source: mappedSegment,
         approximate_count_lower_bound: size || null,
         approximate_count_upper_bound: size || null,
       });
     }
-    console.log(`Your data segments: ${yourDataRows.length}`);
+    console.log(`Data segments: ${yourDataRows.length}`);
 
-    // --- Process Custom Segments ---
-    for (const r of customSegmentRows) {
-      const ca = r.customAudience || r.custom_audience || {};
-      const id = String(ca.id ?? '');
-      const name = ca.name ?? '';
-      if (!id || !name) continue;
-
-      const caType = ca.type ?? '';
-      let subtype = 'CUSTOM_SEGMENT';
-      if (caType === 'SEARCH') subtype = 'CUSTOM_SEARCH_TERMS';
-      else if (caType === 'INTEREST') subtype = 'CUSTOM_INTEREST';
-
-      allAudiences.push({
-        id, name, subtype,
-        source: 'Custom segments',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Custom segments: ${customSegmentRows.length}`);
-
-    // --- Process Combined Segments ---
+    // --- Process Custom combinations ---
     for (const r of combinedRows) {
       const ca = r.combinedAudience || r.combined_audience || {};
       const id = String(ca.id ?? '');
@@ -236,87 +211,24 @@ serve(async (req) => {
       if (!id || !name) continue;
 
       allAudiences.push({
-        id, name,
-        subtype: 'COMBINED',
-        source: 'Combined segments',
+        id,
+        name,
+        subtype: 'Custom combination',
+        source: 'Custom combination',
         approximate_count_lower_bound: null,
         approximate_count_upper_bound: null,
       });
     }
-    console.log(`Combined segments: ${combinedRows.length}`);
+    console.log(`Custom combinations: ${combinedRows.length}`);
 
-    // --- Process Affinity Segments ---
-    for (const r of affinityRows) {
-      const ui = r.userInterest || r.user_interest || {};
-      const id = String(ui.userInterestId ?? ui.user_interest_id ?? '');
-      const name = ui.name ?? '';
-      if (!id || !name) continue;
+    const dedupedAudiences = Array.from(
+      new Map(allAudiences.map((aud) => [`${aud.id}:${aud.subtype}`, aud])).values()
+    );
 
-      allAudiences.push({
-        id, name,
-        subtype: 'AFFINITY',
-        source: 'Affinity',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Affinity segments: ${affinityRows.length}`);
-
-    // --- Process In-Market Segments ---
-    for (const r of inMarketRows) {
-      const ui = r.userInterest || r.user_interest || {};
-      const id = String(ui.userInterestId ?? ui.user_interest_id ?? '');
-      const name = ui.name ?? '';
-      if (!id || !name) continue;
-
-      allAudiences.push({
-        id, name,
-        subtype: 'IN_MARKET',
-        source: 'In-market',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`In-market segments: ${inMarketRows.length}`);
-
-    // --- Process Life Events ---
-    for (const r of lifeEventRows) {
-      const le = r.lifeEvent || r.life_event || {};
-      const id = String(le.id ?? '');
-      const name = le.name ?? '';
-      if (!id || !name) continue;
-
-      allAudiences.push({
-        id, name,
-        subtype: 'LIFE_EVENT',
-        source: 'Life events',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Life event segments: ${lifeEventRows.length}`);
-
-    // --- Process Detailed Demographics ---
-    for (const r of detailedDemoRows) {
-      const dd = r.detailedDemographic || r.detailed_demographic || {};
-      const id = String(dd.id ?? '');
-      const name = dd.name ?? '';
-      if (!id || !name) continue;
-
-      allAudiences.push({
-        id, name,
-        subtype: 'DETAILED_DEMOGRAPHICS',
-        source: 'Detailed demographics',
-        approximate_count_lower_bound: null,
-        approximate_count_upper_bound: null,
-      });
-    }
-    console.log(`Detailed demographic segments: ${detailedDemoRows.length}`);
-
-    console.log(`Total Audience Manager segments: ${allAudiences.length}`);
+    console.log(`Total Audience Manager data segments: ${dedupedAudiences.length}`);
 
     return new Response(
-      JSON.stringify(allAudiences),
+      JSON.stringify(dedupedAudiences),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
