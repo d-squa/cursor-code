@@ -349,14 +349,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Load Google Ads accounts for this client
       const { data: googleAccountsData, error: googleAccountsError } = await supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, main_markets")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type")
         .eq("client_id", clientId);
 
       if (googleAccountsError) throw googleAccountsError;
 
       const googleAccounts: GoogleAdAccountDefaults[] = (googleAccountsData || []).map((acc: any) => ({
         ...acc,
-        main_markets: Array.isArray(acc.main_markets) ? (acc.main_markets as string[]) : [],
+        main_markets: [],
       }));
       setGoogleAdAccounts(googleAccounts);
 
