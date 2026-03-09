@@ -1705,10 +1705,11 @@ export function PhaseScheduler({
                               <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
                             </div>
                           )}
-                          {adAccountId && (
+                          {adAccountId && !taxonomyLoading && (
                             <PhaseTaxonomyPreview
-                              adAccountId={adAccountId}
                               platform={taxonomyPlatform}
+                              campaignTemplate={taxonomyTemplates.campaign}
+                              adsetTemplate={taxonomyTemplates.adset}
                               context={{
                                 platform: taxonomyPlatform,
                                 activationName: activationContext?.activationName,
