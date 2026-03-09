@@ -482,27 +482,73 @@ export default function UserManagement() {
               <TableHead>Role</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Joined</TableHead>
+              {canManageUsers && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map((userItem: any) => (
-              <TableRow key={userItem.id}>
-                <TableCell>{userItem.email}</TableCell>
-                <TableCell>
-                  {userItem.role ? (
-                    <Badge variant={userItem.role === 'owner' ? 'default' : userItem.role === 'admin' ? 'secondary' : 'outline'}>
-                      {userItem.role.replace('_', ' ')}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
+            {users?.map((userItem: any) => {
+              const isOwner = userItem.role === "owner";
+              const isSelf = userItem.id === user?.id;
+              const canModify = canManageUsers && !isOwner && !isSelf;
+
+              return (
+                <TableRow key={userItem.id}>
+                  <TableCell>{userItem.email}</TableCell>
+                  <TableCell>
+                    {canModify ? (
+                      <Select
+                        value={userItem.role}
+                        onValueChange={(newRole) =>
+                          updateUserRole.mutate({ userId: userItem.id, newRole })
+                        }
+                      >
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
+                          <SelectItem value="member">Member</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : userItem.role ? (
+                      <Badge
+                        variant={
+                          isOwner ? "default" : userItem.role === "admin" ? "secondary" : "outline"
+                        }
+                      >
+                        {userItem.role.replace("_", " ")}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{userItem.company_name || "—"}</TableCell>
+                  <TableCell>
+                    {new Date(userItem.created_at).toLocaleDateString()}
+                  </TableCell>
+                  {canManageUsers && (
+                    <TableCell>
+                      {canModify && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm(`Remove ${userItem.email} from this workspace?`)) {
+                              removeUserFromTeam.mutate(userItem.id);
+                            }
+                          }}
+                          title="Remove from team"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </TableCell>
                   )}
-                </TableCell>
-                <TableCell>{userItem.company_name || "—"}</TableCell>
-                <TableCell>
-                  {new Date(userItem.created_at).toLocaleDateString()}
-                </TableCell>
-              </TableRow>
-            ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
