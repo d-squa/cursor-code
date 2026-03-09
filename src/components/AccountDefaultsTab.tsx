@@ -2327,7 +2327,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <div className="space-y-2">
                               <Label>URL Parameters Template</Label>
                               <Select
-                                value={(localDefaults[account.id] as any)?.default_utm_mode || "none"}
+                                value={((localDefaults[account.id] as any)?.default_utm_mode === 'meta_dynamic' ? 'platform_dynamic' : (localDefaults[account.id] as any)?.default_utm_mode) || "none"}
                                 onValueChange={(value) => {
                                   updateDefault(account.id, "default_utm_mode" as any, value);
                                   const platformSource = account.platform === 'tiktok' ? 'tiktok' : 'meta';
