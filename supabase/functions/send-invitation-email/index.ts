@@ -49,7 +49,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { email, teamName, role, invitationToken }: InvitationRequest = await req.json();
+    const { email, teamName, role, invitationToken, origin }: InvitationRequest = await req.json();
 
     console.log("Processing invitation for:", email, "by user:", user.id);
 
