@@ -1786,8 +1786,8 @@ export function PhaseScheduler({
                     </div>
                   </div>
 
-                  {/* Keyword Strategy Sub-rows for Google Search phases */}
-                  {isGoogleSearchPhase && keywordStrategyGroups.length > 0 && (
+                  {/* Keyword Strategy Sub-rows for Search phases (Google & TikTok) */}
+                  {isSearchPhase && keywordStrategyGroups.length > 0 && (
                     <div className="border-t bg-muted/10">
                       {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol }) => {
                         const strategyConfig: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
