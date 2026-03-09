@@ -338,13 +338,17 @@ serve(async (req) => {
         // NOTE: The Stripe list can contain multiple active/trialing subscriptions.
         // We must choose the best eligible one (agency > enterprise).
         const enterprisePriceIds = [
-          "price_1SyblcKrTGU4P754HYOgkuIQ", // enterprise monthly (USD)
-          "price_1SybldKrTGU4P754EBnjjPos", // enterprise yearly (USD)
+          "price_1SydW1KrTGU4P754aeyvSJP8", // enterprise monthly (current)
+          "price_1SydW3KrTGU4P754G3iA7VZM", // enterprise yearly (current)
+          "price_1SyblcKrTGU4P754HYOgkuIQ", // enterprise monthly (legacy)
+          "price_1SybldKrTGU4P754EBnjjPos", // enterprise yearly (legacy)
         ];
         const agencyPriceIds = [
-          "price_1SyblfKrTGU4P754gwTKmrsC", // agency monthly (USD)
-          "price_1SyblfKrTGU4P754PtKbziMk", // agency yearly (USD)
-          "price_1ScnOeKrTGU4P75446dvndr3", // legacy agency monthly (USD)
+          "price_1SydW5KrTGU4P754vsPg9hWw", // agency monthly (current)
+          "price_1SydW8KrTGU4P754AEitLX2A", // agency yearly (current)
+          "price_1SyblfKrTGU4P754gwTKmrsC", // agency monthly (legacy)
+          "price_1SyblfKrTGU4P754PtKbziMk", // agency yearly (legacy)
+          "price_1ScnOeKrTGU4P75446dvndr3", // agency monthly (legacy 2)
         ];
 
         const getSubPriceId = (sub: any): string | null => sub?.items?.data?.[0]?.price?.id ?? null;

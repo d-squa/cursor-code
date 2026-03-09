@@ -182,7 +182,7 @@ export default function AcceptInvitation() {
     return data as { ok: boolean; already_member?: boolean };
   };
 
-  const finishInvite = (choice?: SubscriptionChoice) => {
+  const finishInvite = (choice?: SubscriptionChoice, userIdOverride?: string) => {
     const mode = choice ?? subscriptionChoice;
 
     if (mode) {
@@ -198,6 +198,12 @@ export default function AcceptInvitation() {
           skippedViaTeamInvite: true,
         })
       );
+    }
+
+    // Set active workspace to the invited team so subscription check uses team owner's plan
+    const uid = userIdOverride ?? user?.id;
+    if (invitation?.team_id && uid) {
+      localStorage.setItem(`actiplan.activeWorkspaceId:${uid}`, invitation.team_id);
     }
   };
 
@@ -258,7 +264,9 @@ export default function AcceptInvitation() {
 
       await acceptInvitationBackend({ accessToken });
 
-      finishInvite();
+      // Get the user ID from the session for workspace assignment
+      const { data: { user: sessionUser } } = await supabase.auth.getUser();
+      finishInvite(undefined, sessionUser?.id);
       toast.success("Welcome to ActiPlan! You've joined the team.");
       navigate("/overview");
     } catch (err: any) {
