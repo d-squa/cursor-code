@@ -110,29 +110,31 @@ export default function AcceptInvitation() {
     setEmailStatus("checking");
     
     try {
-      // Use a backend check (based on the invitation token) to determine if the invited email already has an account.
-      // This avoids relying on public profile rows which may not exist for all accounts.
       const { data, error: statusError } = await supabase.functions.invoke("invitation-account-status", {
         body: { token },
       });
 
       if (statusError) {
-        // If we can't check, assume new user
         setEmailStatus("new");
         return;
       }
 
+      // Update team name from backend (which can read teams via service role)
+      if (data?.teamName && invitation) {
+        setInvitation((prev: any) => ({
+          ...prev,
+          teams: { ...prev?.teams, name: data.teamName },
+        }));
+      }
+
       if (data?.exists) {
-        // Existing user: they should sign in (no password creation)
         setEmailStatus("exists_other_subscription");
         setExistingSubscriptionInfo("You already have an ActiPlan account. Sign in to join this workspace.");
       } else {
-        // New user: needs to create password
         setEmailStatus("new");
       }
     } catch (err) {
       console.error("Error checking email status:", err);
-      // If we can't determine, assume new user
       setEmailStatus("new");
     }
   };
