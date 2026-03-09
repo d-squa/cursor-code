@@ -1,0 +1,2 @@
+ALTER TABLE taxonomy_templates DROP CONSTRAINT taxonomy_templates_platform_check;
+ALTER TABLE taxonomy_templates ADD CONSTRAINT taxonomy_templates_platform_check CHECK (platform = ANY (ARRAY['meta'::text, 'tiktok'::text, 'google'::text]));
