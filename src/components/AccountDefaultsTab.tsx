@@ -47,6 +47,8 @@ interface GoogleAdAccountDefaults {
   default_max_cpc_bid?: number | null;
   default_conversion_budget_type?: string | null;
   default_non_conversion_budget_type?: string | null;
+  default_merchant_center_id?: string | null;
+  default_feed_label?: string | null;
   main_markets?: string[] | null;
 }
 
