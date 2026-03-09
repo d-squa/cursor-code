@@ -358,7 +358,7 @@ export default function TaxonomyBuilder({
   const previewString = previewTaxonomy(params.filter(p => p.required !== false || p.system));
 
   const entityLabel = entityType === 'adset' 
-    ? (platform === 'tiktok' ? 'Ad Group' : 'Ad Set') 
+    ? (platform === 'tiktok' || platform === 'google' ? 'Ad Group' : 'Ad Set') 
     : entityType.charAt(0).toUpperCase() + entityType.slice(1);
 
   if (loading) {
