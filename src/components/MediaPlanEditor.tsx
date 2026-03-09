@@ -19,7 +19,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 
 import { AudienceCard } from "./AudienceCard";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
-import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
+import { KeywordItem } from "./KeywordTargeting";
 import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -2318,43 +2318,6 @@ export function MediaPlanEditor() {
                       p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : p.id === "google_ads" ? firstGoogleCustomerId : undefined,
                   }))}
               />
-              <div className="mt-6">
-                <KeywordTargeting
-                  selectedKeywords={basicTargeting.selectedKeywords || []}
-                  onUpdate={(keywords) => {
-                    const updated = { ...basicTargeting, selectedKeywords: keywords };
-                    setBasicTargeting(updated);
-                    localStorage.setItem("basicTargeting", JSON.stringify(updated));
-                    
-                    // Save to database
-                    if (savedCampaignId && user) {
-                      (async () => {
-                        try {
-                          const { data: currentCampaign } = await supabase
-                            .from("campaigns")
-                            .select("generic_config")
-                            .eq("id", savedCampaignId)
-                            .single();
-                          const currentConfig =
-                            currentCampaign?.generic_config && typeof currentCampaign.generic_config === "object"
-                              ? (currentCampaign.generic_config as Record<string, unknown>)
-                              : {};
-                          await supabase
-                            .from("campaigns")
-                            .update({
-                              generic_config: { ...currentConfig, basicTargeting: updated } as any,
-                            })
-                            .eq("id", savedCampaignId);
-                        } catch (error) {
-                          console.error("Error saving keywords:", error);
-                        }
-                      })();
-                    }
-                  }}
-                  googleCustomerId={firstGoogleCustomerId || undefined}
-                  tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
-                />
-              </div>
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
@@ -3214,6 +3177,39 @@ export function MediaPlanEditor() {
           clientIndustry={
             clients.find((c) => c.id === selectedClientId)?.industry || (genericConfig as any)?.clientIndustry
           }
+          selectedKeywords={basicTargeting.selectedKeywords || []}
+          onKeywordsUpdate={(keywords) => {
+            const updated = { ...basicTargeting, selectedKeywords: keywords };
+            setBasicTargeting(updated);
+            localStorage.setItem("basicTargeting", JSON.stringify(updated));
+            
+            // Save to database
+            if (savedCampaignId && user) {
+              (async () => {
+                try {
+                  const { data: currentCampaign } = await supabase
+                    .from("campaigns")
+                    .select("generic_config")
+                    .eq("id", savedCampaignId)
+                    .single();
+                  const currentConfig =
+                    currentCampaign?.generic_config && typeof currentCampaign.generic_config === "object"
+                      ? (currentCampaign.generic_config as Record<string, unknown>)
+                      : {};
+                  await supabase
+                    .from("campaigns")
+                    .update({
+                      generic_config: { ...currentConfig, basicTargeting: updated } as any,
+                    })
+                    .eq("id", savedCampaignId);
+                } catch (error) {
+                  console.error("Error saving keywords:", error);
+                }
+              })();
+            }
+          }}
+          googleCustomerId={firstGoogleCustomerId || undefined}
+          tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />

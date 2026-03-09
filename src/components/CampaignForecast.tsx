@@ -20,6 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
+import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
 
 // Helper to normalize strategyFocus, filtering out "auto" placeholder
 const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
@@ -45,6 +46,10 @@ interface CampaignForecastProps {
   campaignId?: string;
   basicTargeting?: BasicTargetingConfig;
   clientIndustry?: string;
+  selectedKeywords?: KeywordItem[];
+  onKeywordsUpdate?: (keywords: KeywordItem[]) => void;
+  googleCustomerId?: string;
+  tiktokAdvertiserId?: string;
   onBack: () => void;
   onFinalize: () => void;
 }
@@ -153,6 +158,10 @@ export function CampaignForecast({
   campaignId,
   basicTargeting,
   clientIndustry,
+  selectedKeywords,
+  onKeywordsUpdate,
+  googleCustomerId,
+  tiktokAdvertiserId,
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
@@ -1809,6 +1818,17 @@ export function CampaignForecast({
             )}
           </>
         )}
+
+        {/* Keyword Strategy Breakdown */}
+        {(googleCustomerId || tiktokAdvertiserId) && onKeywordsUpdate && (
+          <KeywordTargeting
+            selectedKeywords={selectedKeywords || []}
+            onUpdate={onKeywordsUpdate}
+            googleCustomerId={googleCustomerId}
+            tiktokAdvertiserId={tiktokAdvertiserId}
+          />
+        )}
+
 
         <div className="flex justify-between pt-4 border-t">
           <Button variant="outline" onClick={onBack}>
