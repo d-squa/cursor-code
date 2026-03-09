@@ -97,6 +97,8 @@ export function MediaPlanEditor() {
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastCampaignIdRef = useRef<string | null>(null);
+  // Track whether client selection was an explicit user action (not hydration)
+  const clientSelectionIsUserAction = useRef<boolean>(false);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
