@@ -787,7 +787,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google')
 
 // Generate default ad set taxonomy params
 // AdSet: optimization goal, budget type, age, gender, location, device, placements, positions, targeting type
-export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
+export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): TaxonomyParam[] {
   return [
     {
       id: 'optimizationGoal',
