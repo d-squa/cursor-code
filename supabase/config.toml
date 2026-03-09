@@ -1,1 +1,4 @@
 project_id = "zrwwbnrindpfrehyhnta"
+
+[functions.invitation-account-status]
+verify_jwt = false
