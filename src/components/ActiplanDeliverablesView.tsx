@@ -77,7 +77,7 @@ interface ActiplanDeliverablesViewProps {
 
 const formatNumber = (num: number) => num.toLocaleString();
 
-export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverablesViewProps) {
+export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }: ActiplanDeliverablesViewProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
 
