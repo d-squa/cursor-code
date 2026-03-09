@@ -259,7 +259,7 @@ serve(async (req) => {
     console.log(`Found ${interleaved.length} unified results (${metaOnly.length} Meta, ${tiktokOnly.length} TikTok, ${googleOnly.length} Google, ${multiPlatform.length} multi)`);
 
     return new Response(
-      JSON.stringify({ results: interleaved.slice(0, 100) }),
+      JSON.stringify({ results: interleaved }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
