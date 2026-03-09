@@ -200,6 +200,10 @@ export default function AcceptInvitation() {
       );
     }
 
+    // IMPORTANT: Clear signup source so trial activation doesn't fire for invited users
+    // Invited users use the team owner's subscription, not their own
+    localStorage.removeItem("actiplan_signup_source");
+
     // Set active workspace to the invited team so subscription check uses team owner's plan
     const uid = userIdOverride ?? user?.id;
     if (invitation?.team_id && uid) {
