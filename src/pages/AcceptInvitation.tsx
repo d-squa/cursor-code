@@ -46,9 +46,11 @@ export default function AcceptInvitation() {
     loadInvitation();
   }, [token]);
 
-  // Check if email exists when invitation is loaded
+  // Check if email exists when invitation is loaded (run only once)
+  const emailCheckDone = useRef(false);
   useEffect(() => {
-    if (invitation && !user) {
+    if (invitation && !user && !emailCheckDone.current) {
+      emailCheckDone.current = true;
       checkEmailStatus();
     }
   }, [invitation, user]);
