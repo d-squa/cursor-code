@@ -38,7 +38,7 @@ export interface GoogleAdsCampaignType {
     aiMax: boolean | "optional"; // AI maximization (Text customization, Final URL expansion)
     aiMaxOptions?: string[];
     audienceTargetingLevel: "Campaign" | "Ad Group" | "Asset Group";
-    audienceSegments: string[]; // Detailed Demographics, Affinity, In-market, Your Data Segments, Lookalikes
+    audienceSegments: string[]; // Website visitors, Customer segments, YouTube users, App users, Custom combination, Callers
     searchThemes: boolean;
     keywords: boolean;
     demographics: string[]; // Gender, Age, Parental Status, Household income
