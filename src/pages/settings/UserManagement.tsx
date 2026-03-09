@@ -569,18 +569,28 @@ export default function UserManagement() {
                   {canManageUsers && (
                     <TableCell>
                       {canModify && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm(`Remove ${userItem.email} from this workspace?`)) {
-                              removeUserFromTeam.mutate(userItem.id);
-                            }
-                          }}
-                          title="Remove from team"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "team" })}
+                            >
+                              <UserMinus className="mr-2 h-4 w-4" />
+                              Remove from this team
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "platform" })}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove from all teams
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </TableCell>
                   )}
@@ -590,6 +600,47 @@ export default function UserManagement() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!removeConfirm} onOpenChange={(open) => !open && setRemoveConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from all teams"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeConfirm?.type === "team" ? (
+                <>
+                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>{activeWorkspaceName}</strong> only.
+                  They will retain access to any other teams they belong to.
+                </>
+              ) : (
+                <>
+                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>all assigned teams</strong> on the platform.
+                  They will lose access to every workspace. This action cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!removeConfirm) return;
+                if (removeConfirm.type === "team") {
+                  removeUserFromTeam.mutate(removeConfirm.userId);
+                } else {
+                  removeUserFromPlatform.mutate(removeConfirm.userId);
+                }
+              }}
+            >
+              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from all teams"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </FeatureGate>
   );
