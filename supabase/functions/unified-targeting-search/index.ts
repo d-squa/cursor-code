@@ -233,18 +233,33 @@ serve(async (req) => {
       });
     });
 
-    // Sort: Both platforms first, then by name
-    results.sort((a, b) => {
-      if (a.platforms.length !== b.platforms.length) {
-        return b.platforms.length - a.platforms.length;
-      }
-      return a.name.localeCompare(b.name);
-    });
+    // Sort: multi-platform matches first, then interleave platforms fairly
+    // First, separate by platform count
+    const multiPlatform = results.filter(r => r.platforms.length > 1);
+    const metaOnly = results.filter(r => r.platforms.length === 1 && r.platforms[0] === 'meta');
+    const tiktokOnly = results.filter(r => r.platforms.length === 1 && r.platforms[0] === 'tiktok');
+    const googleOnly = results.filter(r => r.platforms.length === 1 && r.platforms[0] === 'google');
 
-    console.log(`Found ${results.length} unified results`);
+    // Interleave single-platform results so no platform dominates
+    const interleaved: typeof results = [...multiPlatform];
+    const singles = [metaOnly, tiktokOnly, googleOnly].filter(arr => arr.length > 0);
+    let idx = 0;
+    let hasMore = true;
+    while (hasMore) {
+      hasMore = false;
+      for (const arr of singles) {
+        if (idx < arr.length) {
+          interleaved.push(arr[idx]);
+          hasMore = true;
+        }
+      }
+      idx++;
+    }
+
+    console.log(`Found ${interleaved.length} unified results (${metaOnly.length} Meta, ${tiktokOnly.length} TikTok, ${googleOnly.length} Google, ${multiPlatform.length} multi)`);
 
     return new Response(
-      JSON.stringify({ results: results.slice(0, 50) }), // Limit to 50 results
+      JSON.stringify({ results: interleaved.slice(0, 100) }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
