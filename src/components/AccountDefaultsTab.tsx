@@ -358,7 +358,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
       const googleAccounts: GoogleAdAccountDefaults[] = (googleAccountsData || []).map((acc: any) => ({
         ...acc,
-        main_markets: [],
+        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
       }));
       setGoogleAdAccounts(googleAccounts);
 
