@@ -855,6 +855,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_merchant_center_id",
         "default_feed_label",
         "main_markets",
+        "default_utm_mode",
+        "default_url_parameters",
       ];
 
       const updateData: Record<string, any> = {};
