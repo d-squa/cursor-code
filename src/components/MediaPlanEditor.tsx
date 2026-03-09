@@ -1093,7 +1093,40 @@ export function MediaPlanEditor() {
     fetchAdAccountIds();
   }, [user]);
 
-  // Legacy platforms for step 5 (Platform Configuration)
+  // Auto-fill missing adAccountId on markets after hydration + ad account IDs are loaded
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!firstAdAccountId && !firstTiktokAdvertiserId && !firstGoogleCustomerId) return;
+
+    let hasChanges = false;
+    const updated = platformsWithMarkets.map((p) => {
+      if (!p.enabled) return p;
+
+      const isMeta = p.id === 'meta' || p.name.toLowerCase().includes('meta');
+      const isTikTok = p.id === 'tiktok' || p.name.toLowerCase().includes('tiktok');
+      const isGoogle = p.id === 'google_ads' || p.id === 'google' || p.name.toLowerCase().includes('google');
+
+      const fallbackId = isMeta ? firstAdAccountId : isTikTok ? firstTiktokAdvertiserId : isGoogle ? firstGoogleCustomerId : null;
+      if (!fallbackId) return p;
+
+      const needsFill = p.markets.some((m) => !m.adAccountId);
+      if (!needsFill) return p;
+
+      hasChanges = true;
+      return {
+        ...p,
+        markets: p.markets.map((m) =>
+          m.adAccountId ? m : { ...m, adAccountId: fallbackId },
+        ),
+      };
+    });
+
+    if (hasChanges) {
+      console.log('🔧 Auto-filled missing adAccountId on markets from linked ad accounts');
+      setPlatformsWithMarkets(updated);
+    }
+  }, [isHydrated, firstAdAccountId, firstTiktokAdvertiserId, firstGoogleCustomerId, platformsWithMarkets]);
+
   const [platforms, setPlatforms] = useState<Platform[]>([
     { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
     { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0 },
