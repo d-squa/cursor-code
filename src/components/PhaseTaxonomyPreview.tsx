@@ -1,189 +1,58 @@
-import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { FileText, CheckCircle2, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { 
   TaxonomyParam, 
   TaxonomyContext,
   extractTaxonomyValues,
   generateTaxonomyString,
   getMissingRequiredCount,
-  getDefaultCampaignParams,
-  getDefaultAdSetParams,
 } from "@/utils/taxonomyUtils";
-import type { Json } from "@/integrations/supabase/types";
 
 interface PhaseTaxonomyPreviewProps {
-  adAccountId: string;
   platform: 'meta' | 'tiktok' | 'google';
-  // Context values automatically extracted from ActiPlan phase/market data
   context: TaxonomyContext;
-  // Custom parameter values filled by user
   campaignCustomValues?: Record<string, string>;
   adsetCustomValues?: Record<string, string>;
-}
-
-interface TaxonomyTemplates {
-  campaign: TaxonomyParam[];
-  adset: TaxonomyParam[];
+  // Templates passed from parent (shared hook)
+  campaignTemplate: TaxonomyParam[];
+  adsetTemplate: TaxonomyParam[];
 }
 
 export function PhaseTaxonomyPreview({
-  adAccountId,
   platform,
   context,
   campaignCustomValues = {},
-  adsetCustomValues = {}
+  adsetCustomValues = {},
+  campaignTemplate,
+  adsetTemplate,
 }: PhaseTaxonomyPreviewProps) {
-  const [templates, setTemplates] = useState<TaxonomyTemplates>({ campaign: [], adset: [] });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadTemplates = async () => {
-      if (!adAccountId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        // First resolve the internal UUID for this platform account.
-        // The taxonomy_templates.ad_account_id column is UUID, so we MUST
-        // convert platform-native IDs (like TikTok's numeric advertiser_id) first.
-        let dbAccountId: string | null = null;
-
-        if (platform === 'tiktok') {
-          const { data: accountData } = await supabase
-            .from('tiktok_ad_accounts')
-            .select('id')
-            .eq('advertiser_id', adAccountId)
-            .maybeSingle();
-          dbAccountId = accountData?.id ?? null;
-        } else if (platform === 'google') {
-          const { data: accountData } = await supabase
-            .from('google_ad_accounts')
-            .select('id')
-            .eq('customer_id', adAccountId)
-            .maybeSingle();
-          if (!accountData) {
-            const { data: accountData2 } = await supabase
-              .from('google_ad_accounts')
-              .select('id')
-              .eq('account_id', adAccountId)
-              .maybeSingle();
-            dbAccountId = accountData2?.id ?? null;
-          } else {
-            dbAccountId = accountData?.id ?? null;
-          }
-        } else {
-          const { data: accountData } = await supabase
-            .from('meta_ad_accounts')
-            .select('id')
-            .eq('account_id', adAccountId)
-            .maybeSingle();
-          dbAccountId = accountData?.id ?? null;
-        }
-
-        // If we couldn't resolve a UUID, we can't query taxonomy_templates
-        if (!dbAccountId) {
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from('taxonomy_templates')
-          .select('entity_type, template')
-          .eq('ad_account_id', dbAccountId)
-          .eq('platform', platform)
-          .in('entity_type', ['campaign', 'adset']);
-
-        if (error) {
-          console.error('Error loading taxonomy templates:', error);
-          setLoading(false);
-          return;
-        }
-
-        const newTemplates: TaxonomyTemplates = { campaign: [], adset: [] };
-        data?.forEach(row => {
-          if (row.entity_type === 'campaign' || row.entity_type === 'adset') {
-            newTemplates[row.entity_type] = row.template as unknown as TaxonomyParam[];
-          }
-        });
-
-        // Auto-create missing default templates for platforms that haven't been configured yet
-        const missingTypes: ('campaign' | 'adset')[] = [];
-        if (newTemplates.campaign.length === 0) missingTypes.push('campaign');
-        if (newTemplates.adset.length === 0) missingTypes.push('adset');
-
-        if (missingTypes.length > 0 && dbAccountId) {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              for (const et of missingTypes) {
-                const defaultParams = et === 'campaign'
-                  ? getDefaultCampaignParams(platform)
-                  : getDefaultAdSetParams(platform);
-                const { error: insertError } = await supabase
-                  .from('taxonomy_templates')
-                  .insert([{
-                    ad_account_id: dbAccountId,
-                    platform,
-                    entity_type: et,
-                    template: JSON.parse(JSON.stringify(defaultParams)) as Json,
-                    user_id: user.id,
-                  }]);
-                if (!insertError) {
-                  newTemplates[et] = defaultParams;
-                }
-              }
-            }
-          } catch {
-            // Silently continue with whatever templates we have
-          }
-        }
-
-        setTemplates(newTemplates);
-      } catch (err) {
-        console.error('Error loading taxonomy templates:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadTemplates();
-  }, [adAccountId, platform]);
-
-  if (loading || (templates.campaign.length === 0 && templates.adset.length === 0)) {
+  if (campaignTemplate.length === 0 && adsetTemplate.length === 0) {
     return null;
   }
 
   // Extract values and merge with custom values
-  const campaignExtracted = templates.campaign.length > 0 
-    ? extractTaxonomyValues(templates.campaign, context) 
+  const campaignExtracted = campaignTemplate.length > 0 
+    ? extractTaxonomyValues(campaignTemplate, context) 
     : {};
-  const adsetExtracted = templates.adset.length > 0 
-    ? extractTaxonomyValues(templates.adset, context) 
+  const adsetExtracted = adsetTemplate.length > 0 
+    ? extractTaxonomyValues(adsetTemplate, context) 
     : {};
 
-  // Merge extracted system values with user-provided custom values
   const campaignValues = { ...campaignExtracted, ...campaignCustomValues };
   const adsetValues = { ...adsetExtracted, ...adsetCustomValues };
 
-  const campaignTaxonomy = templates.campaign.length > 0 
-    ? generateTaxonomyString(templates.campaign, campaignValues)
+  const campaignTaxonomy = campaignTemplate.length > 0 
+    ? generateTaxonomyString(campaignTemplate, campaignValues)
     : '';
-  const adsetTaxonomy = templates.adset.length > 0
-    ? generateTaxonomyString(templates.adset, adsetValues)
+  const adsetTaxonomy = adsetTemplate.length > 0
+    ? generateTaxonomyString(adsetTemplate, adsetValues)
     : '';
 
-  // Calculate missing counts (only custom params, system params should auto-fill)
-  const campaignMissing = getMissingRequiredCount(templates.campaign, campaignValues);
-  const adsetMissing = getMissingRequiredCount(templates.adset, adsetValues);
+  const campaignMissing = getMissingRequiredCount(campaignTemplate, campaignValues);
+  const adsetMissing = getMissingRequiredCount(adsetTemplate, adsetValues);
   const totalMissing = campaignMissing + adsetMissing;
 
   const displayTaxonomy = campaignTaxonomy || adsetTaxonomy;
-  const hasTemplates = templates.campaign.length > 0 || templates.adset.length > 0;
-
-  if (!hasTemplates) return null;
 
   return (
     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>

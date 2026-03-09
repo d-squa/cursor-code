@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Tooltip,
   TooltipContent,
@@ -29,204 +28,67 @@ import {
   extractTaxonomyValues,
   generateTaxonomyString,
   getMissingRequiredCount,
-  getDefaultCampaignParams,
-  getDefaultAdSetParams,
 } from "@/utils/taxonomyUtils";
-import type { Json } from "@/integrations/supabase/types";
 
 interface PhaseTaxonomyInputsProps {
-  adAccountId: string;
   platform: 'meta' | 'tiktok' | 'google';
   entityType: 'campaign' | 'adset';
-  // Context values automatically extracted from ActiPlan
   context: TaxonomyContext;
-  // Validation callback - reports whether all custom fields are complete
   onValidationChange?: (isComplete: boolean, missingCount: number) => void;
-  // Custom parameter values (user-entered values for non-system params)
   customValues?: Record<string, string>;
-  // Callback when user changes a custom parameter value
   onCustomValueChange?: (paramId: string, value: string) => void;
+  // Template passed from parent (shared hook)
+  template: TaxonomyParam[];
+  onRefresh?: () => void;
 }
 
 export function PhaseTaxonomyInputs({
-  adAccountId,
   platform,
   entityType,
   context,
   onValidationChange,
   customValues = {},
-  onCustomValueChange
+  onCustomValueChange,
+  template,
+  onRefresh,
 }: PhaseTaxonomyInputsProps) {
-  const [template, setTemplate] = useState<TaxonomyParam[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [taxonomyString, setTaxonomyString] = useState("");
   const [extractedValues, setExtractedValues] = useState<Record<string, string>>({});
 
-  // Store callback in ref to avoid re-render loops
   const validationCallbackRef = useRef(onValidationChange);
   validationCallbackRef.current = onValidationChange;
 
-  // Load taxonomy template for this account and entity type
-  const loadTemplate = useCallback(async (showRefreshState = false) => {
-    if (!adAccountId) {
-      setLoading(false);
-      return;
-    }
-
-    if (showRefreshState) setRefreshing(true);
-    else setLoading(true);
-
-    try {
-      // Resolve the internal UUID for this platform account.
-      // taxonomy_templates.ad_account_id is UUID, so platform-native IDs (e.g. TikTok advertiser_id)
-      // must be converted first.
-      const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-      let dbAccountId: string | null = looksLikeUuid.test(adAccountId) ? adAccountId : null;
-
-      if (!dbAccountId) {
-        if (platform === 'tiktok') {
-          const { data: accountData } = await supabase
-            .from('tiktok_ad_accounts')
-            .select('id')
-            .eq('advertiser_id', adAccountId)
-            .maybeSingle();
-          dbAccountId = accountData?.id ?? null;
-        } else if (platform === 'google') {
-          const { data: accountData } = await supabase
-            .from('google_ad_accounts')
-            .select('id')
-            .eq('customer_id', adAccountId)
-            .maybeSingle();
-          if (!accountData) {
-            const { data: accountData2 } = await supabase
-              .from('google_ad_accounts')
-              .select('id')
-              .eq('account_id', adAccountId)
-              .maybeSingle();
-            dbAccountId = accountData2?.id ?? null;
-          } else {
-            dbAccountId = accountData?.id ?? null;
-          }
-        } else {
-          const { data: accountData } = await supabase
-            .from('meta_ad_accounts')
-            .select('id')
-            .eq('account_id', adAccountId)
-            .maybeSingle();
-          dbAccountId = accountData?.id ?? null;
-        }
-      }
-
-      // If we couldn't resolve a UUID, we can't query taxonomy_templates safely.
-      if (!dbAccountId) {
-        setTemplate([]);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('taxonomy_templates')
-        .select('template')
-        .eq('ad_account_id', dbAccountId)
-        .eq('entity_type', entityType)
-        .eq('platform', platform)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error loading taxonomy template:', error);
-        return;
-      }
-
-      if (data?.template) {
-        const templateData = data.template as unknown as TaxonomyParam[];
-        setTemplate(templateData);
-      } else {
-        // No template exists yet — auto-create default template
-        const defaultParams = entityType === 'campaign' 
-          ? getDefaultCampaignParams(platform) 
-          : getDefaultAdSetParams(platform);
-        
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user && dbAccountId) {
-            const { error: insertError } = await supabase
-              .from('taxonomy_templates')
-              .insert([{
-                ad_account_id: dbAccountId,
-                platform,
-                entity_type: entityType,
-                template: JSON.parse(JSON.stringify(defaultParams)) as Json,
-                user_id: user.id,
-              }]);
-            if (!insertError) {
-              setTemplate(defaultParams);
-            }
-          }
-        } catch {
-          // Silently fail — template will just not show
-        }
-      }
-    } catch (err) {
-      console.error('Error loading taxonomy template:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [adAccountId, entityType, platform]);
-
-  useEffect(() => {
-    loadTemplate();
-  }, [loadTemplate]);
-
-  const handleRefresh = () => {
-    loadTemplate(true);
-  };
-
-  // Merge extracted values with custom values (custom values override)
   const mergedValues = { ...extractedValues, ...customValues };
-  
-  // Stringify customValues for stable dependency comparison
   const customValuesKey = JSON.stringify(customValues);
 
-  // Auto-generate taxonomy when template, context, or custom values change
   useEffect(() => {
     if (template.length > 0) {
       const values = extractTaxonomyValues(template, context);
       setExtractedValues(values);
       
-      // Merge with custom values for display
       const allValues = { ...values, ...customValues };
       const generated = generateTaxonomyString(template, allValues);
       setTaxonomyString(generated);
       
-      // Report validation status using merged values via ref (avoids re-render loop)
       const missing = getMissingRequiredCount(template, allValues);
       validationCallbackRef.current?.(missing === 0, missing);
     } else {
-      // No template = complete (nothing to validate)
       validationCallbackRef.current?.(true, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template, context, customValuesKey]);
 
-  if (loading) {
-    return null;
-  }
-
   if (template.length === 0) {
-    return null; // No template configured, don't show anything
+    return null;
   }
 
   const missingCount = getMissingRequiredCount(template, mergedValues);
   const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' || platform === 'google' ? 'Ad Group' : 'Ad Set');
   
-  // Check if all system params have values (for different badge display)
   const systemParamsFilled = template
     .filter(p => p.system)
     .every(p => mergedValues[p.id] || p.value);
 
-  // Render custom parameter input (dropdown for options, text input for text)
   const renderCustomParamInput = (param: TaxonomyParam) => {
     const currentValue = mergedValues[param.id] || '';
     
@@ -256,7 +118,6 @@ export function PhaseTaxonomyInputs({
       );
     }
     
-    // Default to text input
     return (
       <div className="space-y-2 p-1">
         <Label className="text-xs font-medium">{param.label}</Label>
@@ -281,16 +142,17 @@ export function PhaseTaxonomyInputs({
           {entityLabel} Name
         </Label>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            title="Refresh taxonomy template"
-          >
-            <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
-          </Button>
+          {onRefresh && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={onRefresh}
+              title="Refresh taxonomy template"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </Button>
+          )}
           {missingCount > 0 ? (
             <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
               <AlertCircle className="h-3 w-3 mr-1" />
@@ -310,7 +172,6 @@ export function PhaseTaxonomyInputs({
         </div>
       </div>
 
-      {/* Generated Taxonomy Preview */}
       <div className="p-3 bg-muted rounded-md border">
         {taxonomyString ? (
           <code className="text-sm font-mono break-all">{taxonomyString}</code>
@@ -321,7 +182,6 @@ export function PhaseTaxonomyInputs({
         )}
       </div>
 
-      {/* Show extracted values breakdown with tooltips/popovers */}
       {template.length > 0 && (
         <TooltipProvider>
           <div className="flex flex-wrap gap-1.5">
@@ -346,7 +206,6 @@ export function PhaseTaxonomyInputs({
                           : 'cursor-help'
                 }`;
 
-                // Custom params get Popover with input
                 if (!param.system) {
                   return (
                     <Popover key={param.id}>
@@ -367,7 +226,6 @@ export function PhaseTaxonomyInputs({
                   );
                 }
                 
-                // System params get Tooltip (read-only)
                 return (
                   <Tooltip key={param.id}>
                     <TooltipTrigger asChild>
