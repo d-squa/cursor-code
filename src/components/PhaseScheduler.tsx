@@ -1840,10 +1840,10 @@ export function PhaseScheduler({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <PhaseTaxonomyInputs
                             adAccountId={adAccountId}
-                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            platform={taxonomyPlatform}
                             entityType="campaign"
                             context={{
-                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              platform: taxonomyPlatform,
                               activationName: activationContext?.activationName,
                               boNumber: activationContext?.boNumber,
                               clientName: activationContext?.clientName,
