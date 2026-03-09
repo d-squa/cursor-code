@@ -378,6 +378,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_merchant_center_id: acc.default_merchant_center_id || null,
           default_feed_label: acc.default_feed_label || null,
           main_markets: acc.main_markets || [],
+          default_utm_mode: acc.default_utm_mode || null,
+          default_url_parameters: acc.default_url_parameters || null,
         };
       });
       setGoogleLocalDefaults(gDefaults);
