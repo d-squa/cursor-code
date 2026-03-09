@@ -88,13 +88,12 @@ export default function AcceptInvitation() {
         return;
       }
 
-      // Fetch team name separately — use the invitation-account-status edge
-      // function which runs with service role and can read teams.
-      // For now, store the team_name from the invitations table if available,
-      // otherwise we'll resolve it after auth or show a fallback.
+      // Build a teams-like object for display.
+      // We can't join teams (RLS blocks unauthenticated users), so we'll
+      // resolve the team name after the user authenticates. Use a placeholder.
       const enriched = {
         ...data,
-        teams: { id: data.team_id, name: data.team_name || "the team" },
+        teams: { id: data.team_id, name: "the team" },
       };
 
       setInvitation(enriched);
