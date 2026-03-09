@@ -1454,6 +1454,7 @@ export function CampaignForecast({
                   objective,
                   optimizationGoal,
                   destination,
+                  dataSource: marketMetrics.dataSource || (isBenchmarkBased ? 'estimated' : undefined),
                 },
               });
             }
