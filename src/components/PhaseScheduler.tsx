@@ -32,6 +32,7 @@ import { MetaPhaseConfig } from "./MetaPhaseConfig";
 import { GoogleAdsPhaseConfig } from "./GoogleAdsPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
+import { useTaxonomyTemplates } from "@/hooks/useTaxonomyTemplates";
 import { SplittableSection } from "./SplittableSection";
 import { AdSetSplitManager } from "./AdSetSplitManager";
 import { createInitialAdSets } from "@/utils/adSetSplitUtils";
@@ -190,6 +191,9 @@ export function PhaseScheduler({
   onTaxonomyValidationChange
 }: PhaseSchedulerProps) {
   const extensionMode = useExtensionModeOptional();
+  const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+  const taxonomyPlatform: 'meta' | 'tiktok' | 'google' = isGooglePlatform ? 'google' : platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta';
+  const { templates: taxonomyTemplates, loading: taxonomyLoading, refresh: refreshTaxonomy } = useTaxonomyTemplates(adAccountId, taxonomyPlatform);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -1651,7 +1655,6 @@ export function PhaseScheduler({
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
             const availableObjectives = getAvailableObjectives();
             const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
-            const taxonomyPlatform: 'meta' | 'tiktok' | 'google' = isGooglePlatform ? 'google' : platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta';
             const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
             const phaseKeywords = isGoogleSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
@@ -1701,10 +1704,11 @@ export function PhaseScheduler({
                               <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
                             </div>
                           )}
-                          {adAccountId && (
+                          {adAccountId && !taxonomyLoading && (
                             <PhaseTaxonomyPreview
-                              adAccountId={adAccountId}
                               platform={taxonomyPlatform}
+                              campaignTemplate={taxonomyTemplates.campaign}
+                              adsetTemplate={taxonomyTemplates.adset}
                               context={{
                                 platform: taxonomyPlatform,
                                 activationName: activationContext?.activationName,
@@ -1836,12 +1840,13 @@ export function PhaseScheduler({
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
                       {/* Campaign & Ad Set Taxonomy - Right after phase name */}
-                      {adAccountId && (
+                      {adAccountId && !taxonomyLoading && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <PhaseTaxonomyInputs
-                            adAccountId={adAccountId}
                             platform={taxonomyPlatform}
                             entityType="campaign"
+                            template={taxonomyTemplates.campaign}
+                            onRefresh={refreshTaxonomy}
                             context={{
                               platform: taxonomyPlatform,
                               activationName: activationContext?.activationName,
@@ -1865,9 +1870,10 @@ export function PhaseScheduler({
                             onValidationChange={(isComplete, missing) => handleTaxonomyValidation(phase.id, 'campaign', isComplete, missing)}
                           />
                           <PhaseTaxonomyInputs
-                            adAccountId={adAccountId}
                             platform={taxonomyPlatform}
                             entityType="adset"
+                            template={taxonomyTemplates.adset}
+                            onRefresh={refreshTaxonomy}
                             context={{
                               platform: taxonomyPlatform,
                               optimizationGoal: phase.optimizationGoal,
