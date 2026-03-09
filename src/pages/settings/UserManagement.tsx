@@ -233,15 +233,33 @@ export default function UserManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
-      toast.success("User removed from team");
+      toast.success(`User removed from ${activeWorkspaceName}`);
+      setRemoveConfirm(null);
     },
     onError: (error) => {
       toast.error("Failed to remove user: " + error.message);
     },
   });
 
-  // Update user role mutation
-  const updateUserRole = useMutation({
+  // Remove user from ALL teams (platform-wide)
+  const removeUserFromPlatform = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      toast.success("User removed from all teams");
+      setRemoveConfirm(null);
+    },
+    onError: (error) => {
+      toast.error("Failed to remove user: " + error.message);
+    },
+  });
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       if (!activeWorkspaceId) throw new Error("No active workspace");
 
