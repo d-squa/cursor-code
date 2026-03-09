@@ -57,6 +57,7 @@ export default function UserManagement() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteTeamId, setInviteTeamId] = useState<string>("");
+  const [removeConfirm, setRemoveConfirm] = useState<{ userId: string; email: string; type: "team" | "platform" } | null>(null);
 
   useEffect(() => {
     if (activeWorkspaceId) setInviteTeamId(activeWorkspaceId);
