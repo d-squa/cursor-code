@@ -2128,6 +2128,7 @@ export function MediaPlanEditor() {
             {/* Client Selection - Now after required fields */}
             <div className="space-y-2">
               <Label htmlFor="client">Client (Optional)</Label>
+              <div className="flex gap-2">
               <Select
                 value={selectedClientId || undefined}
                 onValueChange={(value) => {
