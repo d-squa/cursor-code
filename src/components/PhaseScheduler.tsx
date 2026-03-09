@@ -1651,6 +1651,7 @@ export function PhaseScheduler({
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
             const availableObjectives = getAvailableObjectives();
             const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+            const taxonomyPlatform: 'meta' | 'tiktok' | 'google' = isGooglePlatform ? 'google' : platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta';
             const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
             const phaseKeywords = isGoogleSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
