@@ -158,6 +158,10 @@ export function CampaignForecast({
   campaignId,
   basicTargeting,
   clientIndustry,
+  selectedKeywords,
+  onKeywordsUpdate,
+  googleCustomerId,
+  tiktokAdvertiserId,
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
