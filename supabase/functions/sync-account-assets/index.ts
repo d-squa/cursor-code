@@ -582,8 +582,8 @@ async function syncGoogleAdsAssets(
       throw new Error("No active Google Ads platform connection found");
     }
 
-    // Get access token from Vault (with fallback to database column)
-    const accessToken = await getAccessToken(supabase, platformData.id, platformData.access_token);
+    // Get access token from Vault with automatic refresh for Google
+    const accessToken = await getAccessTokenWithRefresh(supabase, platformData.id, platformData.access_token, "google");
     
     if (!accessToken) {
       throw new Error("Failed to retrieve Google access token");
