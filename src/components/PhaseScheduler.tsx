@@ -1655,10 +1655,13 @@ export function PhaseScheduler({
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
             const availableObjectives = getAvailableObjectives();
             const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
+            const isTikTokPlatform = platformId?.toLowerCase() === 'tiktok';
             const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
-            const phaseKeywords = isGoogleSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
+            const isTikTokSearchPhase = isTikTokPlatform && phase.tiktokCampaignType === "Search";
+            const isSearchPhase = isGoogleSearchPhase || isTikTokSearchPhase;
+            const phaseKeywords = isSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
-            const keywordStrategyGroups = isGoogleSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
+            const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
               const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
               const positives = kws.filter(kw => !kw.isNegative);
               const negatives = kws.filter(kw => kw.isNegative);
@@ -1695,13 +1698,13 @@ export function PhaseScheduler({
                           <Badge variant="secondary" className="text-xs">
                             {phase.budgetPercentage}% budget
                           </Badge>
-                          {isGoogleSearchPhase && phaseSearchVolume > 0 && (
+                          {isSearchPhase && phaseSearchVolume > 0 && (
                             <div className="flex items-center gap-1">
                               <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800">
                                 <Search className="h-3 w-3 mr-1" />
                                 {phaseSearchVolume >= 1_000_000 ? `${(phaseSearchVolume / 1_000_000).toFixed(1)}M` : phaseSearchVolume >= 1_000 ? `${(phaseSearchVolume / 1_000).toFixed(1)}K` : phaseSearchVolume} vol/mo
                               </Badge>
-                              <DataSourceBadge dataSource="live_api" platformName="Google Ads" />
+                              <DataSourceBadge dataSource="live_api" platformName={isTikTokSearchPhase ? "TikTok" : "Google Ads"} />
                             </div>
                           )}
                           {adAccountId && !taxonomyLoading && (
@@ -1783,8 +1786,8 @@ export function PhaseScheduler({
                     </div>
                   </div>
 
-                  {/* Keyword Strategy Sub-rows for Google Search phases */}
-                  {isGoogleSearchPhase && keywordStrategyGroups.length > 0 && (
+                  {/* Keyword Strategy Sub-rows for Search phases (Google & TikTok) */}
+                  {isSearchPhase && keywordStrategyGroups.length > 0 && (
                     <div className="border-t bg-muted/10">
                       {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol }) => {
                         const strategyConfig: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {

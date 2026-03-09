@@ -1131,6 +1131,44 @@ const TIKTOK_AWARENESS_SMART: StrategyDefinition = {
   ],
 };
 
+// ─── TIKTOK SEARCH KEYWORDS STRATEGY ──────────────────────────
+
+const TIKTOK_SEARCH_KEYWORDS_BASE: StrategyDefinition = {
+  id: "tiktok-search-keywords-base",
+  name: "TikTok Search Keywords",
+  variant: "base",
+  platform: "tiktok",
+  phases: [
+    {
+      name: "Search — Keyword Conversion",
+      funnelStage: "BOF",
+      durationPercent: 60,
+      recommendedDurationDays: [30, 90],
+      budgetPercent: 60,
+      objective: "PRODUCT_SALES",
+      optimizationGoal: "CONVERT",
+      optimizationLocation: "Website",
+      billingType: "oCPM",
+      audienceTypes: "Search Keywords",
+      adFormats: "Search Ads",
+      automationFeatures: "Keyword Targeting",
+    },
+    {
+      name: "MOF - Engagement Retargeting",
+      funnelStage: "MOF",
+      durationPercent: 40,
+      recommendedDurationDays: [14, 60],
+      budgetPercent: 40,
+      objective: "PRODUCT_SALES",
+      optimizationGoal: "CONVERT",
+      optimizationLocation: "Website",
+      billingType: "oCPM",
+      audienceTypes: "Video Viewers + Engagers",
+      adFormats: "In-Feed + Spark Ads",
+      automationFeatures: "Manual Retargeting",
+    },
+  ],
+};
 // ─── STRATEGY GROUPS (for UI dropdown) ─────────────────────────
 
 export const META_STRATEGY_GROUPS: StrategyGroup[] = [
@@ -1202,6 +1240,12 @@ export const TIKTOK_STRATEGY_GROUPS: StrategyGroup[] = [
     name: "TikTok Awareness Domination",
     platform: "tiktok",
     variants: [TIKTOK_AWARENESS_BASE, TIKTOK_AWARENESS_SMART],
+  },
+  {
+    id: "tiktok-search-keywords",
+    name: "TikTok Search Keywords",
+    platform: "tiktok",
+    variants: [TIKTOK_SEARCH_KEYWORDS_BASE],
   },
 ];
 
@@ -1628,6 +1672,22 @@ export function generatePhasesFromStrategy(
       overrideTargeting: useBroadTargeting ? false : undefined,
     };
 
+    // Google Ads: auto-set googleCampaignType from objective
+    if (strategy.platform === "google") {
+      const objToType: Record<string, string> = {
+        CONVERSION_SEARCH: "Search",
+        AWARENESS_DISPLAY: "Display",
+        CONSIDERATION_PMAX: "Performance Max",
+        AWARENESS_VIDEO_EFFICIENT_REACH: "Video",
+        CONSIDERATION_DEMAND_GEN: "Demand Gen",
+        CONVERSION_SHOPPING: "Shopping",
+        CONSIDERATION_APP_INSTALLS: "App Promotion",
+      };
+      if (objToType[phase.objective]) {
+        result.googleCampaignType = objToType[phase.objective];
+      }
+    }
+
     // Meta Advantage+ variant auto-configuration
     if (strategy.platform === "meta" && isAdvantagePlus) {
       result.metaAdvantagePlusCampaign = phase.objective === "OUTCOME_SALES";
@@ -1635,11 +1695,17 @@ export function generatePhasesFromStrategy(
       result.metaAdvantagePlusCreative = true;
     }
 
-    // TikTok Smart variant auto-configuration
-    if (strategy.platform === "tiktok" && isSmart) {
-      result.tiktokSmartPlusEnabled = true;
-      result.tiktokSmartCreativeEnabled = true;
-      result.tiktokAutoTargetingEnabled = true;
+    // TikTok: mark Search keyword phases
+    if (strategy.platform === "tiktok") {
+      if (phase.adFormats.toLowerCase().includes("search")) {
+        result.tiktokCampaignType = "Search";
+      }
+      // Smart variant auto-configuration
+      if (isSmart) {
+        result.tiktokSmartPlusEnabled = true;
+        result.tiktokSmartCreativeEnabled = true;
+        result.tiktokAutoTargetingEnabled = true;
+      }
     }
 
     return result;

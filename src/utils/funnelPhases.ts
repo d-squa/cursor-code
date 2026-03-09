@@ -173,6 +173,8 @@ function getAutoDetectStrategyId(
   }
 
   if (normalizedPlatform === "tiktok") {
+    // Keywords present → must include Search phase (same logic as Google)
+    if (hasKeywords) return "tiktok-search-keywords-base";
     if (formatString.includes("lead") || formatString.includes("instant form")) {
       return "tiktok-lead-engine-base";
     }

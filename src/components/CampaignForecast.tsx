@@ -1951,16 +1951,13 @@ export function CampaignForecast({
           <>
             {/* Actiplan Deliverables View */}
             {actiplanForecast && (
-              <ActiplanDeliverablesView actiplanForecast={actiplanForecast} />
+              <ActiplanDeliverablesView 
+                actiplanForecast={actiplanForecast} 
+                selectedKeywords={selectedKeywords}
+              />
             )}
           </>
         )}
-
-        {/* Keyword Strategy Stats in Forecast */}
-        {selectedKeywords && selectedKeywords.filter(k => !k.isNegative).length > 0 && (
-          <KeywordStrategyForecast keywords={selectedKeywords} />
-        )}
-
 
         <div className="flex justify-between pt-4 border-t">
           <Button variant="outline" onClick={onBack}>

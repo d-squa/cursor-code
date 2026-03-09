@@ -236,6 +236,7 @@ export interface Phase {
   tiktokLandingPageUrl?: string; // TikTok Landing Page URL for Website destination
   tiktokIdentityId?: string; // TikTok Identity ID for Direct Messages
   tiktokPhoneNumber?: string; // Phone number for Phone Call destination
+  tiktokCampaignType?: string; // Search, In-Feed, etc. (mirrors Google's googleCampaignType)
   // Meta-specific fields at phase level
   metaBillingEvent?: string; // IMPRESSIONS, LINK_CLICKS, POST_ENGAGEMENT, etc.
   metaLandingPageUrl?: string; // Default landing page URL
