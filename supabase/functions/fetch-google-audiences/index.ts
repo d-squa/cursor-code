@@ -156,17 +156,9 @@ serve(async (req) => {
     const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}/googleAds:searchStream`;
     const allAudiences: AudienceResult[] = [];
 
-    // Run all audience queries in parallel for speed
-    const [
-      yourDataRows,
-      customSegmentRows,
-      combinedRows,
-      affinityRows,
-      inMarketRows,
-      lifeEventRows,
-      detailedDemoRows,
-    ] = await Promise.all([
-      // 1. Your Data Segments (user_list) — Website visitors, App users, Customer lists
+    // Run only Audience Manager data-segment queries in parallel
+    const [yourDataRows, combinedRows] = await Promise.all([
+      // 1. Data segments (user_list) — website visitors, customer segments, YouTube users, app users, callers
       searchStream(searchUrl, apiHeaders, `
         SELECT user_list.id, user_list.name, user_list.type,
                user_list.size_for_display, user_list.size_for_search,
@@ -174,57 +166,16 @@ serve(async (req) => {
         FROM user_list
         WHERE user_list.membership_status = 'OPEN'
         LIMIT 500
-      `).catch(e => { console.error('Your data segments error:', e); return []; }),
+      `).catch((e) => { console.error('Data segments error:', e); return []; }),
 
-      // 2. Custom Segments (custom_audience) — Keywords, URLs, Apps based
-      searchStream(searchUrl, apiHeaders, `
-        SELECT custom_audience.id, custom_audience.name,
-               custom_audience.type, custom_audience.status
-        FROM custom_audience
-        WHERE custom_audience.status = 'ENABLED'
-        LIMIT 500
-      `).catch(e => { console.error('Custom segments error:', e); return []; }),
-
-      // 3. Combined Segments (combined_audience)
+      // 2. Custom combinations (combined_audience)
       searchStream(searchUrl, apiHeaders, `
         SELECT combined_audience.id, combined_audience.name,
                combined_audience.status
         FROM combined_audience
         WHERE combined_audience.status = 'ENABLED'
         LIMIT 200
-      `).catch(e => { console.error('Combined segments error:', e); return []; }),
-
-      // 4. Affinity Segments (user_interest AFFINITY)
-      searchStream(searchUrl, apiHeaders, `
-        SELECT user_interest.user_interest_id, user_interest.name,
-               user_interest.taxonomy_type
-        FROM user_interest
-        WHERE user_interest.taxonomy_type = 'AFFINITY'
-        LIMIT 500
-      `).catch(e => { console.error('Affinity segments error:', e); return []; }),
-
-      // 5. In-Market Segments (user_interest IN_MARKET)
-      searchStream(searchUrl, apiHeaders, `
-        SELECT user_interest.user_interest_id, user_interest.name,
-               user_interest.taxonomy_type
-        FROM user_interest
-        WHERE user_interest.taxonomy_type = 'IN_MARKET'
-        LIMIT 500
-      `).catch(e => { console.error('In-Market segments error:', e); return []; }),
-
-      // 6. Life Events
-      searchStream(searchUrl, apiHeaders, `
-        SELECT life_event.id, life_event.name
-        FROM life_event
-        LIMIT 200
-      `).catch(e => { console.error('Life events error:', e); return []; }),
-
-      // 7. Detailed Demographics
-      searchStream(searchUrl, apiHeaders, `
-        SELECT detailed_demographic.id, detailed_demographic.name
-        FROM detailed_demographic
-        LIMIT 200
-      `).catch(e => { console.error('Detailed demographics error:', e); return []; }),
+      `).catch((e) => { console.error('Custom combinations error:', e); return []; }),
     ]);
 
     // --- Process Your Data Segments ---
