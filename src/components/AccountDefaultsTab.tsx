@@ -2621,6 +2621,71 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         </div>
                       </div>
 
+                      {/* URL Parameters Section */}
+                      <Separator className="my-4" />
+                      <div className="space-y-4">
+                        <Collapsible>
+                          <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-left">
+                            <Link2 className="h-4 w-4 text-primary" />
+                            <span className="font-medium">URL Parameters</span>
+                            <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-4 pt-4">
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Configure how tracking parameters are added to your destination URLs
+                            </p>
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>URL Parameters Template</Label>
+                                <Select
+                                  value={(gDefaults as any).default_utm_mode || "none"}
+                                  onValueChange={(value) => {
+                                    updateGoogleDefault(gAccount.id, "default_utm_mode" as any, value);
+                                    if (value === "platform_dynamic") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&utm_term={keyword}");
+                                    } else if (value === "basic") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}");
+                                    } else if (value === "advanced") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, "utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&utm_term={keyword}&gclid={gclid}");
+                                    } else if (value === "none") {
+                                      updateGoogleDefault(gAccount.id, "default_url_parameters" as any, null);
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select URL parameters template" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">No URL Parameters</SelectItem>
+                                    <SelectItem value="platform_dynamic">Google Ads Dynamic Parameters</SelectItem>
+                                    <SelectItem value="basic">Basic UTM (Source, Medium, Campaign)</SelectItem>
+                                    <SelectItem value="advanced">Advanced UTM (Full Tracking)</SelectItem>
+                                    <SelectItem value="custom">Custom Parameters</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>URL Parameters Value</Label>
+                                <Input
+                                  placeholder="utm_source=google&utm_medium=cpc&utm_campaign={campaignid}"
+                                  value={(gDefaults as any).default_url_parameters || ""}
+                                  onChange={(e) => {
+                                    updateGoogleDefault(gAccount.id, "default_url_parameters" as any, e.target.value);
+                                    if ((gDefaults as any).default_utm_mode !== "custom") {
+                                      updateGoogleDefault(gAccount.id, "default_utm_mode" as any, "custom");
+                                    }
+                                  }}
+                                  disabled={(gDefaults as any).default_utm_mode === "none"}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  {'Parameters without leading "?". Use {campaignid}, {adgroupid}, {keyword}, {gclid} for Google Ads dynamic values.'}
+                                </p>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
+
                       {/* Naming Taxonomy Section */}
                       <Separator className="my-6" />
                       <AccountTaxonomySection adAccountId={gAccount.id} platform="google" userId={userId} />
