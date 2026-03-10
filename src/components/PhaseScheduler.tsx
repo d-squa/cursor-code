@@ -649,13 +649,24 @@ export function PhaseScheduler({
       const objective = normalizeObjective(p.objective);
       const optimizationGoal = normalizeGoal(p.optimizationGoal);
       
-      // Auto-detect Search campaign type from phase name
-      const isSearchPhase = p.name?.toLowerCase().includes('search');
-      const tiktokCampaignType = isSearchPhase ? 'Search' : p.tiktokCampaignType;
+      // Auto-detect Search campaign type from phase name (only on first load, not if user explicitly toggled)
+      let tiktokCampaignType = p.tiktokCampaignType;
+      if (platformId?.toLowerCase() === 'tiktok' && !p.tiktokCampaignType && p.name?.toLowerCase().includes('search')) {
+        tiktokCampaignType = 'Search';
+      }
+      
+      // If search mode is active, auto-correct optimization goal
+      let finalGoal = optimizationGoal;
+      if (tiktokCampaignType === 'Search' && objective) {
+        const searchCfg = getTikTokSearchModeConfig(objective);
+        if (searchCfg && finalGoal && !searchCfg.allowedGoals.includes(finalGoal)) {
+          finalGoal = searchCfg.allowedGoals[0] || finalGoal;
+        }
+      }
 
-      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
+      if (objective !== p.objective || finalGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
         changed = true;
-        return { ...p, objective, optimizationGoal, tiktokCampaignType };
+        return { ...p, objective, optimizationGoal: finalGoal, tiktokCampaignType };
       }
 
       return p;
