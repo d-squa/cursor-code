@@ -2284,7 +2284,7 @@ export function PhaseScheduler({
                                 currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
                                 currentOptimizationGoal: phase.optimizationGoal,
                                 availableAudiences: phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })),
-                                availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || ''),
+                                availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || '', phase),
                               }) : undefined;
                               updatePhaseFields(phase.id, {
                                 adSetSplitDimension: newDimension,
