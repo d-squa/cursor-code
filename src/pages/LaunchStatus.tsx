@@ -243,7 +243,22 @@ export default function LaunchStatus() {
       if (data.valid) {
         toast.success("Validation passed! Ready to push to DSP.");
       } else {
-        toast.error(`Validation failed: ${data.errors.length} error(s) found`);
+        const errors = data.errors || [];
+        const errorMessages = errors
+          .map((e: any) => {
+            const parts: string[] = [];
+            if (e.platform) parts.push(e.platform);
+            if (e.market) parts.push(e.market);
+            if (e.phase) parts.push(e.phase);
+            const location = parts.length > 0 ? `[${parts.join(" · ")}] ` : "";
+            return `${location}${e.message || "Unknown error"}`;
+          })
+          .slice(0, 5);
+        
+        toast.error(`Validation failed: ${errors.length} error(s) found`, {
+          description: errorMessages.join("\n"),
+          duration: 10000,
+        });
       }
 
       await loadData();
