@@ -501,6 +501,7 @@ export function PhaseScheduler({
         objective: awarenessObjective,
         optimizationGoal: goalForObjective(awarenessObjective),
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(awarenessObjective),
       },
       {
         id: "phase-consideration",
@@ -513,6 +514,7 @@ export function PhaseScheduler({
         objective: considerationObjective,
         optimizationGoal: goalForObjective(considerationObjective),
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(considerationObjective),
       },
       {
         id: "phase-conversion",
@@ -525,6 +527,7 @@ export function PhaseScheduler({
         objective: conversionObjective,
         optimizationGoal: goalForObjective(conversionObjective),
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(conversionObjective),
       },
       {
         id: "phase-loyalty",
@@ -537,6 +540,7 @@ export function PhaseScheduler({
         objective: platformKey === "tiktok" ? "CONVERSIONS" : "OUTCOME_SALES",
         optimizationGoal: "VALUE",
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(platformKey === "tiktok" ? "CONVERSIONS" : "OUTCOME_SALES"),
       },
     ];
 
