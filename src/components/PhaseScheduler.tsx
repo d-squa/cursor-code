@@ -2503,7 +2503,7 @@ export function PhaseScheduler({
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                             platformId: platformId || 'meta',
-                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "", phase).map(g => ({ value: g.value, label: g.label })),
                             currentOptimizationGoal: phase.optimizationGoal,
                             currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
                             currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
