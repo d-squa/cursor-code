@@ -680,7 +680,11 @@ export function PhaseScheduler({
     });
 
     if (changed) {
+      const newFingerprint = updated.map(p => `${p.id}:${p.objective}:${p.optimizationGoal}:${p.tiktokCampaignType}`).join('|');
+      lastNormalizedPhasesRef.current = newFingerprint;
       onPhasesChangeRef.current(updated);
+    } else {
+      lastNormalizedPhasesRef.current = fingerprint;
     }
   }, [phases, platformId, platformName]);
 
