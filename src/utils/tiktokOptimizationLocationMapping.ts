@@ -259,7 +259,22 @@ export const TIKTOK_OPTIMIZATION_LOCATION_MATRIX: TikTokOptimizationLocationMapp
     objective: "SALES",
     optimizationGoal: "CLICK",
     locations: [
+      { value: "Website", label: "Website" },
       { value: "App", label: "App", requiresApp: true },
+    ]
+  },
+  {
+    objective: "SALES",
+    optimizationGoal: "LANDING_PAGE_VIEW",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
+    ]
+  },
+  {
+    objective: "SALES",
+    optimizationGoal: "ENGAGED_SESSION",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
     ]
   },
 
