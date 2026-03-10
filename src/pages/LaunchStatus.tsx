@@ -305,7 +305,22 @@ export default function LaunchStatus() {
       if (validationError) throw validationError;
 
       if (!validationResult.valid) {
-        toast.error(`Cannot push: ${validationResult.errors.length} validation error(s)`);
+        const errors = validationResult.errors || [];
+        const errorMessages = errors
+          .map((e: any) => {
+            const parts: string[] = [];
+            if (e.platform) parts.push(e.platform);
+            if (e.market) parts.push(e.market);
+            if (e.phase) parts.push(e.phase);
+            const location = parts.length > 0 ? `[${parts.join(" · ")}] ` : "";
+            return `${location}${e.message || "Unknown error"}`;
+          })
+          .slice(0, 5);
+        
+        toast.error(`Cannot push: ${errors.length} validation error(s)`, {
+          description: errorMessages.join("\n"),
+          duration: 10000,
+        });
         await loadData();
         setValidating(false);
         return;
