@@ -557,12 +557,19 @@ export function PhaseScheduler({
   const onPhasesChangeRef = useRef(onPhasesChange);
   onPhasesChangeRef.current = onPhasesChange;
 
+   // Guard ref to prevent normalization loops
+  const lastNormalizedPhasesRef = useRef<string>('');
+
   // Normalize legacy TikTok objective/goal values so the dropdowns can hydrate saved campaigns.
   useEffect(() => {
     const isTikTok =
       platformId?.toLowerCase() === "tiktok" || platformName.toLowerCase().includes("tiktok");
 
     if (!isTikTok || phases.length === 0) return;
+
+    // Build a fingerprint to detect if we already normalized these exact phases
+    const fingerprint = phases.map(p => `${p.id}:${p.objective}:${p.optimizationGoal}:${p.tiktokCampaignType}`).join('|');
+    if (fingerprint === lastNormalizedPhasesRef.current) return;
 
     const tikTokMappings = getObjectivesForPlatform("tiktok");
     const validTikTokObjectives = new Set(tikTokMappings.map((o) => o.value));
