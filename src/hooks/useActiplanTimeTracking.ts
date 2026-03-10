@@ -19,8 +19,8 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   const lastActivityRef = useRef<number>(Date.now());
   const accumulatedSecondsRef = useRef<number>(0);
   const isActiveRef = useRef<boolean>(true);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const idleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHeartbeatRef = useRef<number>(Date.now());
 
   // Start a new session

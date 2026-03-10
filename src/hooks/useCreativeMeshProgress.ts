@@ -61,7 +61,7 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
   const { user } = useAuth();
   const [progress, setProgress] = useState<MeshProgress | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get current step
   const currentStep: MeshStep = progress?.currentStep || 'actiplan';

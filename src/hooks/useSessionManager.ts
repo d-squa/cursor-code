@@ -16,7 +16,7 @@ export function useSessionManager() {
   });
   const [isValidSession, setIsValidSession] = useState<boolean>(true);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const validationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const validationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Register a new session after login
   const registerSession = useCallback(async (session: Session): Promise<string | null> => {

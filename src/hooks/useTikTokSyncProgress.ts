@@ -56,7 +56,7 @@ export function usePlatformSyncProgress(platformId: string | null) {
       return;
     }
 
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
     let mounted = true;
     let consecutiveNulls = 0;
     const MAX_CONSECUTIVE_NULLS = 3;
