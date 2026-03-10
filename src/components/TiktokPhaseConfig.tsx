@@ -122,6 +122,25 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     return objectiveRequiresLocation(objective) && validLocations.length > 0;
   }, [objective, validLocations]);
 
+  // Keep optimization location in sync with objective/goal/search restrictions
+  useEffect(() => {
+    const correctedLocation = autoCorrectTikTokLocation(
+      objective,
+      optimizationGoal,
+      phase.tiktokOptimizationLocation
+    );
+
+    if (correctedLocation !== phase.tiktokOptimizationLocation) {
+      onUpdate("tiktokOptimizationLocation", correctedLocation ?? undefined);
+    }
+  }, [
+    objective,
+    optimizationGoal,
+    phase.tiktokCampaignType,
+    phase.tiktokOptimizationLocation,
+    onUpdate,
+  ]);
+
   // Auto-populate from defaults when fields are empty, respecting location validity - only for enterprise+ users
   // This effect runs only ONCE per phase to prevent infinite loops
   useEffect(() => {

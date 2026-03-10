@@ -2284,7 +2284,7 @@ export function PhaseScheduler({
                                 currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
                                 currentOptimizationGoal: phase.optimizationGoal,
                                 availableAudiences: phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })),
-                                availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || ''),
+                                availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || '', phase),
                               }) : undefined;
                               updatePhaseFields(phase.id, {
                                 adSetSplitDimension: newDimension,
@@ -2392,7 +2392,7 @@ export function PhaseScheduler({
                           <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
                           {phase.objective && phase.optimizationGoal && (
                             <Badge variant="secondary" className="text-xs">
-                              Goal: {getOptimizationGoalsForPhase(phase.objective).find(g => g.value === phase.optimizationGoal)?.label || phase.optimizationGoal}
+                              Goal: {getOptimizationGoalsForPhase(phase.objective, phase).find(g => g.value === phase.optimizationGoal)?.label || phase.optimizationGoal}
                             </Badge>
                           )}
                         </div>
@@ -2503,7 +2503,7 @@ export function PhaseScheduler({
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                             platformId: platformId || 'meta',
-                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "", phase).map(g => ({ value: g.value, label: g.label })),
                             currentOptimizationGoal: phase.optimizationGoal,
                             currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
                             currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
@@ -3032,7 +3032,7 @@ export function PhaseScheduler({
                             const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                               platformId: platformId || 'meta',
                               availablePlacements: getPlacementsForSelection(platformName, phase.assetTypes || []),
-                              availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                                availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "", phase).map(g => ({ value: g.value, label: g.label })),
                               currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
                               currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
                               currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
@@ -3088,7 +3088,7 @@ export function PhaseScheduler({
                             const newDimension = dim === 'none' ? undefined : dim;
                             const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                               platformId: platformId || 'meta',
-                              availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                              availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "", phase).map(g => ({ value: g.value, label: g.label })),
                               currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
                               currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
                               currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
@@ -3221,7 +3221,7 @@ export function PhaseScheduler({
                                       // Initialize the phase with the inherited split using proper ad set creation
                                       const initialAdSets = createInitialAdSets(effectiveDimension!, phase.name, {
                                         platformId: platformId || 'meta',
-                                        availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                                        availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "", phase).map(g => ({ value: g.value, label: g.label })),
                                         currentOptimizationGoal: phase.optimizationGoal,
                                         currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
                                         currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
@@ -3298,7 +3298,7 @@ export function PhaseScheduler({
                                     useCBO: undefined,
                                   })}
                                   availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
-                                  availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
+                                  availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "", phase).map(g => ({ value: g.value, label: g.label }))}
                                   availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
                                   adAccountId={adAccountId}
                                   currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
