@@ -56,6 +56,7 @@ import {
   META_MESSAGING_MODES,
   TIKTOK_MESSAGING_APPS,
 } from "@/utils/destinationOptions";
+import { getTikTokSearchModeConfig } from "@/utils/tiktokOptimizationLocationMapping";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 
 interface PhaseSchedulerProps {
@@ -449,6 +450,16 @@ export function PhaseScheduler({
       return getDefaultOptimizationGoal(platformKey, objective) || undefined;
     };
 
+    // TikTok defaults: tCPA (COST_CAP) for Traffic and Sales/Conversions objectives
+    const tiktokBidDefaults = (objective?: string): Partial<Phase> => {
+      if (platformKey !== 'tiktok' || !objective) return {};
+      const upper = objective.toUpperCase();
+      if (['TRAFFIC', 'CONVERSIONS', 'SALES'].includes(upper)) {
+        return { tiktokBidStrategy: 'COST_CAP' };
+      }
+      return {};
+    };
+
     if (totalDays <= 0) return;
 
     // For manual strategy, start with one empty phase
@@ -490,6 +501,7 @@ export function PhaseScheduler({
         objective: awarenessObjective,
         optimizationGoal: goalForObjective(awarenessObjective),
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(awarenessObjective),
       },
       {
         id: "phase-consideration",
@@ -502,6 +514,7 @@ export function PhaseScheduler({
         objective: considerationObjective,
         optimizationGoal: goalForObjective(considerationObjective),
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(considerationObjective),
       },
       {
         id: "phase-conversion",
@@ -514,6 +527,7 @@ export function PhaseScheduler({
         objective: conversionObjective,
         optimizationGoal: goalForObjective(conversionObjective),
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(conversionObjective),
       },
       {
         id: "phase-loyalty",
@@ -526,6 +540,7 @@ export function PhaseScheduler({
         objective: platformKey === "tiktok" ? "CONVERSIONS" : "OUTCOME_SALES",
         optimizationGoal: "VALUE",
         ...defaultPublisherConfig,
+        ...tiktokBidDefaults(platformKey === "tiktok" ? "CONVERSIONS" : "OUTCOME_SALES"),
       },
     ];
 
@@ -1226,11 +1241,21 @@ export function PhaseScheduler({
   };
 
   // Get optimization goals for a specific objective
-  const getOptimizationGoalsForPhase = (objective: string) => {
+  const getOptimizationGoalsForPhase = (objective: string, phase?: Phase) => {
     if (!objective || !detectedPlatform) {
       return [];
     }
-    return getOptimizationGoalsForObjective(detectedPlatform, objective);
+    let goals = getOptimizationGoalsForObjective(detectedPlatform, objective);
+    
+    // Apply TikTok search-mode filtering when keywords are active
+    if (detectedPlatform === 'tiktok' && phase?.tiktokCampaignType === 'Search') {
+      const searchConfig = getTikTokSearchModeConfig(objective);
+      if (searchConfig) {
+        goals = goals.filter(g => searchConfig.allowedGoals.includes(g.value));
+      }
+    }
+    
+    return goals;
   };
 
   // Auto-select optimization goal based on objective and platform
@@ -2502,7 +2527,7 @@ export function PhaseScheduler({
                             }}
                             disabled={!phase.objective}
                             className={!phase.objective ? "opacity-50" : undefined}
-                            options={getOptimizationGoalsForPhase(phase.objective || "").map((goal) => ({
+                            options={getOptimizationGoalsForPhase(phase.objective || "", phase).map((goal) => ({
                               value: goal.value,
                               label: goal.label,
                             }))}

@@ -49,6 +49,13 @@ export const TIKTOK_OPTIMIZATION_LOCATION_MATRIX: TikTokOptimizationLocationMapp
       { value: "Website", label: "Website" },
     ]
   },
+  {
+    objective: "TRAFFIC",
+    optimizationGoal: "ENGAGED_SESSION",
+    locations: [
+      { value: "Website", label: "Website" },
+    ]
+  },
 
   // VIDEO VIEWS - NO OPTIMIZATION LOCATION (N/A)
   {
@@ -202,7 +209,22 @@ export const TIKTOK_OPTIMIZATION_LOCATION_MATRIX: TikTokOptimizationLocationMapp
     objective: "CONVERSIONS",
     optimizationGoal: "CLICK",
     locations: [
+      { value: "Website", label: "Website" },
       { value: "App", label: "App", requiresApp: true },
+    ]
+  },
+  {
+    objective: "CONVERSIONS",
+    optimizationGoal: "LANDING_PAGE_VIEW",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
+    ]
+  },
+  {
+    objective: "CONVERSIONS",
+    optimizationGoal: "ENGAGED_SESSION",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
     ]
   },
   // SALES objective (alternative name for CONVERSIONS)
@@ -237,7 +259,22 @@ export const TIKTOK_OPTIMIZATION_LOCATION_MATRIX: TikTokOptimizationLocationMapp
     objective: "SALES",
     optimizationGoal: "CLICK",
     locations: [
+      { value: "Website", label: "Website" },
       { value: "App", label: "App", requiresApp: true },
+    ]
+  },
+  {
+    objective: "SALES",
+    optimizationGoal: "LANDING_PAGE_VIEW",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
+    ]
+  },
+  {
+    objective: "SALES",
+    optimizationGoal: "ENGAGED_SESSION",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
     ]
   },
 
@@ -366,4 +403,38 @@ export function autoCorrectTikTokLocation(
   
   // Return the first valid location as default
   return validLocations[0].value;
+}
+
+// =============================================================================
+// SEARCH MODE CONSTRAINTS
+// When TikTok Search is active (keywords present), restrict goals and locations
+// =============================================================================
+
+export interface TikTokSearchModeConfig {
+  allowedGoals: string[];
+  allowedLocations: string[];
+}
+
+/**
+ * Get the restricted optimization goals and locations when Search mode is active
+ * for a given TikTok objective.
+ */
+export function getTikTokSearchModeConfig(objective: string): TikTokSearchModeConfig | null {
+  const normalized = objective?.toUpperCase().replace(/\s+/g, '_') || '';
+  
+  switch (normalized) {
+    case 'TRAFFIC':
+      return {
+        allowedGoals: ['CLICK'],
+        allowedLocations: ['Website'],
+      };
+    case 'CONVERSIONS':
+    case 'SALES':
+      return {
+        allowedGoals: ['CONVERT', 'CONVERSION', 'CLICK'],
+        allowedLocations: ['Website', 'TikTok Instant Page'],
+      };
+    default:
+      return null; // No search mode restrictions for other objectives
+  }
 }
