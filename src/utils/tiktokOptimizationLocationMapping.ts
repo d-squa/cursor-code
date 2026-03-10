@@ -209,7 +209,22 @@ export const TIKTOK_OPTIMIZATION_LOCATION_MATRIX: TikTokOptimizationLocationMapp
     objective: "CONVERSIONS",
     optimizationGoal: "CLICK",
     locations: [
+      { value: "Website", label: "Website" },
       { value: "App", label: "App", requiresApp: true },
+    ]
+  },
+  {
+    objective: "CONVERSIONS",
+    optimizationGoal: "LANDING_PAGE_VIEW",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
+    ]
+  },
+  {
+    objective: "CONVERSIONS",
+    optimizationGoal: "ENGAGED_SESSION",
+    locations: [
+      { value: "Website", label: "Website", requiresPixel: true },
     ]
   },
   // SALES objective (alternative name for CONVERSIONS)
