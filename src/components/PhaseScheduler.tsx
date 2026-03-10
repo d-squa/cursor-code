@@ -567,10 +567,9 @@ export function PhaseScheduler({
       platformId?.toLowerCase() === "tiktok" || platformName.toLowerCase().includes("tiktok");
 
     if (!isTikTok || phases.length === 0) return;
-
-    // Build a fingerprint to detect if we already normalized these exact phases
-    const fingerprint = phases.map(p => `${p.id}:${p.objective}:${p.optimizationGoal}:${p.tiktokCampaignType}`).join('|');
-    if (fingerprint === lastNormalizedPhasesRef.current) return;
+    
+    // Only normalize once on initial load (legacy data hydration)
+    if (hasNormalizedTikTokRef.current) return;
 
     const tikTokMappings = getObjectivesForPlatform("tiktok");
     const validTikTokObjectives = new Set(tikTokMappings.map((o) => o.value));
