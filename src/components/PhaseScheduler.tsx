@@ -557,8 +557,9 @@ export function PhaseScheduler({
   const onPhasesChangeRef = useRef(onPhasesChange);
   onPhasesChangeRef.current = onPhasesChange;
 
-   // Guard ref to prevent normalization loops
+   // Guard ref to prevent normalization loops — tracks whether initial normalization has run
   const lastNormalizedPhasesRef = useRef<string>('');
+  const hasNormalizedTikTokRef = useRef(false);
 
   // Normalize legacy TikTok objective/goal values so the dropdowns can hydrate saved campaigns.
   useEffect(() => {
