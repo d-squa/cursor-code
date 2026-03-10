@@ -123,26 +123,56 @@ export function calculateResultFromImpressions(
   budget: number,
   goal: string
 ): number {
-  // Default benchmark rates for different goals
+  // Realistic benchmark rates (result / impressions) per optimization goal.
+  // These are conservative global averages — the cost hierarchy MUST hold:
+  //   Impressions > Reach > Video Views > Clicks > LPV > Engaged Sessions > Leads > Conversions > Value
+  // i.e., upper-funnel goals yield MORE results per impression (cheaper CPR),
+  //        lower-funnel goals yield FEWER results (more expensive CPR).
   const benchmarkRates: Record<string, number> = {
-    LINK_CLICKS: 0.009, // 0.9% CTR
-    APP_EVENTS: 0.005, // 0.5%
-    APP_INSTALLS: 0.003, // 0.3%
-    OUTBOUND_CALLS: 0.002, // 0.2%
-    EVENT_RESPONSES: 0.004, // 0.4%
-    FOLLOWS_OR_LIKES: 0.006, // 0.6%
-    LEADS: 0.008, // 0.8%
-    CONVERSATIONS: 0.007, // 0.7%
-    LANDING_PAGE_VIEWS: 0.015, // 1.5%
-    OFFSITE_CONVERSIONS: 0.02, // 2%
-    REACH: 0.85, // 85% of impressions
-    IMPRESSIONS: 1.0, // 100%
-    AD_RECALL_LIFT: 0.05, // 5%
-    THRUPLAY: 0.12, // 12%
-    TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: 0.25, // 25%
-    POST_ENGAGEMENT: 0.035, // 3.5%
+    // Upper funnel — high volume, low CPR
+    IMPRESSIONS: 1.0,           // 100%
+    REACH: 0.70,                // 70% of impressions
+    AD_RECALL_LIFT: 0.04,       // 4%
+    TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: 0.20, // 20%
+    THRUPLAY: 0.08,             // 8%
+    VIDEO_VIEW: 0.10,           // 10%
+    FOCUSED_VIEW: 0.06,         // 6%
+    POST_ENGAGEMENT: 0.025,     // 2.5%
+
+    // Mid funnel — moderate volume
+    LINK_CLICKS: 0.008,         // 0.8% CTR
+    CLICK: 0.008,               // 0.8% (TikTok equivalent)
+    LANDING_PAGE_VIEWS: 0.006,  // 0.6% LPVR
+    LANDING_PAGE_VIEW: 0.006,   // 0.6% (TikTok equivalent)
+    ENGAGED_SESSION: 0.004,     // 0.4%
+    FOLLOWS_OR_LIKES: 0.003,    // 0.3%
+    PROFILE_VISIT: 0.005,       // 0.5%
+    FOLLOW: 0.002,              // 0.2%
+
+    // Lower funnel — low volume, high CPR
+    CONVERSATIONS: 0.002,       // 0.2%
+    LEADS: 0.0015,              // 0.15%
+    LEAD: 0.0015,               // 0.15% (TikTok)
+    FORM: 0.0015,               // 0.15% (TikTok)
+    LEAD_GENERATION: 0.0015,    // 0.15%
+    APP_INSTALLS: 0.002,        // 0.2%
+    APP_INSTALL: 0.002,         // 0.2% (TikTok)
+    APP_EVENTS: 0.001,          // 0.1%
+    APP_EVENT: 0.001,           // 0.1% (TikTok)
+
+    // Bottom funnel — very low volume, highest CPR
+    OFFSITE_CONVERSIONS: 0.0008, // 0.08% conversion rate
+    CONVERT: 0.0008,             // 0.08% (TikTok)
+    CONVERSION: 0.0008,          // 0.08% (TikTok)
+    VALUE: 0.0005,               // 0.05% (ROAS optimization, fewer but higher-value conversions)
+
+    // Calls
+    OUTBOUND_CALLS: 0.001,       // 0.1%
+    PHONE_CALL: 0.001,           // 0.1% (TikTok)
+    MESSAGING: 0.002,            // 0.2% (TikTok)
+    EVENT_RESPONSES: 0.002,      // 0.2%
   };
-  
-  const rate = benchmarkRates[goal] || 0.01;
-  return Math.round(impressions * rate);
+
+  const rate = benchmarkRates[goal] || benchmarkRates[goal.toUpperCase()] || 0.005;
+  return Math.max(1, Math.round(impressions * rate));
 }

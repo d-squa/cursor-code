@@ -117,6 +117,22 @@ IMPORTANT platform-specific guidance for ${platform || "Meta"}:
 - Consider the optimization goal "${optimizationGoal || "OFFSITE_CONVERSIONS"}" carefully — awareness goals have very different metrics than conversion goals.
 - If benchmark data is provided above, weight it heavily in your predictions as it represents actual historical performance.
 
+CRITICAL COST HIERARCHY — the cost per result MUST follow this order (cheapest to most expensive):
+  Impressions < Reach < Video Views < Clicks < Landing Page Views < Engaged Sessions < Leads < Conversions < Value/ROAS
+For example, if CPC is $0.50, then:
+  - Cost per Landing Page View should be ~$0.70-$1.50 (NOT cheaper than a click)
+  - Cost per Engaged Session should be ~$1.00-$3.00
+  - Cost per Lead should be ~$5-$30
+  - Cost per Conversion should be ~$10-$80+ (ALWAYS more expensive than LPV and clicks)
+  - Cost per Value-optimized conversion should be ~$15-$100+
+NEVER return a cost/conversion lower than cost/click or cost/LPV. This is the most common error.
+
+Platform-specific CPR ranges for ${market}:
+- TikTok: Clicks $0.10-$0.80, LPV $0.30-$2.00, Engaged Sessions $0.50-$3.00, Conversions $8-$60+
+- Meta: Clicks $0.15-$1.50, LPV $0.40-$2.50, Conversions $10-$80+
+- Google Search: Clicks $0.50-$5.00, Conversions $15-$100+
+- Snapchat: Swipe-ups $0.20-$1.50, Conversions $12-$70+
+
 Return this exact JSON structure:
 {
   "reach": <number - estimated unique users reached>,
@@ -126,13 +142,13 @@ Return this exact JSON structure:
   "clicks": <number - estimated clicks>,
   "ctr": <number - click-through rate as percentage>,
   "results": <number - estimated results based on optimization goal>,
-  "costPerResult": <number - cost per result in dollars>,
+  "costPerResult": <number - cost per result in dollars — MUST respect the cost hierarchy above>,
   "resultRate": <number - result rate as percentage>,
   "audienceSize": <number - estimated total addressable audience>,
   "confidence": <string - "high", "medium", or "low" based on data availability>
 }
 
-Scale metrics proportionally to the $${budget} budget over ${durationDays} days. Be conservative rather than optimistic.`;
+Scale metrics proportionally to the $${budget} budget over ${durationDays} days. Be conservative rather than optimistic. Double-check that costPerResult respects the hierarchy before responding.`;
 
     console.log("Calling Lovable AI for forecast prediction...");
 
@@ -230,6 +246,28 @@ Scale metrics proportionally to the $${budget} budget over ${durationDays} days.
     }
     if (forecast.frequency <= 0 && forecast.reach > 0) {
       forecast.frequency = parseFloat((forecast.impressions / forecast.reach).toFixed(1));
+    }
+
+    // Cost hierarchy sanity check: conversion goals must cost more than click/LPV goals
+    const goal = (optimizationGoal || '').toUpperCase();
+    const cpc = forecast.clicks > 0 ? budget / forecast.clicks : 0;
+    const conversionGoals = ['CONVERT', 'CONVERSION', 'OFFSITE_CONVERSIONS', 'VALUE', 'APP_EVENT', 'APP_EVENTS'];
+    const midFunnelGoals = ['LANDING_PAGE_VIEW', 'LANDING_PAGE_VIEWS', 'ENGAGED_SESSION'];
+    
+    if (conversionGoals.includes(goal) && cpc > 0 && forecast.costPerResult < cpc * 2) {
+      // Conversion CPR should be at least 10x CPC
+      const minCPR = cpc * 10;
+      console.warn(`⚠️ Cost hierarchy violation: CPR ($${forecast.costPerResult}) < 2x CPC ($${cpc}). Adjusting to $${minCPR.toFixed(2)}`);
+      forecast.costPerResult = parseFloat(minCPR.toFixed(2));
+      forecast.results = Math.max(1, Math.round(budget / forecast.costPerResult));
+      forecast.resultRate = parseFloat(((forecast.results / forecast.impressions) * 100).toFixed(4));
+    } else if (midFunnelGoals.includes(goal) && cpc > 0 && forecast.costPerResult < cpc) {
+      // LPV/Engaged Session should cost more than a click
+      const minCPR = cpc * 1.5;
+      console.warn(`⚠️ Cost hierarchy violation: LPV CPR ($${forecast.costPerResult}) < CPC ($${cpc}). Adjusting to $${minCPR.toFixed(2)}`);
+      forecast.costPerResult = parseFloat(minCPR.toFixed(2));
+      forecast.results = Math.max(1, Math.round(budget / forecast.costPerResult));
+      forecast.resultRate = parseFloat(((forecast.results / forecast.impressions) * 100).toFixed(4));
     }
 
     console.log("AI forecast result:", forecast);
