@@ -1140,14 +1140,51 @@ const handler = async (req: Request): Promise<Response> => {
     }
     // ============= END DAILY LIMIT CHECK =============
 
-    // Get user's connected platforms
-    const { data: platforms, error: platformsError } = await supabase
+    // Get connected platforms - check campaign owner, current user, and team
+    let platforms: any[] = [];
+    
+    // 1. Check campaign owner's connections
+    const { data: ownerPlatforms } = await supabase
       .from("connected_platforms")
       .select("*")
-      .eq("user_id", campaign.user_id)
+      .eq("user_id", campaignOwnerId)
       .eq("is_active", true);
-
-    if (platformsError) throw platformsError;
+    
+    if (ownerPlatforms && ownerPlatforms.length > 0) {
+      platforms = ownerPlatforms;
+    }
+    
+    // 2. If no platforms found and current user differs, check current user
+    if (platforms.length === 0 && user.id !== campaignOwnerId) {
+      console.log(`No platforms found for campaign owner ${campaignOwnerId}, checking current user ${user.id}`);
+      const { data: userPlatforms } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      if (userPlatforms && userPlatforms.length > 0) {
+        platforms = userPlatforms;
+      }
+    }
+    
+    // 3. Check team-scoped connections and merge
+    if (campaign.team_id) {
+      const { data: teamPlatforms } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .eq("team_id", campaign.team_id)
+        .eq("is_active", true);
+      if (teamPlatforms && teamPlatforms.length > 0) {
+        const existingIds = new Set(platforms.map((p: any) => p.id));
+        for (const tp of teamPlatforms) {
+          if (!existingIds.has(tp.id)) {
+            platforms.push(tp);
+          }
+        }
+      }
+    }
+    
+    console.log(`Found ${platforms.length} connected platforms for push`);
 
     // Fetch existing launch statuses to skip already-pushed entities
     const { data: existingStatuses } = await supabase
