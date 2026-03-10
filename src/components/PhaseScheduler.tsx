@@ -2329,6 +2329,40 @@ export function PhaseScheduler({
                           </SplittableSection>
                         );
                       })()}
+
+                      {/* TikTok Search Ads Toggle */}
+                      {isTikTokPlatform && (
+                        <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                          <div className="flex items-center gap-2">
+                            <Search className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <Label className="text-sm font-medium">Search Ads</Label>
+                              <p className="text-xs text-muted-foreground">
+                                {phase.tiktokCampaignType === 'Search' 
+                                  ? 'Search mode active — optimization goals and locations are restricted'
+                                  : 'Enable to use keyword-based search ads'}
+                              </p>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={phase.tiktokCampaignType === 'Search'}
+                            onCheckedChange={(checked) => {
+                              const newType = checked ? 'Search' : undefined;
+                              const updates: Partial<Phase> = { tiktokCampaignType: newType as any };
+                              
+                              // When enabling search, auto-correct optimization goal if needed
+                              if (checked && phase.objective) {
+                                const searchConfig = getTikTokSearchModeConfig(phase.objective);
+                                if (searchConfig && phase.optimizationGoal && !searchConfig.allowedGoals.includes(phase.optimizationGoal)) {
+                                  updates.optimizationGoal = searchConfig.allowedGoals[0];
+                                }
+                              }
+                              
+                              updatePhaseFields(phase.id, updates);
+                            }}
+                          />
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
