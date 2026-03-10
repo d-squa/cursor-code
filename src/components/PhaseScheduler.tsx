@@ -2380,8 +2380,6 @@ export function PhaseScheduler({
                                 }
                               }
                               
-                              // Reset normalization fingerprint so the effect can process the new state
-                              lastNormalizedPhasesRef.current = '';
                               updatePhaseFields(phase.id, updates);
                             }}
                           />
