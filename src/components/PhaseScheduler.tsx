@@ -2392,7 +2392,7 @@ export function PhaseScheduler({
                           <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
                           {phase.objective && phase.optimizationGoal && (
                             <Badge variant="secondary" className="text-xs">
-                              Goal: {getOptimizationGoalsForPhase(phase.objective).find(g => g.value === phase.optimizationGoal)?.label || phase.optimizationGoal}
+                              Goal: {getOptimizationGoalsForPhase(phase.objective, phase).find(g => g.value === phase.optimizationGoal)?.label || phase.optimizationGoal}
                             </Badge>
                           )}
                         </div>
