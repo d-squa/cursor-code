@@ -2513,7 +2513,7 @@ export function PhaseScheduler({
                             }}
                             disabled={!phase.objective}
                             className={!phase.objective ? "opacity-50" : undefined}
-                            options={getOptimizationGoalsForPhase(phase.objective || "").map((goal) => ({
+                            options={getOptimizationGoalsForPhase(phase.objective || "", phase).map((goal) => ({
                               value: goal.value,
                               label: goal.label,
                             }))}
