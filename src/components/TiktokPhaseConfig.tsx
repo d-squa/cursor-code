@@ -12,6 +12,7 @@ import {
   getValidTikTokLocations, 
   objectiveRequiresLocation,
   autoCorrectTikTokLocation,
+  getTikTokSearchModeConfig,
   TikTokLocationConfig
 } from "@/utils/tiktokOptimizationLocationMapping";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
