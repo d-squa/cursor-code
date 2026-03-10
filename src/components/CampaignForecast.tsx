@@ -1306,7 +1306,7 @@ export function CampaignForecast({
               
               const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
               
-              // Calculate results: prefer market-level AI ratio, then benchmarks, then static rates
+              // Calculate results: prefer benchmarks, then goal-specific estimation
               let result: number;
               let costPerResult: number;
               let isBenchmarkBased = false;
@@ -1321,16 +1321,45 @@ export function CampaignForecast({
                 isBenchmarkBased = true;
                 console.log(`✓ Using benchmark CPR (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
               } else if (marketMetrics.dataSource === 'ai_predicted' && marketMetrics.costPerResult && marketMetrics.costPerResult > 0) {
-                // Use AI-predicted cost per result from market-level forecast
-                costPerResult = marketMetrics.costPerResult;
-                result = campaignBudget / costPerResult;
+                // AI-predicted: scale the market-level CPR by the relative cost ratio
+                // between the phase's optimization goal and the market-level goal.
+                // This ensures different goals get different CPRs while staying anchored to AI predictions.
+                const marketGoal = marketMetrics.optimizationGoal || optimizationGoal;
+                
+                if (marketGoal === optimizationGoal) {
+                  // Same goal as market-level — use AI CPR directly
+                  costPerResult = marketMetrics.costPerResult;
+                  result = campaignBudget / costPerResult;
+                } else {
+                  // Different goal — use static benchmark rates to derive relative cost ratio
+                  const marketLevelResult = calculateResultFromImpressions(1_000_000, 1000, marketGoal);
+                  const phaseLevelResult = calculateResultFromImpressions(1_000_000, 1000, optimizationGoal);
+                  
+                  if (phaseLevelResult > 0 && marketLevelResult > 0) {
+                    // Ratio: if phase goal produces fewer results per impression, CPR should be higher
+                    const costRatio = marketLevelResult / phaseLevelResult;
+                    costPerResult = marketMetrics.costPerResult * costRatio;
+                    result = campaignBudget / costPerResult;
+                    console.log(`✓ Scaled AI CPR for ${optimizationGoal}: $${costPerResult.toFixed(2)} (ratio=${costRatio.toFixed(2)} from ${marketGoal})`);
+                  } else {
+                    result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+                    costPerResult = result > 0 ? campaignBudget / result : 0;
+                  }
+                }
+                
                 isBenchmarkBased = false;
-                console.log(`✓ Using AI-predicted CPR (phase) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+                console.log(`✓ AI-based CPR (phase) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
               } else if (marketMetrics.result && marketMetrics.result > 0) {
-                // Proportionally allocate market-level results
-                result = Math.round(marketMetrics.result * budgetRatio);
-                costPerResult = result > 0 ? campaignBudget / result : 0;
-                console.log(`✓ Using proportional market results for ${market.name}/${optimizationGoal}`);
+                // Proportionally allocate market-level results only if same goal
+                const marketGoal = marketMetrics.optimizationGoal || optimizationGoal;
+                if (marketGoal === optimizationGoal) {
+                  result = Math.round(marketMetrics.result * budgetRatio);
+                  costPerResult = result > 0 ? campaignBudget / result : 0;
+                } else {
+                  result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+                  costPerResult = result > 0 ? campaignBudget / result : 0;
+                }
+                console.log(`✓ Using results for ${market.name}/${optimizationGoal}: CPR=$${costPerResult.toFixed(2)}`);
               } else {
                 result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
                 costPerResult = result > 0 ? campaignBudget / result : 0;
