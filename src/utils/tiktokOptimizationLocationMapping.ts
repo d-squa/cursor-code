@@ -49,6 +49,13 @@ export const TIKTOK_OPTIMIZATION_LOCATION_MATRIX: TikTokOptimizationLocationMapp
       { value: "Website", label: "Website" },
     ]
   },
+  {
+    objective: "TRAFFIC",
+    optimizationGoal: "ENGAGED_SESSION",
+    locations: [
+      { value: "Website", label: "Website" },
+    ]
+  },
 
   // VIDEO VIEWS - NO OPTIMIZATION LOCATION (N/A)
   {

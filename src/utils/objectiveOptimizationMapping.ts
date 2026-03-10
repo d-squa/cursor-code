@@ -197,9 +197,11 @@ export const TIKTOK_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
     value: "CONVERSIONS",
     label: "Conversions / Sales",
     optimizationGoals: [
-      { value: "CONVERT", label: "Web Conversion", billingEvent: "OCPM" },
+      { value: "LANDING_PAGE_VIEW", label: "Landing Page Views", billingEvent: "OCPM" },
+      { value: "ENGAGED_SESSION", label: "Engaged Sessions", billingEvent: "OCPM" },
+      { value: "CONVERT", label: "Conversion", billingEvent: "OCPM" },
+      { value: "CLICK", label: "Clicks", billingEvent: "CPC" },
       { value: "VALUE", label: "Value Optimization (ROAS)", billingEvent: "OCPM" },
-      { value: "CLICK", label: "Click", billingEvent: "CPC" },
     ]
   },
   {
