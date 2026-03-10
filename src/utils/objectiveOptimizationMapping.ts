@@ -151,8 +151,9 @@ export const TIKTOK_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
     value: "TRAFFIC",
     label: "Traffic",
     optimizationGoals: [
-      { value: "CLICK", label: "Click", billingEvent: "CPC" },
-      { value: "LANDING_PAGE_VIEW", label: "Landing Page View", billingEvent: "OCPM" },
+      { value: "LANDING_PAGE_VIEW", label: "Landing Page Views", billingEvent: "OCPM" },
+      { value: "CLICK", label: "Clicks", billingEvent: "CPC" },
+      { value: "ENGAGED_SESSION", label: "Engaged Sessions", billingEvent: "OCPM" },
     ]
   },
   {
