@@ -56,6 +56,7 @@ import {
   META_MESSAGING_MODES,
   TIKTOK_MESSAGING_APPS,
 } from "@/utils/destinationOptions";
+import { getTikTokSearchModeConfig } from "@/utils/tiktokOptimizationLocationMapping";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 
 interface PhaseSchedulerProps {
