@@ -248,6 +248,28 @@ Scale metrics proportionally to the $${budget} budget over ${durationDays} days.
       forecast.frequency = parseFloat((forecast.impressions / forecast.reach).toFixed(1));
     }
 
+    // Cost hierarchy sanity check: conversion goals must cost more than click/LPV goals
+    const goal = (optimizationGoal || '').toUpperCase();
+    const cpc = forecast.clicks > 0 ? budget / forecast.clicks : 0;
+    const conversionGoals = ['CONVERT', 'CONVERSION', 'OFFSITE_CONVERSIONS', 'VALUE', 'APP_EVENT', 'APP_EVENTS'];
+    const midFunnelGoals = ['LANDING_PAGE_VIEW', 'LANDING_PAGE_VIEWS', 'ENGAGED_SESSION'];
+    
+    if (conversionGoals.includes(goal) && cpc > 0 && forecast.costPerResult < cpc * 2) {
+      // Conversion CPR should be at least 10x CPC
+      const minCPR = cpc * 10;
+      console.warn(`⚠️ Cost hierarchy violation: CPR ($${forecast.costPerResult}) < 2x CPC ($${cpc}). Adjusting to $${minCPR.toFixed(2)}`);
+      forecast.costPerResult = parseFloat(minCPR.toFixed(2));
+      forecast.results = Math.max(1, Math.round(budget / forecast.costPerResult));
+      forecast.resultRate = parseFloat(((forecast.results / forecast.impressions) * 100).toFixed(4));
+    } else if (midFunnelGoals.includes(goal) && cpc > 0 && forecast.costPerResult < cpc) {
+      // LPV/Engaged Session should cost more than a click
+      const minCPR = cpc * 1.5;
+      console.warn(`⚠️ Cost hierarchy violation: LPV CPR ($${forecast.costPerResult}) < CPC ($${cpc}). Adjusting to $${minCPR.toFixed(2)}`);
+      forecast.costPerResult = parseFloat(minCPR.toFixed(2));
+      forecast.results = Math.max(1, Math.round(budget / forecast.costPerResult));
+      forecast.resultRate = parseFloat(((forecast.results / forecast.impressions) * 100).toFixed(4));
+    }
+
     console.log("AI forecast result:", forecast);
 
     return new Response(JSON.stringify(forecast), {
