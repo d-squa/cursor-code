@@ -648,10 +648,14 @@ export function PhaseScheduler({
     const updated = phases.map((p) => {
       const objective = normalizeObjective(p.objective);
       const optimizationGoal = normalizeGoal(p.optimizationGoal);
+      
+      // Auto-detect Search campaign type from phase name
+      const isSearchPhase = p.name?.toLowerCase().includes('search');
+      const tiktokCampaignType = isSearchPhase ? 'Search' : p.tiktokCampaignType;
 
-      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
+      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
         changed = true;
-        return { ...p, objective, optimizationGoal };
+        return { ...p, objective, optimizationGoal, tiktokCampaignType };
       }
 
       return p;
