@@ -104,8 +104,18 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   
   // Calculate valid locations based on objective/optimization goal
   const validLocations = useMemo(() => {
-    return getValidTikTokLocations(objective, optimizationGoal);
-  }, [objective, optimizationGoal]);
+    let locations = getValidTikTokLocations(objective, optimizationGoal);
+    
+    // Apply search-mode filtering when Search campaign type is active
+    if (phase.tiktokCampaignType === 'Search') {
+      const searchConfig = getTikTokSearchModeConfig(objective);
+      if (searchConfig) {
+        locations = locations.filter(loc => searchConfig.allowedLocations.includes(loc.value));
+      }
+    }
+    
+    return locations;
+  }, [objective, optimizationGoal, phase.tiktokCampaignType]);
   
   // Determine if optimization location is needed
   const showOptimizationLocation = useMemo(() => {
