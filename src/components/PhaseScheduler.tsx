@@ -1227,11 +1227,21 @@ export function PhaseScheduler({
   };
 
   // Get optimization goals for a specific objective
-  const getOptimizationGoalsForPhase = (objective: string) => {
+  const getOptimizationGoalsForPhase = (objective: string, phase?: Phase) => {
     if (!objective || !detectedPlatform) {
       return [];
     }
-    return getOptimizationGoalsForObjective(detectedPlatform, objective);
+    let goals = getOptimizationGoalsForObjective(detectedPlatform, objective);
+    
+    // Apply TikTok search-mode filtering when keywords are active
+    if (detectedPlatform === 'tiktok' && phase?.tiktokCampaignType === 'Search') {
+      const searchConfig = getTikTokSearchModeConfig(objective);
+      if (searchConfig) {
+        goals = goals.filter(g => searchConfig.allowedGoals.includes(g.value));
+      }
+    }
+    
+    return goals;
   };
 
   // Auto-select optimization goal based on objective and platform
