@@ -342,12 +342,45 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get connected platforms for the campaign owner (push runs under the owner's connections)
-    const { data: platforms } = await supabase
+    // Get connected platforms - check campaign owner first, then current user, then team-scoped
+    let { data: platforms } = await supabase
       .from("connected_platforms")
       .select("*")
       .eq("user_id", campaignOwnerId)
       .eq("is_active", true);
+
+    // If campaign owner has no platforms and current user is different, check current user's connections
+    if ((!platforms || platforms.length === 0) && user.id !== campaignOwnerId) {
+      console.log(`No platforms found for campaign owner ${campaignOwnerId}, checking current user ${user.id}`);
+      const { data: userPlatforms } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+      if (userPlatforms && userPlatforms.length > 0) {
+        platforms = userPlatforms;
+      }
+    }
+
+    // Also check team-scoped connections if campaign has a team
+    if (campaign.team_id) {
+      const { data: teamPlatforms } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .eq("team_id", campaign.team_id)
+        .eq("is_active", true);
+      if (teamPlatforms && teamPlatforms.length > 0) {
+        // Merge team platforms (avoid duplicates by id)
+        const existingIds = new Set((platforms || []).map((p: any) => p.id));
+        for (const tp of teamPlatforms) {
+          if (!existingIds.has(tp.id)) {
+            platforms = [...(platforms || []), tp];
+          }
+        }
+      }
+    }
+
+    console.log(`Found ${platforms?.length || 0} connected platforms for validation`);
 
     const result: ValidationResult = {
       valid: true,
