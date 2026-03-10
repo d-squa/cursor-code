@@ -450,6 +450,16 @@ export function PhaseScheduler({
       return getDefaultOptimizationGoal(platformKey, objective) || undefined;
     };
 
+    // TikTok defaults: tCPA (COST_CAP) for Traffic and Sales/Conversions objectives
+    const tiktokBidDefaults = (objective?: string): Partial<Phase> => {
+      if (platformKey !== 'tiktok' || !objective) return {};
+      const upper = objective.toUpperCase();
+      if (['TRAFFIC', 'CONVERSIONS', 'SALES'].includes(upper)) {
+        return { tiktokBidStrategy: 'COST_CAP' };
+      }
+      return {};
+    };
+
     if (totalDays <= 0) return;
 
     // For manual strategy, start with one empty phase
