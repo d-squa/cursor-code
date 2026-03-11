@@ -3026,19 +3026,40 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
 
           if (adSetData.error) {
-            console.error("Meta Ad Set Creation Error:", {
-              error: adSetData.error,
-              request_bidding: {
-                bid_strategy: adSetPayload.bid_strategy,
-                bid_amount: adSetPayload.bid_amount,
-                optimization_goal: adSetPayload.optimization_goal,
-                billing_event: adSetPayload.billing_event,
-              },
+            // Log the FULL payload (minus access_token) for debugging "invalid parameter" errors
+            const debugPayload = { ...adSetPayload };
+            delete debugPayload.access_token;
+            console.error("❌ Meta Ad Set Creation Error:", JSON.stringify(adSetData.error, null, 2));
+            console.error("📤 FULL Ad Set Payload that caused the error:", JSON.stringify(debugPayload, null, 2));
+            console.error("📋 Ad Set Error Context:", {
+              adAccountPath,
+              market: market.name,
+              phase: phase.name,
+              objective,
+              optimizationGoal,
+              bid_strategy: adSetPayload.bid_strategy,
+              bid_amount: adSetPayload.bid_amount,
+              billing_event: adSetPayload.billing_event,
+              has_targeting: !!adSetPayload.targeting,
+              targeting_keys: Object.keys(adSetPayload.targeting || {}),
+              has_flexible_spec: !!(adSetPayload.targeting?.flexible_spec),
+              flexible_spec_count: adSetPayload.targeting?.flexible_spec?.length || 0,
+              has_custom_audiences: !!(adSetPayload.targeting?.custom_audiences),
+              has_promoted_object: !!adSetPayload.promoted_object,
+              destination_type: adSetPayload.destination_type,
+              dsa_beneficiary: adSetPayload.dsa_beneficiary,
+              dsa_payor: adSetPayload.dsa_payor,
+              start_time: adSetPayload.start_time,
+              end_time: adSetPayload.end_time,
+              lifetime_budget: adSetPayload.lifetime_budget,
+              daily_budget: adSetPayload.daily_budget,
             });
+            
+            const errorMsg = adSetData.error.error_user_msg || adSetData.error.message || JSON.stringify(adSetData.error);
             errors.push({
               market: market.name,
               phase: phase.name,
-              error: adSetData.error.message || JSON.stringify(adSetData.error),
+              error: errorMsg,
               type: "adset_creation",
               campaignId: campaignData.id,
               apiResponse: adSetData.error,
