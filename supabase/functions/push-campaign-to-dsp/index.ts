@@ -1858,8 +1858,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const campaignData = await campaignResponse.json();
 
         if (campaignData.error) {
-          console.error("Meta Campaign Creation Error:", campaignData.error);
-          const errorMsg = campaignData.error.message || JSON.stringify(campaignData.error);
+          console.error("❌ Meta Campaign Creation Error:", JSON.stringify(campaignData.error, null, 2));
+          console.error("📤 Campaign Payload:", JSON.stringify(campaignPayload, null, 2));
+          const errorMsg = campaignData.error.error_user_msg || campaignData.error.message || JSON.stringify(campaignData.error);
           errors.push({
             market: market.name,
             phase: phase.name,
