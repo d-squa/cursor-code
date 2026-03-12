@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
-import { getAccessToken } from "../_shared/vault-helper.ts";
+import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 
@@ -1307,8 +1307,11 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Get access token from Vault
-      const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+      // Get access token from Vault (with refresh for Google OAuth)
+      const platformType = platformName.toLowerCase().includes("google") ? "google" : undefined;
+      const accessToken = platformType === "google"
+        ? await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, "google")
+        : await getAccessToken(supabase, platform.id, platform.access_token);
       if (!accessToken) {
         console.error(`No access token found for platform ${platformName}`);
         results.push({
