@@ -943,23 +943,44 @@ const handler = async (req: Request): Promise<Response> => {
 
     // ============= SERVER-SIDE DAILY LIMIT CHECK =============
     // Check subscription tier and enforce daily DSP push limits
+    // Current price IDs (USD-standardized pricing)
     const PRICE_IDS = {
       basic: {
-        monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
-        yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
+        monthly: "price_1SydZ7KrTGU4P754jqI2guPI",
+        yearly: "price_1SydZEKrTGU4P754aNJHK8pc",
       },
       freelancer: {
-        monthly: "price_1SyXF5KrTGU4P7548Gb4bgd6",
-        yearly: "price_1SyXYDKrTGU4P75427F7A2ge",
+        monthly: "price_1SydVjKrTGU4P754mZJJWvAq",
+        yearly: "price_1SydVuKrTGU4P754zRmad5iJ",
       },
       enterprise: {
-        monthly: "price_1SyX3xKrTGU4P754lgSWx7dq",
-        yearly: "price_1SyX8xKrTGU4P754mXynM6Qn",
+        monthly: "price_1SydW1KrTGU4P754aeyvSJP8",
+        yearly: "price_1SydW3KrTGU4P754G3iA7VZM",
       },
       agency: {
-        monthly: "price_1SyXAnKrTGU4P754hsNny2H7",
-        yearly: "price_1SyXD1KrTGU4P7541vWVImFY",
+        monthly: "price_1SydW5KrTGU4P754vsPg9hWw",
+        yearly: "price_1SydW8KrTGU4P754AEitLX2A",
       },
+    };
+
+    // Legacy price IDs that should still map to their respective tiers
+    const LEGACY_PRICE_IDS: Record<string, string> = {
+      "price_1ScnOeKrTGU4P75446dvndr3": "agency",
+      "price_1ScnObKrTGU4P754AAJ9Q5NU": "basic",
+      "price_1ScnL9KrTGU4P754QirsF0Sd": "basic",
+      "price_1SyblZKrTGU4P754e0GfARV4": "freelancer",
+      "price_1SyblbKrTGU4P754Otu9dcxm": "freelancer",
+      "price_1SyblcKrTGU4P754HYOgkuIQ": "enterprise",
+      "price_1SybldKrTGU4P754EBnjjPos": "enterprise",
+      "price_1SyblfKrTGU4P754gwTKmrsC": "agency",
+      "price_1SyblfKrTGU4P754PtKbziMk": "agency",
+      // Even older legacy IDs
+      "price_1SyXF5KrTGU4P7548Gb4bgd6": "freelancer",
+      "price_1SyXYDKrTGU4P75427F7A2ge": "freelancer",
+      "price_1SyX3xKrTGU4P754lgSWx7dq": "enterprise",
+      "price_1SyX8xKrTGU4P754mXynM6Qn": "enterprise",
+      "price_1SyXAnKrTGU4P754hsNny2H7": "agency",
+      "price_1SyXD1KrTGU4P7541vWVImFY": "agency",
     };
 
     const DAILY_LIMITS: Record<string, number> = {
@@ -977,6 +998,11 @@ const handler = async (req: Request): Promise<Response> => {
           return tier;
         }
       }
+      // Check legacy price IDs
+      if (LEGACY_PRICE_IDS[priceId]) {
+        return LEGACY_PRICE_IDS[priceId];
+      }
+      console.warn(`⚠️ Unrecognized price ID: ${priceId}, defaulting to trial`);
       return "trial";
     };
 
