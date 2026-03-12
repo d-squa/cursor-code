@@ -1257,85 +1257,23 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Budget warnings are logged but do NOT block the push
+    // The DSP platforms will validate and reject if budgets are truly too low
+    const budgetWarnings: Array<{ platform: string; market: string; phase: string; message: string }> = [];
     if (allBudgetErrors.length > 0) {
-      console.log(`❌ Pre-push validation failed with ${allBudgetErrors.length} budget error(s)`);
+      console.log(`⚠️ Pre-push budget warnings: ${allBudgetErrors.length} potential issue(s) (proceeding anyway)`);
       for (const err of allBudgetErrors) {
-        console.log(`  - ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
-
-        // Use consistent platform casing - TikTok and Meta as stored in validate-campaign-launch
-        const platformDisplay =
-          err.platform.toLowerCase() === "tiktok"
-            ? "TikTok"
-            : err.platform.toLowerCase() === "meta"
-              ? "Meta"
-              : err.platform;
-
-        // Insert validation error status for each failed entity
-        await supabase.from("campaign_launch_status").upsert(
-          {
-            campaign_id: campaignId,
-            platform: platformDisplay,
-            market: err.market,
-            phase_name: err.phase,
-            entity_type: "adset",
-            entity_name: `${err.market} - ${err.phase} - Ad Set`,
-            status: "validation_error",
-            error_message: err.message,
-            error_details: [
-              {
-                type: "minimum_budget",
-                message: err.message,
-                calculatedBudget: err.calculatedBudget,
-                minimumRequired: err.minimumRequired,
-                budgetType: err.budgetType,
-                durationDays: err.durationDays,
-                fieldPath: err.fieldPath,
-              },
-            ],
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "campaign_id,platform,market,phase_name,entity_type",
-          },
-        );
+        console.log(`  ⚠️ ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
+        budgetWarnings.push({
+          platform: err.platform,
+          market: err.market,
+          phase: err.phase,
+          message: err.message,
+        });
       }
-
-      // Update campaign status to validation_failed
-      await supabase
-        .from("campaigns")
-        .update({
-          status: "validation_failed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", campaignId);
-
-      return new Response(
-        JSON.stringify({
-          success: false,
-          validationFailed: true,
-          errors: allBudgetErrors.map((e) => ({
-            platform: e.platform,
-            market: e.market,
-            phase: e.phase,
-            error: e.message,
-            type: "minimum_budget",
-            fieldPath: e.fieldPath,
-            details: {
-              calculatedBudget: e.calculatedBudget,
-              minimumRequired: e.minimumRequired,
-              budgetType: e.budgetType,
-              durationDays: e.durationDays,
-            },
-          })),
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    } else {
+      console.log("✅ Pre-push budget validation passed");
     }
-
-    console.log("✅ Pre-push budget validation passed");
     // ============= END PRE-PUSH BUDGET VALIDATION =============
 
     // Process each platform in the campaign
