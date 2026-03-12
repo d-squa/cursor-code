@@ -1236,26 +1236,32 @@ const handler = async (req: Request): Promise<Response> => {
       const platformBudgetPercentage = budgetAllocation[platformId] || 0;
 
       // Skip already-pushed markets in validation too
-      const platformKey = platformName.toLowerCase().includes("meta")
-        ? "meta"
-        : platformName.toLowerCase().includes("tiktok")
-          ? "tiktok"
-          : platformName.toLowerCase();
+      const platformKey = normalizeSkipPlatform(platformName);
 
       const marketsToValidate: Record<string, any> = {};
       for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
         const phases = (marketData as any).phases || [];
-        const phasesToValidate: any[] = [];
+        const filteredPhases: any[] = [];
+
+        const marketTokens = Array.from(
+          new Set(
+            [marketCode, (marketData as any)?.name, (marketData as any)?.market, (marketData as any)?.code]
+              .map((value) => String(value || "").trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        );
 
         for (const phase of phases) {
-          const checkKey = `${platformKey}|${marketCode}|${phase.name || ""}`;
-          if (!alreadyPushedSet.has(checkKey)) {
-            phasesToValidate.push(phase);
+          const alreadyPushed = marketTokens.some((token) =>
+            alreadyPushedSet.has(buildSkipKey(platformKey, token, phase.name || ""))
+          );
+          if (!alreadyPushed) {
+            filteredPhases.push(phase);
           }
         }
 
-        if (phasesToValidate.length > 0) {
-          marketsToValidate[marketCode] = { ...marketData, phases: phasesToValidate };
+        if (filteredPhases.length > 0) {
+          marketsToValidate[marketCode] = { ...marketData, phases: filteredPhases };
         }
       }
 
