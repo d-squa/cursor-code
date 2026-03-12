@@ -1405,15 +1405,22 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         for (const phase of phases) {
-          const alreadyPushed = marketTokens.some((token) =>
-            alreadyPushedSet.has(buildSkipKey(platformKey, token, phase.name || ""))
-          );
+          const phaseName = String(phase?.name || "");
+          const campaignPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "campaign"));
+          const adsetPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "adset"));
+          const adsetExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "adset"));
 
-          if (alreadyPushed) {
+          const phaseAlreadyComplete = adsetPushed || (campaignPushed && !adsetExists);
+
+          if (phaseAlreadyComplete) {
             console.log(`⏭️ Skipping already-pushed: ${platformName}/${(marketData as any)?.name || marketCode}/${phase.name}`);
             skippedCount++;
           } else {
-            filteredPhases.push(phase);
+            const existingCampaignId = findPushedEntityId(platformKey, marketTokens, phaseName, "campaign");
+            filteredPhases.push({
+              ...phase,
+              _existingDspCampaignId: existingCampaignId || undefined,
+            });
           }
         }
 
