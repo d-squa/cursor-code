@@ -1212,6 +1212,16 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       // Step 2: Create campaign
       const requestedChannelType = params.metadata?.advertisingChannelType || "SEARCH";
+      let startDateTime = this.toGoogleDateTime(params.startDate, "start");
+      const endDateTime = params.endDate ? this.toGoogleDateTime(params.endDate, "end") : undefined;
+
+      // Clamp start date to today if it's in the past
+      const now = new Date();
+      const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")} 00:00:00`;
+      if (startDateTime < todayStr) {
+        console.warn(`⚠️ Start date ${startDateTime} is in the past, clamping to today: ${todayStr}`);
+        startDateTime = todayStr;
+      }
       const buildCampaignOperation = (channelType: string, biddingConfig: Record<string, any>) => ({
         create: {
           name: params.campaignName,
