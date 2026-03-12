@@ -1298,9 +1298,18 @@ const handler = async (req: Request): Promise<Response> => {
           const campaignPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "campaign"));
           const adsetPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "adset"));
           const adsetExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "adset"));
+          const campaignExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "campaign"));
 
-          // Skip phase only when it is fully completed
-          const phaseAlreadyComplete = adsetPushed || (campaignPushed && !adsetExists);
+          // Skip phase only when ALL existing entity types are pushed
+          // If both campaign and adset rows exist, BOTH must be pushed
+          let phaseAlreadyComplete = false;
+          if (campaignExists && adsetExists) {
+            phaseAlreadyComplete = campaignPushed && adsetPushed;
+          } else if (adsetExists) {
+            phaseAlreadyComplete = adsetPushed;
+          } else if (campaignExists) {
+            phaseAlreadyComplete = campaignPushed;
+          }
           if (!phaseAlreadyComplete) {
             filteredPhases.push(phase);
           }
@@ -1409,8 +1418,17 @@ const handler = async (req: Request): Promise<Response> => {
           const campaignPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "campaign"));
           const adsetPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "adset"));
           const adsetExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "adset"));
+          const campaignExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "campaign"));
 
-          const phaseAlreadyComplete = adsetPushed || (campaignPushed && !adsetExists);
+          // Skip phase only when ALL existing entity types are pushed
+          let phaseAlreadyComplete = false;
+          if (campaignExists && adsetExists) {
+            phaseAlreadyComplete = campaignPushed && adsetPushed;
+          } else if (adsetExists) {
+            phaseAlreadyComplete = adsetPushed;
+          } else if (campaignExists) {
+            phaseAlreadyComplete = campaignPushed;
+          }
 
           if (phaseAlreadyComplete) {
             console.log(`⏭️ Skipping already-pushed: ${platformName}/${(marketData as any)?.name || marketCode}/${phase.name}`);
