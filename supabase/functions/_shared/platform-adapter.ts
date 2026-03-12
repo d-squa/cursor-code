@@ -88,6 +88,9 @@ export interface CreateAdGroupParams {
   smartPlusEnabled?: boolean;
   smartCreativeEnabled?: boolean;
   autoTargetingEnabled?: boolean;
+  // TikTok Search Ads
+  searchEnabled?: boolean;
+  searchKeywords?: Array<{ text: string; matchType?: string }>;
 }
 
 export interface CreateAdGroupResult {
