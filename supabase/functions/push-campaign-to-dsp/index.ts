@@ -705,7 +705,7 @@ async function updateLaunchStatuses(
       // Update campaign entry - try each platform variant until one works
       if (dspCampaignId) {
         for (const platformName of platformVariants) {
-          const { data: campaignUpdateResult, error: campaignUpdateError } = await supabase
+          let campaignQuery = supabase
             .from("campaign_launch_status")
             .update({
               status: "pushed_to_dsp",
@@ -718,8 +718,11 @@ async function updateLaunchStatuses(
             .eq("campaign_id", campaignId)
             .eq("platform", platformName)
             .eq("market", market)
-            .eq("entity_type", "campaign")
-            .select();
+            .eq("entity_type", "campaign");
+
+          campaignQuery = phase ? campaignQuery.eq("phase_name", phase) : campaignQuery.is("phase_name", null);
+
+          const { data: campaignUpdateResult, error: campaignUpdateError } = await campaignQuery.select();
 
           if (campaignUpdateResult && campaignUpdateResult.length > 0) {
             console.log(
@@ -736,7 +739,7 @@ async function updateLaunchStatuses(
       const adEntityId = adSetId || adGroupId;
       if (adEntityId) {
         for (const platformName of platformVariants) {
-          const { data: adsetUpdateResult, error: adsetUpdateError } = await supabase
+          let adSetQuery = supabase
             .from("campaign_launch_status")
             .update({
               status: "pushed_to_dsp",
@@ -749,8 +752,11 @@ async function updateLaunchStatuses(
             .eq("campaign_id", campaignId)
             .eq("platform", platformName)
             .eq("market", market)
-            .eq("entity_type", "adset")
-            .select();
+            .eq("entity_type", "adset");
+
+          adSetQuery = phase ? adSetQuery.eq("phase_name", phase) : adSetQuery.is("phase_name", null);
+
+          const { data: adsetUpdateResult, error: adsetUpdateError } = await adSetQuery.select();
 
           if (adsetUpdateResult && adsetUpdateResult.length > 0) {
             console.log(
