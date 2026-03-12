@@ -1419,6 +1419,24 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.log(`ℹ️ No keywords to add to Google Ads ad group ${adGroupId} (keywords: ${JSON.stringify(params.targeting?.keywords)})`);
       }
 
+      // Add audience targeting criteria at ad group level
+      if (params.targeting?.audiences?.length) {
+        console.log(`🎯 Adding ${params.targeting.audiences.length} audience criteria to ad group ${adGroupId}`);
+        await this.addAudienceCriteria(customerId, adGroupId, params.targeting.audiences, headers);
+      }
+
+      // Add geo targeting at ad group level (for Demand Gen, Display, etc.)
+      if (params.targeting?.adGroupGeoTargets?.length) {
+        console.log(`🌍 Adding ${params.targeting.adGroupGeoTargets.length} geo targets to ad group ${adGroupId}`);
+        await this.addAdGroupGeoCriteria(customerId, adGroupId, params.targeting.adGroupGeoTargets, headers);
+      }
+
+      // Add language targeting at ad group level
+      if (params.targeting?.adGroupLanguages?.length) {
+        console.log(`🗣️ Adding ${params.targeting.adGroupLanguages.length} language targets to ad group ${adGroupId}`);
+        await this.addAdGroupLanguageCriteria(customerId, adGroupId, params.targeting.adGroupLanguages, headers);
+      }
+
       console.log(`✅ Google Ads ad group created: ${adGroupId}`);
 
       return {
