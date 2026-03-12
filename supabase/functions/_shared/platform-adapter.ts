@@ -1185,10 +1185,9 @@ class GoogleAdsAdapter implements PlatformAdapter {
       const budgetOp = {
         create: {
           name: `${params.campaignName} Budget`,
-          ...(params.budgetMode === "daily"
-            ? { amountMicros: budgetMicros }
-            : { amountMicros: budgetMicros }),
+          amountMicros: budgetMicros,
           deliveryMethod: "STANDARD",
+          explicitlyShared: false,
         },
       };
 
@@ -1217,10 +1216,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
         params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
         params.metadata?.bidAmount
       );
-      const startDateTime = this.toGoogleDateTime(params.startDate, "start");
+      let startDateTime = this.toGoogleDateTime(params.startDate, "start");
       const endDateTime = params.endDate ? this.toGoogleDateTime(params.endDate, "end") : undefined;
 
-      const campaignOp = {
+      // Clamp start date to today if it's in the past
+      const now = new Date();
+      const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")} 00:00:00`;
+      if (startDateTime < todayStr) {
+        console.warn(`⚠️ Start date ${startDateTime} is in the past, clamping to today: ${todayStr}`);
+        startDateTime = todayStr;
+      }
+
+      const campaignOp: any = {
         create: {
           name: params.campaignName,
           advertisingChannelType: channelType,
@@ -1229,6 +1236,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
           startDateTime,
           ...(endDateTime ? { endDateTime } : {}),
           ...biddingStrategy,
+          containsEuPoliticalAdvertising: false,
           ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
         },
       };
