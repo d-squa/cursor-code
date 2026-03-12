@@ -88,6 +88,9 @@ export interface CreateAdGroupParams {
   smartPlusEnabled?: boolean;
   smartCreativeEnabled?: boolean;
   autoTargetingEnabled?: boolean;
+  // TikTok Search Ads
+  searchEnabled?: boolean;
+  searchKeywords?: Array<{ text: string; matchType?: string }>;
 }
 
 export interface CreateAdGroupResult {
@@ -759,6 +762,23 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (params.appId) body.app_id = params.appId;
       if (params.eventCount) body.event_count = params.eventCount; // "every_conversion" or "once"
+
+      // TikTok Search Ads toggle
+      if (params.searchEnabled) {
+        body.search_result_enabled = "ENABLED";
+        console.log(`✅ TikTok Search Ads ENABLED for this ad group`);
+
+        // Add search keywords if provided
+        if (params.searchKeywords && params.searchKeywords.length > 0) {
+          body.keywords = params.searchKeywords.map((kw: any) => ({
+            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+          }));
+          console.log(`✅ Added ${body.keywords.length} search keywords to TikTok ad group`);
+        } else {
+          console.log(`⚠️ Search Ads enabled but no keywords provided — TikTok will auto-generate keywords`);
+        }
+      }
+
       if (params.smartPlusEnabled) body.is_smart_performance_campaign = true;
       if (params.smartCreativeEnabled) {
         body.creative_material_mode = "DYNAMIC"; // Enable dynamic creative optimization
@@ -1392,7 +1412,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       // Add targeting criteria if provided
       if (params.targeting?.keywords?.length) {
+        console.log(`📝 Adding ${params.targeting.keywords.length} keywords to Google Ads ad group ${adGroupId}:`, 
+          JSON.stringify(params.targeting.keywords.slice(0, 5)));
         await this.addKeywordCriteria(customerId, adGroupId, params.targeting.keywords, headers);
+      } else {
+        console.log(`ℹ️ No keywords to add to Google Ads ad group ${adGroupId} (keywords: ${JSON.stringify(params.targeting?.keywords)})`);
       }
 
       console.log(`✅ Google Ads ad group created: ${adGroupId}`);
@@ -1559,6 +1583,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
     keywords: Array<{ text: string; matchType?: string }>,
     headers: Record<string, string>
   ): Promise<void> {
+    console.log(`📝 addKeywordCriteria: Adding ${keywords.length} keywords to ad group ${adGroupId}`);
+    
     const operations = keywords.map((kw) => ({
       create: {
         adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
@@ -1570,6 +1596,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
       },
     }));
 
+    console.log(`📝 Keyword operations sample:`, JSON.stringify(operations.slice(0, 3), null, 2));
+
     const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
     const resp = await fetch(url, {
       method: "POST",
@@ -1579,10 +1607,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      console.error("Failed to add keyword criteria:", errText);
+      console.error(`❌ Failed to add keyword criteria to ad group ${adGroupId}:`, errText);
+      // Don't throw - keywords failing shouldn't block ad group creation
     } else {
-      await resp.text();
-      console.log(`Added ${keywords.length} keywords to ad group ${adGroupId}`);
+      const data = await resp.json();
+      console.log(`✅ Added ${keywords.length} keywords to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
     }
   }
 }

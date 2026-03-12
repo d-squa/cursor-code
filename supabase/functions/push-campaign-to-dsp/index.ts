@@ -3602,14 +3602,22 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
         // Build keywords for Search campaigns
         const keywords: Array<{ text: string; matchType?: string }> = [];
-        if (advertisingChannelType === "SEARCH" && phase.keywords && Array.isArray(phase.keywords)) {
-          for (const kw of phase.keywords) {
-            keywords.push({
-              text: kw.text || kw.keyword || kw,
-              matchType: (kw.matchType || kw.match_type || "BROAD").toUpperCase(),
-            });
+        if (advertisingChannelType === "SEARCH") {
+          // Check multiple possible sources for keywords
+          const phaseKeywords = phase.keywords || phase.searchKeywords || [];
+          console.log(`🔍 Google Ads Search keywords sources: phase.keywords=${JSON.stringify(phase.keywords?.length)}, phase.searchKeywords=${JSON.stringify(phase.searchKeywords?.length)}`);
+          
+          if (Array.isArray(phaseKeywords) && phaseKeywords.length > 0) {
+            for (const kw of phaseKeywords) {
+              keywords.push({
+                text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
+                matchType: (kw.matchType || kw.match_type || "BROAD").toUpperCase(),
+              });
+            }
+            console.log(`📝 ${keywords.length} keywords to add to Search ad group:`, JSON.stringify(keywords.slice(0, 5)));
+          } else {
+            console.warn(`⚠️ Google Ads Search campaign for ${phase.name} has NO keywords! phase.keywords=${JSON.stringify(phase.keywords)}`);
           }
-          console.log(`📝 ${keywords.length} keywords to add to Search ad group`);
         }
 
         // Determine ad set splits (similar to Meta/TikTok)
@@ -4360,6 +4368,18 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const adGroupSuffix = tiktokAdSet.id !== "default" ? ` - ${tiktokAdSet.name}` : "";
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
+          // Build search keywords for TikTok Search Ads
+          const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
+          if (searchEnabled && phase.keywords && Array.isArray(phase.keywords)) {
+            for (const kw of phase.keywords) {
+              tiktokSearchKeywords.push({
+                text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+                matchType: kw.matchType || kw.match_type || "BROAD",
+              });
+            }
+            console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled})`);
+          }
+
           const adGroupResult = await tiktokAdapter.createAdGroup({
             accountId: advertiserId,
             accessToken: platform.access_token,
@@ -4387,6 +4407,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             frequencySchedule: tiktokFrequencySchedule,
             eventCount: tiktokEventCount,
             smartPlusEnabled: smartPlusEnabled,
+            // TikTok Search Ads
+            searchEnabled: searchEnabled || false,
+            searchKeywords: tiktokSearchKeywords,
           });
 
           if (!adGroupResult.success) {
