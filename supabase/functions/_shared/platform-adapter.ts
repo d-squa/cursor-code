@@ -1185,10 +1185,9 @@ class GoogleAdsAdapter implements PlatformAdapter {
       const budgetOp = {
         create: {
           name: `${params.campaignName} Budget`,
-          ...(params.budgetMode === "daily"
-            ? { amountMicros: budgetMicros }
-            : { amountMicros: budgetMicros }),
+          amountMicros: budgetMicros,
           deliveryMethod: "STANDARD",
+          explicitlyShared: false,
         },
       };
 
