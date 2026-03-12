@@ -1460,7 +1460,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Campaign push completed. Final status: ${finalStatus}`);
 
     return new Response(
-      JSON.stringify({ success: statusCounts.failed === 0, results, hasErrors: statusCounts.failed > 0, finalStatus }),
+      JSON.stringify({ success: statusCounts.failed === 0, results, hasErrors: statusCounts.failed > 0, finalStatus, budgetWarnings: budgetWarnings.length > 0 ? budgetWarnings : undefined }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
