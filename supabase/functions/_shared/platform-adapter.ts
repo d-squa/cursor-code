@@ -762,6 +762,23 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (params.appId) body.app_id = params.appId;
       if (params.eventCount) body.event_count = params.eventCount; // "every_conversion" or "once"
+
+      // TikTok Search Ads toggle
+      if (params.searchEnabled) {
+        body.search_result_enabled = "ENABLED";
+        console.log(`✅ TikTok Search Ads ENABLED for this ad group`);
+
+        // Add search keywords if provided
+        if (params.searchKeywords && params.searchKeywords.length > 0) {
+          body.keywords = params.searchKeywords.map((kw: any) => ({
+            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+          }));
+          console.log(`✅ Added ${body.keywords.length} search keywords to TikTok ad group`);
+        } else {
+          console.log(`⚠️ Search Ads enabled but no keywords provided — TikTok will auto-generate keywords`);
+        }
+      }
+
       if (params.smartPlusEnabled) body.is_smart_performance_campaign = true;
       if (params.smartCreativeEnabled) {
         body.creative_material_mode = "DYNAMIC"; // Enable dynamic creative optimization
