@@ -1236,7 +1236,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
           startDateTime,
           ...(endDateTime ? { endDateTime } : {}),
           ...biddingStrategy,
-          containsEuPoliticalAdvertising: false,
+          containsEuPoliticalAdvertising: "NOT_EU_POLITICAL_ADVERTISING",
           ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
         },
       };
