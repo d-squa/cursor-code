@@ -1194,14 +1194,13 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log(`Found ${platforms.length} connected platforms for push`);
 
-    // Fetch existing launch statuses to skip already-pushed entities
+    // Fetch existing launch statuses to skip already-completed entities
     const { data: existingStatuses } = await supabase
       .from("campaign_launch_status")
       .select("platform, market, phase_name, entity_type, status, dsp_entity_id")
       .eq("campaign_id", campaignId);
 
-    // Create a set of already-pushed entities (platform+market+phase combinations)
-    // Supports both object-keyed and array-based market structures.
+    // Entity-level skip keys (platform+market+phase+entityType)
     const normalizeSkipPlatform = (platformName: string): string => {
       const p = String(platformName || "").trim().toLowerCase();
       if (p.includes("meta") || p.includes("facebook") || p.includes("instagram")) return "meta";
@@ -1210,20 +1209,57 @@ const handler = async (req: Request): Promise<Response> => {
       return p;
     };
 
-    const buildSkipKey = (platformName: string, market: string, phaseName?: string | null): string => {
-      return `${normalizeSkipPlatform(platformName)}|${String(market || "").trim().toLowerCase()}|${String(phaseName || "").trim().toLowerCase()}`;
+    const buildEntityKey = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: string,
+    ): string => {
+      return `${normalizeSkipPlatform(platformName)}|${String(market || "").trim().toLowerCase()}|${String(phaseName || "").trim().toLowerCase()}|${String(entityType || "").trim().toLowerCase()}`;
     };
 
-    const alreadyPushedSet = new Set<string>();
+    const pushedEntitySet = new Set<string>();
+    const existingEntitySet = new Set<string>();
+    const pushedEntityIdMap = new Map<string, string>();
+
     for (const status of existingStatuses || []) {
-      if (
-        (status.status === "pushed_to_dsp" || status.status === "live" || status.status === "push_failed") &&
-        status.dsp_entity_id
-      ) {
-        alreadyPushedSet.add(buildSkipKey(status.platform || "", status.market || "", status.phase_name));
+      const key = buildEntityKey(status.platform || "", status.market || "", status.phase_name, status.entity_type || "");
+      existingEntitySet.add(key);
+
+      if ((status.status === "pushed_to_dsp" || status.status === "live") && status.dsp_entity_id) {
+        pushedEntitySet.add(key);
+        pushedEntityIdMap.set(key, status.dsp_entity_id);
       }
     }
-    console.log(`📋 Found ${alreadyPushedSet.size} already-pushed entities to skip`);
+
+    const isEntityPushed = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+    ) => pushedEntitySet.has(buildEntityKey(platformName, market, phaseName, entityType));
+
+    const hasEntityRow = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+    ) => existingEntitySet.has(buildEntityKey(platformName, market, phaseName, entityType));
+
+    const findPushedEntityId = (
+      platformName: string,
+      marketTokens: string[],
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+    ): string | null => {
+      for (const token of marketTokens) {
+        const id = pushedEntityIdMap.get(buildEntityKey(platformName, token, phaseName, entityType));
+        if (id) return id;
+      }
+      return null;
+    };
+
+    console.log(`📋 Found ${pushedEntitySet.size} already-pushed entities to skip`);
 
     const results = [];
 
