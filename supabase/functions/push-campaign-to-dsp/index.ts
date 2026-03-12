@@ -1440,25 +1440,11 @@ const handler = async (req: Request): Promise<Response> => {
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, platformName, result, Object.values(filteredMarkets) as any[]);
       } else if (platformName.includes("Google")) {
-        const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken);
+        const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken, supabase);
         results.push(result);
 
-        // Update launch statuses for Google Ads - mark as not_supported since push is not implemented yet
-        // Build error results for each market/phase so statuses don't stay stuck as "pushing"
-        const googleErrors: any[] = [];
-        for (const [mCode, mData] of Object.entries(filteredMarkets) as [string, any][]) {
-          const phases = (mData as any).phases || [{ name: mData.name || mCode }];
-          for (const ph of phases) {
-            googleErrors.push({
-              market: mData.name || mCode,
-              phase: ph.name || "Default",
-              error: "Google Ads DSP push is not yet supported. Campaigns must be created manually in Google Ads.",
-              type: "not_supported",
-            });
-          }
-        }
-        const googleResult = { platform: "Google Ads", results: [], errors: googleErrors };
-        await updateLaunchStatuses(supabase, campaignId, platformName, googleResult, Object.values(filteredMarkets) as any[]);
+        // Update campaign_launch_status for each pushed entity
+        await updateLaunchStatuses(supabase, campaignId, "Google Ads", result, Object.values(filteredMarkets) as any[]);
       } else if (platformName.toLowerCase().includes("tiktok")) {
         const result = await pushToTikTok(campaign, platformConfig, platformWithToken);
         results.push(result);
