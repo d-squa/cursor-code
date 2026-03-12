@@ -1211,11 +1211,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       }
 
       // Step 2: Create campaign
-      const channelType = params.metadata?.advertisingChannelType || "SEARCH";
-      const biddingStrategy = this.buildBiddingStrategy(
-        params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
-        params.metadata?.bidAmount
-      );
+      const requestedChannelType = params.metadata?.advertisingChannelType || "SEARCH";
       let startDateTime = this.toGoogleDateTime(params.startDate, "start");
       const endDateTime = params.endDate ? this.toGoogleDateTime(params.endDate, "end") : undefined;
 
@@ -1226,8 +1222,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.warn(`⚠️ Start date ${startDateTime} is in the past, clamping to today: ${todayStr}`);
         startDateTime = todayStr;
       }
-
-      const campaignOp: any = {
+      const buildCampaignOperation = (channelType: string, biddingConfig: Record<string, any>) => ({
         create: {
           name: params.campaignName,
           advertisingChannelType: channelType,
@@ -1235,23 +1230,64 @@ class GoogleAdsAdapter implements PlatformAdapter {
           campaignBudget: budgetResourceName,
           startDateTime,
           ...(endDateTime ? { endDateTime } : {}),
-          ...biddingStrategy,
+          ...biddingConfig,
           containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
           ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
         },
-      };
+      });
+
+      const requestedBiddingStrategy = this.buildBiddingStrategy(
+        params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+        params.metadata?.bidAmount,
+      );
 
       const campaignUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
-      const campaignResp = await fetch(campaignUrl, {
+      let finalChannelType = requestedChannelType;
+      let finalBiddingStrategy = requestedBiddingStrategy;
+
+      let campaignResp = await fetch(campaignUrl, {
         method: "POST",
         headers,
-        body: JSON.stringify({ operations: [campaignOp] }),
+        body: JSON.stringify({ operations: [buildCampaignOperation(requestedChannelType, requestedBiddingStrategy)] }),
       });
 
       if (!campaignResp.ok) {
         const errText = await campaignResp.text();
-        console.error("Google Ads campaign creation failed:", errText);
-        return { success: false, campaignId: "", platform: "google", error: `Campaign creation failed: ${errText}` };
+
+        const shouldFallbackFromVideo =
+          requestedChannelType === "VIDEO" &&
+          errText.includes("MUTATE_NOT_ALLOWED") &&
+          errText.includes("\"VIDEO\"");
+
+        if (!shouldFallbackFromVideo) {
+          console.error("Google Ads campaign creation failed:", errText);
+          return { success: false, campaignId: "", platform: "google", error: `Campaign creation failed: ${errText}` };
+        }
+
+        console.warn("⚠️ VIDEO campaign mutate not allowed for this account, retrying with DEMAND_GEN fallback");
+        finalChannelType = "DEMAND_GEN";
+
+        const requestedStrategy = params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS";
+        finalBiddingStrategy = requestedStrategy === "TARGET_CPM"
+          ? this.buildBiddingStrategy("MAXIMIZE_CLICKS", params.metadata?.bidAmount)
+          : requestedBiddingStrategy;
+
+        campaignResp = await fetch(campaignUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ operations: [buildCampaignOperation(finalChannelType, finalBiddingStrategy)] }),
+        });
+
+        if (!campaignResp.ok) {
+          const fallbackErrText = await campaignResp.text();
+          console.error("Google Ads campaign creation failed after VIDEO fallback:", fallbackErrText);
+          return {
+            success: false,
+            campaignId: "",
+            platform: "google",
+            error: `Campaign creation failed: ${fallbackErrText}`,
+          };
+        }
       }
 
       const campaignData = await campaignResp.json();
@@ -1268,8 +1304,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
         metadata: {
           resourceName: campaignResourceName,
           budgetResourceName,
-          channelType,
+          channelType: finalChannelType,
           biddingStrategy: params.metadata?.biddingStrategy,
+          fallbackApplied: finalChannelType !== requestedChannelType,
+          originalChannelType: requestedChannelType,
         },
       };
     } catch (error: any) {
@@ -1320,12 +1358,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       const campaignResourceName = `customers/${customerId}/campaigns/${params.campaignId}`;
 
+      const requestedAdGroupType = params.targeting?.adGroupType;
+      const explicitType =
+        typeof requestedAdGroupType === "string" && requestedAdGroupType.startsWith("SEARCH_")
+          ? requestedAdGroupType
+          : undefined;
+
       const adGroupOp = {
         create: {
           name: params.adGroupName,
           campaign: campaignResourceName,
           status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
-          type: params.targeting?.adGroupType || "SEARCH_STANDARD",
+          ...(explicitType ? { type: explicitType } : {}),
           ...(params.bidAmount ? { cpcBidMicros: String(Math.round(params.bidAmount * 1_000_000)) } : {}),
         },
       };
