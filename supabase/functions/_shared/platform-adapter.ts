@@ -1181,7 +1181,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
 
       // Step 1: Create campaign budget
-      const budgetMicros = String(Math.round(params.budget * 1_000_000));
+      const budgetMicros = this.normalizeBudgetMicros(params.budget);
       const budgetOp = {
         create: {
           name: `${params.campaignName} Budget`,
@@ -1217,6 +1217,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
         params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
         params.metadata?.bidAmount
       );
+      const startDateTime = this.toGoogleDateTime(params.startDate, "start");
+      const endDateTime = params.endDate ? this.toGoogleDateTime(params.endDate, "end") : undefined;
 
       const campaignOp = {
         create: {
@@ -1224,8 +1226,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
           advertisingChannelType: channelType,
           status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
           campaignBudget: budgetResourceName,
-          startDate: params.startDate.split("T")[0],
-          ...(params.endDate ? { endDate: params.endDate.split("T")[0] } : {}),
+          startDateTime,
+          ...(endDateTime ? { endDateTime } : {}),
           ...biddingStrategy,
           ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
         },
@@ -1458,6 +1460,26 @@ class GoogleAdsAdapter implements PlatformAdapter {
     }
   }
 
+  private normalizeBudgetMicros(amount: number): string {
+    const minimumCurrencyUnitMicros = 10_000; // 0.01 in micros (for 2-decimal currencies)
+    const rawMicros = Math.round(Number(amount || 0) * 1_000_000);
+    const normalizedMicros = Math.round(rawMicros / minimumCurrencyUnitMicros) * minimumCurrencyUnitMicros;
+    return String(normalizedMicros);
+  }
+
+  private toGoogleDateTime(dateInput: string, boundary: "start" | "end"): string {
+    const date = new Date(dateInput);
+    if (Number.isNaN(date.getTime())) {
+      const datePart = dateInput.split("T")[0];
+      return `${datePart} ${boundary === "start" ? "00:00:00" : "23:59:59"}`;
+    }
+
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(date.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd} ${boundary === "start" ? "00:00:00" : "23:59:59"}`;
+  }
+
   private buildBiddingStrategy(strategy: string, bidAmount?: number): Record<string, any> {
     switch (strategy) {
       case "MAXIMIZE_CONVERSIONS":
@@ -1469,7 +1491,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       case "TARGET_ROAS":
         return { targetRoas: { targetRoas: bidAmount || 2.0 } };
       case "MAXIMIZE_CLICKS":
-        return { maximizeClicks: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
+        return { targetSpend: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
       case "TARGET_CPM":
         return { targetCpm: {} };
       case "MANUAL_CPC":
