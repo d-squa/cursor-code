@@ -1159,7 +1159,7 @@ class TikTokAdapter implements PlatformAdapter {
 // Supports: Search, Display, Video, PMax, Demand Gen
 // =====================================================================
 class GoogleAdsAdapter implements PlatformAdapter {
-  private readonly API_BASE = `https://googleads.googleapis.com/v18`;
+  private readonly API_BASE = `https://googleads.googleapis.com/v23`;
 
   private getHeaders(accessToken: string, developerToken: string, loginCustomerId?: string): Record<string, string> {
     const headers: Record<string, string> = {
