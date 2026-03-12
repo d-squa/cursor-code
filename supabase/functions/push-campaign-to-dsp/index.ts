@@ -998,6 +998,11 @@ const handler = async (req: Request): Promise<Response> => {
           return tier;
         }
       }
+      // Check legacy price IDs
+      if (LEGACY_PRICE_IDS[priceId]) {
+        return LEGACY_PRICE_IDS[priceId];
+      }
+      console.warn(`⚠️ Unrecognized price ID: ${priceId}, defaulting to trial`);
       return "trial";
     };
 
