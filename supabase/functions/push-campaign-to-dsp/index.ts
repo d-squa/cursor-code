@@ -4360,6 +4360,18 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const adGroupSuffix = tiktokAdSet.id !== "default" ? ` - ${tiktokAdSet.name}` : "";
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
+          // Build search keywords for TikTok Search Ads
+          const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
+          if (searchEnabled && phase.keywords && Array.isArray(phase.keywords)) {
+            for (const kw of phase.keywords) {
+              tiktokSearchKeywords.push({
+                text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+                matchType: kw.matchType || kw.match_type || "BROAD",
+              });
+            }
+            console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled})`);
+          }
+
           const adGroupResult = await tiktokAdapter.createAdGroup({
             accountId: advertiserId,
             accessToken: platform.access_token,
@@ -4387,6 +4399,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             frequencySchedule: tiktokFrequencySchedule,
             eventCount: tiktokEventCount,
             smartPlusEnabled: smartPlusEnabled,
+            // TikTok Search Ads
+            searchEnabled: searchEnabled || false,
+            searchKeywords: tiktokSearchKeywords,
           });
 
           if (!adGroupResult.success) {
