@@ -1307,8 +1307,11 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Get access token from Vault
-      const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+      // Get access token from Vault (with refresh for Google OAuth)
+      const platformType = platformName.toLowerCase().includes("google") ? "google" : undefined;
+      const accessToken = platformType === "google"
+        ? await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, "google")
+        : await getAccessToken(supabase, platform.id, platform.access_token);
       if (!accessToken) {
         console.error(`No access token found for platform ${platformName}`);
         results.push({
