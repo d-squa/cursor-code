@@ -1583,6 +1583,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
     keywords: Array<{ text: string; matchType?: string }>,
     headers: Record<string, string>
   ): Promise<void> {
+    console.log(`📝 addKeywordCriteria: Adding ${keywords.length} keywords to ad group ${adGroupId}`);
+    
     const operations = keywords.map((kw) => ({
       create: {
         adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
@@ -1594,6 +1596,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
       },
     }));
 
+    console.log(`📝 Keyword operations sample:`, JSON.stringify(operations.slice(0, 3), null, 2));
+
     const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
     const resp = await fetch(url, {
       method: "POST",
@@ -1603,10 +1607,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      console.error("Failed to add keyword criteria:", errText);
+      console.error(`❌ Failed to add keyword criteria to ad group ${adGroupId}:`, errText);
+      // Don't throw - keywords failing shouldn't block ad group creation
     } else {
-      await resp.text();
-      console.log(`Added ${keywords.length} keywords to ad group ${adGroupId}`);
+      const data = await resp.json();
+      console.log(`✅ Added ${keywords.length} keywords to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
     }
   }
 }
