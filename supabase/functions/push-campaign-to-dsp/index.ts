@@ -1390,7 +1390,9 @@ const handler = async (req: Request): Promise<Response> => {
         ? "meta"
         : platformName.toLowerCase().includes("tiktok")
           ? "tiktok"
-          : platformName.toLowerCase();
+          : platformName.toLowerCase().includes("google")
+            ? "google ads"
+            : platformName.toLowerCase();
 
       let skippedCount = 0;
       for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
