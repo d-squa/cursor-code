@@ -1473,6 +1473,29 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Convert any lingering "pushing" rows into explicit failures so UI never hangs indefinitely
+    const { data: lingeringPushing } = await supabase
+      .from("campaign_launch_status")
+      .select("id")
+      .eq("campaign_id", campaignId)
+      .eq("status", "pushing");
+
+    if (lingeringPushing && lingeringPushing.length > 0) {
+      const lingeringIds = lingeringPushing.map((row: any) => row.id);
+      console.warn(`⚠️ Found ${lingeringIds.length} lingering pushing entities, marking as push_failed`);
+
+      const fallbackMessage = "Entity was not processed in this push attempt. Please retry this phase.";
+      await supabase
+        .from("campaign_launch_status")
+        .update({
+          status: "push_failed",
+          error_message: fallbackMessage,
+          error_details: [{ message: fallbackMessage, type: "incomplete_push" }],
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", lingeringIds);
+    }
+
     // Fetch final launch statuses to determine campaign status
     const { data: finalStatuses } = await supabase
       .from("campaign_launch_status")
