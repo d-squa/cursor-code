@@ -705,7 +705,7 @@ async function updateLaunchStatuses(
       // Update campaign entry - try each platform variant until one works
       if (dspCampaignId) {
         for (const platformName of platformVariants) {
-          const { data: campaignUpdateResult, error: campaignUpdateError } = await supabase
+          let campaignQuery = supabase
             .from("campaign_launch_status")
             .update({
               status: "pushed_to_dsp",
@@ -718,8 +718,11 @@ async function updateLaunchStatuses(
             .eq("campaign_id", campaignId)
             .eq("platform", platformName)
             .eq("market", market)
-            .eq("entity_type", "campaign")
-            .select();
+            .eq("entity_type", "campaign");
+
+          campaignQuery = phase ? campaignQuery.eq("phase_name", phase) : campaignQuery.is("phase_name", null);
+
+          const { data: campaignUpdateResult, error: campaignUpdateError } = await campaignQuery.select();
 
           if (campaignUpdateResult && campaignUpdateResult.length > 0) {
             console.log(
@@ -736,7 +739,7 @@ async function updateLaunchStatuses(
       const adEntityId = adSetId || adGroupId;
       if (adEntityId) {
         for (const platformName of platformVariants) {
-          const { data: adsetUpdateResult, error: adsetUpdateError } = await supabase
+          let adSetQuery = supabase
             .from("campaign_launch_status")
             .update({
               status: "pushed_to_dsp",
@@ -749,8 +752,11 @@ async function updateLaunchStatuses(
             .eq("campaign_id", campaignId)
             .eq("platform", platformName)
             .eq("market", market)
-            .eq("entity_type", "adset")
-            .select();
+            .eq("entity_type", "adset");
+
+          adSetQuery = phase ? adSetQuery.eq("phase_name", phase) : adSetQuery.is("phase_name", null);
+
+          const { data: adsetUpdateResult, error: adsetUpdateError } = await adSetQuery.select();
 
           if (adsetUpdateResult && adsetUpdateResult.length > 0) {
             console.log(
@@ -1188,14 +1194,13 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log(`Found ${platforms.length} connected platforms for push`);
 
-    // Fetch existing launch statuses to skip already-pushed entities
+    // Fetch existing launch statuses to skip already-completed entities
     const { data: existingStatuses } = await supabase
       .from("campaign_launch_status")
       .select("platform, market, phase_name, entity_type, status, dsp_entity_id")
       .eq("campaign_id", campaignId);
 
-    // Create a set of already-pushed entities (platform+market+phase combinations)
-    // Supports both object-keyed and array-based market structures.
+    // Entity-level skip keys (platform+market+phase+entityType)
     const normalizeSkipPlatform = (platformName: string): string => {
       const p = String(platformName || "").trim().toLowerCase();
       if (p.includes("meta") || p.includes("facebook") || p.includes("instagram")) return "meta";
@@ -1204,20 +1209,57 @@ const handler = async (req: Request): Promise<Response> => {
       return p;
     };
 
-    const buildSkipKey = (platformName: string, market: string, phaseName?: string | null): string => {
-      return `${normalizeSkipPlatform(platformName)}|${String(market || "").trim().toLowerCase()}|${String(phaseName || "").trim().toLowerCase()}`;
+    const buildEntityKey = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: string,
+    ): string => {
+      return `${normalizeSkipPlatform(platformName)}|${String(market || "").trim().toLowerCase()}|${String(phaseName || "").trim().toLowerCase()}|${String(entityType || "").trim().toLowerCase()}`;
     };
 
-    const alreadyPushedSet = new Set<string>();
+    const pushedEntitySet = new Set<string>();
+    const existingEntitySet = new Set<string>();
+    const pushedEntityIdMap = new Map<string, string>();
+
     for (const status of existingStatuses || []) {
-      if (
-        (status.status === "pushed_to_dsp" || status.status === "live" || status.status === "push_failed") &&
-        status.dsp_entity_id
-      ) {
-        alreadyPushedSet.add(buildSkipKey(status.platform || "", status.market || "", status.phase_name));
+      const key = buildEntityKey(status.platform || "", status.market || "", status.phase_name, status.entity_type || "");
+      existingEntitySet.add(key);
+
+      if ((status.status === "pushed_to_dsp" || status.status === "live") && status.dsp_entity_id) {
+        pushedEntitySet.add(key);
+        pushedEntityIdMap.set(key, status.dsp_entity_id);
       }
     }
-    console.log(`📋 Found ${alreadyPushedSet.size} already-pushed entities to skip`);
+
+    const isEntityPushed = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+    ) => pushedEntitySet.has(buildEntityKey(platformName, market, phaseName, entityType));
+
+    const hasEntityRow = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+    ) => existingEntitySet.has(buildEntityKey(platformName, market, phaseName, entityType));
+
+    const findPushedEntityId = (
+      platformName: string,
+      marketTokens: string[],
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+    ): string | null => {
+      for (const token of marketTokens) {
+        const id = pushedEntityIdMap.get(buildEntityKey(platformName, token, phaseName, entityType));
+        if (id) return id;
+      }
+      return null;
+    };
+
+    console.log(`📋 Found ${pushedEntitySet.size} already-pushed entities to skip`);
 
     const results = [];
 
@@ -1252,10 +1294,14 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         for (const phase of phases) {
-          const alreadyPushed = marketTokens.some((token) =>
-            alreadyPushedSet.has(buildSkipKey(platformKey, token, phase.name || ""))
-          );
-          if (!alreadyPushed) {
+          const phaseName = String(phase?.name || "");
+          const campaignPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "campaign"));
+          const adsetPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "adset"));
+          const adsetExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "adset"));
+
+          // Skip phase only when it is fully completed
+          const phaseAlreadyComplete = adsetPushed || (campaignPushed && !adsetExists);
+          if (!phaseAlreadyComplete) {
             filteredPhases.push(phase);
           }
         }
@@ -1359,15 +1405,22 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         for (const phase of phases) {
-          const alreadyPushed = marketTokens.some((token) =>
-            alreadyPushedSet.has(buildSkipKey(platformKey, token, phase.name || ""))
-          );
+          const phaseName = String(phase?.name || "");
+          const campaignPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "campaign"));
+          const adsetPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "adset"));
+          const adsetExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "adset"));
 
-          if (alreadyPushed) {
+          const phaseAlreadyComplete = adsetPushed || (campaignPushed && !adsetExists);
+
+          if (phaseAlreadyComplete) {
             console.log(`⏭️ Skipping already-pushed: ${platformName}/${(marketData as any)?.name || marketCode}/${phase.name}`);
             skippedCount++;
           } else {
-            filteredPhases.push(phase);
+            const existingCampaignId = findPushedEntityId(platformKey, marketTokens, phaseName, "campaign");
+            filteredPhases.push({
+              ...phase,
+              _existingDspCampaignId: existingCampaignId || undefined,
+            });
           }
         }
 
@@ -1418,6 +1471,29 @@ const handler = async (req: Request): Promise<Response> => {
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, "TikTok", result, Object.values(filteredMarkets) as any[]);
       }
+    }
+
+    // Convert any lingering "pushing" rows into explicit failures so UI never hangs indefinitely
+    const { data: lingeringPushing } = await supabase
+      .from("campaign_launch_status")
+      .select("id")
+      .eq("campaign_id", campaignId)
+      .eq("status", "pushing");
+
+    if (lingeringPushing && lingeringPushing.length > 0) {
+      const lingeringIds = lingeringPushing.map((row: any) => row.id);
+      console.warn(`⚠️ Found ${lingeringIds.length} lingering pushing entities, marking as push_failed`);
+
+      const fallbackMessage = "Entity was not processed in this push attempt. Please retry this phase.";
+      await supabase
+        .from("campaign_launch_status")
+        .update({
+          status: "push_failed",
+          error_message: fallbackMessage,
+          error_details: [{ message: fallbackMessage, type: "incomplete_push" }],
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", lingeringIds);
     }
 
     // Fetch final launch statuses to determine campaign status
@@ -3433,40 +3509,53 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           dailyBudget, phaseBudget, durationDays,
         });
 
-        // Step 1: Create Campaign via adapter
-        const campaignResult = await googleAdapter.createCampaign({
-          accountId: cleanCustomerId,
-          accessToken: platform.access_token,
-          campaignName: defaultCampaignName,
-          objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
-          budget: dailyBudget,
-          budgetMode: "daily",
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          status: "PAUSED",
-          metadata: {
-            developerToken,
-            loginCustomerId: managerAccountId?.replace(/-/g, ""),
-            advertisingChannelType,
-            biddingStrategy: mappedBidStrategy,
-            bidAmount,
-            campaignSubtype: phase.googleCampaignSubtype,
-          },
-        });
+        // Step 1: Create campaign via adapter (or reuse already-pushed campaign for partial retries)
+        const existingCampaignId = typeof phase._existingDspCampaignId === "string" ? phase._existingDspCampaignId : undefined;
 
-        if (!campaignResult.success) {
-          console.error(`❌ Google Ads campaign creation failed:`, campaignResult.error);
-          errors.push({
-            market: market.name,
-            phase: phase.name,
-            error: campaignResult.error || "Campaign creation failed",
-            type: "campaign_creation",
-            fieldPath: "step3",
+        let campaignResult: any;
+        if (existingCampaignId) {
+          console.log(`♻️ Reusing existing Google Ads campaign for ${market.name}/${phase.name}: ${existingCampaignId}`);
+          campaignResult = {
+            success: true,
+            campaignId: existingCampaignId,
+            platform: "google",
+            metadata: { reused: true },
+          };
+        } else {
+          campaignResult = await googleAdapter.createCampaign({
+            accountId: cleanCustomerId,
+            accessToken: platform.access_token,
+            campaignName: defaultCampaignName,
+            objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
+            budget: dailyBudget,
+            budgetMode: "daily",
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            status: "PAUSED",
+            metadata: {
+              developerToken,
+              loginCustomerId: managerAccountId?.replace(/-/g, ""),
+              advertisingChannelType,
+              biddingStrategy: mappedBidStrategy,
+              bidAmount,
+              campaignSubtype: phase.googleCampaignSubtype,
+            },
           });
-          continue;
-        }
 
-        console.log(`✅ Google Ads campaign created: ${campaignResult.campaignId}`);
+          if (!campaignResult.success) {
+            console.error(`❌ Google Ads campaign creation failed:`, campaignResult.error);
+            errors.push({
+              market: market.name,
+              phase: phase.name,
+              error: campaignResult.error || "Campaign creation failed",
+              type: "campaign_creation",
+              fieldPath: "step3",
+            });
+            continue;
+          }
+
+          console.log(`✅ Google Ads campaign created: ${campaignResult.campaignId}`);
+        }
 
         // Step 2: Create Ad Group(s)
         // For Performance Max, ad groups are handled differently (asset groups) — skip ad group for now
