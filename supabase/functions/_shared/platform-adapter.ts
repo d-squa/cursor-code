@@ -1412,7 +1412,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       // Add targeting criteria if provided
       if (params.targeting?.keywords?.length) {
+        console.log(`📝 Adding ${params.targeting.keywords.length} keywords to Google Ads ad group ${adGroupId}:`, 
+          JSON.stringify(params.targeting.keywords.slice(0, 5)));
         await this.addKeywordCriteria(customerId, adGroupId, params.targeting.keywords, headers);
+      } else {
+        console.log(`ℹ️ No keywords to add to Google Ads ad group ${adGroupId} (keywords: ${JSON.stringify(params.targeting?.keywords)})`);
       }
 
       console.log(`✅ Google Ads ad group created: ${adGroupId}`);
