@@ -1181,7 +1181,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       const headers = this.getHeaders(params.accessToken, developerToken, loginCustomerId);
 
       // Step 1: Create campaign budget
-      const budgetMicros = String(Math.round(params.budget * 1_000_000));
+      const budgetMicros = this.normalizeBudgetMicros(params.budget);
       const budgetOp = {
         create: {
           name: `${params.campaignName} Budget`,
@@ -1217,6 +1217,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
         params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
         params.metadata?.bidAmount
       );
+      const startDateTime = this.toGoogleDateTime(params.startDate, "start");
+      const endDateTime = params.endDate ? this.toGoogleDateTime(params.endDate, "end") : undefined;
 
       const campaignOp = {
         create: {
@@ -1224,8 +1226,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
           advertisingChannelType: channelType,
           status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
           campaignBudget: budgetResourceName,
-          startDate: params.startDate.split("T")[0],
-          ...(params.endDate ? { endDate: params.endDate.split("T")[0] } : {}),
+          startDateTime,
+          ...(endDateTime ? { endDateTime } : {}),
           ...biddingStrategy,
           ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
         },
