@@ -682,7 +682,9 @@ async function updateLaunchStatuses(
       ? ["TikTok", "Tiktok", "tiktok"]
       : platformInput.toLowerCase() === "meta"
         ? ["Meta", "meta"]
-        : [platformInput];
+        : platformInput.toLowerCase().includes("google")
+          ? ["Google Ads", "Google", "google", "google_ads"]
+          : [platformInput];
 
   try {
     const successResults = result.results || [];
