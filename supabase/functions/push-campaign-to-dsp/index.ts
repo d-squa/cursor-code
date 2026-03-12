@@ -1342,13 +1342,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Create platform config structure - filter out already-pushed markets
       const filteredMarkets: Record<string, any> = {};
-      const platformKey = platformName.toLowerCase().includes("meta")
-        ? "meta"
-        : platformName.toLowerCase().includes("tiktok")
-          ? "tiktok"
-          : platformName.toLowerCase().includes("google")
-            ? "google ads"
-            : platformName.toLowerCase();
+      const platformKey = normalizeSkipPlatform(platformName);
 
       let skippedCount = 0;
       for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
@@ -1356,10 +1350,21 @@ const handler = async (req: Request): Promise<Response> => {
         const phases = marketData.phases || [];
         const filteredPhases: any[] = [];
 
+        const marketTokens = Array.from(
+          new Set(
+            [marketCode, (marketData as any)?.name, (marketData as any)?.market, (marketData as any)?.code]
+              .map((value) => String(value || "").trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        );
+
         for (const phase of phases) {
-          const checkKey = `${platformKey}|${marketCode}|${phase.name || ""}`;
-          if (alreadyPushedSet.has(checkKey)) {
-            console.log(`⏭️ Skipping already-pushed: ${platformName}/${marketCode}/${phase.name}`);
+          const alreadyPushed = marketTokens.some((token) =>
+            alreadyPushedSet.has(buildSkipKey(platformKey, token, phase.name || ""))
+          );
+
+          if (alreadyPushed) {
+            console.log(`⏭️ Skipping already-pushed: ${platformName}/${(marketData as any)?.name || marketCode}/${phase.name}`);
             skippedCount++;
           } else {
             filteredPhases.push(phase);
