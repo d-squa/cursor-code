@@ -1294,10 +1294,14 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         for (const phase of phases) {
-          const alreadyPushed = marketTokens.some((token) =>
-            alreadyPushedSet.has(buildSkipKey(platformKey, token, phase.name || ""))
-          );
-          if (!alreadyPushed) {
+          const phaseName = String(phase?.name || "");
+          const campaignPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "campaign"));
+          const adsetPushed = marketTokens.some((token) => isEntityPushed(platformKey, token, phaseName, "adset"));
+          const adsetExists = marketTokens.some((token) => hasEntityRow(platformKey, token, phaseName, "adset"));
+
+          // Skip phase only when it is fully completed
+          const phaseAlreadyComplete = adsetPushed || (campaignPushed && !adsetExists);
+          if (!phaseAlreadyComplete) {
             filteredPhases.push(phase);
           }
         }
