@@ -3486,40 +3486,53 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           dailyBudget, phaseBudget, durationDays,
         });
 
-        // Step 1: Create Campaign via adapter
-        const campaignResult = await googleAdapter.createCampaign({
-          accountId: cleanCustomerId,
-          accessToken: platform.access_token,
-          campaignName: defaultCampaignName,
-          objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
-          budget: dailyBudget,
-          budgetMode: "daily",
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          status: "PAUSED",
-          metadata: {
-            developerToken,
-            loginCustomerId: managerAccountId?.replace(/-/g, ""),
-            advertisingChannelType,
-            biddingStrategy: mappedBidStrategy,
-            bidAmount,
-            campaignSubtype: phase.googleCampaignSubtype,
-          },
-        });
+        // Step 1: Create campaign via adapter (or reuse already-pushed campaign for partial retries)
+        const existingCampaignId = typeof phase._existingDspCampaignId === "string" ? phase._existingDspCampaignId : undefined;
 
-        if (!campaignResult.success) {
-          console.error(`❌ Google Ads campaign creation failed:`, campaignResult.error);
-          errors.push({
-            market: market.name,
-            phase: phase.name,
-            error: campaignResult.error || "Campaign creation failed",
-            type: "campaign_creation",
-            fieldPath: "step3",
+        let campaignResult: any;
+        if (existingCampaignId) {
+          console.log(`♻️ Reusing existing Google Ads campaign for ${market.name}/${phase.name}: ${existingCampaignId}`);
+          campaignResult = {
+            success: true,
+            campaignId: existingCampaignId,
+            platform: "google",
+            metadata: { reused: true },
+          };
+        } else {
+          campaignResult = await googleAdapter.createCampaign({
+            accountId: cleanCustomerId,
+            accessToken: platform.access_token,
+            campaignName: defaultCampaignName,
+            objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
+            budget: dailyBudget,
+            budgetMode: "daily",
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            status: "PAUSED",
+            metadata: {
+              developerToken,
+              loginCustomerId: managerAccountId?.replace(/-/g, ""),
+              advertisingChannelType,
+              biddingStrategy: mappedBidStrategy,
+              bidAmount,
+              campaignSubtype: phase.googleCampaignSubtype,
+            },
           });
-          continue;
-        }
 
-        console.log(`✅ Google Ads campaign created: ${campaignResult.campaignId}`);
+          if (!campaignResult.success) {
+            console.error(`❌ Google Ads campaign creation failed:`, campaignResult.error);
+            errors.push({
+              market: market.name,
+              phase: phase.name,
+              error: campaignResult.error || "Campaign creation failed",
+              type: "campaign_creation",
+              fieldPath: "step3",
+            });
+            continue;
+          }
+
+          console.log(`✅ Google Ads campaign created: ${campaignResult.campaignId}`);
+        }
 
         // Step 2: Create Ad Group(s)
         // For Performance Max, ad groups are handled differently (asset groups) — skip ad group for now
