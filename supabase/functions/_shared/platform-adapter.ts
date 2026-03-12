@@ -1348,12 +1348,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       const campaignResourceName = `customers/${customerId}/campaigns/${params.campaignId}`;
 
+      const requestedAdGroupType = params.targeting?.adGroupType;
+      const explicitType =
+        typeof requestedAdGroupType === "string" && requestedAdGroupType.startsWith("SEARCH_")
+          ? requestedAdGroupType
+          : undefined;
+
       const adGroupOp = {
         create: {
           name: params.adGroupName,
           campaign: campaignResourceName,
           status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
-          type: params.targeting?.adGroupType || "SEARCH_STANDARD",
+          ...(explicitType ? { type: explicitType } : {}),
           ...(params.bidAmount ? { cpcBidMicros: String(Math.round(params.bidAmount * 1_000_000)) } : {}),
         },
       };

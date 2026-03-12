@@ -3485,15 +3485,8 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           continue;
         }
 
-        // Map ad group type based on campaign type
-        const adGroupTypeMap: Record<string, string> = {
-          "SEARCH": "SEARCH_STANDARD",
-          "DISPLAY": "DISPLAY_STANDARD",
-          "VIDEO": "VIDEO_TRUE_VIEW_IN_STREAM",
-          "SHOPPING": "SHOPPING_PRODUCT_ADS",
-          "DEMAND_GEN": "DISPLAY_STANDARD",
-        };
-        const adGroupType = adGroupTypeMap[advertisingChannelType] || "SEARCH_STANDARD";
+        // Set explicit ad group type only for Search campaigns; other channel types should use API defaults
+        const adGroupType = advertisingChannelType === "SEARCH" ? "SEARCH_STANDARD" : undefined;
 
         // Build targeting from phase/campaign config
         const basicTargeting = campaign.generic_config?.basicTargeting || {};
@@ -3532,7 +3525,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             targeting: {
               developerToken,
               loginCustomerId: managerAccountId?.replace(/-/g, ""),
-              adGroupType,
+              ...(adGroupType ? { adGroupType } : {}),
               keywords,
               ...effectiveTargeting,
             },
