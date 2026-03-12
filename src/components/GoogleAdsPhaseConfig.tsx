@@ -599,6 +599,27 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
             </div>
           </div>
 
+          {/* Location Targeting Setting */}
+          <div className="space-y-2">
+            <Label className="text-xs">Location Targeting</Label>
+            <Select
+              value={phase.googleLocationTargeting || "PRESENCE_OR_INTEREST"}
+              onValueChange={(v) => onUpdate("googleLocationTargeting", v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PRESENCE_OR_INTEREST">
+                  Presence or interest: People in, regularly in, or who've shown interest in your locations (recommended)
+                </SelectItem>
+                <SelectItem value="PRESENCE">
+                  Presence: People in or regularly in your included locations
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Landing Page URL */}
           <div className="space-y-2">
             <Label className="text-xs">Landing Page URL</Label>

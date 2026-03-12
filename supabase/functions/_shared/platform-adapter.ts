@@ -1419,6 +1419,24 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.log(`ℹ️ No keywords to add to Google Ads ad group ${adGroupId} (keywords: ${JSON.stringify(params.targeting?.keywords)})`);
       }
 
+      // Add audience targeting criteria at ad group level
+      if (params.targeting?.audiences?.length) {
+        console.log(`🎯 Adding ${params.targeting.audiences.length} audience criteria to ad group ${adGroupId}`);
+        await this.addAudienceCriteria(customerId, adGroupId, params.targeting.audiences, headers);
+      }
+
+      // Add geo targeting at ad group level (for Demand Gen, Display, etc.)
+      if (params.targeting?.adGroupGeoTargets?.length) {
+        console.log(`🌍 Adding ${params.targeting.adGroupGeoTargets.length} geo targets to ad group ${adGroupId}`);
+        await this.addAdGroupGeoCriteria(customerId, adGroupId, params.targeting.adGroupGeoTargets, headers);
+      }
+
+      // Add language targeting at ad group level
+      if (params.targeting?.adGroupLanguages?.length) {
+        console.log(`🗣️ Adding ${params.targeting.adGroupLanguages.length} language targets to ad group ${adGroupId}`);
+        await this.addAdGroupLanguageCriteria(customerId, adGroupId, params.targeting.adGroupLanguages, headers);
+      }
+
       console.log(`✅ Google Ads ad group created: ${adGroupId}`);
 
       return {
@@ -1608,10 +1626,333 @@ class GoogleAdsAdapter implements PlatformAdapter {
     if (!resp.ok) {
       const errText = await resp.text();
       console.error(`❌ Failed to add keyword criteria to ad group ${adGroupId}:`, errText);
-      // Don't throw - keywords failing shouldn't block ad group creation
     } else {
       const data = await resp.json();
       console.log(`✅ Added ${keywords.length} keywords to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
+    }
+  }
+
+  // Add campaign-level geo targeting criteria
+  async addCampaignGeoCriteria(
+    customerId: string,
+    campaignId: string,
+    countryCodes: string[],
+    locationTargetingType: string,
+    headers: Record<string, string>
+  ): Promise<void> {
+    if (!countryCodes || countryCodes.length === 0) return;
+
+    const geoTargetMap: Record<string, string> = {
+      US: "2840", GB: "2826", DE: "2276", FR: "2250", AE: "2784",
+      SA: "2682", EG: "2818", IN: "2356", BR: "2076", AU: "2036",
+      CA: "2124", JP: "2392", KR: "2410", MX: "2484", IT: "2380",
+      ES: "2724", NL: "2528", SE: "2752", NO: "2578", DK: "2208",
+      TR: "2792", PL: "2616", ZA: "2710", NG: "2566", KE: "2404",
+      BE: "2056", CH: "2756", AT: "2040", IE: "2372", PT: "2620",
+      GR: "2300", CZ: "2203", RO: "2642", HU: "2348", FI: "2246",
+      RU: "2643", UA: "2804", PH: "2608", MY: "2458", SG: "2702",
+      TH: "2764", VN: "2704", ID: "2360", NZ: "2554", AR: "2032",
+      CL: "2152", CO: "2170", PE: "2604",
+      BH: "2048", QA: "2634", KW: "2414", OM: "2512", LB: "2422",
+    };
+
+    const operations = countryCodes
+      .map(cc => geoTargetMap[cc.toUpperCase()])
+      .filter(Boolean)
+      .map(geoTargetId => ({
+        create: {
+          campaign: `customers/${customerId}/campaigns/${campaignId}`,
+          geoTargetConstant: `geoTargetConstants/${geoTargetId}`,
+          negative: false,
+        },
+      }));
+
+    if (operations.length === 0) {
+      console.warn(`⚠️ No valid geo targets found for countries: ${countryCodes.join(', ')}`);
+      return;
+    }
+
+    // Set location targeting type at campaign level
+    const locationTargetType = locationTargetingType === "PRESENCE" 
+      ? "AREA_OF_INTEREST" // Maps to "Presence" in Google Ads  
+      : "DONT_CARE"; // Maps to "Presence or Interest" (default, recommended)
+
+    // First set the campaign's geo target type setting
+    const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
+    const campaignUpdateOp = {
+      update: {
+        resourceName: `customers/${customerId}/campaigns/${campaignId}`,
+        geoTargetTypeSetting: {
+          positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+          negativeGeoTargetType: "PRESENCE_OR_INTEREST",
+        },
+      },
+      updateMask: "geoTargetTypeSetting.positiveGeoTargetType,geoTargetTypeSetting.negativeGeoTargetType",
+    };
+
+    const campaignUpdateResp = await fetch(campaignUpdateUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [campaignUpdateOp] }),
+    });
+
+    if (!campaignUpdateResp.ok) {
+      const errText = await campaignUpdateResp.text();
+      console.error(`❌ Failed to set geo target type setting:`, errText);
+    } else {
+      console.log(`✅ Campaign geo target type set to: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
+    }
+
+    // Add geo target criteria
+    const url = `${this.API_BASE}/customers/${customerId}/campaignCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to add geo targeting to campaign ${campaignId}:`, errText);
+    } else {
+      const data = await resp.json();
+      console.log(`✅ Added ${operations.length} geo targets to campaign ${campaignId}. Results: ${data.results?.length || 0}`);
+    }
+  }
+
+  // Add campaign-level language targeting criteria
+  async addCampaignLanguageCriteria(
+    customerId: string,
+    campaignId: string,
+    languageCodes: string[],
+    headers: Record<string, string>
+  ): Promise<void> {
+    if (!languageCodes || languageCodes.length === 0) return;
+
+    // Google Ads language constant IDs
+    const languageMap: Record<string, string> = {
+      en: "1000", ar: "1019", zh: "1017", da: "1009", nl: "1010",
+      fi: "1011", fr: "1002", de: "1001", el: "1022", he: "1027",
+      hi: "1023", hu: "1018", id: "1025", it: "1004", ja: "1005",
+      ko: "1012", ms: "1102", no: "1013", pl: "1030", pt: "1014",
+      ro: "1032", ru: "1031", es: "1003", sv: "1015", th: "1044",
+      tr: "1037", uk: "1036", vi: "1040", cs: "1021",
+      // Regional variants map to base
+      en_US: "1000", en_GB: "1000", es_ES: "1003", es_MX: "1003",
+      pt_BR: "1014", zh_CN: "1017", zh_TW: "1018",
+    };
+
+    const operations = languageCodes
+      .map(code => languageMap[code] || languageMap[code.split("_")[0]])
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i) // deduplicate
+      .map(langId => ({
+        create: {
+          campaign: `customers/${customerId}/campaigns/${campaignId}`,
+          language: { languageConstant: `languageConstants/${langId}` },
+          negative: false,
+        },
+      }));
+
+    if (operations.length === 0) {
+      console.warn(`⚠️ No valid language constants found for: ${languageCodes.join(', ')}`);
+      return;
+    }
+
+    const url = `${this.API_BASE}/customers/${customerId}/campaignCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to add language targeting to campaign ${campaignId}:`, errText);
+    } else {
+      const data = await resp.json();
+      console.log(`✅ Added ${operations.length} language targets to campaign ${campaignId}. Results: ${data.results?.length || 0}`);
+    }
+  }
+
+  // Add campaign-level network settings
+  async setCampaignNetworkSettings(
+    customerId: string,
+    campaignId: string,
+    searchPartnerNetwork: boolean,
+    displayNetwork: boolean,
+    headers: Record<string, string>
+  ): Promise<void> {
+    const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
+    const updateOp = {
+      update: {
+        resourceName: `customers/${customerId}/campaigns/${campaignId}`,
+        networkSettings: {
+          targetSearchNetwork: searchPartnerNetwork,
+          targetContentNetwork: displayNetwork,
+          targetPartnerSearchNetwork: false,
+        },
+      },
+      updateMask: "networkSettings.targetSearchNetwork,networkSettings.targetContentNetwork,networkSettings.targetPartnerSearchNetwork",
+    };
+
+    const resp = await fetch(campaignUpdateUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [updateOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to set network settings for campaign ${campaignId}:`, errText);
+    } else {
+      console.log(`✅ Campaign network settings: searchPartner=${searchPartnerNetwork}, displayNetwork=${displayNetwork}`);
+    }
+  }
+
+  // Add audience targeting at ad group level
+  private async addAudienceCriteria(
+    customerId: string,
+    adGroupId: string,
+    audiences: Array<{ id: string; name: string; type: string; source?: string }>,
+    headers: Record<string, string>
+  ): Promise<void> {
+    if (!audiences || audiences.length === 0) return;
+
+    const operations = audiences.map((aud) => {
+      // Determine the correct criterion type based on audience source/type
+      const isUserList = aud.type === "audience" || aud.source === "google" || aud.type === "user_list";
+      
+      if (isUserList) {
+        return {
+          create: {
+            adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+            status: "ENABLED",
+            userList: {
+              userList: `customers/${customerId}/userLists/${aud.id}`,
+            },
+          },
+        };
+      } else {
+        // For interest/affinity/in-market audiences, use audience criterion
+        return {
+          create: {
+            adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+            status: "ENABLED",
+            userInterest: {
+              userInterestCategory: `customers/${customerId}/userInterests/${aud.id}`,
+            },
+          },
+        };
+      }
+    });
+
+    const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to add audience criteria to ad group ${adGroupId}:`, errText);
+    } else {
+      const data = await resp.json();
+      console.log(`✅ Added ${audiences.length} audience criteria to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
+    }
+  }
+
+  // Add geo targeting at ad group level (for Demand Gen, Display, etc.)
+  private async addAdGroupGeoCriteria(
+    customerId: string,
+    adGroupId: string,
+    countryCodes: string[],
+    headers: Record<string, string>
+  ): Promise<void> {
+    if (!countryCodes || countryCodes.length === 0) return;
+
+    const geoTargetMap: Record<string, string> = {
+      US: "2840", GB: "2826", DE: "2276", FR: "2250", AE: "2784",
+      SA: "2682", EG: "2818", IN: "2356", BR: "2076", AU: "2036",
+      CA: "2124", JP: "2392", KR: "2410", MX: "2484", IT: "2380",
+      ES: "2724", NL: "2528", SE: "2752", NO: "2578", DK: "2208",
+      TR: "2792", PL: "2616", ZA: "2710", NG: "2566", KE: "2404",
+      BE: "2056", CH: "2756", AT: "2040", IE: "2372", PT: "2620",
+    };
+
+    const operations = countryCodes
+      .map(cc => geoTargetMap[cc.toUpperCase()])
+      .filter(Boolean)
+      .map(geoTargetId => ({
+        create: {
+          adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+          geoTargetConstant: `geoTargetConstants/${geoTargetId}`,
+          negative: false,
+        },
+      }));
+
+    if (operations.length === 0) return;
+
+    const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to add geo targeting to ad group ${adGroupId}:`, errText);
+    } else {
+      console.log(`✅ Added geo targets to ad group ${adGroupId}`);
+    }
+  }
+
+  // Add language targeting at ad group level
+  private async addAdGroupLanguageCriteria(
+    customerId: string,
+    adGroupId: string,
+    languageCodes: string[],
+    headers: Record<string, string>
+  ): Promise<void> {
+    if (!languageCodes || languageCodes.length === 0) return;
+
+    const languageMap: Record<string, string> = {
+      en: "1000", ar: "1019", fr: "1002", de: "1001", es: "1003",
+      it: "1004", ja: "1005", ko: "1012", pt: "1014", nl: "1010",
+      pl: "1030", sv: "1015", no: "1013", da: "1009", fi: "1011",
+      ru: "1031", tr: "1037", hi: "1023", th: "1044", vi: "1040",
+      id: "1025", ms: "1102", cs: "1021", hu: "1018", ro: "1032",
+      el: "1022", he: "1027", uk: "1036",
+    };
+
+    const operations = languageCodes
+      .map(code => languageMap[code] || languageMap[code.split("_")[0]])
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .map(langId => ({
+        create: {
+          adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+          language: { languageConstant: `languageConstants/${langId}` },
+          negative: false,
+        },
+      }));
+
+    if (operations.length === 0) return;
+
+    const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to add language targeting to ad group ${adGroupId}:`, errText);
+    } else {
+      console.log(`✅ Added language targets to ad group ${adGroupId}`);
     }
   }
 }

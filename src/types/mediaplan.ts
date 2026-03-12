@@ -358,6 +358,7 @@ export interface Phase {
   googlePlacements?: string[]; // Websites, YouTube Channels, YouTube Videos, Apps, App Categories
   googleKeywords?: string[]; // Keywords
   googleSearchThemes?: string[]; // Search themes (PMax)
+  googleLocationTargeting?: string; // PRESENCE_OR_INTEREST or PRESENCE
 }
 
 export interface Campaign {
