@@ -1355,7 +1355,8 @@ const handler = async (req: Request): Promise<Response> => {
       const platform = platforms.find(
         (p) =>
           p.platform_type.toLowerCase() === platformName.toLowerCase() ||
-          (platformName.includes("Meta") && p.platform_type === "meta"),
+          (platformName.includes("Meta") && p.platform_type === "meta") ||
+          (platformName.includes("Google") && p.platform_type === "google"),
       );
 
       if (!platform) {
