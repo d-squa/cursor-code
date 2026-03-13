@@ -609,6 +609,11 @@ class TikTokAdapter implements PlatformAdapter {
         console.warn(`⚠️ ${isReachObjective ? 'REACH' : 'LEAD_GENERATION'} objective - forcing PLACEMENT_TYPE_NORMAL with PLACEMENT_TIKTOK only`);
         finalPlacementType = "PLACEMENT_TYPE_NORMAL";
         finalPlacements = ["PLACEMENT_TIKTOK"];
+      } else if (isSearchWithManualPlacement) {
+        // Search ads ONLY support PLACEMENT_TIKTOK with manual placement
+        console.warn(`⚠️ Search ads enabled - forcing PLACEMENT_TYPE_NORMAL with PLACEMENT_TIKTOK only`);
+        finalPlacementType = "PLACEMENT_TYPE_NORMAL";
+        finalPlacements = ["PLACEMENT_TIKTOK"];
       } else if (requiresManualPlacement) {
         console.warn(`⚠️ ${finalOptimizationGoal} objective requires manual placement - overriding to PLACEMENT_TYPE_NORMAL`);
         finalPlacementType = "PLACEMENT_TYPE_NORMAL";
@@ -934,14 +939,15 @@ class TikTokAdapter implements PlatformAdapter {
           "StartTrial": "START_TRIAL",
           "ON_WEB_ORDER": "COMPLETE_PAYMENT",
         };
-        // Only set optimization_event if the user explicitly configured a conversion event
-        // If not configured, omit it entirely so TikTok uses the pixel's default event
+        // optimization_event is REQUIRED for CONVERT goal - TikTok rejects without it
+        // If user configured an event, map it; otherwise default to COMPLETE_PAYMENT (most universal)
         if (params.conversionEvent) {
           const convEvent = convEventMap[params.conversionEvent] || params.conversionEvent;
           body.optimization_event = convEvent;
           console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
         } else {
-          console.log(`⚠️ No conversion event configured - omitting optimization_event to use pixel default. pixel=${params.pixelId}`);
+          body.optimization_event = "COMPLETE_PAYMENT";
+          console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=COMPLETE_PAYMENT (default - no event configured)`);
         }
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
