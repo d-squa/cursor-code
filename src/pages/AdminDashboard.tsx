@@ -11,7 +11,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube, LogOut } from "lucide-react";
+import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube, LogOut, Calendar as CalendarIcon, Clock } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
