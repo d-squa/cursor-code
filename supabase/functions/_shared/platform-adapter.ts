@@ -1014,6 +1014,69 @@ class TikTokAdapter implements PlatformAdapter {
       }
 
       if (data.code !== 0) {
+        const errorMessage = String(data.message || "");
+        const isMissingPixelEvent = errorMessage.toLowerCase().includes("pixel event type does not exist");
+
+        // Auto-retry once with a pixel event that actually exists on this pixel
+        if (isMissingPixelEvent && body.pixel_id) {
+          try {
+            const pixelEndpoint = `${this.API_BASE}/pixel/list/?advertiser_id=${params.accountId}&pixel_ids=["${body.pixel_id}"]`;
+            const pixelResp = await fetch(pixelEndpoint, {
+              method: "GET",
+              headers: {
+                "Access-Token": params.accessToken,
+                "Content-Type": "application/json",
+              },
+            });
+
+            const pixelData = await pixelResp.json();
+            const pixelEvents = pixelData?.data?.pixels?.[0]?.events || [];
+            const availableEvents = Array.from(new Set(
+              pixelEvents
+                .map((evt: any) => normalizeConversionEvent(evt?.event_name || evt?.event_type || evt?.name || ""))
+                .filter(Boolean),
+            ));
+
+            const preferredFallbackOrder = ["ON_WEB_ORDER", "ON_WEB_CART", "ON_WEB_DETAIL", "LANDING_PAGE_VIEW", "PAGE_VIEW", "FORM"];
+            const fallbackEvent =
+              preferredFallbackOrder.find((evt) => availableEvents.includes(evt) && evt !== body.optimization_event) ||
+              availableEvents.find((evt: string) => evt !== body.optimization_event);
+
+            if (fallbackEvent) {
+              const retryBody = { ...body, optimization_event: fallbackEvent };
+              console.warn(`⚠️ Pixel event '${body.optimization_event}' not found on pixel ${body.pixel_id}. Retrying with '${fallbackEvent}'`);
+
+              const retryResponse = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                  "Access-Token": params.accessToken,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(retryBody),
+              });
+
+              const retryText = await retryResponse.text();
+              const retryData = JSON.parse(retryText);
+
+              if (retryData.code === 0) {
+                console.log(`✅ TikTok ad group created on retry with optimization_event='${fallbackEvent}':`, retryData.data?.adgroup_id);
+                return {
+                  success: true,
+                  adGroupId: retryData.data.adgroup_id,
+                  platform: "tiktok",
+                  metadata: retryData.data,
+                };
+              }
+
+              console.error("Retry with fallback pixel event failed:", JSON.stringify(retryData, null, 2));
+            } else {
+              console.error(`❌ No usable events found on pixel ${body.pixel_id}. Available: ${JSON.stringify(availableEvents)}`);
+            }
+          } catch (retryErr: any) {
+            console.error("Failed to auto-recover pixel event error:", retryErr?.message || retryErr);
+          }
+        }
+
         console.error("=== TIKTOK AD GROUP CREATION FAILED ===");
         console.error("Error code:", data.code);
         console.error("Error message:", data.message);
