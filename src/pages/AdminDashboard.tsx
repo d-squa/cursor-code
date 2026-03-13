@@ -76,6 +76,8 @@ interface Filters {
   userId?: string;
   teamId?: string;
   stripeCustomerId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 function MetricCard({ title, value, icon: Icon, description, color }: { title: string; value: string | number; icon: any; description?: string; color?: string }) {
