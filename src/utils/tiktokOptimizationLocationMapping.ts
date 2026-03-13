@@ -430,8 +430,10 @@ export function getTikTokSearchModeConfig(objective: string): TikTokSearchModeCo
       };
     case 'CONVERSIONS':
     case 'SALES':
+    case 'WEB_CONVERSIONS':
+    case 'PRODUCT_SALES':
       return {
-        allowedGoals: ['CONVERT', 'CONVERSION', 'CLICK'],
+        allowedGoals: ['CONVERT', 'CONVERSION', 'CLICK', 'VALUE'],
         allowedLocations: ['Website', 'TikTok Instant Page'],
       };
     default:
