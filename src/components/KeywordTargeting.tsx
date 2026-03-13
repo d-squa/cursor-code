@@ -235,45 +235,68 @@ export function KeywordTargeting({
   );
 
   const renderStrategyTab = (strategy: KeywordStrategy) => {
-    const keywords = getByStrategy(strategy);
+    const allKeywords = getByStrategy(strategy);
+    const keywords = selectedPlatformFilter === 'all' ? allKeywords : allKeywords.filter(kw => kw.platform === selectedPlatformFilter);
     const positives = keywords.filter((kw) => !kw.isNegative);
     const negatives = keywords.filter((kw) => kw.isNegative);
     const meta = STRATEGY_META[strategy];
 
+    const googleCount = allKeywords.filter(kw => kw.platform === 'google').length;
+    const tiktokCount = allKeywords.filter(kw => kw.platform === 'tiktok').length;
+
     return (
       <div className="space-y-3">
-        {keywords.length === 0 ? (
+        {allKeywords.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
             No {meta.label.toLowerCase()} keywords added yet. Use the search above to find and add keywords.
           </p>
         ) : (
           <>
-            <div className="flex items-center justify-end gap-1.5">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
-                    <KeyRound className="h-3 w-3" />
-                    Apply Match Type
-                    <ChevronDown className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {(Object.keys(MATCH_TYPE_LABELS) as KeywordMatchType[]).map((mt) => (
-                    <DropdownMenuItem key={mt} onClick={() => applyMatchTypeToAll(strategy, mt)}>
-                      {MATCH_TYPE_LABELS[mt]}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-7 text-xs gap-1"
-                onClick={() => deleteAllByStrategy(strategy)}
-              >
-                <X className="h-3 w-3" />
-                Delete All ({keywords.length})
-              </Button>
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex gap-1">
+                {(['all', 'google', 'tiktok'] as const).map(f => {
+                  const count = f === 'all' ? allKeywords.length : f === 'google' ? googleCount : tiktokCount;
+                  if (f !== 'all' && count === 0) return null;
+                  return (
+                    <Button
+                      key={f}
+                      size="sm"
+                      variant={selectedPlatformFilter === f ? "default" : "outline"}
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setSelectedPlatformFilter(f)}
+                    >
+                      {f === 'all' ? 'All' : f === 'google' ? 'Google' : 'TikTok'} ({count})
+                    </Button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                      <KeyRound className="h-3 w-3" />
+                      Apply Match Type
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {(Object.keys(MATCH_TYPE_LABELS) as KeywordMatchType[]).map((mt) => (
+                      <DropdownMenuItem key={mt} onClick={() => applyMatchTypeToAll(strategy, mt)}>
+                        {MATCH_TYPE_LABELS[mt]}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => deleteAllByStrategy(strategy)}
+                >
+                  <X className="h-3 w-3" />
+                  Delete All ({allKeywords.length})
+                </Button>
+              </div>
             </div>
             <ScrollArea className="h-[280px]">
               <div className="space-y-3 pr-3">
