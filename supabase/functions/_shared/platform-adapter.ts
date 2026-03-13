@@ -896,13 +896,20 @@ class TikTokAdapter implements PlatformAdapter {
       const isConversionGoal = conversionGoals.includes(finalOptimizationGoal.toUpperCase());
       
       if (isConversionGoal && params.pixelId) {
-        body.pixel_code = params.pixelId;
+        body.pixel_id = params.pixelId;
         body.optimization_event = "ON_WEB_ORDER"; // Default conversion event
         body.deep_external_action = "ON_WEB_ORDER";
         console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=ON_WEB_ORDER`);
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
         console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
+      }
+
+      // TikTok Search Ads - add search_result_enabled and search_keywords
+      if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
+        body.search_result_enabled = true;
+        body.keywords = params.searchKeywords.map(kw => kw.text);
+        console.log(`🔍 TikTok Search Ads enabled: ${params.searchKeywords.length} keywords added`);
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
