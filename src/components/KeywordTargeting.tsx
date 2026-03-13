@@ -94,19 +94,31 @@ export function KeywordTargeting({
     }
   };
 
+  // Create a unique key for a keyword entry based on base id + strategy + negative status
+  const entryKey = (id: string, strategy: KeywordStrategy, isNegative: boolean) =>
+    `${id}__${strategy}__${isNegative ? "neg" : "pos"}`;
+
   const isSelected = (kw: KeywordItem) =>
     selectedKeywords.some((s) => s.id === kw.id);
 
   const addKeyword = (kw: KeywordItem, strategy: KeywordStrategy, isNegative: boolean) => {
-    // Remove any existing entry with same id to allow re-categorization
-    const filtered = selectedKeywords.filter((s) => s.id !== kw.id);
+    // Check if this exact combination already exists
+    const alreadyExists = selectedKeywords.some(
+      (s) => s.id === kw.id && s.strategy === strategy && s.isNegative === isNegative
+    );
+    if (alreadyExists) {
+      toast.info(`"${kw.name}" already exists in ${STRATEGY_META[strategy].label} as ${isNegative ? "negative" : "positive"}`);
+      return;
+    }
     const newKw: KeywordItem = {
       ...kw,
+      // Give a unique id for this strategy+negative combination
+      id: entryKey(kw.id, strategy, isNegative),
       strategy,
       matchType: defaultMatchType,
       isNegative,
     };
-    onUpdate([...filtered, newKw]);
+    onUpdate([...selectedKeywords, newKw]);
     toast.success(`${isNegative ? "Negated" : "Added"} "${kw.name}" → ${STRATEGY_META[strategy].label}`);
   };
 
@@ -116,9 +128,12 @@ export function KeywordTargeting({
 
   const handleBulkAdd = (strategy: KeywordStrategy, isNegative: boolean) => {
     const newKeywords = results
-      .filter((kw) => !selectedKeywords.some((s) => s.id === kw.id))
+      .filter((kw) => !selectedKeywords.some(
+        (s) => s.id === entryKey(kw.id, strategy, isNegative)
+      ))
       .map((kw) => ({
         ...kw,
+        id: entryKey(kw.id, strategy, isNegative),
         strategy,
         matchType: defaultMatchType,
         isNegative,
