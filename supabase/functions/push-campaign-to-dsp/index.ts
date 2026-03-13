@@ -4634,6 +4634,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
           }
 
+          const resolvedTiktokConversionEvent =
+            phase.tiktokOptimizationEvent ||
+            market.tiktokOptimizationEvent ||
+            phase.tiktokConversionEvent ||
+            market.tiktokConversionEvent ||
+            market.conversionEvent ||
+            undefined;
+
           const adGroupResult = await tiktokAdapter.createAdGroup({
             accountId: advertiserId,
             accessToken: platform.access_token,
@@ -4652,7 +4660,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             endDate: endDate.toISOString(),
             status: "PAUSED",
             pixelId: pixelId,
-            conversionEvent: market.conversionEvent || market.tiktokConversionEvent || phase.tiktokConversionEvent || undefined,
+            conversionEvent: resolvedTiktokConversionEvent,
             landingPageUrl: landingPageUrl,
             optimizationLocation: optimizationLocation,
             appName: appName,
