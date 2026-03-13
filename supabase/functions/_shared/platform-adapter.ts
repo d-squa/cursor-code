@@ -899,9 +899,11 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (isConversionGoal && params.pixelId) {
         body.pixel_id = params.pixelId;
-        body.optimization_event = "ON_WEB_ORDER"; // Default conversion event
-        body.deep_external_action = "ON_WEB_ORDER";
-        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=ON_WEB_ORDER`);
+        // Use the conversion event from config, or fall back to common defaults
+        const convEvent = params.conversionEvent || "CompletePayment";
+        body.optimization_event = convEvent;
+        body.deep_external_action = convEvent;
+        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
         console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
