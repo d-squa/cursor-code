@@ -1719,7 +1719,9 @@ export function PhaseScheduler({
             const isGoogleSearchPhase = isGooglePlatform && phase.googleCampaignType === "Search";
             const isTikTokSearchPhase = isTikTokPlatform && phase.tiktokCampaignType === "Search";
             const isSearchPhase = isGoogleSearchPhase || isTikTokSearchPhase;
-            const phaseKeywords = isSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
+            const allSelectedKeywords = isSearchPhase ? (basicTargeting?.selectedKeywords || []) : [];
+            const platformKeywordFilter = isGoogleSearchPhase ? 'google' : isTikTokSearchPhase ? 'tiktok' : null;
+            const phaseKeywords = platformKeywordFilter ? allSelectedKeywords.filter(kw => kw.platform === platformKeywordFilter) : allSelectedKeywords;
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
             const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
               const kws = phaseKeywords.filter(kw => kw.strategy === strategy);

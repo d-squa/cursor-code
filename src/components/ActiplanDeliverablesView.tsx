@@ -350,18 +350,22 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                 </TableRow>
                               ))}
                               {/* Keyword strategy sub-rows for Search phases */}
-                              {selectedKeywords && selectedKeywords.length > 0 && 
+                               {selectedKeywords && selectedKeywords.length > 0 && 
                                phase.phaseName.toLowerCase().includes('search') && (() => {
                                 const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode }> = {
                                   brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" /> },
                                   generic: { label: "Generic", icon: <Target className="h-3 w-3" /> },
                                   competition: { label: "Competition", icon: <Swords className="h-3 w-3" /> },
                                 };
+                                // Filter keywords by platform context
+                                const platformLower = platform.platformId.toLowerCase();
+                                const kwPlatform = platformLower.includes('google') ? 'google' : platformLower.includes('tiktok') ? 'tiktok' : null;
+                                const platformKeywords = kwPlatform ? selectedKeywords.filter(k => k.platform === kwPlatform) : selectedKeywords;
                                 const strategies = (['brand', 'generic', 'competition'] as const)
                                   .map(s => ({
                                     strategy: s,
-                                    positives: selectedKeywords.filter(k => k.strategy === s && !k.isNegative),
-                                    negatives: selectedKeywords.filter(k => k.strategy === s && k.isNegative),
+                                    positives: platformKeywords.filter(k => k.strategy === s && !k.isNegative),
+                                    negatives: platformKeywords.filter(k => k.strategy === s && k.isNegative),
                                   }))
                                   .filter(s => s.positives.length > 0 || s.negatives.length > 0);
                                 if (strategies.length === 0) return null;
