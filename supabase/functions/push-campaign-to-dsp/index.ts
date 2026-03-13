@@ -4652,6 +4652,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             endDate: endDate.toISOString(),
             status: "PAUSED",
             pixelId: pixelId,
+            conversionEvent: market.conversionEvent || market.tiktokConversionEvent || phase.tiktokConversionEvent || undefined,
             landingPageUrl: landingPageUrl,
             optimizationLocation: optimizationLocation,
             appName: appName,
