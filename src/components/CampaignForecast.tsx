@@ -1814,7 +1814,11 @@ export function CampaignForecast({
   };
 
   // Keyword Strategy Forecast sub-component
-  const KeywordStrategyForecast = ({ keywords }: { keywords: KeywordItem[] }) => {
+  const KeywordStrategyForecast = ({ keywords, platform }: { keywords: KeywordItem[]; platform?: string }) => {
+    // Filter keywords by platform if provided
+    const kwPlatform = platform?.toLowerCase().includes('google') ? 'google' : platform?.toLowerCase().includes('tiktok') ? 'tiktok' : null;
+    const filteredKeywords = kwPlatform ? keywords.filter(k => k.platform === kwPlatform) : keywords;
+    keywords = filteredKeywords;
     const strategies = ["brand", "generic", "competition"] as const;
     const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
       brand: { label: "Brand", icon: <ShieldCheck className="h-4 w-4" />, colorClass: "bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800" },
