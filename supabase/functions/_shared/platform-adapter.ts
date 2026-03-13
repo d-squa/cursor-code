@@ -935,7 +935,8 @@ class TikTokAdapter implements PlatformAdapter {
         };
         const convEvent = convEventMap[convEventRaw] || convEventRaw;
         body.optimization_event = convEvent;
-        body.deep_external_action = convEvent;
+        // Only set deep_external_action if explicitly provided and different from optimization_event
+        // Omitting it lets TikTok default to the pixel's configured event
         console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
