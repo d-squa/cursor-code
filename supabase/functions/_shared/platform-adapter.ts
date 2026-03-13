@@ -789,6 +789,7 @@ class TikTokAdapter implements PlatformAdapter {
         if (params.searchKeywords && params.searchKeywords.length > 0) {
           body.search_keywords = params.searchKeywords.map((kw: any) => ({
             keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+            match_type: (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD",
           }));
           console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
         } else {
