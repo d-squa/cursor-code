@@ -913,18 +913,16 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (isConversionGoal && params.pixelId) {
         body.pixel_id = params.pixelId;
-        // Use the conversion event from config, or fall back to ON_WEB_ORDER (valid TikTok API enum)
         // Map common human-readable names to TikTok API enums
-        const convEventRaw = params.conversionEvent || "ON_WEB_ORDER";
         const convEventMap: Record<string, string> = {
-          "CompletePayment": "ON_WEB_ORDER",
-          "Purchase": "ON_WEB_ORDER",
+          "CompletePayment": "COMPLETE_PAYMENT",
+          "Purchase": "COMPLETE_PAYMENT",
           "AddToCart": "ON_WEB_CART",
           "ViewContent": "ON_WEB_DETAIL",
           "Registration": "ON_WEB_REGISTER",
           "Search": "ON_WEB_SEARCH",
           "Subscribe": "ON_WEB_SUBSCRIBE",
-          "AddToWishlist": "ON_WEB_ADD_TO_WISHLIST",
+          "AddToWishlist": "ADD_TO_WISHLIST",
           "ClickButton": "CLICK_WEBSITE",
           "SubmitForm": "FORM",
           "Download": "DOWNLOAD_FINISH",
@@ -934,12 +932,17 @@ class TikTokAdapter implements PlatformAdapter {
           "AddPaymentInfo": "ADD_PAYMENT_INFO",
           "CompleteTutorial": "COMPLETE_TUTORIAL",
           "StartTrial": "START_TRIAL",
+          "ON_WEB_ORDER": "COMPLETE_PAYMENT",
         };
-        const convEvent = convEventMap[convEventRaw] || convEventRaw;
-        body.optimization_event = convEvent;
-        // Only set deep_external_action if explicitly provided and different from optimization_event
-        // Omitting it lets TikTok default to the pixel's configured event
-        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
+        // Only set optimization_event if the user explicitly configured a conversion event
+        // If not configured, omit it entirely so TikTok uses the pixel's default event
+        if (params.conversionEvent) {
+          const convEvent = convEventMap[params.conversionEvent] || params.conversionEvent;
+          body.optimization_event = convEvent;
+          console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
+        } else {
+          console.log(`⚠️ No conversion event configured - omitting optimization_event to use pixel default. pixel=${params.pixelId}`);
+        }
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
         console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
