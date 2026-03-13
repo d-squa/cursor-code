@@ -920,35 +920,35 @@ class TikTokAdapter implements PlatformAdapter {
         body.pixel_id = params.pixelId;
         // Map common human-readable names to TikTok API enums
         const convEventMap: Record<string, string> = {
-          "CompletePayment": "COMPLETE_PAYMENT",
-          "Purchase": "COMPLETE_PAYMENT",
-          "AddToCart": "ON_WEB_CART",
-          "ViewContent": "ON_WEB_DETAIL",
-          "Registration": "ON_WEB_REGISTER",
-          "Search": "ON_WEB_SEARCH",
-          "Subscribe": "ON_WEB_SUBSCRIBE",
-          "AddToWishlist": "ADD_TO_WISHLIST",
-          "ClickButton": "CLICK_WEBSITE",
-          "SubmitForm": "FORM",
-          "Download": "DOWNLOAD_FINISH",
-          "Contact": "CONSULT",
-          "PlaceAnOrder": "INITIATE_ORDER",
-          "InitiateCheckout": "INITIATE_ORDER",
-          "AddPaymentInfo": "ADD_PAYMENT_INFO",
-          "CompleteTutorial": "COMPLETE_TUTORIAL",
-          "StartTrial": "START_TRIAL",
-          "ON_WEB_ORDER": "COMPLETE_PAYMENT",
+          "COMPLETEPAYMENT": "ON_WEB_ORDER",
+          "COMPLETE_PAYMENT": "ON_WEB_ORDER",
+          "PURCHASE": "ON_WEB_ORDER",
+          "ADDTOCART": "ON_WEB_CART",
+          "VIEWCONTENT": "ON_WEB_DETAIL",
+          "REGISTRATION": "ON_WEB_REGISTER",
+          "SEARCH": "ON_WEB_SEARCH",
+          "SUBSCRIBE": "ON_WEB_SUBSCRIBE",
+          "ADDTOWISHLIST": "ON_WEB_ADD_TO_WISHLIST",
+          "CLICKBUTTON": "CLICK_WEBSITE",
+          "SUBMITFORM": "FORM",
+          "DOWNLOAD": "DOWNLOAD_FINISH",
+          "CONTACT": "CONSULT",
+          "PLACEANORDER": "INITIATE_ORDER",
+          "INITIATECHECKOUT": "INITIATE_ORDER",
+          "ADDPAYMENTINFO": "ADD_PAYMENT_INFO",
+          "COMPLETETUTORIAL": "COMPLETE_TUTORIAL",
+          "STARTTRIAL": "START_TRIAL",
         };
+
         // optimization_event is REQUIRED for CONVERT goal - TikTok rejects without it
-        // If user configured an event, map it; otherwise default to COMPLETE_PAYMENT (most universal)
-        if (params.conversionEvent) {
-          const convEvent = convEventMap[params.conversionEvent] || params.conversionEvent;
-          body.optimization_event = convEvent;
-          console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
-        } else {
-          body.optimization_event = "COMPLETE_PAYMENT";
-          console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=COMPLETE_PAYMENT (default - no event configured)`);
-        }
+        const rawConversionEvent = String(params.conversionEvent || "").trim();
+        const normalizedKey = rawConversionEvent.replace(/[\s-]+/g, "").toUpperCase();
+        const mappedEvent = convEventMap[normalizedKey];
+        const directEvent = rawConversionEvent ? rawConversionEvent.toUpperCase() : "";
+        const convEvent = mappedEvent || directEvent || "ON_WEB_ORDER";
+
+        body.optimization_event = convEvent;
+        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
         console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
