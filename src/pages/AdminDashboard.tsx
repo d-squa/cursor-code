@@ -525,6 +525,24 @@ export default function AdminDashboard() {
                     <span className="font-mono">{activeFilters.stripeCustomerId}</span>
                   </div>
                 )}
+                {activeFilters.dateFrom && (
+                  <div className="bg-muted rounded px-2 py-1">
+                    <span className="text-muted-foreground">Date Range: </span>
+                    <span className="font-mono">
+                      {format(new Date(activeFilters.dateFrom), "MMM d, yyyy")}
+                      {activeFilters.dateTo ? ` – ${format(new Date(activeFilters.dateTo), "MMM d, yyyy")}` : ""}
+                    </span>
+                  </div>
+                )}
+                {stats?.lastLoggedIn && (
+                  <div className="bg-muted rounded px-2 py-1 flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Last Login: </span>
+                    <span className="font-mono">
+                      {format(new Date(stats.lastLoggedIn), "MMM d, yyyy HH:mm")}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
