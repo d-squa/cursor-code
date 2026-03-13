@@ -789,6 +789,7 @@ class TikTokAdapter implements PlatformAdapter {
         if (params.searchKeywords && params.searchKeywords.length > 0) {
           body.search_keywords = params.searchKeywords.map((kw: any) => ({
             keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+            match_type: (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD",
           }));
           console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
         } else {
@@ -899,8 +900,29 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (isConversionGoal && params.pixelId) {
         body.pixel_id = params.pixelId;
-        // Use the conversion event from config, or fall back to common defaults
-        const convEvent = params.conversionEvent || "CompletePayment";
+        // Use the conversion event from config, or fall back to ON_WEB_ORDER (valid TikTok API enum)
+        // Map common human-readable names to TikTok API enums
+        const convEventRaw = params.conversionEvent || "ON_WEB_ORDER";
+        const convEventMap: Record<string, string> = {
+          "CompletePayment": "ON_WEB_ORDER",
+          "Purchase": "ON_WEB_ORDER",
+          "AddToCart": "ON_WEB_CART",
+          "ViewContent": "ON_WEB_DETAIL",
+          "Registration": "ON_WEB_REGISTER",
+          "Search": "ON_WEB_SEARCH",
+          "Subscribe": "ON_WEB_SUBSCRIBE",
+          "AddToWishlist": "ON_WEB_ADD_TO_WISHLIST",
+          "ClickButton": "CLICK_WEBSITE",
+          "SubmitForm": "FORM",
+          "Download": "DOWNLOAD_FINISH",
+          "Contact": "CONSULT",
+          "PlaceAnOrder": "INITIATE_ORDER",
+          "InitiateCheckout": "INITIATE_ORDER",
+          "AddPaymentInfo": "ADD_PAYMENT_INFO",
+          "CompleteTutorial": "COMPLETE_TUTORIAL",
+          "StartTrial": "START_TRIAL",
+        };
+        const convEvent = convEventMap[convEventRaw] || convEventRaw;
         body.optimization_event = convEvent;
         body.deep_external_action = convEvent;
         console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
@@ -912,8 +934,9 @@ class TikTokAdapter implements PlatformAdapter {
       // TikTok Search Ads - add search_result_enabled and search_keywords
       if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
         body.search_result_enabled = true;
-        body.search_keywords = params.searchKeywords.map(kw => ({
-          keyword: typeof kw === "string" ? kw : (kw.text || kw),
+        body.search_keywords = params.searchKeywords.map((kw: any) => ({
+          keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+          match_type: (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD",
         }));
         console.log(`🔍 TikTok Search Ads enabled: ${params.searchKeywords.length} keywords added`);
       }
