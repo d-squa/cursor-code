@@ -662,18 +662,29 @@ export function PhaseScheduler({
         tiktokCampaignType = 'Search';
       }
       
+      // For search phases, ensure the objective is search-compatible
+      // PRODUCT_SALES is not valid for search — remap to CONVERSIONS
+      let finalObjective = objective;
+      if (tiktokCampaignType === 'Search' && finalObjective) {
+        const searchCfg = getTikTokSearchModeConfig(finalObjective);
+        if (!searchCfg) {
+          // Objective not supported for search — remap to CONVERSIONS (most common search objective)
+          finalObjective = 'CONVERSIONS';
+        }
+      }
+      
       // If search mode is active, auto-correct optimization goal
       let finalGoal = optimizationGoal;
-      if (tiktokCampaignType === 'Search' && objective) {
-        const searchCfg = getTikTokSearchModeConfig(objective);
+      if (tiktokCampaignType === 'Search' && finalObjective) {
+        const searchCfg = getTikTokSearchModeConfig(finalObjective);
         if (searchCfg && finalGoal && !searchCfg.allowedGoals.includes(finalGoal)) {
           finalGoal = searchCfg.allowedGoals[0] || finalGoal;
         }
       }
 
-      if (objective !== p.objective || finalGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
+      if (finalObjective !== p.objective || finalGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
         changed = true;
-        return { ...p, objective, optimizationGoal: finalGoal, tiktokCampaignType };
+        return { ...p, objective: finalObjective, optimizationGoal: finalGoal, tiktokCampaignType };
       }
 
       return p;
