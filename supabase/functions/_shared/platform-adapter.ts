@@ -787,10 +787,10 @@ class TikTokAdapter implements PlatformAdapter {
 
         // Add search keywords if provided
         if (params.searchKeywords && params.searchKeywords.length > 0) {
-          body.keywords = params.searchKeywords.map((kw: any) => ({
+          body.search_keywords = params.searchKeywords.map((kw: any) => ({
             keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
           }));
-          console.log(`✅ Added ${body.keywords.length} search keywords to TikTok ad group`);
+          console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
         } else {
           console.log(`⚠️ Search Ads enabled but no keywords provided — TikTok will auto-generate keywords`);
         }
