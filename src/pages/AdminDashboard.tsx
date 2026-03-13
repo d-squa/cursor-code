@@ -192,13 +192,19 @@ export default function AdminDashboard() {
   }, [authLoading, user]);
 
   const applyFilters = () => {
-    setActiveFilters({ ...filters });
-    fetchStats(filters);
+    const filtersWithDates = {
+      ...filters,
+      dateFrom: dateRange?.from ? dateRange.from.toISOString() : undefined,
+      dateTo: dateRange?.to ? dateRange.to.toISOString() : undefined,
+    };
+    setActiveFilters({ ...filtersWithDates });
+    fetchStats(filtersWithDates);
   };
 
   const clearFilters = () => {
     setFilters({});
     setActiveFilters({});
+    setDateRange(undefined);
     fetchStats({});
   };
 
