@@ -4161,7 +4161,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           tiktok_campaign_id: campaignResult.campaignId,
           advertiser_id: advertiserId,
           campaign_name: campaignResult.metadata?.campaign_name || "",
-          objective_type: objectiveMapping.targetObjective,
+          objective_type: tiktokObjective,
           budget_mode: budgetType,
           budget: campaignBudget,
           status: "PAUSED",
