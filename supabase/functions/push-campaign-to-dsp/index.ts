@@ -4097,7 +4097,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           platformBudget: phaseBudget,
           market: market.name,
           country: market.name?.substring(0, 2)?.toUpperCase(),
-          objective: objectiveMapping.targetObjective,
+          objective: tiktokObjective,
           funnelStage: phase.funnelStage,
           placementType: phase.tiktokPlacementType || "automatic",
           startDate: phase.startDate || campaign.start_date,
