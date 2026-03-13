@@ -1459,7 +1459,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
         await this.addAdGroupLanguageCriteria(customerId, adGroupId, params.targeting.adGroupLanguages, headers);
       }
 
-      console.log(`✅ Google Ads ad group created: ${adGroupId}`);
+      // Add demographic targeting (gender, age) at ad group level
+      if (params.targeting?.genders || params.targeting?.ageMin || params.targeting?.ageMax) {
+        await this.addDemographicCriteria(customerId, adGroupId, params.targeting, headers);
+      }
 
       return {
         success: true,
