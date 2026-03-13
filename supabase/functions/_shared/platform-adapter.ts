@@ -91,6 +91,8 @@ export interface CreateAdGroupParams {
   // TikTok Search Ads
   searchEnabled?: boolean;
   searchKeywords?: Array<{ text: string; matchType?: string }>;
+  // Conversion event for pixel-based optimization
+  conversionEvent?: string;
 }
 
 export interface CreateAdGroupResult {
@@ -785,10 +787,10 @@ class TikTokAdapter implements PlatformAdapter {
 
         // Add search keywords if provided
         if (params.searchKeywords && params.searchKeywords.length > 0) {
-          body.keywords = params.searchKeywords.map((kw: any) => ({
+          body.search_keywords = params.searchKeywords.map((kw: any) => ({
             keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
           }));
-          console.log(`✅ Added ${body.keywords.length} search keywords to TikTok ad group`);
+          console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
         } else {
           console.log(`⚠️ Search Ads enabled but no keywords provided — TikTok will auto-generate keywords`);
         }
@@ -897,9 +899,11 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (isConversionGoal && params.pixelId) {
         body.pixel_id = params.pixelId;
-        body.optimization_event = "ON_WEB_ORDER"; // Default conversion event
-        body.deep_external_action = "ON_WEB_ORDER";
-        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=ON_WEB_ORDER`);
+        // Use the conversion event from config, or fall back to common defaults
+        const convEvent = params.conversionEvent || "CompletePayment";
+        body.optimization_event = convEvent;
+        body.deep_external_action = convEvent;
+        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
         console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
@@ -908,7 +912,9 @@ class TikTokAdapter implements PlatformAdapter {
       // TikTok Search Ads - add search_result_enabled and search_keywords
       if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
         body.search_result_enabled = true;
-        body.keywords = params.searchKeywords.map(kw => kw.text);
+        body.search_keywords = params.searchKeywords.map(kw => ({
+          keyword: typeof kw === "string" ? kw : (kw.text || kw),
+        }));
         console.log(`🔍 TikTok Search Ads enabled: ${params.searchKeywords.length} keywords added`);
       }
       
