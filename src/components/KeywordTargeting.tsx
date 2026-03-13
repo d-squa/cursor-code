@@ -259,32 +259,36 @@ export function KeywordTargeting({
                 Delete All ({keywords.length})
               </Button>
             </div>
-            {positives.length > 0 && (
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors w-full">
-                  <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
-                  Positive ({positives.length})
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-1.5 mt-1.5">
-                  {positives.map((kw) => (
-                    <KeywordRow key={kw.id} kw={kw} />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-            {negatives.length > 0 && (
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-destructive uppercase tracking-wider hover:text-destructive/80 transition-colors w-full">
-                  <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
-                  Negative ({negatives.length})
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-1.5 mt-1.5">
-                  {negatives.map((kw) => (
-                    <KeywordRow key={kw.id} kw={kw} />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+            <ScrollArea className="h-[280px]">
+              <div className="space-y-3 pr-3">
+                {positives.length > 0 && (
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors w-full">
+                      <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                      Positive ({positives.length})
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1.5 mt-1.5">
+                      {positives.map((kw) => (
+                        <KeywordRow key={kw.id} kw={kw} />
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+                {negatives.length > 0 && (
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-destructive uppercase tracking-wider hover:text-destructive/80 transition-colors w-full">
+                      <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                      Negative ({negatives.length})
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1.5 mt-1.5">
+                      {negatives.map((kw) => (
+                        <KeywordRow key={kw.id} kw={kw} />
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </div>
+            </ScrollArea>
           </>
         )}
       </div>
