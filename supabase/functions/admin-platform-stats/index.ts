@@ -180,6 +180,7 @@ Deno.serve(async (req) => {
     let swapsAllQ = supabase.from("ad_account_swap_logs").select("id", { count: "exact", head: true });
     swapsAllQ = applyUserFilter(swapsAllQ);
     if (teamId) swapsAllQ = swapsAllQ.eq("team_id", teamId);
+    swapsAllQ = applyDateFilter(swapsAllQ);
 
     let swapsMonthQ = supabase.from("ad_account_swap_logs").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth);
     swapsMonthQ = applyUserFilter(swapsMonthQ);
