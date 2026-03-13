@@ -4134,6 +4134,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           status: "PAUSED",
           metadata: {
             smartPlusEnabled: isSmartPlusCampaign,
+            isSearchCampaign: isSearchPhase,
           },
         });
 
