@@ -945,10 +945,21 @@ class TikTokAdapter implements PlatformAdapter {
       // TikTok Search Ads - add search_result_enabled and search_keywords
       if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
         body.search_result_enabled = true;
-        body.search_keywords = params.searchKeywords.map((kw: any) => ({
-          keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
-          match_type: (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD",
-        }));
+        const tiktokMatchTypeMap2: Record<string, string> = {
+          "BROAD": "BROAD_WORD",
+          "EXACT": "PRECISE_WORD",
+          "PHRASE": "PHRASE_WORD",
+          "BROAD_WORD": "BROAD_WORD",
+          "PRECISE_WORD": "PRECISE_WORD",
+          "PHRASE_WORD": "PHRASE_WORD",
+        };
+        body.search_keywords = params.searchKeywords.map((kw: any) => {
+          const rawMatch = (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD";
+          return {
+            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+            match_type: tiktokMatchTypeMap2[rawMatch] || "BROAD_WORD",
+          };
+        });
         console.log(`🔍 TikTok Search Ads enabled: ${params.searchKeywords.length} keywords added`);
       }
       
