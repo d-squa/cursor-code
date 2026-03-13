@@ -4561,7 +4561,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           // Build context for TikTok ad group taxonomy
           const tiktokAdgroupTaxonomyContext: TaxonomyContext = {
             platform: "tiktok",
-            objective: objectiveMapping.targetObjective,
+            objective: tiktokObjective,
             optimizationGoal: tiktokOptGoal,
             phaseBudget: adGroupBudget,
             budgetType: budgetType,
