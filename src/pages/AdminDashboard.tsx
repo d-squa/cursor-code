@@ -70,6 +70,7 @@ interface PlatformStats {
   totalInvitations: number;
   recentCampaigns: Array<{ id: string; name: string; status: string; created_at: string; total_budget: number }>;
   filterOptions?: FilterOptions;
+  lastLoggedIn?: string | null;
 }
 
 interface Filters {

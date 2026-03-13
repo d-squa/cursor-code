@@ -451,6 +451,7 @@ Deno.serve(async (req) => {
       totalActivityLogs: activityLogsRes.count || 0,
       roleDistribution,
       totalInvitations: (userRolesRes.count || 0),
+      lastLoggedIn,
       recentCampaigns: recentCampaignsRes.data || [],
       // Filter options for the UI
       filterOptions: {
