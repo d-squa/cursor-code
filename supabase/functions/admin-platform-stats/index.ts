@@ -204,6 +204,7 @@ Deno.serve(async (req) => {
     // Activity logs
     let actLogsQ = supabase.from("activity_logs").select("id", { count: "exact", head: true });
     actLogsQ = applyUserFilter(actLogsQ);
+    actLogsQ = applyDateFilter(actLogsQ);
 
     // User roles
     let rolesQ = supabase.from("user_roles").select("id, role, team_id, user_id", { count: "exact", head: false });
