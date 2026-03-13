@@ -4049,7 +4049,23 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           "tiktok",
         );
 
-        console.log(`Mapped objective: ${objectiveMapping.sourceObjective} -> ${objectiveMapping.targetObjective}`);
+        // Determine if Search is enabled for this phase
+        const isSearchPhase = phase.tiktokSearchEnabled ?? market.tiktokSearchEnabled ?? 
+          (phase.name || "").toLowerCase().includes("search");
+
+        // SEARCH ADS CONSTRAINT: TikTok Search only supports TRAFFIC and WEB_CONVERSIONS
+        let tiktokObjective = objectiveMapping.targetObjective;
+        if (isSearchPhase) {
+          const validSearchObjectives = ["TRAFFIC", "WEB_CONVERSIONS"];
+          if (!validSearchObjectives.includes(tiktokObjective)) {
+            console.warn(`⚠️ Search phase detected but objective is ${tiktokObjective} — forcing to TRAFFIC (Search only supports TRAFFIC/WEB_CONVERSIONS)`);
+            tiktokObjective = "TRAFFIC";
+          } else {
+            console.log(`✅ Search phase with valid objective: ${tiktokObjective}`);
+          }
+        }
+
+        console.log(`Mapped objective: ${objectiveMapping.sourceObjective} -> ${tiktokObjective} (mapper output: ${objectiveMapping.targetObjective}, isSearch: ${isSearchPhase})`);
 
         // Calculate budget
         const totalCampaignBudget = campaign.total_budget || 0;
