@@ -139,6 +139,21 @@ export function KeywordTargeting({
     );
   };
 
+  const applyMatchTypeToAll = (strategy: KeywordStrategy, matchType: KeywordMatchType) => {
+    onUpdate(
+      selectedKeywords.map((kw) =>
+        kw.strategy === strategy ? { ...kw, matchType } : kw
+      )
+    );
+    toast.success(`Applied ${MATCH_TYPE_LABELS[matchType]} match type to all ${STRATEGY_META[strategy].label} keywords`);
+  };
+
+  const deleteAllByStrategy = (strategy: KeywordStrategy) => {
+    const count = selectedKeywords.filter((kw) => kw.strategy === strategy).length;
+    onUpdate(selectedKeywords.filter((kw) => kw.strategy !== strategy));
+    toast.success(`Removed ${count} ${STRATEGY_META[strategy].label} keywords`);
+  };
+
   const getByStrategy = (strategy: KeywordStrategy) =>
     selectedKeywords.filter((kw) => kw.strategy === strategy);
 
