@@ -105,6 +105,7 @@ export default function AdminDashboard() {
   const [filters, setFilters] = useState<Filters>({});
   const [activeFilters, setActiveFilters] = useState<Filters>({});
   const [openCombobox, setOpenCombobox] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [overrideUserId, setOverrideUserId] = useState("");
   const [overrideTier, setOverrideTier] = useState<string>("basic");
   const [overridePeriod, setOverridePeriod] = useState<string>("monthly");
