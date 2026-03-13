@@ -787,10 +787,21 @@ class TikTokAdapter implements PlatformAdapter {
 
         // Add search keywords if provided
         if (params.searchKeywords && params.searchKeywords.length > 0) {
-          body.search_keywords = params.searchKeywords.map((kw: any) => ({
-            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
-            match_type: (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD",
-          }));
+          const tiktokMatchTypeMap: Record<string, string> = {
+            "BROAD": "BROAD_WORD",
+            "EXACT": "PRECISE_WORD",
+            "PHRASE": "PHRASE_WORD",
+            "BROAD_WORD": "BROAD_WORD",
+            "PRECISE_WORD": "PRECISE_WORD",
+            "PHRASE_WORD": "PHRASE_WORD",
+          };
+          body.search_keywords = params.searchKeywords.map((kw: any) => {
+            const rawMatch = (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD";
+            return {
+              keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+              match_type: tiktokMatchTypeMap[rawMatch] || "BROAD_WORD",
+            };
+          });
           console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
         } else {
           console.log(`⚠️ Search Ads enabled but no keywords provided — TikTok will auto-generate keywords`);
@@ -924,7 +935,8 @@ class TikTokAdapter implements PlatformAdapter {
         };
         const convEvent = convEventMap[convEventRaw] || convEventRaw;
         body.optimization_event = convEvent;
-        body.deep_external_action = convEvent;
+        // Only set deep_external_action if explicitly provided and different from optimization_event
+        // Omitting it lets TikTok default to the pixel's configured event
         console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
       } else if (params.pixelId) {
         // Log why we're skipping conversion tracking even though pixel was provided
@@ -934,10 +946,21 @@ class TikTokAdapter implements PlatformAdapter {
       // TikTok Search Ads - add search_result_enabled and search_keywords
       if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
         body.search_result_enabled = true;
-        body.search_keywords = params.searchKeywords.map((kw: any) => ({
-          keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
-          match_type: (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD",
-        }));
+        const tiktokMatchTypeMap2: Record<string, string> = {
+          "BROAD": "BROAD_WORD",
+          "EXACT": "PRECISE_WORD",
+          "PHRASE": "PHRASE_WORD",
+          "BROAD_WORD": "BROAD_WORD",
+          "PRECISE_WORD": "PRECISE_WORD",
+          "PHRASE_WORD": "PHRASE_WORD",
+        };
+        body.search_keywords = params.searchKeywords.map((kw: any) => {
+          const rawMatch = (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD";
+          return {
+            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+            match_type: tiktokMatchTypeMap2[rawMatch] || "BROAD_WORD",
+          };
+        });
         console.log(`🔍 TikTok Search Ads enabled: ${params.searchKeywords.length} keywords added`);
       }
       
