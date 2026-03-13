@@ -4301,10 +4301,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
-        // IMPORTANT: Use the ACTUAL objective from campaign creation result, not the mapped objective
-        // because the adapter may apply fallbacks (e.g., CONVERSIONS → TRAFFIC)
+        // Use the ACTUAL objective from campaign creation result
         let tiktokOptGoal: string;
-        const originalMappedObjective = objectiveMapping.targetObjective;
+        const originalMappedObjective = tiktokObjective;
 
         // Check if campaign creation applied an objective fallback
         const actualObjective = campaignResult.metadata?.actual_objective || originalMappedObjective;
@@ -4314,12 +4313,30 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           console.warn(`⚠️ Objective fallback was applied: ${originalMappedObjective} → ${actualObjective}`);
         }
 
-        // Use the ACTUAL objective for optimization goal mapping
-        if (actualObjective === "CONVERSIONS") {
-          // CONVERSIONS objective always uses CONVERT optimization goal
+        // SEARCH ADS OPTIMIZATION CONSTRAINT:
+        // - TRAFFIC Search → only CLICK
+        // - WEB_CONVERSIONS Search → only CONVERT or CLICK
+        if (isSearchPhase) {
+          if (actualObjective === "TRAFFIC") {
+            tiktokOptGoal = "CLICK";
+            console.log(`🔍 Search + TRAFFIC → forcing CLICK optimization`);
+          } else if (actualObjective === "WEB_CONVERSIONS") {
+            const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
+            if (phaseOptGoal === "CLICK" || phaseOptGoal === "CLICKS") {
+              tiktokOptGoal = "CLICK";
+            } else {
+              tiktokOptGoal = "CONVERT";
+            }
+            console.log(`🔍 Search + WEB_CONVERSIONS → ${tiktokOptGoal} optimization`);
+          } else {
+            tiktokOptGoal = "CLICK";
+            console.warn(`🔍 Search with unexpected objective ${actualObjective} → defaulting to CLICK`);
+          }
+        } else if (actualObjective === "WEB_CONVERSIONS" || actualObjective === "CONVERSIONS") {
+          // WEB_CONVERSIONS objective uses CONVERT optimization goal
           tiktokOptGoal = "CONVERT";
         } else if (actualObjective === "TRAFFIC") {
-          // TRAFFIC objective uses CLICK or TRAFFIC_LANDING_PAGE_VIEW (TikTok enum)
+          // TRAFFIC objective uses CLICK or TRAFFIC_LANDING_PAGE_VIEW
           const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
           if (
             phaseOptGoal === "TRAFFIC_LANDING_PAGE_VIEW" ||
@@ -4332,8 +4349,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             tiktokOptGoal = "CLICK";
           }
         } else if (actualObjective === "LEAD_GENERATION") {
-          // TikTok Lead Gen requires FORM_SUBMIT optimization goal (and OCPM billing)
-          // We map any lead-style goals coming from the plan to TikTok's supported enum.
           tiktokOptGoal = "FORM_SUBMIT";
         } else if (actualObjective === "REACH") {
           tiktokOptGoal = "REACH";
@@ -4342,7 +4357,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         } else if (actualObjective === "APP_PROMOTION" || actualObjective === "APP_INSTALL") {
           tiktokOptGoal = "INSTALL";
         } else {
-          // Default fallback
           tiktokOptGoal = "CLICK";
         }
 
