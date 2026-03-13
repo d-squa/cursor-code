@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse filters from request body
-    let filters: { userId?: string; teamId?: string; stripeCustomerId?: string } = {};
+    let filters: { userId?: string; teamId?: string; stripeCustomerId?: string; dateFrom?: string; dateTo?: string } = {};
     try {
       if (req.method === "POST") {
         const body = await req.json();
@@ -58,6 +58,8 @@ Deno.serve(async (req) => {
     }
 
     let { userId, teamId, stripeCustomerId } = filters;
+    const dateFrom = filters.dateFrom || null;
+    const dateTo = filters.dateTo || null;
 
     // If only stripeCustomerId is provided, resolve it to a userId
     if (stripeCustomerId && !userId) {
