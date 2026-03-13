@@ -3597,7 +3597,16 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
         // Determine if this is a Search campaign with keyword strategies that need splitting
         const isSearchCampaign = advertisingChannelType === "SEARCH";
-        const phaseKeywords = phase.keywords || phase.searchKeywords || [];
+        // Pull keywords from phase first, then fall back to global basicTargeting.selectedKeywords filtered for google
+        let phaseKeywords = phase.keywords || phase.searchKeywords || [];
+        if ((!Array.isArray(phaseKeywords) || phaseKeywords.length === 0) && isSearchCampaign) {
+          const globalKeywords = (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
+            .filter((k: any) => k.platform === 'google' && !k.isNegative);
+          if (globalKeywords.length > 0) {
+            phaseKeywords = globalKeywords;
+            console.log(`📝 Using ${globalKeywords.length} global Google keywords from basicTargeting.selectedKeywords`);
+          }
+        }
         
         // Check if keywords have strategy groupings (Brand, Generic, Competition)
         let keywordStrategies: Record<string, Array<{ text: string; matchType?: string }>> = {};
@@ -3779,11 +3788,22 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             const adGroupBidAmount = mappedBidStrategy === "MANUAL_CPC" ? (bidAmount || 1.0) : undefined;
 
             // Build targeting object for ad group
+            // Extract demographic targeting from basicTargeting for Google Ads
+            const googleGenders = effectivePhaseTargeting.genders || effectivePhaseTargeting.gender || basicTargeting.genders || basicTargeting.gender || [];
+            const googleAgeMin = effectivePhaseTargeting.ageMin || effectivePhaseTargeting.age_min || effectivePhaseTargeting.minAge || basicTargeting.ageMin || basicTargeting.age_min || basicTargeting.minAge || undefined;
+            const googleAgeMax = effectivePhaseTargeting.ageMax || effectivePhaseTargeting.age_max || effectivePhaseTargeting.maxAge || basicTargeting.ageMax || basicTargeting.age_max || basicTargeting.maxAge || undefined;
+
+            console.log(`🎯 Google Ads demographics: genders=${JSON.stringify(googleGenders)}, ageMin=${googleAgeMin}, ageMax=${googleAgeMax}`);
+
             const adGroupTargetingPayload: any = {
               developerToken,
               loginCustomerId: managerAccountId?.replace(/-/g, ""),
               ...(adGroupType ? { adGroupType } : {}),
               keywords: strategyKeywords.length > 0 ? strategyKeywords : undefined,
+              // Pass demographics for ad group criteria
+              genders: googleGenders,
+              ageMin: googleAgeMin,
+              ageMax: googleAgeMax,
               ...effectivePhaseTargeting,
             };
 
