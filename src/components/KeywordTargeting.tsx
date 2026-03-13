@@ -232,6 +232,33 @@ export function KeywordTargeting({
           </p>
         ) : (
           <>
+            <div className="flex items-center justify-end gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                    <KeyRound className="h-3 w-3" />
+                    Apply Match Type
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {(Object.keys(MATCH_TYPE_LABELS) as KeywordMatchType[]).map((mt) => (
+                    <DropdownMenuItem key={mt} onClick={() => applyMatchTypeToAll(strategy, mt)}>
+                      {MATCH_TYPE_LABELS[mt]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs gap-1"
+                onClick={() => deleteAllByStrategy(strategy)}
+              >
+                <X className="h-3 w-3" />
+                Delete All ({keywords.length})
+              </Button>
+            </div>
             {positives.length > 0 && (
               <Collapsible>
                 <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors w-full">
