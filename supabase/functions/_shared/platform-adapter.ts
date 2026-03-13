@@ -900,8 +900,29 @@ class TikTokAdapter implements PlatformAdapter {
       
       if (isConversionGoal && params.pixelId) {
         body.pixel_id = params.pixelId;
-        // Use the conversion event from config, or fall back to common defaults
-        const convEvent = params.conversionEvent || "CompletePayment";
+        // Use the conversion event from config, or fall back to ON_WEB_ORDER (valid TikTok API enum)
+        // Map common human-readable names to TikTok API enums
+        const convEventRaw = params.conversionEvent || "ON_WEB_ORDER";
+        const convEventMap: Record<string, string> = {
+          "CompletePayment": "ON_WEB_ORDER",
+          "Purchase": "ON_WEB_ORDER",
+          "AddToCart": "ON_WEB_CART",
+          "ViewContent": "ON_WEB_DETAIL",
+          "Registration": "ON_WEB_REGISTER",
+          "Search": "ON_WEB_SEARCH",
+          "Subscribe": "ON_WEB_SUBSCRIBE",
+          "AddToWishlist": "ON_WEB_ADD_TO_WISHLIST",
+          "ClickButton": "CLICK_WEBSITE",
+          "SubmitForm": "FORM",
+          "Download": "DOWNLOAD_FINISH",
+          "Contact": "CONSULT",
+          "PlaceAnOrder": "INITIATE_ORDER",
+          "InitiateCheckout": "INITIATE_ORDER",
+          "AddPaymentInfo": "ADD_PAYMENT_INFO",
+          "CompleteTutorial": "COMPLETE_TUTORIAL",
+          "StartTrial": "START_TRIAL",
+        };
+        const convEvent = convEventMap[convEventRaw] || convEventRaw;
         body.optimization_event = convEvent;
         body.deep_external_action = convEvent;
         console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=${convEvent}`);
