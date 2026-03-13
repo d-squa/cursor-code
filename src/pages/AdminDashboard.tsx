@@ -11,7 +11,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube, LogOut } from "lucide-react";
+import { Loader2, Users, BarChart3, Zap, Globe, CreditCard, Activity, TrendingUp, Layers, RefreshCw, ShieldCheck, Image, Send, ArrowLeft, Filter, X, ChevronsUpDown, Check, TestTube, LogOut, Calendar as CalendarIcon, Clock } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
@@ -67,12 +70,15 @@ interface PlatformStats {
   totalInvitations: number;
   recentCampaigns: Array<{ id: string; name: string; status: string; created_at: string; total_budget: number }>;
   filterOptions?: FilterOptions;
+  lastLoggedIn?: string | null;
 }
 
 interface Filters {
   userId?: string;
   teamId?: string;
   stripeCustomerId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 function MetricCard({ title, value, icon: Icon, description, color }: { title: string; value: string | number; icon: any; description?: string; color?: string }) {
@@ -100,6 +106,7 @@ export default function AdminDashboard() {
   const [filters, setFilters] = useState<Filters>({});
   const [activeFilters, setActiveFilters] = useState<Filters>({});
   const [openCombobox, setOpenCombobox] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [overrideUserId, setOverrideUserId] = useState("");
   const [overrideTier, setOverrideTier] = useState<string>("basic");
   const [overridePeriod, setOverridePeriod] = useState<string>("monthly");
@@ -186,13 +193,19 @@ export default function AdminDashboard() {
   }, [authLoading, user]);
 
   const applyFilters = () => {
-    setActiveFilters({ ...filters });
-    fetchStats(filters);
+    const filtersWithDates = {
+      ...filters,
+      dateFrom: dateRange?.from ? dateRange.from.toISOString() : undefined,
+      dateTo: dateRange?.to ? dateRange.to.toISOString() : undefined,
+    };
+    setActiveFilters({ ...filtersWithDates });
+    fetchStats(filtersWithDates);
   };
 
   const clearFilters = () => {
     setFilters({});
     setActiveFilters({});
+    setDateRange(undefined);
     fetchStats({});
   };
 
@@ -446,6 +459,38 @@ export default function AdminDashboard() {
                 </Popover>
               </div>
 
+              {/* Date Range */}
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Date Range</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full h-9 justify-between font-normal">
+                      <span className="truncate">
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            `${format(dateRange.from, "MMM d, yyyy")} - ${format(dateRange.to, "MMM d, yyyy")}`
+                          ) : (
+                            format(dateRange.from, "MMM d, yyyy")
+                          )
+                        ) : (
+                          "All time"
+                        )}
+                      </span>
+                      <CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-50" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
               <div className="flex gap-2">
                 <Button size="sm" onClick={applyFilters} disabled={loading}>
                   {loading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
@@ -479,6 +524,24 @@ export default function AdminDashboard() {
                   <div className="bg-muted rounded px-2 py-1">
                     <span className="text-muted-foreground">Subscription ID: </span>
                     <span className="font-mono">{activeFilters.stripeCustomerId}</span>
+                  </div>
+                )}
+                {activeFilters.dateFrom && (
+                  <div className="bg-muted rounded px-2 py-1">
+                    <span className="text-muted-foreground">Date Range: </span>
+                    <span className="font-mono">
+                      {format(new Date(activeFilters.dateFrom), "MMM d, yyyy")}
+                      {activeFilters.dateTo ? ` – ${format(new Date(activeFilters.dateTo), "MMM d, yyyy")}` : ""}
+                    </span>
+                  </div>
+                )}
+                {stats?.lastLoggedIn && (
+                  <div className="bg-muted rounded px-2 py-1 flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Last Login: </span>
+                    <span className="font-mono">
+                      {format(new Date(stats.lastLoggedIn), "MMM d, yyyy HH:mm")}
+                    </span>
                   </div>
                 )}
               </div>

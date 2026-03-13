@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse filters from request body
-    let filters: { userId?: string; teamId?: string; stripeCustomerId?: string } = {};
+    let filters: { userId?: string; teamId?: string; stripeCustomerId?: string; dateFrom?: string; dateTo?: string } = {};
     try {
       if (req.method === "POST") {
         const body = await req.json();
@@ -58,6 +58,8 @@ Deno.serve(async (req) => {
     }
 
     let { userId, teamId, stripeCustomerId } = filters;
+    const dateFrom = filters.dateFrom || null;
+    const dateTo = filters.dateTo || null;
 
     // If only stripeCustomerId is provided, resolve it to a userId
     if (stripeCustomerId && !userId) {
@@ -89,6 +91,13 @@ Deno.serve(async (req) => {
       return query;
     };
 
+    // Helper: apply date range filter
+    const applyDateFilter = (query: any, col = "created_at") => {
+      if (dateFrom) query = query.gte(col, dateFrom);
+      if (dateTo) query = query.lte(col, dateTo);
+      return query;
+    };
+
     // If filtering by user, get their team_ids for team-scoped tables
     let userTeamIds: string[] = [];
     if (userId && !teamId) {
@@ -110,6 +119,7 @@ Deno.serve(async (req) => {
     let campaignsQ = supabase.from("campaigns").select("id, status, created_at, name, total_budget, user_id, team_id", { count: "exact", head: false });
     campaignsQ = applyUserFilter(campaignsQ);
     campaignsQ = applyTeamFilter(campaignsQ);
+    campaignsQ = applyDateFilter(campaignsQ);
 
     let campaignsThisMonthQ = supabase.from("campaigns").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth);
     campaignsThisMonthQ = applyUserFilter(campaignsThisMonthQ);
@@ -170,6 +180,7 @@ Deno.serve(async (req) => {
     let swapsAllQ = supabase.from("ad_account_swap_logs").select("id", { count: "exact", head: true });
     swapsAllQ = applyUserFilter(swapsAllQ);
     if (teamId) swapsAllQ = swapsAllQ.eq("team_id", teamId);
+    swapsAllQ = applyDateFilter(swapsAllQ);
 
     let swapsMonthQ = supabase.from("ad_account_swap_logs").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth);
     swapsMonthQ = applyUserFilter(swapsMonthQ);
@@ -193,6 +204,7 @@ Deno.serve(async (req) => {
     // Activity logs
     let actLogsQ = supabase.from("activity_logs").select("id", { count: "exact", head: true });
     actLogsQ = applyUserFilter(actLogsQ);
+    actLogsQ = applyDateFilter(actLogsQ);
 
     // User roles
     let rolesQ = supabase.from("user_roles").select("id, role, team_id, user_id", { count: "exact", head: false });
@@ -397,6 +409,19 @@ Deno.serve(async (req) => {
       console.error("[ADMIN-STATS] Stripe stats error:", e);
     }
 
+    // Fetch last logged in time if filtering by a specific user
+    let lastLoggedIn: string | null = null;
+    if (userId) {
+      const { data: sessionData } = await supabase
+        .from("user_sessions")
+        .select("last_active_at")
+        .eq("user_id", userId)
+        .order("last_active_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastLoggedIn = sessionData?.last_active_at || null;
+    }
+
     const stats = {
       totalUsers,
       usersThisMonth,
@@ -426,6 +451,7 @@ Deno.serve(async (req) => {
       totalActivityLogs: activityLogsRes.count || 0,
       roleDistribution,
       totalInvitations: (userRolesRes.count || 0),
+      lastLoggedIn,
       recentCampaigns: recentCampaignsRes.data || [],
       // Filter options for the UI
       filterOptions: {
