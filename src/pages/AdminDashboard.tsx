@@ -458,6 +458,38 @@ export default function AdminDashboard() {
                 </Popover>
               </div>
 
+              {/* Date Range */}
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Date Range</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full h-9 justify-between font-normal">
+                      <span className="truncate">
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            `${format(dateRange.from, "MMM d, yyyy")} - ${format(dateRange.to, "MMM d, yyyy")}`
+                          ) : (
+                            format(dateRange.from, "MMM d, yyyy")
+                          )
+                        ) : (
+                          "All time"
+                        )}
+                      </span>
+                      <CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-50" align="start">
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
               <div className="flex gap-2">
                 <Button size="sm" onClick={applyFilters} disabled={loading}>
                   {loading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
