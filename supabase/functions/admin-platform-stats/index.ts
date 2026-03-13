@@ -409,6 +409,19 @@ Deno.serve(async (req) => {
       console.error("[ADMIN-STATS] Stripe stats error:", e);
     }
 
+    // Fetch last logged in time if filtering by a specific user
+    let lastLoggedIn: string | null = null;
+    if (userId) {
+      const { data: sessionData } = await supabase
+        .from("user_sessions")
+        .select("last_active_at")
+        .eq("user_id", userId)
+        .order("last_active_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastLoggedIn = sessionData?.last_active_at || null;
+    }
+
     const stats = {
       totalUsers,
       usersThisMonth,
