@@ -1980,4 +1980,104 @@ class GoogleAdsAdapter implements PlatformAdapter {
       console.log(`✅ Added language targets to ad group ${adGroupId}`);
     }
   }
+  // Add demographic (gender, age) targeting at ad group level
+  private async addDemographicCriteria(
+    customerId: string,
+    adGroupId: string,
+    targeting: any,
+    headers: Record<string, string>
+  ): Promise<void> {
+    const operations: any[] = [];
+    const adGroupResource = `customers/${customerId}/adGroups/${adGroupId}`;
+
+    // Gender targeting - exclude unwanted genders
+    // Google Ads uses negative gender criteria: to target "male", exclude FEMALE and UNDETERMINED
+    const genders = Array.isArray(targeting.genders) ? targeting.genders : (targeting.gender ? [targeting.gender] : []);
+    const genderValues = genders.map((g: any) => String(g).toLowerCase());
+    
+    // Only apply gender filtering if a specific gender is selected (not "all")
+    if (genderValues.length > 0 && !genderValues.includes("all") && !genderValues.includes("")) {
+      // Google Ads gender resource names: MALE=10, FEMALE=11, UNDETERMINED=20
+      const genderMap: Record<string, string> = { male: "10", female: "11" };
+      const allGenderIds = ["10", "11", "20"]; // MALE, FEMALE, UNDETERMINED
+      
+      // Convert selected genders to IDs
+      const selectedGenderIds = new Set<string>();
+      for (const g of genderValues) {
+        if (g === "1" || g === "male") selectedGenderIds.add("10");
+        else if (g === "2" || g === "female") selectedGenderIds.add("11");
+      }
+      
+      // Exclude genders NOT selected
+      for (const gId of allGenderIds) {
+        if (!selectedGenderIds.has(gId)) {
+          operations.push({
+            create: {
+              adGroup: adGroupResource,
+              status: "ENABLED",
+              negative: true,
+              gender: { type: gId === "10" ? "MALE" : gId === "11" ? "FEMALE" : "UNDETERMINED" },
+            },
+          });
+        }
+      }
+      
+      console.log(`🎯 Gender targeting: selected=${genderValues.join(",")}, excluding ${allGenderIds.length - selectedGenderIds.size} genders`);
+    }
+
+    // Age targeting - exclude unwanted age ranges
+    // Google Ads age range types: AGE_RANGE_18_24, AGE_RANGE_25_34, AGE_RANGE_35_44, AGE_RANGE_45_54, AGE_RANGE_55_64, AGE_RANGE_65_UP, AGE_RANGE_UNDETERMINED
+    const ageMin = Number(targeting.ageMin) || 0;
+    const ageMax = Number(targeting.ageMax) || 0;
+    
+    if (ageMin > 0 || (ageMax > 0 && ageMax < 65)) {
+      const ageRanges = [
+        { type: "AGE_RANGE_18_24", min: 18, max: 24 },
+        { type: "AGE_RANGE_25_34", min: 25, max: 34 },
+        { type: "AGE_RANGE_35_44", min: 35, max: 44 },
+        { type: "AGE_RANGE_45_54", min: 45, max: 54 },
+        { type: "AGE_RANGE_55_64", min: 55, max: 64 },
+        { type: "AGE_RANGE_65_UP", min: 65, max: 999 },
+      ];
+      
+      const effectiveMin = ageMin || 18;
+      const effectiveMax = ageMax || 999;
+      
+      for (const range of ageRanges) {
+        // Exclude this age range if it falls completely outside the desired range
+        if (range.max < effectiveMin || range.min > effectiveMax) {
+          operations.push({
+            create: {
+              adGroup: adGroupResource,
+              status: "ENABLED",
+              negative: true,
+              ageRange: { type: range.type },
+            },
+          });
+        }
+      }
+      
+      console.log(`🎯 Age targeting: ${effectiveMin}-${effectiveMax}, excluding ${operations.filter(o => o.create.ageRange).length} age ranges`);
+    }
+
+    if (operations.length === 0) {
+      console.log(`ℹ️ No demographic exclusions needed for ad group ${adGroupId}`);
+      return;
+    }
+
+    const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error(`❌ Failed to add demographic criteria to ad group ${adGroupId}:`, errText);
+    } else {
+      const data = await resp.json();
+      console.log(`✅ Added ${operations.length} demographic criteria to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
+    }
+  }
 }
