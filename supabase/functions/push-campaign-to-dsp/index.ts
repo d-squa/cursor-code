@@ -4481,7 +4481,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const smartPlusEnabled =
           phase.tiktokSmartPlusEnabled !== undefined ? phase.tiktokSmartPlusEnabled : market.tiktokSmartPlusEnabled;
         const searchEnabled =
-          phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : market.tiktokSearchEnabled;
+          phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : (market.tiktokSearchEnabled || isSearchPhase);
 
         // Create ad group
         // Retrieve TikTok-specific parameters from phase or market defaults
