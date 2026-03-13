@@ -91,6 +91,13 @@ Deno.serve(async (req) => {
       return query;
     };
 
+    // Helper: apply date range filter
+    const applyDateFilter = (query: any, col = "created_at") => {
+      if (dateFrom) query = query.gte(col, dateFrom);
+      if (dateTo) query = query.lte(col, dateTo);
+      return query;
+    };
+
     // If filtering by user, get their team_ids for team-scoped tables
     let userTeamIds: string[] = [];
     if (userId && !teamId) {
