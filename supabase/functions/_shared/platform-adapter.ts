@@ -216,14 +216,23 @@ class TikTokAdapter implements PlatformAdapter {
       // Check if Smart+ campaign
       const isSmartPlus = params.metadata?.smartPlusEnabled === true;
 
-      // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERSIONS objective
-      // Fall back to TRAFFIC to prevent campaign creation issues
+      // OBJECTIVE NORMALIZATION: Map to correct TikTok API objective_type enum values
+      // TikTok valid objective_type values: TRAFFIC, WEB_CONVERSIONS, REACH, VIDEO_VIEWS, 
+      // LEAD_GENERATION, APP_PROMOTION, PRODUCT_CATALOG_PRODUCT_SALES
+      // IMPORTANT: "CONVERSIONS" is NOT a valid TikTok objective — use "WEB_CONVERSIONS"
       let finalObjective = params.objective;
       let objectiveFallbackApplied = false;
-      if (finalObjective === 'CONVERSIONS' && !isSmartPlus) {
-        console.warn("⚠️ CONVERSIONS objective detected - Falling back to TRAFFIC (TikTok requires 90+ days conversion data)");
-        finalObjective = 'TRAFFIC';
-        objectiveFallbackApplied = true;
+      
+      // Normalize CONVERSIONS → WEB_CONVERSIONS (correct TikTok enum)
+      if (finalObjective === 'CONVERSIONS') {
+        console.log("📋 Normalizing CONVERSIONS → WEB_CONVERSIONS (correct TikTok API enum)");
+        finalObjective = 'WEB_CONVERSIONS';
+        // This is a normalization, not a fallback
+      }
+      
+      // Normalize VIDEO_VIEW variants
+      if (finalObjective === 'VIDEO_VIEW') {
+        finalObjective = 'VIDEO_VIEWS';
       }
 
       if (isSmartPlus) {
@@ -288,6 +297,12 @@ class TikTokAdapter implements PlatformAdapter {
       if (isSmartPlus) {
         body.campaign_type = "SMART_PERFORMANCE_CAMPAIGN";
         console.log(`🚀 Fallback: Setting campaign_type=SMART_PERFORMANCE_CAMPAIGN on regular endpoint`);
+      }
+      
+      // Set is_search_campaign flag for TikTok Search Ads campaigns
+      if (params.metadata?.isSearchCampaign) {
+        body.is_search_campaign = true;
+        console.log(`🔍 Setting is_search_campaign=true for TikTok Search campaign`);
       }
       
       const endpoint = `${this.API_BASE}/campaign/create/`;
@@ -440,7 +455,7 @@ class TikTokAdapter implements PlatformAdapter {
       // TikTok objectives like LEAD_GENERATION, CONVERSIONS, APP_INSTALL only support OCPM billing
       // The previous fallback was causing "You can only select oCPM for your billing event" errors
       // Objectives that ONLY support OCPM: CONVERSIONS, LEAD_GENERATION, APP_PROMOTION
-      const ocpmOnlyObjectives = ['CONVERSIONS', 'LEAD_GENERATION', 'APP_PROMOTION', 'APP_INSTALL'];
+      const ocpmOnlyObjectives = ['CONVERSIONS', 'WEB_CONVERSIONS', 'LEAD_GENERATION', 'APP_PROMOTION', 'APP_INSTALL'];
       const campaignObjective = params.campaignId ? 'UNKNOWN' : 'UNKNOWN'; // We don't have objective here, rely on optimization goal
       
       // For conversion-type optimization goals, always use OCPM (TikTok requirement)

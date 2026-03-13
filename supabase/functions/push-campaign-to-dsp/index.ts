@@ -3996,10 +3996,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
   );
 
   if (hasConversionCampaigns) {
-    console.warn("⚠️⚠️⚠️ TIKTOK CONVERSION CAMPAIGN DETECTED ⚠️⚠️⚠️");
-    console.warn("TikTok requires conversion events to have 90+ days of historical data");
-    console.warn("System will AUTOMATICALLY fallback to TRAFFIC objective with CLICK optimization");
-    console.warn("This ensures ad groups can be created successfully without pixel data requirements");
+    console.log("📋 TikTok conversion campaigns detected - will use WEB_CONVERSIONS objective (correct TikTok API enum)");
   }
 
   const results = [];
@@ -4049,7 +4046,23 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           "tiktok",
         );
 
-        console.log(`Mapped objective: ${objectiveMapping.sourceObjective} -> ${objectiveMapping.targetObjective}`);
+        // Determine if Search is enabled for this phase
+        const isSearchPhase = phase.tiktokSearchEnabled ?? market.tiktokSearchEnabled ?? 
+          (phase.name || "").toLowerCase().includes("search");
+
+        // SEARCH ADS CONSTRAINT: TikTok Search only supports TRAFFIC and WEB_CONVERSIONS
+        let tiktokObjective = objectiveMapping.targetObjective;
+        if (isSearchPhase) {
+          const validSearchObjectives = ["TRAFFIC", "WEB_CONVERSIONS"];
+          if (!validSearchObjectives.includes(tiktokObjective)) {
+            console.warn(`⚠️ Search phase detected but objective is ${tiktokObjective} — forcing to TRAFFIC (Search only supports TRAFFIC/WEB_CONVERSIONS)`);
+            tiktokObjective = "TRAFFIC";
+          } else {
+            console.log(`✅ Search phase with valid objective: ${tiktokObjective}`);
+          }
+        }
+
+        console.log(`Mapped objective: ${objectiveMapping.sourceObjective} -> ${tiktokObjective} (mapper output: ${objectiveMapping.targetObjective}, isSearch: ${isSearchPhase})`);
 
         // Calculate budget
         const totalCampaignBudget = campaign.total_budget || 0;
@@ -4081,7 +4094,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           platformBudget: phaseBudget,
           market: market.name,
           country: market.name?.substring(0, 2)?.toUpperCase(),
-          objective: objectiveMapping.targetObjective,
+          objective: tiktokObjective,
           funnelStage: phase.funnelStage,
           placementType: phase.tiktokPlacementType || "automatic",
           startDate: phase.startDate || campaign.start_date,
@@ -4110,7 +4123,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           accountId: advertiserId,
           accessToken: platform.access_token,
           campaignName: tiktokCampaignTaxonomyName || defaultTiktokCampaignName,
-          objective: objectiveMapping.targetObjective,
+          objective: tiktokObjective,
           budget: campaignBudget,
           budgetMode: budgetType,
           startDate: startDate.toISOString().split("T")[0],
@@ -4118,6 +4131,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           status: "PAUSED",
           metadata: {
             smartPlusEnabled: isSmartPlusCampaign,
+            isSearchCampaign: isSearchPhase,
           },
         });
 
@@ -4144,7 +4158,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           tiktok_campaign_id: campaignResult.campaignId,
           advertiser_id: advertiserId,
           campaign_name: campaignResult.metadata?.campaign_name || "",
-          objective_type: objectiveMapping.targetObjective,
+          objective_type: tiktokObjective,
           budget_mode: budgetType,
           budget: campaignBudget,
           status: "PAUSED",
@@ -4284,10 +4298,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
-        // IMPORTANT: Use the ACTUAL objective from campaign creation result, not the mapped objective
-        // because the adapter may apply fallbacks (e.g., CONVERSIONS → TRAFFIC)
+        // Use the ACTUAL objective from campaign creation result
         let tiktokOptGoal: string;
-        const originalMappedObjective = objectiveMapping.targetObjective;
+        const originalMappedObjective = tiktokObjective;
 
         // Check if campaign creation applied an objective fallback
         const actualObjective = campaignResult.metadata?.actual_objective || originalMappedObjective;
@@ -4297,12 +4310,30 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           console.warn(`⚠️ Objective fallback was applied: ${originalMappedObjective} → ${actualObjective}`);
         }
 
-        // Use the ACTUAL objective for optimization goal mapping
-        if (actualObjective === "CONVERSIONS") {
-          // CONVERSIONS objective always uses CONVERT optimization goal
+        // SEARCH ADS OPTIMIZATION CONSTRAINT:
+        // - TRAFFIC Search → only CLICK
+        // - WEB_CONVERSIONS Search → only CONVERT or CLICK
+        if (isSearchPhase) {
+          if (actualObjective === "TRAFFIC") {
+            tiktokOptGoal = "CLICK";
+            console.log(`🔍 Search + TRAFFIC → forcing CLICK optimization`);
+          } else if (actualObjective === "WEB_CONVERSIONS") {
+            const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
+            if (phaseOptGoal === "CLICK" || phaseOptGoal === "CLICKS") {
+              tiktokOptGoal = "CLICK";
+            } else {
+              tiktokOptGoal = "CONVERT";
+            }
+            console.log(`🔍 Search + WEB_CONVERSIONS → ${tiktokOptGoal} optimization`);
+          } else {
+            tiktokOptGoal = "CLICK";
+            console.warn(`🔍 Search with unexpected objective ${actualObjective} → defaulting to CLICK`);
+          }
+        } else if (actualObjective === "WEB_CONVERSIONS" || actualObjective === "CONVERSIONS") {
+          // WEB_CONVERSIONS objective uses CONVERT optimization goal
           tiktokOptGoal = "CONVERT";
         } else if (actualObjective === "TRAFFIC") {
-          // TRAFFIC objective uses CLICK or TRAFFIC_LANDING_PAGE_VIEW (TikTok enum)
+          // TRAFFIC objective uses CLICK or TRAFFIC_LANDING_PAGE_VIEW
           const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
           if (
             phaseOptGoal === "TRAFFIC_LANDING_PAGE_VIEW" ||
@@ -4315,8 +4346,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             tiktokOptGoal = "CLICK";
           }
         } else if (actualObjective === "LEAD_GENERATION") {
-          // TikTok Lead Gen requires FORM_SUBMIT optimization goal (and OCPM billing)
-          // We map any lead-style goals coming from the plan to TikTok's supported enum.
           tiktokOptGoal = "FORM_SUBMIT";
         } else if (actualObjective === "REACH") {
           tiktokOptGoal = "REACH";
@@ -4325,7 +4354,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         } else if (actualObjective === "APP_PROMOTION" || actualObjective === "APP_INSTALL") {
           tiktokOptGoal = "INSTALL";
         } else {
-          // Default fallback
           tiktokOptGoal = "CLICK";
         }
 
@@ -4338,19 +4366,30 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // NOTE: TRAFFIC objective with CLICK optimization requires CPC (confirmed via API error "Only CPC is supported")
         const billingEventMap: Record<string, Record<string, string>> = {
           TRAFFIC: {
-            CLICK: "CPC", // CLICK supports CPC (API confirmed)
-            TRAFFIC_LANDING_PAGE_VIEW: "OCPM", // Landing page view often requires OCPM (API confirmed)
+            CLICK: "CPC",
+            TRAFFIC_LANDING_PAGE_VIEW: "OCPM",
             LANDING_PAGE: "OCPM",
+          },
+          WEB_CONVERSIONS: {
+            CONVERT: "OCPM",
+            CLICK: "CPC",
           },
           CONVERSIONS: {
             CONVERT: "OCPM",
           },
           REACH: {
-            REACH: "CPM", // REACH is an exception that still supports CPM
+            REACH: "CPM",
+          },
+          VIDEO_VIEWS: {
+            VIDEO_VIEW: "OCPM",
+            FOCUSED_VIEW: "OCPM",
           },
           VIDEO_VIEW: {
-            VIDEO_VIEW: "OCPM", // VIDEO_VIEW now uses OCPM
+            VIDEO_VIEW: "OCPM",
             FOCUSED_VIEW: "OCPM",
+          },
+          APP_PROMOTION: {
+            INSTALL: "OCPM",
           },
           APP_INSTALL: {
             INSTALL: "OCPM",
@@ -4392,8 +4431,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         let pixelId: string | undefined;
         if (
           tiktokOptGoal === "CONVERT" ||
+          actualObjective === "WEB_CONVERSIONS" ||
           actualObjective === "CONVERSIONS" ||
-          originalMappedObjective === "CONVERSIONS"
+          originalMappedObjective === "WEB_CONVERSIONS"
         ) {
           pixelId = market.tiktokPixel || market.pixelId || market.tiktokPixelId;
           console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
@@ -4414,9 +4454,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         // Get optimization location
         // Default to Website unless LEAD_GENERATION (defaults to Instant Form)
+        // SEARCH ADS: only Website or TikTok Instant Page allowed
         let optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
         if (!optimizationLocation) {
           optimizationLocation = actualObjective === "LEAD_GENERATION" ? "Instant Form" : "Website";
+        }
+        if (isSearchPhase && optimizationLocation !== "Website" && optimizationLocation !== "TikTok Instant Page") {
+          console.warn(`🔍 Search phase: forcing optimization location to "Website" (was "${optimizationLocation}")`);
+          optimizationLocation = "Website";
         }
         // Get app details for app campaigns
         const appName = phase.tiktokAppName || market.tiktokAppName;
@@ -4520,7 +4565,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           // Build context for TikTok ad group taxonomy
           const tiktokAdgroupTaxonomyContext: TaxonomyContext = {
             platform: "tiktok",
-            objective: objectiveMapping.targetObjective,
+            objective: tiktokObjective,
             optimizationGoal: tiktokOptGoal,
             phaseBudget: adGroupBudget,
             budgetType: budgetType,
