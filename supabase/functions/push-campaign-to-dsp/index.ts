@@ -4481,7 +4481,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const smartPlusEnabled =
           phase.tiktokSmartPlusEnabled !== undefined ? phase.tiktokSmartPlusEnabled : market.tiktokSmartPlusEnabled;
         const searchEnabled =
-          phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : market.tiktokSearchEnabled;
+          phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : (market.tiktokSearchEnabled || isSearchPhase);
 
         // Create ad group
         // Retrieve TikTok-specific parameters from phase or market defaults
@@ -4596,15 +4596,22 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
           // Build search keywords for TikTok Search Ads
+          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform) if phase.keywords is empty
           const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
-          if (searchEnabled && phase.keywords && Array.isArray(phase.keywords)) {
-            for (const kw of phase.keywords) {
-              tiktokSearchKeywords.push({
-                text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
-                matchType: kw.matchType || kw.match_type || "BROAD",
-              });
+          if (searchEnabled || isSearchPhase) {
+            const rawKeywords = phase.keywords || 
+              (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
+                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+            
+            if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
+              for (const kw of rawKeywords) {
+                tiktokSearchKeywords.push({
+                  text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
+                  matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+                });
+              }
             }
-            console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled})`);
+            console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
           }
 
           const adGroupResult = await tiktokAdapter.createAdGroup({
