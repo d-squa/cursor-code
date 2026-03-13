@@ -3998,7 +3998,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
   if (hasConversionCampaigns) {
     console.log("📋 TikTok conversion campaigns detected - will use WEB_CONVERSIONS objective (correct TikTok API enum)");
   }
-  }
 
   const results = [];
   const errors = [];
