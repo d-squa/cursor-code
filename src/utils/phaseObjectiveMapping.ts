@@ -134,6 +134,23 @@ function getTikTokObjectiveFromPhaseName(
 ): PhaseObjectiveMapping {
   const normalizedPhase = phaseName.toLowerCase();
   
+  // Search phases — map based on strategy focus
+  if (normalizedPhase.includes("search")) {
+    if (strategyFocus === "Traffic" || normalizedPhase.includes("traffic")) {
+      return {
+        objective: "TRAFFIC",
+        optimizationGoal: "CLICK",
+        destination: "Website"
+      };
+    }
+    // Default search to conversions (most common use case)
+    return {
+      objective: "CONVERSIONS",
+      optimizationGoal: "CONVERT",
+      destination: "Website"
+    };
+  }
+  
   // Awareness/Reach phases
   if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
     return {
