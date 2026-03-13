@@ -1017,7 +1017,7 @@ class TikTokAdapter implements PlatformAdapter {
         const errorMessage = String(data.message || "");
         const isMissingPixelEvent = errorMessage.toLowerCase().includes("pixel event type does not exist");
 
-        // Auto-retry once with a pixel event that actually exists on this pixel
+        // Auto-retry with alternative pixel events when the configured event is unavailable
         if (isMissingPixelEvent && body.pixel_id) {
           try {
             const pixelEndpoint = `${this.API_BASE}/pixel/list/?advertiser_id=${params.accountId}&pixel_ids=["${body.pixel_id}"]`;
@@ -1037,14 +1037,33 @@ class TikTokAdapter implements PlatformAdapter {
                 .filter(Boolean),
             ));
 
-            const preferredFallbackOrder = ["ON_WEB_ORDER", "ON_WEB_CART", "ON_WEB_DETAIL", "LANDING_PAGE_VIEW", "PAGE_VIEW", "FORM"];
-            const fallbackEvent =
-              preferredFallbackOrder.find((evt) => availableEvents.includes(evt) && evt !== body.optimization_event) ||
-              availableEvents.find((evt: string) => evt !== body.optimization_event);
+            const webFallbackEvents = [
+              "ON_WEB_ORDER",
+              "ON_WEB_CART",
+              "ON_WEB_DETAIL",
+              "LANDING_PAGE_VIEW",
+              "PAGE_VIEW",
+              "FORM",
+              "ON_WEB_REGISTER",
+              "ON_WEB_SEARCH",
+              "ON_WEB_SUBSCRIBE",
+              "ON_WEB_ADD_TO_WISHLIST",
+              "CLICK_WEBSITE",
+            ];
 
-            if (fallbackEvent) {
-              const retryBody = { ...body, optimization_event: fallbackEvent };
-              console.warn(`⚠️ Pixel event '${body.optimization_event}' not found on pixel ${body.pixel_id}. Retrying with '${fallbackEvent}'`);
+            const retryCandidates = Array.from(
+              new Set([
+                ...availableEvents,
+                ...webFallbackEvents,
+              ].filter((evt) => evt && evt !== body.optimization_event)),
+            );
+
+            console.warn(
+              `⚠️ Pixel event '${body.optimization_event}' not found on pixel ${body.pixel_id}. Retrying with candidates: ${JSON.stringify(retryCandidates)}`,
+            );
+
+            for (const candidateEvent of retryCandidates) {
+              const retryBody = { ...body, optimization_event: candidateEvent };
 
               const retryResponse = await fetch(endpoint, {
                 method: "POST",
@@ -1056,10 +1075,16 @@ class TikTokAdapter implements PlatformAdapter {
               });
 
               const retryText = await retryResponse.text();
-              const retryData = JSON.parse(retryText);
+              let retryData: any;
+              try {
+                retryData = JSON.parse(retryText);
+              } catch {
+                console.error(`Retry parse failed for event '${candidateEvent}':`, retryText);
+                continue;
+              }
 
               if (retryData.code === 0) {
-                console.log(`✅ TikTok ad group created on retry with optimization_event='${fallbackEvent}':`, retryData.data?.adgroup_id);
+                console.log(`✅ TikTok ad group created on retry with optimization_event='${candidateEvent}':`, retryData.data?.adgroup_id);
                 return {
                   success: true,
                   adGroupId: retryData.data.adgroup_id,
@@ -1068,10 +1093,14 @@ class TikTokAdapter implements PlatformAdapter {
                 };
               }
 
-              console.error("Retry with fallback pixel event failed:", JSON.stringify(retryData, null, 2));
-            } else {
-              console.error(`❌ No usable events found on pixel ${body.pixel_id}. Available: ${JSON.stringify(availableEvents)}`);
+              const retryMsg = String(retryData?.message || "");
+              if (!retryMsg.toLowerCase().includes("pixel event type does not exist")) {
+                console.error(`Retry failed with non-pixel-event error for '${candidateEvent}':`, JSON.stringify(retryData, null, 2));
+                break;
+              }
             }
+
+            console.error(`❌ Could not find a valid optimization_event for pixel ${body.pixel_id}. Pixel reported events: ${JSON.stringify(availableEvents)}`);
           } catch (retryErr: any) {
             console.error("Failed to auto-recover pixel event error:", retryErr?.message || retryErr);
           }
