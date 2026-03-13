@@ -299,6 +299,12 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`🚀 Fallback: Setting campaign_type=SMART_PERFORMANCE_CAMPAIGN on regular endpoint`);
       }
       
+      // Set is_search_campaign flag for TikTok Search Ads campaigns
+      if (params.metadata?.isSearchCampaign) {
+        body.is_search_campaign = true;
+        console.log(`🔍 Setting is_search_campaign=true for TikTok Search campaign`);
+      }
+      
       const endpoint = `${this.API_BASE}/campaign/create/`;
       console.log("TikTok API Full Request:", {
         endpoint,
