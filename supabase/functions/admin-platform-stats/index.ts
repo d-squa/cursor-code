@@ -119,6 +119,7 @@ Deno.serve(async (req) => {
     let campaignsQ = supabase.from("campaigns").select("id, status, created_at, name, total_budget, user_id, team_id", { count: "exact", head: false });
     campaignsQ = applyUserFilter(campaignsQ);
     campaignsQ = applyTeamFilter(campaignsQ);
+    campaignsQ = applyDateFilter(campaignsQ);
 
     let campaignsThisMonthQ = supabase.from("campaigns").select("id", { count: "exact", head: true }).gte("created_at", startOfMonth);
     campaignsThisMonthQ = applyUserFilter(campaignsThisMonthQ);
