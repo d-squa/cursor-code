@@ -4126,7 +4126,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           accountId: advertiserId,
           accessToken: platform.access_token,
           campaignName: tiktokCampaignTaxonomyName || defaultTiktokCampaignName,
-          objective: objectiveMapping.targetObjective,
+          objective: tiktokObjective,
           budget: campaignBudget,
           budgetMode: budgetType,
           startDate: startDate.toISOString().split("T")[0],
