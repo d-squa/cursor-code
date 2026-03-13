@@ -132,9 +132,9 @@ export class ObjectiveMapper {
       if (upper.includes("CONVERSION") || upper.includes("SALES") || upper.includes("PURCHASE")) {
         return {
           sourceObjective: upper,
-          targetObjective: "CONVERSIONS",
+          targetObjective: "WEB_CONVERSIONS",
           targetPlatform: "tiktok",
-          notes: "Fallback: conversions/sales",
+          notes: "Fallback: conversions/sales → WEB_CONVERSIONS (not PRODUCT_CATALOG_PRODUCT_SALES)",
         };
       }
       if (upper.includes("APP")) {

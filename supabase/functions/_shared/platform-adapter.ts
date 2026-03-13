@@ -216,14 +216,23 @@ class TikTokAdapter implements PlatformAdapter {
       // Check if Smart+ campaign
       const isSmartPlus = params.metadata?.smartPlusEnabled === true;
 
-      // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERSIONS objective
-      // Fall back to TRAFFIC to prevent campaign creation issues
+      // OBJECTIVE NORMALIZATION: Map to correct TikTok API objective_type enum values
+      // TikTok valid objective_type values: TRAFFIC, WEB_CONVERSIONS, REACH, VIDEO_VIEWS, 
+      // LEAD_GENERATION, APP_PROMOTION, PRODUCT_CATALOG_PRODUCT_SALES
+      // IMPORTANT: "CONVERSIONS" is NOT a valid TikTok objective — use "WEB_CONVERSIONS"
       let finalObjective = params.objective;
       let objectiveFallbackApplied = false;
-      if (finalObjective === 'CONVERSIONS' && !isSmartPlus) {
-        console.warn("⚠️ CONVERSIONS objective detected - Falling back to TRAFFIC (TikTok requires 90+ days conversion data)");
-        finalObjective = 'TRAFFIC';
-        objectiveFallbackApplied = true;
+      
+      // Normalize CONVERSIONS → WEB_CONVERSIONS (correct TikTok enum)
+      if (finalObjective === 'CONVERSIONS') {
+        console.log("📋 Normalizing CONVERSIONS → WEB_CONVERSIONS (correct TikTok API enum)");
+        finalObjective = 'WEB_CONVERSIONS';
+        // This is a normalization, not a fallback
+      }
+      
+      // Normalize VIDEO_VIEW variants
+      if (finalObjective === 'VIDEO_VIEW') {
+        finalObjective = 'VIDEO_VIEWS';
       }
 
       if (isSmartPlus) {
