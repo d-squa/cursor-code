@@ -595,9 +595,11 @@ class TikTokAdapter implements PlatformAdapter {
                                 reachObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
       const isLeadGenObjective = leadGenObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
                                   leadGenObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
+      // Search ads with WEB_CONVERSIONS also require manual placement
+      const isSearchWithManualPlacement = params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0;
       const requiresManualPlacement = objectivesRequiringManualPlacement.includes(finalOptimizationGoal.toUpperCase()) ||
                                        objectivesRequiringManualPlacement.includes(params.optimizationGoal?.toUpperCase() || '') ||
-                                       isReachObjective || isLeadGenObjective;
+                                       isReachObjective || isLeadGenObjective || isSearchWithManualPlacement;
       
       let finalPlacementType = params.placementType || "PLACEMENT_TYPE_AUTOMATIC";
       let finalPlacements = params.placements;
