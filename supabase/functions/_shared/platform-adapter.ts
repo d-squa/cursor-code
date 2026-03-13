@@ -609,6 +609,11 @@ class TikTokAdapter implements PlatformAdapter {
         console.warn(`⚠️ ${isReachObjective ? 'REACH' : 'LEAD_GENERATION'} objective - forcing PLACEMENT_TYPE_NORMAL with PLACEMENT_TIKTOK only`);
         finalPlacementType = "PLACEMENT_TYPE_NORMAL";
         finalPlacements = ["PLACEMENT_TIKTOK"];
+      } else if (isSearchWithManualPlacement) {
+        // Search ads ONLY support PLACEMENT_TIKTOK with manual placement
+        console.warn(`⚠️ Search ads enabled - forcing PLACEMENT_TYPE_NORMAL with PLACEMENT_TIKTOK only`);
+        finalPlacementType = "PLACEMENT_TYPE_NORMAL";
+        finalPlacements = ["PLACEMENT_TIKTOK"];
       } else if (requiresManualPlacement) {
         console.warn(`⚠️ ${finalOptimizationGoal} objective requires manual placement - overriding to PLACEMENT_TYPE_NORMAL`);
         finalPlacementType = "PLACEMENT_TYPE_NORMAL";
