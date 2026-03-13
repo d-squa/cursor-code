@@ -4455,9 +4455,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         // Get optimization location
         // Default to Website unless LEAD_GENERATION (defaults to Instant Form)
+        // SEARCH ADS: only Website or TikTok Instant Page allowed
         let optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
         if (!optimizationLocation) {
           optimizationLocation = actualObjective === "LEAD_GENERATION" ? "Instant Form" : "Website";
+        }
+        if (isSearchPhase && optimizationLocation !== "Website" && optimizationLocation !== "TikTok Instant Page") {
+          console.warn(`🔍 Search phase: forcing optimization location to "Website" (was "${optimizationLocation}")`);
+          optimizationLocation = "Website";
         }
         // Get app details for app campaigns
         const appName = phase.tiktokAppName || market.tiktokAppName;
