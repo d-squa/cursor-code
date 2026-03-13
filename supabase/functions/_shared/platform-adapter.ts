@@ -91,6 +91,8 @@ export interface CreateAdGroupParams {
   // TikTok Search Ads
   searchEnabled?: boolean;
   searchKeywords?: Array<{ text: string; matchType?: string }>;
+  // Conversion event for pixel-based optimization
+  conversionEvent?: string;
 }
 
 export interface CreateAdGroupResult {
