@@ -455,7 +455,7 @@ class TikTokAdapter implements PlatformAdapter {
       // TikTok objectives like LEAD_GENERATION, CONVERSIONS, APP_INSTALL only support OCPM billing
       // The previous fallback was causing "You can only select oCPM for your billing event" errors
       // Objectives that ONLY support OCPM: CONVERSIONS, LEAD_GENERATION, APP_PROMOTION
-      const ocpmOnlyObjectives = ['CONVERSIONS', 'LEAD_GENERATION', 'APP_PROMOTION', 'APP_INSTALL'];
+      const ocpmOnlyObjectives = ['CONVERSIONS', 'WEB_CONVERSIONS', 'LEAD_GENERATION', 'APP_PROMOTION', 'APP_INSTALL'];
       const campaignObjective = params.campaignId ? 'UNKNOWN' : 'UNKNOWN'; // We don't have objective here, rely on optimization goal
       
       // For conversion-type optimization goals, always use OCPM (TikTok requirement)
