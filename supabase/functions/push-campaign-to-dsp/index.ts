@@ -3479,7 +3479,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
   // Import the adapter
   const { getPlatformAdapter } = await import("../_shared/platform-adapter.ts");
-  const googleAdapter = getPlatformAdapter("google");
+  const googleAdapter = getPlatformAdapter("google") as any;
 
   for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
     const phases = market.phases || [{
@@ -3501,6 +3501,50 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
     const cleanCustomerId = String(googleCustomerId).replace(/-/g, "");
     console.log(`📤 Processing Google Ads market ${market.name} with customer ID: ${cleanCustomerId}`);
 
+    // Resolve market countries for geo targeting
+    const marketCountries: string[] = Array.isArray(market.countries) && market.countries.length > 0
+      ? market.countries
+      : [market.name]; // market.name is ISO country code
+
+    // Resolve languages
+    const basicTargeting = campaign.generic_config?.basicTargeting || {};
+    const marketLanguages: string[] = [];
+    const rawLangs = market.languages || basicTargeting.languages || [];
+    if (Array.isArray(rawLangs) && rawLangs.length > 0) {
+      // Map Meta numeric IDs to language codes
+      const metaIdToLangCode: Record<string, string> = {
+        '6': 'en', '24': 'es', '8': 'fr', '9': 'de', '11': 'it', '19': 'pt',
+        '25': 'nl', '28': 'ru', '29': 'ja', '30': 'ko', '31': 'zh', '32': 'ar',
+        '1001': 'de', '1002': 'fr', '1003': 'es', '1004': 'it', '1005': 'ja',
+      };
+      for (const l of rawLangs) {
+        const ls = String(l).toLowerCase();
+        if (ls === 'all') continue;
+        const mapped = metaIdToLangCode[ls] || ls;
+        if (mapped && !marketLanguages.includes(mapped)) marketLanguages.push(mapped);
+      }
+    }
+
+    // Resolve unified targeting audiences/interests for Google Ads
+    const effectiveTargeting = Object.keys(basicTargeting).length > 0 ? basicTargeting : {};
+    const googleAudiences: Array<{ id: string; name: string; type: string; source?: string }> = [];
+    if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
+      for (const item of effectiveTargeting.selectedItems) {
+        if (item.platforms && item.platforms.includes("google")) {
+          const googleId = item.googleId || item.platform_ids?.google || item.id;
+          if (googleId) {
+            googleAudiences.push({
+              id: String(googleId).replace(/^google-/, ""),
+              name: item.name,
+              type: item.category || "interest",
+              source: "google",
+            });
+          }
+        }
+      }
+      console.log(`🎯 Found ${googleAudiences.length} Google Ads audience/interest items from unified targeting`);
+    }
+
     for (const phase of phases) {
       try {
         // Calculate budget
@@ -3516,7 +3560,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
         // Determine budget type - Google Ads typically uses daily budgets
         const budgetType = phase.budgetType || "daily";
-        const dailyBudget = budgetType === "daily" ? phaseBudget / durationDays : phaseBudget / durationDays;
+        const dailyBudget = phaseBudget / durationDays;
 
         // Get campaign type from phase config (Search, Display, Performance Max, Video, etc.)
         const campaignType = phase.googleCampaignType || "Search";
@@ -3545,265 +3589,377 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
         const mappedBidStrategy = bidStrategyMap[bidStrategy] || bidStrategy;
         const bidAmount = phase.googleTargetCpa || phase.googleTargetRoas || phase.googleMaxCpcBid || undefined;
 
-        // Generate campaign name
-        const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}_${generateTimestampSuffix()}`;
+        // Get location targeting type (Presence or Interest vs Presence only)
+        const locationTargetingType = phase.googleLocationTargeting || market.googleLocationTargeting || "PRESENCE_OR_INTEREST";
+        // Get network settings
+        const searchPartnerNetwork = phase.googleSearchPartner ?? market.googleSearchPartner ?? false;
+        const displayNetworkEnabled = phase.googleDisplayNetwork ?? market.googleDisplayNetwork ?? false;
 
-        console.log(`📊 Google Ads campaign config:`, {
-          campaignType, advertisingChannelType, bidStrategy: mappedBidStrategy,
-          dailyBudget, phaseBudget, durationDays,
-        });
+        // Determine if this is a Search campaign with keyword strategies that need splitting
+        const isSearchCampaign = advertisingChannelType === "SEARCH";
+        const phaseKeywords = phase.keywords || phase.searchKeywords || [];
+        
+        // Check if keywords have strategy groupings (Brand, Generic, Competition)
+        let keywordStrategies: Record<string, Array<{ text: string; matchType?: string }>> = {};
+        if (isSearchCampaign && Array.isArray(phaseKeywords) && phaseKeywords.length > 0) {
+          for (const kw of phaseKeywords) {
+            const strategy = (typeof kw === "string" ? "Generic" : (kw.strategy || kw.category || "Generic"));
+            if (!keywordStrategies[strategy]) keywordStrategies[strategy] = [];
+            keywordStrategies[strategy].push({
+              text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
+              matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+            });
+          }
+          console.log(`🔍 Search keyword strategies found: ${Object.keys(keywordStrategies).join(", ")} (${phaseKeywords.length} total keywords)`);
+        }
 
-        // Step 1: Create campaign via adapter (or reuse already-pushed campaign for partial retries)
-        const existingCampaignId = typeof phase._existingDspCampaignId === "string" ? phase._existingDspCampaignId : undefined;
+        // If no keyword strategies, treat as a single campaign
+        const strategiesToProcess = Object.keys(keywordStrategies).length > 0
+          ? Object.entries(keywordStrategies)
+          : [["", []] as [string, Array<{ text: string; matchType?: string }>]];
 
-        let campaignResult: any;
-        if (existingCampaignId) {
-          console.log(`♻️ Reusing existing Google Ads campaign for ${market.name}/${phase.name}: ${existingCampaignId}`);
-          campaignResult = {
-            success: true,
-            campaignId: existingCampaignId,
-            platform: "google",
-            metadata: { reused: true },
-          };
-        } else {
-          campaignResult = await googleAdapter.createCampaign({
-            accountId: cleanCustomerId,
-            accessToken: platform.access_token,
-            campaignName: defaultCampaignName,
-            objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
-            budget: dailyBudget,
-            budgetMode: "daily",
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-            status: "PAUSED",
-            metadata: {
-              developerToken,
-              loginCustomerId: managerAccountId?.replace(/-/g, ""),
-              advertisingChannelType,
-              biddingStrategy: mappedBidStrategy,
-              bidAmount,
-              campaignSubtype: phase.googleCampaignSubtype,
-            },
+        // Determine if we need ad-group-level targeting (Demand Gen, Display, Video)
+        const needsAdGroupLevelTargeting = ["DEMAND_GEN", "DISPLAY", "VIDEO"].includes(advertisingChannelType);
+
+        for (const [strategyName, strategyKeywords] of strategiesToProcess) {
+          // Generate campaign name - include strategy suffix for keyword-split campaigns
+          const strategySuffix = strategyName ? ` - ${strategyName}` : "";
+          const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
+
+          // Adjust budget for strategy split (equal split among strategies)
+          const strategyCount = Math.max(1, Object.keys(keywordStrategies).length);
+          const strategyDailyBudget = dailyBudget / strategyCount;
+
+          console.log(`📊 Google Ads campaign config:`, {
+            campaignType, advertisingChannelType, bidStrategy: mappedBidStrategy,
+            dailyBudget: strategyDailyBudget, phaseBudget: phaseBudget / strategyCount, durationDays,
+            strategy: strategyName || "none", keywordCount: strategyKeywords.length,
+            locationTargeting: locationTargetingType,
+            searchPartner: searchPartnerNetwork,
+            displayNetwork: displayNetworkEnabled,
           });
 
-          if (!campaignResult.success) {
-            console.error(`❌ Google Ads campaign creation failed:`, campaignResult.error);
-            errors.push({
+          // Step 1: Create campaign
+          const existingCampaignId = typeof phase._existingDspCampaignId === "string" ? phase._existingDspCampaignId : undefined;
+
+          let campaignResult: any;
+          if (existingCampaignId && !strategyName) {
+            console.log(`♻️ Reusing existing Google Ads campaign for ${market.name}/${phase.name}: ${existingCampaignId}`);
+            campaignResult = {
+              success: true,
+              campaignId: existingCampaignId,
+              platform: "google",
+              metadata: { reused: true },
+            };
+          } else {
+            campaignResult = await googleAdapter.createCampaign({
+              accountId: cleanCustomerId,
+              accessToken: platform.access_token,
+              campaignName: defaultCampaignName,
+              objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
+              budget: strategyDailyBudget,
+              budgetMode: "daily",
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+              status: "PAUSED",
+              metadata: {
+                developerToken,
+                loginCustomerId: managerAccountId?.replace(/-/g, ""),
+                advertisingChannelType,
+                biddingStrategy: mappedBidStrategy,
+                bidAmount,
+                campaignSubtype: phase.googleCampaignSubtype,
+              },
+            });
+
+            if (!campaignResult.success) {
+              console.error(`❌ Google Ads campaign creation failed:`, campaignResult.error);
+              errors.push({
+                market: market.name,
+                phase: phase.name,
+                error: campaignResult.error || "Campaign creation failed",
+                type: "campaign_creation",
+                fieldPath: "step3",
+              });
+              continue;
+            }
+
+            console.log(`✅ Google Ads campaign created: ${campaignResult.campaignId}`);
+          }
+
+          // ============= CAMPAIGN-LEVEL TARGETING =============
+          const campaignHeaders = {
+            Authorization: `Bearer ${platform.access_token}`,
+            "developer-token": developerToken,
+            "Content-Type": "application/json",
+            ...(managerAccountId ? { "login-customer-id": managerAccountId.replace(/-/g, "") } : {}),
+          };
+
+          // Apply geo targeting at campaign level
+          if (marketCountries.length > 0) {
+            console.log(`🌍 Applying geo targeting to campaign ${campaignResult.campaignId}: ${marketCountries.join(", ")}, mode: ${locationTargetingType}`);
+            try {
+              await googleAdapter.addCampaignGeoCriteria(
+                cleanCustomerId,
+                campaignResult.campaignId,
+                marketCountries,
+                locationTargetingType,
+                campaignHeaders,
+              );
+            } catch (geoErr: any) {
+              console.error(`⚠️ Geo targeting error (non-fatal): ${geoErr.message}`);
+            }
+          }
+
+          // Apply language targeting at campaign level
+          if (marketLanguages.length > 0) {
+            console.log(`🗣️ Applying language targeting to campaign ${campaignResult.campaignId}: ${marketLanguages.join(", ")}`);
+            try {
+              await googleAdapter.addCampaignLanguageCriteria(
+                cleanCustomerId,
+                campaignResult.campaignId,
+                marketLanguages,
+                campaignHeaders,
+              );
+            } catch (langErr: any) {
+              console.error(`⚠️ Language targeting error (non-fatal): ${langErr.message}`);
+            }
+          }
+
+          // Apply network settings (Search Partners, Display Network)
+          try {
+            await googleAdapter.setCampaignNetworkSettings(
+              cleanCustomerId,
+              campaignResult.campaignId,
+              searchPartnerNetwork,
+              displayNetworkEnabled,
+              campaignHeaders,
+            );
+          } catch (netErr: any) {
+            console.error(`⚠️ Network settings error (non-fatal): ${netErr.message}`);
+          }
+          // ============= END CAMPAIGN-LEVEL TARGETING =============
+
+          // Step 2: Create Ad Group(s)
+          // For Performance Max, ad groups are handled differently (asset groups) — skip ad group for now
+          if (advertisingChannelType === "PERFORMANCE_MAX") {
+            console.log(`ℹ️ Performance Max campaigns don't use traditional ad groups - skipping ad group creation`);
+            results.push({
+              platform: "Google Ads",
               market: market.name,
               phase: phase.name,
-              error: campaignResult.error || "Campaign creation failed",
-              type: "campaign_creation",
-              fieldPath: "step3",
+              campaignId: campaignResult.campaignId,
+              adGroupId: null,
+              budget: strategyDailyBudget,
+              budgetType: "daily",
+              campaignType,
+              strategy: strategyName || undefined,
             });
             continue;
           }
 
-          console.log(`✅ Google Ads campaign created: ${campaignResult.campaignId}`);
-        }
+          // Set explicit ad group type only for Search campaigns
+          const adGroupType = advertisingChannelType === "SEARCH" ? "SEARCH_STANDARD" : undefined;
 
-        // Step 2: Create Ad Group(s)
-        // For Performance Max, ad groups are handled differently (asset groups) — skip ad group for now
-        if (advertisingChannelType === "PERFORMANCE_MAX") {
-          console.log(`ℹ️ Performance Max campaigns don't use traditional ad groups - skipping ad group creation`);
-          results.push({
-            platform: "Google Ads",
-            market: market.name,
-            phase: phase.name,
-            campaignId: campaignResult.campaignId,
-            adGroupId: null,
-            budget: dailyBudget,
-            budgetType: "daily",
-            campaignType,
-          });
-          continue;
-        }
+          // Build phase targeting
+          const phaseTargeting = phase.targeting || {};
+          const effectivePhaseTargeting = Object.keys(phaseTargeting).length > 0 ? phaseTargeting : basicTargeting;
 
-        // Set explicit ad group type only for Search campaigns; other channel types should use API defaults
-        const adGroupType = advertisingChannelType === "SEARCH" ? "SEARCH_STANDARD" : undefined;
+          // Determine if we have ad set splits
+          const adSetsToCreate = phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
+            ? phase.adSets
+            : [{ id: "default", name: phase.name, budgetPercentage: 100 }];
 
-        // Build targeting from phase/campaign config
-        const basicTargeting = campaign.generic_config?.basicTargeting || {};
-        const phaseTargeting = phase.targeting || {};
-        const effectiveTargeting = Object.keys(phaseTargeting).length > 0 ? phaseTargeting : basicTargeting;
+          for (const adSetConfig of adSetsToCreate) {
+            const adGroupSuffix = adSetConfig.id !== "default" ? ` - ${adSetConfig.name}` : "";
+            const strategySuffix2 = strategyName ? ` [${strategyName}]` : "";
+            const defaultAdGroupName = `${phase.name}${adGroupSuffix}${strategySuffix2} - Ad Group_${generateTimestampSuffix()}`;
 
-        // Build keywords for Search campaigns
-        const keywords: Array<{ text: string; matchType?: string }> = [];
-        if (advertisingChannelType === "SEARCH") {
-          // Check multiple possible sources for keywords
-          const phaseKeywords = phase.keywords || phase.searchKeywords || [];
-          console.log(`🔍 Google Ads Search keywords sources: phase.keywords=${JSON.stringify(phase.keywords?.length)}, phase.searchKeywords=${JSON.stringify(phase.searchKeywords?.length)}`);
-          
-          if (Array.isArray(phaseKeywords) && phaseKeywords.length > 0) {
-            for (const kw of phaseKeywords) {
-              keywords.push({
-                text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
-                matchType: (kw.matchType || kw.match_type || "BROAD").toUpperCase(),
-              });
-            }
-            console.log(`📝 ${keywords.length} keywords to add to Search ad group:`, JSON.stringify(keywords.slice(0, 5)));
-          } else {
-            console.warn(`⚠️ Google Ads Search campaign for ${phase.name} has NO keywords! phase.keywords=${JSON.stringify(phase.keywords)}`);
-          }
-        }
+            // Calculate CPC bid for ad group (if manual bidding)
+            const adGroupBidAmount = mappedBidStrategy === "MANUAL_CPC" ? (bidAmount || 1.0) : undefined;
 
-        // Determine ad set splits (similar to Meta/TikTok)
-        const adSetsToCreate = phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
-          ? phase.adSets
-          : [{ id: "default", name: phase.name, budgetPercentage: 100 }];
-
-        for (const adSetConfig of adSetsToCreate) {
-          const adGroupSuffix = adSetConfig.id !== "default" ? ` - ${adSetConfig.name}` : "";
-          const defaultAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
-
-          // Calculate CPC bid for ad group (if manual bidding)
-          const adGroupBidAmount = mappedBidStrategy === "MANUAL_CPC" ? (bidAmount || 1.0) : undefined;
-
-          const adGroupResult = await googleAdapter.createAdGroup({
-            accountId: cleanCustomerId,
-            accessToken: platform.access_token,
-            campaignId: campaignResult.campaignId,
-            adGroupName: defaultAdGroupName,
-            targeting: {
+            // Build targeting object for ad group
+            const adGroupTargetingPayload: any = {
               developerToken,
               loginCustomerId: managerAccountId?.replace(/-/g, ""),
               ...(adGroupType ? { adGroupType } : {}),
-              keywords,
-              ...effectiveTargeting,
-            },
-            placements: [],
-            optimizationGoal: mappedBidStrategy,
-            status: "PAUSED",
-            bidAmount: adGroupBidAmount,
-          });
+              keywords: strategyKeywords.length > 0 ? strategyKeywords : undefined,
+              ...effectivePhaseTargeting,
+            };
 
-          if (!adGroupResult.success) {
-            console.error(`❌ Google Ads ad group creation failed:`, adGroupResult.error);
-            errors.push({
+            // For Demand Gen, Display, Video: add ad-group-level geo and language targeting
+            if (needsAdGroupLevelTargeting) {
+              adGroupTargetingPayload.adGroupGeoTargets = marketCountries;
+              adGroupTargetingPayload.adGroupLanguages = marketLanguages;
+              console.log(`📍 Adding ad-group-level geo/language for ${campaignType}: countries=${marketCountries.join(",")}, languages=${marketLanguages.join(",")}`);
+            }
+
+            // Add audience targeting for all campaign types
+            if (googleAudiences.length > 0) {
+              adGroupTargetingPayload.audiences = googleAudiences;
+              console.log(`🎯 Adding ${googleAudiences.length} audiences to ad group targeting`);
+            }
+
+            // Also add phase-level audiences if present
+            if (phase.audiences && Array.isArray(phase.audiences) && phase.audiences.length > 0) {
+              const phaseAudiences = phase.audiences
+                .filter((a: any) => a.source === "google" || a.type === "user_list")
+                .map((a: any) => ({
+                  id: String(a.id),
+                  name: a.name,
+                  type: a.type || "audience",
+                  source: "google",
+                }));
+              if (phaseAudiences.length > 0) {
+                adGroupTargetingPayload.audiences = [
+                  ...(adGroupTargetingPayload.audiences || []),
+                  ...phaseAudiences,
+                ];
+                console.log(`🎯 Added ${phaseAudiences.length} phase-level audiences`);
+              }
+            }
+
+            const adGroupResult = await googleAdapter.createAdGroup({
+              accountId: cleanCustomerId,
+              accessToken: platform.access_token,
+              campaignId: campaignResult.campaignId,
+              adGroupName: defaultAdGroupName,
+              targeting: adGroupTargetingPayload,
+              placements: [],
+              optimizationGoal: mappedBidStrategy,
+              status: "PAUSED",
+              bidAmount: adGroupBidAmount,
+            });
+
+            if (!adGroupResult.success) {
+              console.error(`❌ Google Ads ad group creation failed:`, adGroupResult.error);
+              errors.push({
+                market: market.name,
+                phase: phase.name,
+                adSet: adSetConfig.name,
+                error: adGroupResult.error || "Ad group creation failed",
+                type: "adgroup_creation",
+                fieldPath: "step3",
+              });
+              continue;
+            }
+
+            console.log(`✅ Google Ads ad group created: ${adGroupResult.adGroupId}${strategyName ? ` [${strategyName}]` : ""}`);
+
+            // Step 3: Create Ads from assigned creatives
+            console.log(`🎨 Checking for assigned creatives for Google Ads ${market.name}/${phase.name}...`);
+
+            const { data: googleAssignments, error: assignmentError } = await supabase
+              .from("creative_assignments")
+              .select(`
+                id, creative_id, position, status,
+                headline, headline_2, headline_3, headline_4, headline_5,
+                description, description_2, description_3, description_4, description_5,
+                primary_text, destination_url, url_parameters, call_to_action,
+                creative:creatives(
+                  id, name, media_type, creative_type,
+                  platform_image_hash, platform_video_id,
+                  primary_text, headline, description, call_to_action,
+                  destination_url, url_parameters,
+                  dsp_upload_status, media_urls, thumbnail_url
+                )
+              `)
+              .eq("campaign_id", campaign.id)
+              .eq("platform", "google")
+              .eq("market", market.name)
+              .eq("phase_name", phase.name)
+              .order("position");
+
+            let adsCreated = 0;
+
+            if (assignmentError) {
+              console.error(`Error fetching Google Ads creative assignments:`, assignmentError);
+            } else if (googleAssignments && googleAssignments.length > 0) {
+              console.log(`📦 Found ${googleAssignments.length} assigned creatives for this Google Ads ad group`);
+
+              for (const assignment of googleAssignments) {
+                const creative = assignment.creative as any;
+                if (!creative) continue;
+
+                // Build headlines from assignment or creative
+                const headlines: string[] = [
+                  assignment.headline || creative.headline || creative.name || "Learn More",
+                  assignment.headline_2 || "Visit Today",
+                  assignment.headline_3 || "Get Started",
+                ].filter(Boolean).map((h: string) => h.substring(0, 30));
+                if (assignment.headline_4) headlines.push(assignment.headline_4.substring(0, 30));
+                if (assignment.headline_5) headlines.push(assignment.headline_5.substring(0, 30));
+
+                // Build descriptions
+                const descriptions: string[] = [
+                  assignment.description || creative.description || creative.primary_text || "",
+                  assignment.description_2 || "",
+                ].filter(Boolean).map((d: string) => d.substring(0, 90));
+
+                const landingPageUrl = assignment.destination_url || creative.destination_url
+                  || phase.googleLandingPageUrl || market.googleLandingPageUrl || "https://example.com";
+
+                try {
+                  const adResult = await googleAdapter.createCreative({
+                    accountId: cleanCustomerId,
+                    accessToken: platform.access_token,
+                    adGroupId: adGroupResult.adGroupId,
+                    creativeName: creative.name,
+                    creativeType: "responsive_search_ad",
+                    assets: {},
+                    adText: descriptions[0] || creative.name,
+                    callToAction: headlines[1] || "Learn More",
+                    landingPageUrl,
+                    ...(({
+                      developerToken,
+                      loginCustomerId: managerAccountId?.replace(/-/g, ""),
+                    }) as any),
+                  });
+
+                  if (!adResult.success) {
+                    console.error(`❌ Google Ads ad creation failed for ${creative.name}:`, adResult.error);
+                    await supabase.from("creative_assignments").update({
+                      status: "error",
+                      error_message: adResult.error || "Failed to create ad",
+                    }).eq("id", assignment.id);
+                    continue;
+                  }
+
+                  console.log(`✅ Google Ads ad created: ${adResult.creativeId} for ${creative.name}`);
+                  adsCreated++;
+
+                  await supabase.from("creative_assignments").update({
+                    status: "pushed",
+                    dsp_creative_id: adResult.creativeId,
+                    error_message: null,
+                  }).eq("id", assignment.id);
+                } catch (adError: any) {
+                  console.error(`Error creating Google Ads ad:`, adError);
+                  await supabase.from("creative_assignments").update({
+                    status: "error",
+                    error_message: adError.message || "Unexpected error",
+                  }).eq("id", assignment.id);
+                }
+              }
+            } else {
+              console.log(`ℹ️ No creatives assigned for Google Ads ${market.name}/${phase.name}`);
+            }
+
+            results.push({
+              platform: "Google Ads",
               market: market.name,
               phase: phase.name,
               adSet: adSetConfig.name,
-              error: adGroupResult.error || "Ad group creation failed",
-              type: "adgroup_creation",
-              fieldPath: "step3",
+              campaignId: campaignResult.campaignId,
+              adGroupId: adGroupResult.adGroupId,
+              budget: strategyDailyBudget,
+              budgetType: "daily",
+              campaignType,
+              strategy: strategyName || undefined,
+              adsCreated,
             });
-            continue;
-          }
-
-          console.log(`✅ Google Ads ad group created: ${adGroupResult.adGroupId}`);
-
-          // Step 3: Create Ads from assigned creatives
-          console.log(`🎨 Checking for assigned creatives for Google Ads ${market.name}/${phase.name}...`);
-
-          const { data: googleAssignments, error: assignmentError } = await supabase
-            .from("creative_assignments")
-            .select(`
-              id, creative_id, position, status,
-              headline, headline_2, headline_3, headline_4, headline_5,
-              description, description_2, description_3, description_4, description_5,
-              primary_text, destination_url, url_parameters, call_to_action,
-              creative:creatives(
-                id, name, media_type, creative_type,
-                platform_image_hash, platform_video_id,
-                primary_text, headline, description, call_to_action,
-                destination_url, url_parameters,
-                dsp_upload_status, media_urls, thumbnail_url
-              )
-            `)
-            .eq("campaign_id", campaign.id)
-            .eq("platform", "google")
-            .eq("market", market.name)
-            .eq("phase_name", phase.name)
-            .order("position");
-
-          let adsCreated = 0;
-
-          if (assignmentError) {
-            console.error(`Error fetching Google Ads creative assignments:`, assignmentError);
-          } else if (googleAssignments && googleAssignments.length > 0) {
-            console.log(`📦 Found ${googleAssignments.length} assigned creatives for this Google Ads ad group`);
-
-            for (const assignment of googleAssignments) {
-              const creative = assignment.creative as any;
-              if (!creative) continue;
-
-              // Build headlines from assignment or creative
-              const headlines: string[] = [
-                assignment.headline || creative.headline || creative.name || "Learn More",
-                assignment.headline_2 || "Visit Today",
-                assignment.headline_3 || "Get Started",
-              ].filter(Boolean).map(h => h.substring(0, 30));
-              if (assignment.headline_4) headlines.push(assignment.headline_4.substring(0, 30));
-              if (assignment.headline_5) headlines.push(assignment.headline_5.substring(0, 30));
-
-              // Build descriptions
-              const descriptions: string[] = [
-                assignment.description || creative.description || creative.primary_text || "",
-                assignment.description_2 || "",
-              ].filter(Boolean).map(d => d.substring(0, 90));
-
-              const landingPageUrl = assignment.destination_url || creative.destination_url
-                || phase.googleLandingPageUrl || market.googleLandingPageUrl || "https://example.com";
-
-              try {
-                const adResult = await googleAdapter.createCreative({
-                  accountId: cleanCustomerId,
-                  accessToken: platform.access_token,
-                  adGroupId: adGroupResult.adGroupId,
-                  creativeName: creative.name,
-                  creativeType: "responsive_search_ad",
-                  assets: {},
-                  adText: descriptions[0] || creative.name,
-                  callToAction: headlines[1] || "Learn More",
-                  landingPageUrl,
-                  // Pass extra data through casting
-                  ...(({
-                    developerToken,
-                    loginCustomerId: managerAccountId?.replace(/-/g, ""),
-                  }) as any),
-                });
-
-                if (!adResult.success) {
-                  console.error(`❌ Google Ads ad creation failed for ${creative.name}:`, adResult.error);
-                  await supabase.from("creative_assignments").update({
-                    status: "error",
-                    error_message: adResult.error || "Failed to create ad",
-                  }).eq("id", assignment.id);
-                  continue;
-                }
-
-                console.log(`✅ Google Ads ad created: ${adResult.creativeId} for ${creative.name}`);
-                adsCreated++;
-
-                await supabase.from("creative_assignments").update({
-                  status: "pushed",
-                  dsp_creative_id: adResult.creativeId,
-                  error_message: null,
-                }).eq("id", assignment.id);
-              } catch (adError: any) {
-                console.error(`Error creating Google Ads ad:`, adError);
-                await supabase.from("creative_assignments").update({
-                  status: "error",
-                  error_message: adError.message || "Unexpected error",
-                }).eq("id", assignment.id);
-              }
-            }
-          } else {
-            console.log(`ℹ️ No creatives assigned for Google Ads ${market.name}/${phase.name}`);
-          }
-
-          results.push({
-            platform: "Google Ads",
-            market: market.name,
-            phase: phase.name,
-            adSet: adSetConfig.name,
-            campaignId: campaignResult.campaignId,
-            adGroupId: adGroupResult.adGroupId,
-            budget: dailyBudget,
-            budgetType: "daily",
-            campaignType,
-            adsCreated,
-          });
-        }
+          } // end adSets loop
+        } // end keyword strategies loop
       } catch (error: any) {
         console.error(`Error processing Google Ads market ${market.name}, phase ${phase.name}:`, error);
         errors.push({
