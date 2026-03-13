@@ -2458,16 +2458,19 @@ export function PlatformMarketBudgetSelector({
                                       <SelectValue placeholder="Select Event" />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
-                                      <SelectItem value="ON_WEB_ORDER">Web Order (Purchase)</SelectItem>
+                                      <SelectItem value="ON_WEB_ORDER">Purchase</SelectItem>
                                       <SelectItem value="ON_WEB_ADD_TO_CART">Add to Cart</SelectItem>
-                                      <SelectItem value="PAGE_VIEW">Page View</SelectItem>
-                                      <SelectItem value="ON_WEB_CART_PAGE_BROWSE">Cart Page Browse</SelectItem>
-                                      <SelectItem value="ON_WEB_DETAIL_PAGE_BROWSE">Detail Page Browse</SelectItem>
+                                      <SelectItem value="ON_WEB_DETAIL">View Content</SelectItem>
+                                      <SelectItem value="ON_WEB_SEARCH">Search</SelectItem>
+                                      <SelectItem value="ON_WEB_ADD_TO_WISHLIST">Add to Wishlist</SelectItem>
+                                      <SelectItem value="INITIATE_CHECKOUT">Initiate Checkout</SelectItem>
+                                      <SelectItem value="ADD_PAYMENT_INFO">Add Payment Info</SelectItem>
                                       <SelectItem value="COMPLETE_PAYMENT">Complete Payment</SelectItem>
-                                      <SelectItem value="FORM_SUBMIT">Form Submit</SelectItem>
-                                      <SelectItem value="DOWNLOAD">Download</SelectItem>
-                                      <SelectItem value="REGISTRATION">Registration</SelectItem>
-                                      <SelectItem value="SUBSCRIBE">Subscribe</SelectItem>
+                                      <SelectItem value="ON_WEB_REGISTER">Complete Registration</SelectItem>
+                                      <SelectItem value="ON_WEB_SUBSCRIBE">Subscribe</SelectItem>
+                                      <SelectItem value="FORM">Form Submit</SelectItem>
+                                      <SelectItem value="DOWNLOAD_FINISH">Download</SelectItem>
+                                      <SelectItem value="PAGE_VIEW">Page View</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
