@@ -110,10 +110,8 @@ Deno.serve(async (req) => {
       if (existing.data.length > 0) {
         customerId = existing.data[0].id;
       } else {
-        const customer = await stripe.customers.create({
-          email: profile.email,
-          metadata: { user_id: targetUserId, source: "subscription_override" },
-        });
+        const customerParams = buildStripeCustomerParams(profile.email, targetUserId, profile, { source: "subscription_override" });
+        const customer = await stripe.customers.create(customerParams);
         customerId = customer.id;
       }
       // Upsert billing_customers mapping
