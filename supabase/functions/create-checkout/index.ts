@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { buildStripeCustomerParams, PROFILE_SELECT } from "../_shared/stripe-customer-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -206,12 +207,17 @@ serve(async (req) => {
         customerId = matchingCustomer.id;
         logStep("Found existing Stripe customer by email, reusing", { customerId });
       } else {
-        const newCustomer = await stripe.customers.create({
-          email: user.email,
-          metadata: { supabase_user_id: user.id },
-        });
+        // Fetch profile data to enrich Stripe customer
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select(PROFILE_SELECT)
+          .eq("id", user.id)
+          .single();
+
+        const customerParams = buildStripeCustomerParams(user.email!, user.id, profile);
+        const newCustomer = await stripe.customers.create(customerParams);
         customerId = newCustomer.id;
-        logStep("Created new Stripe customer", { customerId });
+        logStep("Created new Stripe customer with profile data", { customerId });
       }
 
       // Store the mapping — use upsert to handle race conditions

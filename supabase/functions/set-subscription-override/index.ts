@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import { buildStripeCustomerParams, PROFILE_SELECT } from "../_shared/stripe-customer-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,10 +78,10 @@ Deno.serve(async (req) => {
 
     const priceId = billingPeriod === "yearly" ? priceConfig.yearly : priceConfig.monthly;
 
-    // 1. Get target user's email from profiles
+    // 1. Get target user's profile (email + details for Stripe)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("email")
+      .select(`email, ${PROFILE_SELECT}`)
       .eq("id", targetUserId)
       .single();
 
@@ -109,10 +110,8 @@ Deno.serve(async (req) => {
       if (existing.data.length > 0) {
         customerId = existing.data[0].id;
       } else {
-        const customer = await stripe.customers.create({
-          email: profile.email,
-          metadata: { user_id: targetUserId, source: "subscription_override" },
-        });
+        const customerParams = buildStripeCustomerParams(profile.email, targetUserId, profile, { source: "subscription_override" });
+        const customer = await stripe.customers.create(customerParams);
         customerId = customer.id;
       }
       // Upsert billing_customers mapping
