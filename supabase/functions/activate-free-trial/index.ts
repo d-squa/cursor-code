@@ -89,13 +89,17 @@ serve(async (req) => {
         customerId = matchingCustomer.id;
         logStep("Found existing Stripe customer by email, reusing", { customerId });
       } else {
-        // Create new Stripe customer
-        const newCustomer = await stripe.customers.create({
-          email: user.email,
-          metadata: { supabase_user_id: user.id },
-        });
+        // Fetch profile data to enrich Stripe customer
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select(PROFILE_SELECT)
+          .eq("id", user.id)
+          .single();
+
+        const customerParams = buildStripeCustomerParams(user.email!, user.id, profile);
+        const newCustomer = await stripe.customers.create(customerParams);
         customerId = newCustomer.id;
-        logStep("Created new Stripe customer", { customerId });
+        logStep("Created new Stripe customer with profile data", { customerId });
       }
 
       // Store the mapping — use upsert to handle race conditions

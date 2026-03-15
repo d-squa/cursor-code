@@ -77,10 +77,10 @@ Deno.serve(async (req) => {
 
     const priceId = billingPeriod === "yearly" ? priceConfig.yearly : priceConfig.monthly;
 
-    // 1. Get target user's email from profiles
+    // 1. Get target user's profile (email + details for Stripe)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("email")
+      .select(`email, ${PROFILE_SELECT}`)
       .eq("id", targetUserId)
       .single();
 
