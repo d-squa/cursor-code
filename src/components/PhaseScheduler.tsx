@@ -202,6 +202,29 @@ export function PhaseScheduler({
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
+  const prevSignalRef = useRef(0);
+
+  // Handle expand/collapse signal from parent
+  useEffect(() => {
+    if (phaseExpandSignal && phaseExpandSignal.counter !== prevSignalRef.current) {
+      prevSignalRef.current = phaseExpandSignal.counter;
+      if (phaseExpandSignal.target) {
+        // Toggle phases with matching name
+        setExpandedPhases(prev => {
+          const newState = { ...prev };
+          const matchingPhases = phases.filter(p => p.name === phaseExpandSignal.target);
+          const allExpanded = matchingPhases.every(p => prev[p.id]);
+          matchingPhases.forEach(p => { newState[p.id] = !allExpanded; });
+          return newState;
+        });
+      } else {
+        // Expand or collapse all
+        const newState: { [key: string]: boolean } = {};
+        phases.forEach(p => { newState[p.id] = phaseExpandSignal.action === 'expand'; });
+        setExpandedPhases(newState);
+      }
+    }
+  }, [phaseExpandSignal, phases]);
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const [pendingBudgetPhaseId, setPendingBudgetPhaseId] = useState<string | null>(null);
