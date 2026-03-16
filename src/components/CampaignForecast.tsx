@@ -1845,7 +1845,7 @@ export function CampaignForecast({
       budgetPct: totalStrategyVol > 0 ? Math.round((d.totalVol / totalStrategyVol) * 100) : Math.round(100 / strategyData.length),
     }));
 
-    if (strategyData.length === 0) return null;
+    if (strategyDataWithBudget.length === 0) return null;
 
     const fmtNum = (n: number) => {
       if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
