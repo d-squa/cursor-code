@@ -3203,6 +3203,9 @@ export function PhaseScheduler({
                         />
                       )}
 
+                      </div>
+                      {/* End multi-column grid */}
+
                       {/* Ad Set Split Manager - shown at bottom of phase */}
                       {/* Show split manager if phase has its own split OR inherits from basic targeting (when not overriding) */}
                       {(() => {
