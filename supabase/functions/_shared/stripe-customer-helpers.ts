@@ -19,9 +19,12 @@ export function buildStripeCustomerParams(
   profile: ProfileData | null,
   extraMetadata?: Record<string, string>
 ) {
-  const name = profile
+  const personalName = profile
     ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") || undefined
     : undefined;
+
+  // Use personal name if available, otherwise fall back to company name
+  const name = personalName || profile?.company_name || undefined;
 
   const address =
     profile?.address_line1 || profile?.address_city || profile?.address_country
