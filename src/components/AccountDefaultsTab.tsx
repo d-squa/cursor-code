@@ -199,6 +199,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [googleAdAccounts, setGoogleAdAccounts] = useState<GoogleAdAccountDefaults[]>([]);
   const [googleLocalDefaults, setGoogleLocalDefaults] = useState<Record<string, Partial<GoogleAdAccountDefaults>>>({});
+  const [googleMerchantCenters, setGoogleMerchantCenters] = useState<Record<string, Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>>({});
+  const [googleFeedLabels, setGoogleFeedLabels] = useState<Record<string, Array<{ label: string; country: string }>>>({});
+  const [loadingGoogleMC, setLoadingGoogleMC] = useState<Record<string, boolean>>({});
   const [pixels, setPixels] = useState<MetaResource[]>([]);
   const [pages, setPages] = useState<MetaResource[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<MetaResource[]>([]);
@@ -226,6 +229,25 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [savingClientDefaults, setSavingClientDefaults] = useState(false);
   const [savingGoogleDefaults, setSavingGoogleDefaults] = useState<string | null>(null);
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
+
+  const fetchGoogleMerchantCenters = async (customerId: string, accountId: string) => {
+    setLoadingGoogleMC(prev => ({ ...prev, [accountId]: true }));
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("fetch-google-merchant-centers", {
+        body: { customerId },
+        headers: { Authorization: `Bearer ${session?.session?.access_token}` },
+      });
+      if (!error && data) {
+        setGoogleMerchantCenters(prev => ({ ...prev, [accountId]: data.merchantCenters || [] }));
+        setGoogleFeedLabels(prev => ({ ...prev, [accountId]: data.feedLabels || [] }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch merchant centers:", err);
+    } finally {
+      setLoadingGoogleMC(prev => ({ ...prev, [accountId]: false }));
+    }
+  };
 
   useEffect(() => {
     if (clientId && userId) {
