@@ -126,6 +126,8 @@ export function MediaPlanEditor() {
   // Guard: skip the next generic→market phase sync (prevents circular clobber of budgetType, etc.)
   const skipPhaseSyncRef = useRef(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
+  const [phaseExpandSignal, setPhaseExpandSignal] = useState<{ action: 'expand' | 'collapse'; target?: string; counter: number }>({ action: 'expand', counter: 0 });
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
   const [creativeMatcherOpen, setCreativeMatcherOpen] = useState(false);
