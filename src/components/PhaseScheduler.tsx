@@ -1940,11 +1940,11 @@ export function PhaseScheduler({
                     </div>
                   )}
 
-                  <CollapsibleContent>
+                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
                       {/* Campaign & Ad Set Taxonomy - Right after phase name */}
                       {adAccountId && !taxonomyLoading && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-full">
                           <PhaseTaxonomyInputs
                             platform={taxonomyPlatform}
                             entityType="campaign"
