@@ -174,6 +174,108 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   ws6['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(workbook, ws6, 'Platform Allocation');
 
+  // Sheet 7: Keyword Strategy Summary
+  if (data.selectedKeywords && data.selectedKeywords.length > 0) {
+    const strategies = ['brand', 'generic', 'competition'] as const;
+    const positiveKeywords = data.selectedKeywords.filter(k => !k.isNegative);
+    
+    const strategyData = strategies.map(strategy => {
+      const kws = positiveKeywords.filter(k => k.strategy === strategy);
+      const negatives = data.selectedKeywords!.filter(k => k.strategy === strategy && k.isNegative);
+      const totalVol = kws.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
+      const avgCpcLow = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcLow || 0), 0) / kws.length : 0;
+      const avgCpcHigh = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcHigh || 0), 0) / kws.length : 0;
+      const avgCpc = (avgCpcLow + avgCpcHigh) / 2;
+      const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0;
+      return { strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks };
+    }).filter(s => s.kws.length > 0);
+
+    if (strategyData.length > 0) {
+      const totalStrategyVol = strategyData.reduce((s, d) => s + d.totalVol, 0);
+
+      const summaryData: any[][] = [
+        ['Keyword Strategy Summary', '', '', '', '', '', '', ''],
+        ['Strategy', 'Keywords', 'Budget %', 'Avg. Monthly Searches', 'CPC Low', 'CPC High', 'Avg. CPC', 'Est. Clicks', 'Negatives']
+      ];
+
+      strategyData.forEach(d => {
+        const budgetPct = totalStrategyVol > 0
+          ? Math.round((d.totalVol / totalStrategyVol) * 100)
+          : Math.round(100 / strategyData.length);
+        summaryData.push([
+          d.strategy.charAt(0).toUpperCase() + d.strategy.slice(1),
+          d.kws.length,
+          `${budgetPct}%`,
+          d.totalVol,
+          d.avgCpcLow > 0 ? d.avgCpcLow : '',
+          d.avgCpcHigh > 0 ? d.avgCpcHigh : '',
+          d.avgCpc > 0 ? d.avgCpc : '',
+          d.estimatedClicks > 0 ? d.estimatedClicks : '',
+          d.negatives.length || '',
+        ]);
+      });
+
+      // Totals row
+      summaryData.push([
+        'Total',
+        strategyData.reduce((s, d) => s + d.kws.length, 0),
+        '100%',
+        strategyData.reduce((s, d) => s + d.totalVol, 0),
+        '',
+        '',
+        (() => {
+          const allKws = strategyData.flatMap(d => d.kws);
+          return allKws.length > 0 ? allKws.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / allKws.length : '';
+        })(),
+        strategyData.reduce((s, d) => s + d.estimatedClicks, 0),
+        strategyData.reduce((s, d) => s + d.negatives.length, 0) || '',
+      ]);
+
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSummary['!cols'] = [
+        { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 20 },
+        { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }
+      ];
+      XLSX.utils.book_append_sheet(workbook, wsSummary, 'Keyword Strategies');
+    }
+
+    // Sheet 8: Keyword Lists (full detail, grouped by strategy)
+    const kwListData: any[][] = [
+      ['Strategy', 'Keyword', 'Platform', 'Match Type', 'Negative?', 'Avg. Monthly Searches', 'Competition', 'CPC Low', 'CPC High']
+    ];
+
+    // Sort: group by strategy, positives first
+    const sortedKeywords = [...data.selectedKeywords].sort((a, b) => {
+      const stratOrder = { brand: 0, generic: 1, competition: 2 };
+      const aOrder = stratOrder[a.strategy || 'generic'] || 1;
+      const bOrder = stratOrder[b.strategy || 'generic'] || 1;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      if (a.isNegative !== b.isNegative) return a.isNegative ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+
+    sortedKeywords.forEach(kw => {
+      kwListData.push([
+        (kw.strategy || 'generic').charAt(0).toUpperCase() + (kw.strategy || 'generic').slice(1),
+        kw.name,
+        kw.platform,
+        kw.matchType || 'broad',
+        kw.isNegative ? 'Yes' : 'No',
+        kw.avgMonthlySearches || '',
+        kw.competition || '',
+        kw.cpcLow || '',
+        kw.cpcHigh || '',
+      ]);
+    });
+
+    const wsKeywords = XLSX.utils.aoa_to_sheet(kwListData);
+    wsKeywords['!cols'] = [
+      { wch: 14 }, { wch: 35 }, { wch: 10 }, { wch: 12 },
+      { wch: 10 }, { wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 10 }
+    ];
+    XLSX.utils.book_append_sheet(workbook, wsKeywords, 'Keyword Lists');
+  }
+
   // Generate Excel file
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
