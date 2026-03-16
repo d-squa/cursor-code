@@ -386,6 +386,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       }));
       setGoogleAdAccounts(googleAccounts);
 
+      // Auto-fetch merchant centers for each Google account
+      googleAccounts.forEach((acc) => {
+        if (acc.customer_id) {
+          fetchGoogleMerchantCenters(acc.customer_id, acc.id);
+        }
+      });
+
       // Initialize Google local defaults
       const gDefaults: Record<string, Partial<GoogleAdAccountDefaults>> = {};
       googleAccounts.forEach((acc) => {
