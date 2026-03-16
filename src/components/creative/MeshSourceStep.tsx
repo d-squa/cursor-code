@@ -335,9 +335,53 @@ export function MeshSourceStep({
 
   const hasAssets = platformAssets.length > 0;
 
+  // Determine upload description based on allowed media
+  const uploadDescription = useMemo(() => {
+    if (!googleMedia) return platform === 'google' ? 'Upload images and videos to your Google Ads asset library' : 'Upload images and videos directly for meshing';
+    if (googleMedia.image && googleMedia.video) return 'Upload images and videos to your Google Ads asset library';
+    if (googleMedia.image) return 'Upload images to your Google Ads asset library (videos not supported for current campaign types)';
+    if (googleMedia.video) return 'Upload videos to your Google Ads asset library (images not supported for current campaign types)';
+    return 'Upload creatives';
+  }, [platform, googleMedia]);
+
+  const uploadFileTypeLabel = useMemo(() => {
+    if (!googleMedia) return 'Images & Videos';
+    if (googleMedia.image && googleMedia.video) return 'Images & Videos';
+    if (googleMedia.image) return 'Images Only';
+    if (googleMedia.video) return 'Videos Only';
+    return 'Images & Videos';
+  }, [googleMedia]);
+
   return (
     <div className="flex flex-col h-full">
+      {/* Google text-only campaign banner */}
+      {isGoogleTextOnly && (
+        <div className="mx-6 mt-4 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/50">
+              <FileImage className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="font-medium text-sm text-amber-800 dark:text-amber-200">Text-Only Campaign Types Detected</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Your campaign includes only {googleCampaignTypes.join(' & ')} campaign types, which rely on text assets rather than image/video creatives. 
+                You can skip this step and proceed directly to text assets.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2"
+                onClick={onRunMesh}
+              >
+                Skip to Text Assets →
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Source Tabs */}
+      {!isGoogleTextOnly && (
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="px-6 border-b bg-background">
           <TabsList className="h-12">
@@ -363,15 +407,22 @@ export function MeshSourceStep({
         <div className="flex-1 overflow-hidden flex">
           {/* Main content area */}
           <div className="flex-1 overflow-auto p-6">
+            {/* Google media restriction info */}
+            {platform === 'google' && googleMedia && !(googleMedia.image && googleMedia.video) && (
+              <div className="mb-4 p-3 rounded-md border border-muted bg-muted/30 text-xs text-muted-foreground">
+                <strong>Format restrictions:</strong> Based on your campaign types ({googleCampaignTypes.join(', ')}), 
+                {googleMedia.image && !googleMedia.video && ' only image uploads are accepted.'}
+                {!googleMedia.image && googleMedia.video && ' only video uploads are accepted.'}
+              </div>
+            )}
+
             {/* Upload Tab (Meta and Google) */}
             {(platform === 'meta' || platform === 'google') && (
               <TabsContent value="upload" className="mt-0 h-full">
                 <Card className="h-full flex flex-col">
                   <CardHeader>
                     <CardTitle>Upload Creatives</CardTitle>
-                    <CardDescription>
-                      Upload images and videos {platform === 'google' ? 'to your Google Ads asset library' : 'directly for meshing'}
-                    </CardDescription>
+                    <CardDescription>{uploadDescription}</CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1">
                     <div className="grid grid-cols-2 gap-4 mb-4">
@@ -381,7 +432,7 @@ export function MeshSourceStep({
                       >
                         <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                         <p className="font-medium text-sm">Upload Files</p>
-                        <p className="text-xs text-muted-foreground">Images & Videos</p>
+                        <p className="text-xs text-muted-foreground">{uploadFileTypeLabel}</p>
                       </div>
                       <div 
                         onClick={() => folderInputRef.current?.click()}
@@ -396,7 +447,7 @@ export function MeshSourceStep({
                       ref={fileInputRef} 
                       type="file" 
                       multiple 
-                      accept="image/*,video/*" 
+                      accept={fileAcceptString} 
                       onChange={handleFileSelect} 
                       className="hidden" 
                     />
