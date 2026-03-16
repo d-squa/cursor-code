@@ -1838,6 +1838,13 @@ export function CampaignForecast({
       return { strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks };
     }).filter(s => s.kws.length > 0);
 
+    // Calculate volume-weighted budget percentages
+    const totalStrategyVol = strategyData.reduce((s, d) => s + d.totalVol, 0);
+    const strategyDataWithBudget = strategyData.map(d => ({
+      ...d,
+      budgetPct: totalStrategyVol > 0 ? Math.round((d.totalVol / totalStrategyVol) * 100) : Math.round(100 / strategyData.length),
+    }));
+
     if (strategyData.length === 0) return null;
 
     const fmtNum = (n: number) => {
