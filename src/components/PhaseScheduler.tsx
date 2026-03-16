@@ -1723,13 +1723,21 @@ export function PhaseScheduler({
             const platformKeywordFilter = isGoogleSearchPhase ? 'google' : isTikTokSearchPhase ? 'tiktok' : null;
             const phaseKeywords = platformKeywordFilter ? allSelectedKeywords.filter(kw => kw.platform === platformKeywordFilter) : allSelectedKeywords;
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
-            const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
-              const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
-              const positives = kws.filter(kw => !kw.isNegative);
-              const negatives = kws.filter(kw => kw.isNegative);
-              const totalVol = positives.reduce((s, kw) => s + (kw.avgMonthlySearches || 0), 0);
-              return { strategy, positives, negatives, totalVol, count: positives.length + negatives.length };
-            }).filter(g => g.count > 0) : [];
+            const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (() => {
+              const groups = (['brand', 'generic', 'competition'] as const).map(strategy => {
+                const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
+                const positives = kws.filter(kw => !kw.isNegative);
+                const negatives = kws.filter(kw => kw.isNegative);
+                const totalVol = positives.reduce((s, kw) => s + (kw.avgMonthlySearches || 0), 0);
+                return { strategy, positives, negatives, totalVol, count: positives.length + negatives.length };
+              }).filter(g => g.count > 0);
+              // Calculate volume-weighted budget percentages
+              const totalGroupVol = groups.reduce((s, g) => s + g.totalVol, 0);
+              return groups.map(g => ({
+                ...g,
+                budgetPct: totalGroupVol > 0 ? Math.round((g.totalVol / totalGroupVol) * 100) : Math.round(100 / groups.length),
+              }));
+            })() : [];
             
             return (
               <Collapsible
@@ -1851,7 +1859,7 @@ export function PhaseScheduler({
                   {/* Keyword Strategy Sub-rows for Search phases (Google & TikTok) */}
                   {isSearchPhase && keywordStrategyGroups.length > 0 && (
                     <div className="border-t bg-muted/10">
-                      {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol }) => {
+                      {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol, budgetPct }) => {
                         const strategyConfig: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
                           brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" />, colorClass: "text-blue-700 dark:text-blue-400" },
                           generic: { label: "Generic", icon: <Target className="h-3 w-3" />, colorClass: "text-emerald-700 dark:text-emerald-400" },
@@ -1872,6 +1880,9 @@ export function PhaseScheduler({
                             </div>
                             <Badge variant="outline" className="text-[10px]">
                               {positives.length} keyword{positives.length !== 1 ? 's' : ''}
+                            </Badge>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {budgetPct}% budget
                             </Badge>
                             {negatives.length > 0 && (
                               <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">

@@ -52,6 +52,7 @@ export interface GoogleAdsStrategyPhase {
   adFormats: string[];
   audienceSegments: string[];
   supportsKeywords: boolean;
+  isAlwaysOn: boolean;
   networks: GoogleAdsCampaignType["networks"];
   features: GoogleAdsCampaignType["features"];
 }
@@ -340,13 +341,28 @@ export function generateGoogleAdsPhases(
     phaseCounts[c.phase] = (phaseCounts[c.phase] || 0) + 1;
   }
 
-  // Distribute duration equally
-  const durationPerCampaign = Math.floor(100 / sorted.length);
+  // Search campaigns are always-on (100% duration), others share remaining space
+  const searchCampaigns = sorted.filter(c => c.campaignType === "Search");
+  const nonSearchCampaigns = sorted.filter(c => c.campaignType !== "Search");
+  const nonSearchCount = nonSearchCampaigns.length;
+  const durationPerNonSearch = nonSearchCount > 0 ? Math.floor(100 / nonSearchCount) : 100;
 
   return sorted.map((campaign, idx) => {
+    const isSearch = campaign.campaignType === "Search";
     const phaseBudget = budgetByPhase[campaign.phase] || 33;
     const campaignsInPhase = phaseCounts[campaign.phase] || 1;
     const budget = Math.round(phaseBudget / campaignsInPhase);
+
+    // Search gets 100% duration (always-on); others split the timeline
+    let duration: number;
+    if (isSearch) {
+      duration = 100;
+    } else {
+      const nonSearchIdx = nonSearchCampaigns.indexOf(campaign);
+      duration = nonSearchIdx === nonSearchCount - 1
+        ? 100 - durationPerNonSearch * (nonSearchCount - 1)
+        : durationPerNonSearch;
+    }
 
     const config = GOOGLE_ADS_CAMPAIGN_MATRIX.find(
       (c) =>
@@ -358,7 +374,7 @@ export function generateGoogleAdsPhases(
       id: `gads-phase-${idx}-${Date.now()}`,
       name: `${campaign.phase} — ${campaign.campaignType}${campaign.subtype ? ` (${campaign.subtype})` : ""}`,
       funnelStage: campaign.phase,
-      durationPercent: idx === sorted.length - 1 ? 100 - durationPerCampaign * (sorted.length - 1) : durationPerCampaign,
+      durationPercent: duration,
       budgetPercent: budget,
       campaignType: campaign.campaignType,
       campaignSubtype: campaign.subtype,
@@ -366,6 +382,7 @@ export function generateGoogleAdsPhases(
       adFormats: campaign.adFormats,
       audienceSegments: config?.targeting.audienceSegments || [],
       supportsKeywords: config?.targeting.keywords ?? false,
+      isAlwaysOn: isSearch,
       networks: config?.networks || {
         searchPartner: false,
         searchNetwork: false,
