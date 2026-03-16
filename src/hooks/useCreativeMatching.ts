@@ -850,6 +850,22 @@ export function useCreativeMatching(campaignId?: string) {
           }
 
           const reasons: string[] = [];
+
+          // Check if asset was excluded from ALL Google structures due to campaign type
+          const googleStructures = structuresToUse.filter(s => s.platform === 'google' && s.googleCampaignType);
+          if (googleStructures.length > 0) {
+            const excludedFromAll = googleStructures.every(s => {
+              const rules = GOOGLE_ALLOWED_MEDIA[s.googleCampaignType!];
+              if (!rules) return false;
+              const isImage = asset.mediaType === 'image';
+              const isVideo = asset.mediaType === 'video';
+              return (isImage && !rules.image) || (isVideo && !rules.video);
+            });
+            if (excludedFromAll) {
+              const types = [...new Set(googleStructures.map(s => s.googleCampaignType))].join(', ');
+              reasons.push(`⛔ ${asset.mediaType === 'image' ? 'Images' : 'Videos'} are not supported by ${types} campaigns`);
+            }
+          }
           
           // PRIORITY CHECK: Was this asset filtered out due to invalid dimensions?
           if (invalidDimensionAssets.has(asset.id)) {
