@@ -22,7 +22,7 @@ interface AdAccountInfo {
 }
 
 interface PageConfig {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   pageId?: string;
   identityId?: string;
   advertiserId?: string;
