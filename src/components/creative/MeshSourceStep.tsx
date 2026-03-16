@@ -43,6 +43,44 @@ interface PageConfig {
   pageName?: string;
 }
 
+// Google Ads campaign type → allowed media types
+const GOOGLE_CAMPAIGN_ALLOWED_MEDIA: Record<string, { image: boolean; video: boolean; youtube: boolean; label: string }> = {
+  'Search': { image: false, video: false, youtube: false, label: 'Search campaigns are text-only — no image or video creatives' },
+  'Shopping': { image: false, video: false, youtube: false, label: 'Shopping campaigns use product feed — no image or video creatives' },
+  'Display': { image: true, video: false, youtube: false, label: 'Display campaigns accept images only' },
+  'Video': { image: false, video: true, youtube: true, label: 'Video campaigns accept videos only' },
+  'Performance Max': { image: true, video: true, youtube: true, label: 'Performance Max accepts images and videos' },
+  'Demand Gen': { image: true, video: true, youtube: true, label: 'Demand Gen accepts images and videos' },
+  'App Promotion': { image: true, video: true, youtube: true, label: 'App Promotion accepts images and videos' },
+};
+
+function getGoogleAllowedMedia(campaignTypes: string[]): { image: boolean; video: boolean; youtube: boolean; textOnly: boolean; restrictions: string[] } {
+  if (campaignTypes.length === 0) return { image: true, video: true, youtube: true, textOnly: false, restrictions: [] };
+  
+  let allowImage = false;
+  let allowVideo = false;
+  let allowYoutube = false;
+  const restrictions: string[] = [];
+
+  for (const ct of campaignTypes) {
+    const config = GOOGLE_CAMPAIGN_ALLOWED_MEDIA[ct];
+    if (config) {
+      if (config.image) allowImage = true;
+      if (config.video) allowVideo = true;
+      if (config.youtube) allowYoutube = true;
+      restrictions.push(`${ct}: ${config.label}`);
+    } else {
+      // Unknown campaign type — allow everything
+      allowImage = true;
+      allowVideo = true;
+      allowYoutube = true;
+    }
+  }
+
+  const textOnly = !allowImage && !allowVideo;
+  return { image: allowImage, video: allowVideo, youtube: allowYoutube, textOnly, restrictions };
+}
+
 interface MeshSourceStepProps {
   platform: 'meta' | 'tiktok' | 'google';
   campaignId: string;
@@ -54,6 +92,7 @@ interface MeshSourceStepProps {
   onClearAssets: () => void;
   onRunMesh: () => void;
   isProcessing?: boolean;
+  googleCampaignTypes?: string[];
 }
 
 export function MeshSourceStep({
@@ -66,7 +105,13 @@ export function MeshSourceStep({
   onClearAssets,
   onRunMesh,
   isProcessing = false,
+  googleCampaignTypes = [],
 }: MeshSourceStepProps) {
+  // Compute allowed media for Google
+  const googleMedia = useMemo(() => 
+    platform === 'google' ? getGoogleAllowedMedia(googleCampaignTypes) : null,
+    [platform, googleCampaignTypes]
+  );
   const defaultTab = platform === 'google' ? 'upload' : (platform === 'meta' ? 'upload' : 'page_assets');
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const fileInputRef = useRef<HTMLInputElement>(null);
