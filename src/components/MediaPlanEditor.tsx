@@ -3157,6 +3157,7 @@ export function MediaPlanEditor() {
                                             onTaxonomyValidationChange={(isComplete, missingCount) =>
                                               handleMarketTaxonomyValidation(market.id, isComplete, missingCount)
                                             }
+                                            phaseExpandSignal={phaseExpandSignal}
                                           />
                                         </div>
                                       </CollapsibleContent>
