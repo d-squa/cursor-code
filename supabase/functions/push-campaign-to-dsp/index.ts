@@ -3635,9 +3635,30 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           const strategySuffix = strategyName ? ` - ${strategyName}` : "";
           const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
-          // Adjust budget for strategy split (equal split among strategies)
+          // Adjust budget for strategy split using search-volume-weighted allocation
           const strategyCount = Math.max(1, Object.keys(keywordStrategies).length);
-          const strategyDailyBudget = dailyBudget / strategyCount;
+          let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
+
+          if (strategyCount > 1 && strategyName) {
+            // Calculate total search volume across all strategies
+            const allKeywords = (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
+              .filter((k: any) => k.platform === 'google' && !k.isNegative);
+            const strategyVolumes: Record<string, number> = {};
+            let totalVolume = 0;
+            for (const [sName] of Object.entries(keywordStrategies)) {
+              const vol = allKeywords
+                .filter((k: any) => (k.strategy || k.category || "Generic") === sName)
+                .reduce((sum: number, k: any) => sum + (k.avgMonthlySearches || 0), 0);
+              strategyVolumes[sName] = vol;
+              totalVolume += vol;
+            }
+            // If we have volume data, use volume-weighted ratio; otherwise equal split
+            if (totalVolume > 0) {
+              const volumeRatio = (strategyVolumes[strategyName] || 0) / totalVolume;
+              strategyDailyBudget = dailyBudget * volumeRatio;
+              console.log(`📊 Volume-weighted budget for "${strategyName}": ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
+            }
+          }
 
           console.log(`📊 Google Ads campaign config:`, {
             campaignType, advertisingChannelType, bidStrategy: mappedBidStrategy,
