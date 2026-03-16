@@ -1723,13 +1723,21 @@ export function PhaseScheduler({
             const platformKeywordFilter = isGoogleSearchPhase ? 'google' : isTikTokSearchPhase ? 'tiktok' : null;
             const phaseKeywords = platformKeywordFilter ? allSelectedKeywords.filter(kw => kw.platform === platformKeywordFilter) : allSelectedKeywords;
             const phaseSearchVolume = phaseKeywords.filter(kw => !kw.isNegative).reduce((sum, kw) => sum + (kw.avgMonthlySearches || 0), 0);
-            const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (['brand', 'generic', 'competition'] as const).map(strategy => {
-              const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
-              const positives = kws.filter(kw => !kw.isNegative);
-              const negatives = kws.filter(kw => kw.isNegative);
-              const totalVol = positives.reduce((s, kw) => s + (kw.avgMonthlySearches || 0), 0);
-              return { strategy, positives, negatives, totalVol, count: positives.length + negatives.length };
-            }).filter(g => g.count > 0) : [];
+            const keywordStrategyGroups = isSearchPhase && phaseKeywords.length > 0 ? (() => {
+              const groups = (['brand', 'generic', 'competition'] as const).map(strategy => {
+                const kws = phaseKeywords.filter(kw => kw.strategy === strategy);
+                const positives = kws.filter(kw => !kw.isNegative);
+                const negatives = kws.filter(kw => kw.isNegative);
+                const totalVol = positives.reduce((s, kw) => s + (kw.avgMonthlySearches || 0), 0);
+                return { strategy, positives, negatives, totalVol, count: positives.length + negatives.length };
+              }).filter(g => g.count > 0);
+              // Calculate volume-weighted budget percentages
+              const totalGroupVol = groups.reduce((s, g) => s + g.totalVol, 0);
+              return groups.map(g => ({
+                ...g,
+                budgetPct: totalGroupVol > 0 ? Math.round((g.totalVol / totalGroupVol) * 100) : Math.round(100 / groups.length),
+              }));
+            })() : [];
             
             return (
               <Collapsible
