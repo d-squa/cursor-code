@@ -1736,7 +1736,6 @@ export function PhaseScheduler({
             <p className="text-xs text-muted-foreground">Configure objectives, targeting, and placements for each phase</p>
           </div>
           
-          <div className="space-y-3">
           {phases.map((phase, index) => {
             const phaseDays = phase.startDate && phase.endDate ? 
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
@@ -1940,11 +1939,11 @@ export function PhaseScheduler({
                     </div>
                   )}
 
-                   <CollapsibleContent>
+                  <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
                       {/* Campaign & Ad Set Taxonomy - Right after phase name */}
                       {adAccountId && !taxonomyLoading && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-full">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <PhaseTaxonomyInputs
                             platform={taxonomyPlatform}
                             entityType="campaign"
@@ -2001,9 +2000,6 @@ export function PhaseScheduler({
                           />
                         </div>
                       )}
-
-                      {/* === Multi-Column Phase Configuration === */}
-                      <div className="columns-1 lg:columns-2 2xl:columns-3 gap-4 space-y-0 [&>*]:break-inside-avoid [&>*]:mb-4 [&>div]:break-inside-avoid [&>div]:mb-4">
 
                       {/* Targeting Summary */}
                       {(() => {
@@ -3203,9 +3199,6 @@ export function PhaseScheduler({
                         />
                       )}
 
-                      </div>
-                      {/* End multi-column grid */}
-
                       {/* Ad Set Split Manager - shown at bottom of phase */}
                       {/* Show split manager if phase has its own split OR inherits from basic targeting (when not overriding) */}
                       {(() => {
@@ -3372,7 +3365,6 @@ export function PhaseScheduler({
               </Collapsible>
             );
           })}
-          </div>
           
           {phases.length > 0 && (
             <div className="flex items-center justify-between text-xs font-semibold pt-2 border-t mt-4">
