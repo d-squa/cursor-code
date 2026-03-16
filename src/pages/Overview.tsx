@@ -28,6 +28,7 @@ import { OverviewFiltersBar, OverviewFilters } from "@/components/overview/Overv
 import { PerformanceMetric, getPerformanceStatus } from "@/components/overview/PerformanceBar";
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
+import { OnboardingTour } from "@/components/OnboardingTour";
 
 interface Campaign {
   id: string;
