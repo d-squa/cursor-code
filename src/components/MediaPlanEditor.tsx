@@ -2728,7 +2728,88 @@ export function MediaPlanEditor() {
                   // Multiple markets: show strategy controls and PhaseScheduler for each market
                   return (
                     <div className="mt-6 pt-6 border-t space-y-6">
-                      <h3 className="text-lg font-semibold">Market Configuration</h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Market Configuration</h3>
+                        <div className="flex items-center gap-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
+                                <ChevronsUpDown className="h-3 w-3" />
+                                Expand / Collapse
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel className="text-xs">Expand</DropdownMenuLabel>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                const newState: Record<string, boolean> = {};
+                                platformsWithMarkets.filter(p => p.enabled && p.markets.length > 0).forEach(p => { newState[p.id] = true; });
+                                setExpandedPlatforms(newState);
+                              }}>
+                                All Platforms
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                const newState: Record<string, boolean> = {};
+                                platformsWithMarkets.filter(p => p.enabled).forEach(p => p.markets.forEach(m => { newState[m.id] = true; }));
+                                setExpandedMarkets(prev => ({ ...prev, ...newState }));
+                              }}>
+                                All Markets
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setPhaseExpandSignal({ action: 'expand', counter: Date.now() });
+                              }}>
+                                All Phases
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel className="text-xs">Collapse</DropdownMenuLabel>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setExpandedPlatforms({});
+                              }}>
+                                All Platforms
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setExpandedMarkets({});
+                              }}>
+                                All Markets
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setPhaseExpandSignal({ action: 'collapse', counter: Date.now() });
+                              }}>
+                                All Phases
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel className="text-xs">By Name</DropdownMenuLabel>
+                              {(() => {
+                                const uniqueMarketNames = [...new Set(platformsWithMarkets.filter(p => p.enabled).flatMap(p => p.markets.map(m => m.name)))];
+                                const uniquePhaseNames = [...new Set(platformsWithMarkets.filter(p => p.enabled).flatMap(p => p.markets.flatMap(m => (m.phases || []).map(ph => ph.name))))];
+                                return (
+                                  <>
+                                    {uniqueMarketNames.length > 1 && uniqueMarketNames.map(name => (
+                                      <DropdownMenuItem key={`market-${name}`} className="text-xs" onClick={() => {
+                                        setExpandedMarkets(prev => {
+                                          const newState = { ...prev };
+                                          const marketIds = platformsWithMarkets.filter(p => p.enabled).flatMap(p => p.markets.filter(m => m.name === name).map(m => m.id));
+                                          const allExpanded = marketIds.every(id => prev[id]);
+                                          marketIds.forEach(id => { newState[id] = !allExpanded; });
+                                          return newState;
+                                        });
+                                      }}>
+                                        Toggle: {getMarketLabel(name)}
+                                      </DropdownMenuItem>
+                                    ))}
+                                    {uniquePhaseNames.length > 0 && uniquePhaseNames.map(name => (
+                                      <DropdownMenuItem key={`phase-${name}`} className="text-xs" onClick={() => {
+                                        setPhaseExpandSignal({ action: 'expand', target: name, counter: Date.now() });
+                                      }}>
+                                        Toggle: {name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </>
+                                );
+                              })()}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
                       {platformsWithMarkets.map((platform) =>
                         platform.enabled && platform.markets.length > 0 ? (
                           <Collapsible
