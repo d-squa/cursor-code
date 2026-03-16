@@ -410,6 +410,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           main_markets: acc.main_markets || [],
           default_utm_mode: acc.default_utm_mode || null,
           default_url_parameters: acc.default_url_parameters || null,
+          default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements : [],
         };
       });
       setGoogleLocalDefaults(gDefaults);

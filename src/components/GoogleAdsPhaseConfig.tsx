@@ -564,6 +564,45 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
             )}
           </div>
 
+          {/* Placements Selection */}
+          {config.targeting.placements.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Placements</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Select where your ads can appear. Available placements depend on the campaign type.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {config.targeting.placements.map((placement) => {
+                  const isSelected = (phase.googlePlacements || []).includes(placement);
+                  return (
+                    <div key={placement} className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`gads-placement-${phase.id}-${placement}`}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          const current = phase.googlePlacements || [];
+                          onUpdate(
+                            "googlePlacements",
+                            checked
+                              ? [...current, placement]
+                              : current.filter((p) => p !== placement)
+                          );
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      <label
+                        htmlFor={`gads-placement-${phase.id}-${placement}`}
+                        className="text-xs"
+                      >
+                        {placement}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Targeting info badges */}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Targeting Level</Label>
@@ -586,9 +625,9 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
                   Topics
                 </Badge>
               )}
-              {config.targeting.placements.length > 0 && (
+              {config.targeting.placements.length > 0 && (phase.googlePlacements || []).length > 0 && (
                 <Badge variant="outline" className="text-[10px] bg-cyan-500/10 text-cyan-700 border-cyan-200">
-                  Placements
+                  {(phase.googlePlacements || []).length} Placements
                 </Badge>
               )}
               {config.targeting.audienceSegments.map((seg) => (
