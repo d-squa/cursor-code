@@ -17,7 +17,7 @@ import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
 
 interface AdAccountInfo {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   accountId: string;
 }
 
