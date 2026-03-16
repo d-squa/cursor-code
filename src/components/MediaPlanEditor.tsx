@@ -2899,7 +2899,7 @@ export function MediaPlanEditor() {
                             <CollapsibleContent className="px-4 pb-4">
                               <div className="space-y-4">
                                 {platform.markets.map((market) => (
-                                  <Collapsible key={market.id} defaultOpen={false}>
+                                  <Collapsible key={market.id} open={!!expandedMarkets[market.id]} onOpenChange={(open) => setExpandedMarkets(prev => ({ ...prev, [market.id]: open }))}>
                                     <Card className="overflow-hidden">
                                       <CollapsibleTrigger asChild>
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">

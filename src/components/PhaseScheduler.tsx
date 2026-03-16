@@ -159,6 +159,8 @@ interface PhaseSchedulerProps {
     markets?: string[];
     platformBudget?: number;
   };
+  // Expand/collapse signal from parent
+  phaseExpandSignal?: { action: 'expand' | 'collapse'; target?: string; counter: number };
   // Taxonomy validation callback - reports if all custom fields are complete
   onTaxonomyValidationChange?: (isComplete: boolean, totalMissing: number) => void;
 }
