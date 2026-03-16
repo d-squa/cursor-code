@@ -52,6 +52,7 @@ export interface GoogleAdsStrategyPhase {
   adFormats: string[];
   audienceSegments: string[];
   supportsKeywords: boolean;
+  isAlwaysOn: boolean;
   networks: GoogleAdsCampaignType["networks"];
   features: GoogleAdsCampaignType["features"];
 }
