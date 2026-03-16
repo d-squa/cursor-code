@@ -1890,6 +1890,7 @@ export function CampaignForecast({
                     <TableCell className="text-xs text-right font-medium">{kws.length}</TableCell>
                     <TableCell className="text-xs text-right font-medium">{budgetPct}%</TableCell>
                     <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
+                    <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
                     <TableCell className="text-xs text-right">
                       {avgCpcLow > 0 ? `$${avgCpcLow.toFixed(2)} – $${avgCpcHigh.toFixed(2)}` : "—"}
                     </TableCell>
