@@ -112,7 +112,9 @@ export function MeshSourceStep({
     platform === 'google' ? getGoogleAllowedMedia(googleCampaignTypes) : null,
     [platform, googleCampaignTypes]
   );
-  const defaultTab = platform === 'google' ? 'upload' : (platform === 'meta' ? 'upload' : 'page_assets');
+  // If Google and text-only, redirect default tab
+  const isGoogleTextOnly = googleMedia?.textOnly ?? false;
+  const defaultTab = isGoogleTextOnly ? 'upload' : (platform === 'google' ? 'upload' : (platform === 'meta' ? 'upload' : 'page_assets'));
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
