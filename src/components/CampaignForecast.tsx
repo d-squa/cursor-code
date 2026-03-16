@@ -1866,17 +1866,18 @@ export function CampaignForecast({
             <TableHeader>
               <TableRow>
                 <TableHead className="text-xs">Strategy</TableHead>
-                <TableHead className="text-xs text-right">Keywords</TableHead>
-                <TableHead className="text-xs text-right">Avg. Monthly Searches</TableHead>
-                <TableHead className="text-xs text-right">Est. Impressions</TableHead>
-                <TableHead className="text-xs text-right">CPC Range</TableHead>
-                <TableHead className="text-xs text-right">Avg. CPC</TableHead>
-                <TableHead className="text-xs text-right">Est. Clicks</TableHead>
-                <TableHead className="text-xs text-right">Negatives</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {strategyData.map(({ strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks }) => {
+                 <TableHead className="text-xs text-right">Keywords</TableHead>
+                 <TableHead className="text-xs text-right">Budget %</TableHead>
+                 <TableHead className="text-xs text-right">Avg. Monthly Searches</TableHead>
+                 <TableHead className="text-xs text-right">Est. Impressions</TableHead>
+                 <TableHead className="text-xs text-right">CPC Range</TableHead>
+                 <TableHead className="text-xs text-right">Avg. CPC</TableHead>
+                 <TableHead className="text-xs text-right">Est. Clicks</TableHead>
+                 <TableHead className="text-xs text-right">Negatives</TableHead>
+               </TableRow>
+             </TableHeader>
+             <TableBody>
+               {strategyDataWithBudget.map(({ strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks, budgetPct }) => {
                 const meta = STRATEGY_META[strategy];
                 return (
                   <TableRow key={strategy}>
