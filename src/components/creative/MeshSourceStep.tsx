@@ -740,6 +740,7 @@ export function MeshSourceStep({
           </div>
         </div>
       </Tabs>
+      )}
     </div>
   );
 }
