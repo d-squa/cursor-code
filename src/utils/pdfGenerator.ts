@@ -2,6 +2,19 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 
+export interface KeywordItemForExport {
+  id: string;
+  name: string;
+  platform: "google" | "tiktok";
+  avgMonthlySearches?: number;
+  competition?: string;
+  cpcLow?: number;
+  cpcHigh?: number;
+  strategy?: "brand" | "generic" | "competition";
+  matchType?: "exact" | "phrase" | "broad";
+  isNegative?: boolean;
+}
+
 export interface MediaPlanData {
   name: string;
   totalBudget: number;
@@ -10,6 +23,7 @@ export interface MediaPlanData {
   platforms: any[];
   genericConfig: any;
   forecasts?: any;
+  selectedKeywords?: KeywordItemForExport[];
   actiplanForecasts?: {
     totalBudget: number;
     totalAudienceSize: number;
@@ -285,6 +299,130 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
         }
       });
     });
+  }
+
+  // Keyword Strategy Section
+  if (data.selectedKeywords && data.selectedKeywords.length > 0) {
+    const strategies = ['brand', 'generic', 'competition'] as const;
+    const positiveKeywords = data.selectedKeywords.filter(k => !k.isNegative);
+    const strategyData = strategies.map(strategy => {
+      const kws = positiveKeywords.filter(k => k.strategy === strategy);
+      const negatives = data.selectedKeywords!.filter(k => k.strategy === strategy && k.isNegative);
+      const totalVol = kws.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
+      const avgCpcLow = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcLow || 0), 0) / kws.length : 0;
+      const avgCpcHigh = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcHigh || 0), 0) / kws.length : 0;
+      const avgCpc = (avgCpcLow + avgCpcHigh) / 2;
+      const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0;
+      return { strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks };
+    }).filter(s => s.kws.length > 0);
+
+    if (strategyData.length > 0) {
+      const totalStrategyVol = strategyData.reduce((s, d) => s + d.totalVol, 0);
+
+      if (yPos > 220) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.text('Keyword Strategy Breakdown', 20, yPos);
+      yPos += 10;
+
+      const kwTableData = strategyData.map(d => {
+        const budgetPct = totalStrategyVol > 0
+          ? Math.round((d.totalVol / totalStrategyVol) * 100)
+          : Math.round(100 / strategyData.length);
+        return [
+          d.strategy.charAt(0).toUpperCase() + d.strategy.slice(1),
+          String(d.kws.length),
+          `${budgetPct}%`,
+          d.totalVol.toLocaleString(),
+          d.avgCpc > 0 ? `$${d.avgCpc.toFixed(2)}` : '—',
+          d.estimatedClicks > 0 ? d.estimatedClicks.toLocaleString() : '—',
+          String(d.negatives.length || '—'),
+        ];
+      });
+
+      // Add totals row
+      kwTableData.push([
+        'Total',
+        String(strategyData.reduce((s, d) => s + d.kws.length, 0)),
+        '100%',
+        strategyData.reduce((s, d) => s + d.totalVol, 0).toLocaleString(),
+        (() => {
+          const allKws = strategyData.flatMap(d => d.kws);
+          const avg = allKws.length > 0 ? allKws.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / allKws.length : 0;
+          return avg > 0 ? `$${avg.toFixed(2)}` : '—';
+        })(),
+        strategyData.reduce((s, d) => s + d.estimatedClicks, 0).toLocaleString(),
+        String(strategyData.reduce((s, d) => s + d.negatives.length, 0) || '—'),
+      ]);
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Strategy', 'Keywords', 'Budget %', 'Monthly Searches', 'Avg. CPC', 'Est. Clicks', 'Negatives']],
+        body: kwTableData,
+        theme: 'grid',
+        headStyles: { fillColor: [66, 139, 202], fontSize: 9 },
+        styles: { fontSize: 8 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+
+      // Keyword lists by strategy
+      strategyData.forEach(d => {
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(11);
+        doc.text(`${d.strategy.charAt(0).toUpperCase() + d.strategy.slice(1)} Keywords (${d.kws.length})`, 25, yPos);
+        yPos += 7;
+
+        const kwListData = d.kws.map(k => [
+          k.name,
+          k.platform,
+          k.matchType || 'broad',
+          (k.avgMonthlySearches || 0).toLocaleString(),
+          k.cpcLow && k.cpcHigh ? `$${k.cpcLow.toFixed(2)} – $${k.cpcHigh.toFixed(2)}` : '—',
+          k.competition || '—',
+        ]);
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Keyword', 'Platform', 'Match Type', 'Monthly Vol.', 'CPC Range', 'Competition']],
+          body: kwListData,
+          theme: 'striped',
+          headStyles: { fillColor: [100, 160, 200], fontSize: 8 },
+          styles: { fontSize: 7 },
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+
+        // Negative keywords for this strategy
+        if (d.negatives.length > 0) {
+          if (yPos > 260) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.setFontSize(10);
+          doc.text(`Negative Keywords (${d.negatives.length})`, 30, yPos);
+          yPos += 6;
+
+          const negData = d.negatives.map(k => [k.name, k.platform, k.matchType || 'broad']);
+          autoTable(doc, {
+            startY: yPos,
+            head: [['Keyword', 'Platform', 'Match Type']],
+            body: negData,
+            theme: 'plain',
+            headStyles: { fillColor: [200, 100, 100], fontSize: 8 },
+            styles: { fontSize: 7 },
+          });
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      });
+    }
   }
 
   // Add footer

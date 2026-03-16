@@ -464,6 +464,7 @@ export function CampaignForecast({
       } : undefined,
       // Map actiplanForecast to actiplanForecasts for PDF/Excel generators
       actiplanForecasts: actiplanForecast,
+      selectedKeywords: selectedKeywords || [],
     };
   };
 
