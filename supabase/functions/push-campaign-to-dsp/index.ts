@@ -381,8 +381,8 @@ function generateTaxonomyString(template: TaxonomyParam[], values: Record<string
 async function generateTaxonomyName(
   supabase: any,
   userId: string,
-  platformAccountId: string, // This is the platform's native ID (e.g., TikTok advertiser_id or Meta account_id)
-  platform: "meta" | "tiktok",
+  platformAccountId: string, // This is the platform's native ID (e.g., TikTok advertiser_id, Meta account_id, or Google customer_id)
+  platform: "meta" | "tiktok" | "google",
   entityType: "campaign" | "adset",
   context: TaxonomyContext,
   customValues?: Record<string, string>,
@@ -406,6 +406,15 @@ async function generateTaxonomyName(
         .eq("account_id", platformAccountId)
         .maybeSingle();
       internalAdAccountId = metaAccount?.id;
+    } else if (platform === "google") {
+      // Google Ads uses customer_id — try matching with or without dashes
+      const cleanId = platformAccountId.replace(/-/g, "");
+      const { data: googleAccount } = await supabase
+        .from("google_ad_accounts")
+        .select("id")
+        .or(`customer_id.eq.${cleanId},customer_id.eq.${platformAccountId}`)
+        .maybeSingle();
+      internalAdAccountId = googleAccount?.id;
     }
 
     if (!internalAdAccountId) {
@@ -3635,6 +3644,38 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           const strategySuffix = strategyName ? ` - ${strategyName}` : "";
           const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
+          // Try to use client taxonomy template for campaign naming
+          const googleCampaignTaxonomyContext: TaxonomyContext = {
+            platform: "google",
+            activationName: campaign.name,
+            boNumber: campaign.bo_number || "",
+            market: market.name,
+            country: market.name,
+            objective: phase.googleObjective || campaign.objective || "",
+            funnelStage: phase.name || "",
+            bidStrategy: mappedBidStrategy || "",
+            budgetType: "daily",
+            totalBudget: campaign.total_budget,
+            platformBudget: phaseBudget,
+            phaseBudget: strategyDailyBudget,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          };
+
+          const googleCampaignTaxonomyName = cleanCustomerId
+            ? await generateTaxonomyName(
+                supabase,
+                campaign.user_id,
+                cleanCustomerId,
+                "google",
+                "campaign",
+                googleCampaignTaxonomyContext,
+                { ...(phase.campaignTaxonomyValues || {}), ...(strategyName ? { strategy: strategyName } : {}) },
+              )
+            : null;
+
+          const finalCampaignName = googleCampaignTaxonomyName || defaultCampaignName;
+
           // Adjust budget for strategy split using search-volume-weighted allocation
           const strategyCount = Math.max(1, Object.keys(keywordStrategies).length);
           let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
@@ -3685,7 +3726,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             campaignResult = await googleAdapter.createCampaign({
               accountId: cleanCustomerId,
               accessToken: platform.access_token,
-              campaignName: defaultCampaignName,
+              campaignName: finalCampaignName,
               objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
               budget: strategyDailyBudget,
               budgetMode: "daily",
@@ -3805,6 +3846,39 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             const strategySuffix2 = strategyName ? ` [${strategyName}]` : "";
             const defaultAdGroupName = `${phase.name}${adGroupSuffix}${strategySuffix2} - Ad Group_${generateTimestampSuffix()}`;
 
+            // Try to use client taxonomy template for ad group naming
+            const googleAdGroupTaxonomyContext: TaxonomyContext = {
+              platform: "google",
+              activationName: campaign.name,
+              boNumber: campaign.bo_number || "",
+              market: market.name,
+              country: market.name,
+              objective: phase.googleObjective || campaign.objective || "",
+              funnelStage: phase.name || "",
+              bidStrategy: mappedBidStrategy || "",
+              budgetType: "daily",
+              totalBudget: campaign.total_budget,
+              platformBudget: phaseBudget,
+              phaseBudget: strategyDailyBudget,
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+              targetingType: adSetConfig.name || "",
+            };
+
+            const googleAdGroupTaxonomyName = cleanCustomerId
+              ? await generateTaxonomyName(
+                  supabase,
+                  campaign.user_id,
+                  cleanCustomerId,
+                  "google",
+                  "adset", // taxonomy uses "adset" entity type for ad groups too
+                  googleAdGroupTaxonomyContext,
+                  { ...(phase.adsetTaxonomyValues || {}), ...(strategyName ? { strategy: strategyName } : {}), ...(adSetConfig.id !== "default" ? { adSetName: adSetConfig.name } : {}) },
+                )
+              : null;
+
+            const finalAdGroupName = googleAdGroupTaxonomyName || defaultAdGroupName;
+
             // Calculate CPC bid for ad group (if manual bidding)
             const adGroupBidAmount = mappedBidStrategy === "MANUAL_CPC" ? (bidAmount || 1.0) : undefined;
 
@@ -3864,7 +3938,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               accountId: cleanCustomerId,
               accessToken: platform.access_token,
               campaignId: campaignResult.campaignId,
-              adGroupName: defaultAdGroupName,
+              adGroupName: finalAdGroupName,
               targeting: adGroupTargetingPayload,
               placements: [],
               optimizationGoal: mappedBidStrategy,
