@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 
@@ -76,13 +76,6 @@ function normalizeValue(val: any): string {
   if (val === null || val === undefined) return "";
   if (typeof val === "object") return JSON.stringify(val);
   return String(val);
-}
-
-function compareValues(actiplanVal: any, dspVal: any): boolean {
-  const a = normalizeValue(actiplanVal);
-  const b = normalizeValue(dspVal);
-  // Normalize budget values (Meta returns in cents)
-  return a === b;
 }
 
 // Convert Meta budget from cents to dollars
@@ -250,17 +243,14 @@ function diffMetaCampaign(
 ): ConfigChange[] {
   const changes: ConfigChange[] = [];
 
-  // Compare key fields
   for (const [field, config] of Object.entries(META_CAMPAIGN_FIELDS)) {
     const dspVal = dspData[field];
     if (dspVal === undefined) continue;
 
     let processedDspVal = dspVal;
-    // Convert Meta budgets from cents to dollars
     if (field === "daily_budget" || field === "lifetime_budget") {
       processedDspVal = metaBudgetFromCents(dspVal);
     }
-    // Convert dates
     if (field === "start_time" || field === "stop_time") {
       processedDspVal = metaDateToISO(dspVal);
     }
@@ -276,7 +266,7 @@ function diffMetaCampaign(
       change_category: config.category,
       field_name: field,
       field_label: config.label,
-      actiplan_value: null, // Will be filled with stored snapshot
+      actiplan_value: null,
       dsp_value: normalizeValue(processedDspVal),
     });
   }
@@ -370,7 +360,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Get launch status entries with DSP IDs (only campaign-level entities for now)
+    // Get launch status entries with DSP IDs
     const { data: launchStatuses } = await supabase
       .from("campaign_launch_status")
       .select("*")
@@ -390,6 +380,14 @@ const handler = async (req: Request): Promise<Response> => {
       .select("*")
       .eq("user_id", user.id)
       .eq("is_active", true);
+
+    // Check if this is the first-ever sync for this campaign (no existing changes at all)
+    const { count: existingChangeCount } = await supabase
+      .from("dsp_config_changes")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId);
+
+    const isInitialSync = (existingChangeCount || 0) === 0;
 
     // Get existing unacknowledged changes to avoid duplicates
     const { data: existingChanges } = await supabase
@@ -414,7 +412,6 @@ const handler = async (req: Request): Promise<Response> => {
       const accessToken = await getAccessToken(supabase, metaPlatform.id, metaPlatform.access_token);
 
       if (accessToken) {
-        // Process campaign entities
         const campaignEntities = metaEntities.filter((e: any) => e.entity_type === "campaign");
         for (const entry of campaignEntities) {
           const dspData = await fetchMetaCampaignConfig(accessToken, entry.dsp_entity_id);
@@ -422,7 +419,6 @@ const handler = async (req: Request): Promise<Response> => {
             const changes = diffMetaCampaign(campaignId, entry, dspData);
             allChanges.push(...changes);
 
-            // Also fetch ad sets under this campaign
             const adSets = await fetchMetaAdSets(accessToken, entry.dsp_entity_id);
             for (const adSet of adSets) {
               for (const [field, config] of Object.entries(META_ADSET_FIELDS)) {
@@ -434,7 +430,6 @@ const handler = async (req: Request): Promise<Response> => {
                 if (field === "start_time" || field === "end_time") {
                   dspVal = metaDateToISO(dspVal);
                 }
-                // For targeting, serialize the whole object
                 if (field === "targeting") {
                   dspVal = JSON.stringify(dspVal);
                 }
@@ -456,7 +451,6 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
 
-            // Fetch ads
             const ads = await fetchMetaAds(accessToken, entry.dsp_entity_id);
             for (const ad of ads) {
               allChanges.push({
@@ -487,7 +481,6 @@ const handler = async (req: Request): Promise<Response> => {
       if (accessToken) {
         const campaignEntities = tiktokEntities.filter((e: any) => e.entity_type === "campaign");
         for (const entry of campaignEntities) {
-          // Get advertiser ID from tiktok_campaigns or launch status metadata
           const { data: tiktokCampaign } = await supabase
             .from("tiktok_campaigns")
             .select("advertiser_id")
@@ -502,7 +495,6 @@ const handler = async (req: Request): Promise<Response> => {
             const changes = diffTikTokCampaign(campaignId, entry, dspData);
             allChanges.push(...changes);
 
-            // Fetch ad groups
             const adGroups = await fetchTikTokAdGroups(accessToken, advertiserId, entry.dsp_entity_id);
             for (const adGroup of adGroups) {
               for (const [field, config] of Object.entries(TIKTOK_ADGROUP_FIELDS)) {
@@ -525,7 +517,6 @@ const handler = async (req: Request): Promise<Response> => {
                 });
               }
 
-              // Fetch ads under this ad group
               const ads = await fetchTikTokAds(accessToken, advertiserId, adGroup.adgroup_id);
               for (const ad of ads) {
                 allChanges.push({
@@ -549,11 +540,6 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Filter out changes that already exist (same entity + field + value)
-    const newChanges = allChanges.filter(
-      (c) => !existingChangeKeys.has(`${c.dsp_entity_id}:${c.field_name}:${c.dsp_value}`),
-    );
-
     // Delete old unacknowledged changes for this campaign (replace with fresh data)
     await supabase
       .from("dsp_config_changes")
@@ -561,12 +547,18 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("campaign_id", campaignId)
       .eq("is_acknowledged", false);
 
-    // Insert all current DSP state as changes (users will see current DSP values)
+    // Insert all current DSP state
     if (allChanges.length > 0) {
+      const now = new Date().toISOString();
       const insertData = allChanges.map((c) => ({
         ...c,
-        detected_at: new Date().toISOString(),
-        synced_at: new Date().toISOString(),
+        detected_at: now,
+        synced_at: now,
+        // On initial sync (first time after push), auto-acknowledge everything
+        // since these are the values we just pushed — not real changes
+        is_acknowledged: isInitialSync ? true : false,
+        acknowledged_at: isInitialSync ? now : null,
+        acknowledged_by: isInitialSync ? user.id : null,
       }));
 
       // Batch insert in chunks of 50
@@ -579,15 +571,18 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log(
-      `DSP config sync complete for campaign ${campaignId}: ${allChanges.length} total fields synced`,
-    );
+    const resultMessage = isInitialSync
+      ? `Initial baseline captured for campaign ${campaignId}: ${allChanges.length} fields stored`
+      : `DSP config sync complete for campaign ${campaignId}: ${allChanges.length} total fields synced`;
+
+    console.log(resultMessage);
 
     return new Response(
       JSON.stringify({
         success: true,
+        isInitialSync,
         totalFields: allChanges.length,
-        changes: allChanges.length,
+        changes: isInitialSync ? 0 : allChanges.length,
         platforms: {
           meta: metaEntities.length,
           tiktok: tiktokEntities.length,
