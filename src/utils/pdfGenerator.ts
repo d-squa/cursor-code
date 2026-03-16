@@ -23,6 +23,7 @@ export interface MediaPlanData {
   platforms: any[];
   genericConfig: any;
   forecasts?: any;
+  selectedKeywords?: KeywordItemForExport[];
   actiplanForecasts?: {
     totalBudget: number;
     totalAudienceSize: number;
