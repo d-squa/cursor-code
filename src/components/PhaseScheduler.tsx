@@ -2003,7 +2003,7 @@ export function PhaseScheduler({
                       )}
 
                       {/* === Multi-Column Phase Configuration === */}
-                      <div className="columns-1 lg:columns-2 2xl:columns-3 gap-4 [&>*]:break-inside-avoid [&>*]:mb-4">
+                      <div className="columns-1 lg:columns-2 2xl:columns-3 gap-4 space-y-0 [&>*]:break-inside-avoid [&>*]:mb-4 [&>div]:break-inside-avoid [&>div]:mb-4">
 
                       {/* Targeting Summary */}
                       {(() => {
