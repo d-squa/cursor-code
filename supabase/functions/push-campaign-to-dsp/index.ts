@@ -381,8 +381,8 @@ function generateTaxonomyString(template: TaxonomyParam[], values: Record<string
 async function generateTaxonomyName(
   supabase: any,
   userId: string,
-  platformAccountId: string, // This is the platform's native ID (e.g., TikTok advertiser_id or Meta account_id)
-  platform: "meta" | "tiktok",
+  platformAccountId: string, // This is the platform's native ID (e.g., TikTok advertiser_id, Meta account_id, or Google customer_id)
+  platform: "meta" | "tiktok" | "google",
   entityType: "campaign" | "adset",
   context: TaxonomyContext,
   customValues?: Record<string, string>,
@@ -406,6 +406,15 @@ async function generateTaxonomyName(
         .eq("account_id", platformAccountId)
         .maybeSingle();
       internalAdAccountId = metaAccount?.id;
+    } else if (platform === "google") {
+      // Google Ads uses customer_id — try matching with or without dashes
+      const cleanId = platformAccountId.replace(/-/g, "");
+      const { data: googleAccount } = await supabase
+        .from("google_ad_accounts")
+        .select("id")
+        .or(`customer_id.eq.${cleanId},customer_id.eq.${platformAccountId}`)
+        .maybeSingle();
+      internalAdAccountId = googleAccount?.id;
     }
 
     if (!internalAdAccountId) {
