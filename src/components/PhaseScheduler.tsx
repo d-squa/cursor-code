@@ -1881,6 +1881,9 @@ export function PhaseScheduler({
                             <Badge variant="outline" className="text-[10px]">
                               {positives.length} keyword{positives.length !== 1 ? 's' : ''}
                             </Badge>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {budgetPct}% budget
+                            </Badge>
                             {negatives.length > 0 && (
                               <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">
                                 <Ban className="h-2.5 w-2.5 mr-0.5" />{negatives.length} neg
