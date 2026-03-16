@@ -3726,7 +3726,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             campaignResult = await googleAdapter.createCampaign({
               accountId: cleanCustomerId,
               accessToken: platform.access_token,
-              campaignName: defaultCampaignName,
+              campaignName: finalCampaignName,
               objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
               budget: strategyDailyBudget,
               budgetMode: "daily",
