@@ -97,8 +97,9 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
       const lower = p.toLowerCase();
       if (lower.includes('meta') || lower.includes('facebook') || lower.includes('instagram')) return 'meta';
       if (lower.includes('tiktok')) return 'tiktok';
+      if (lower.includes('google')) return 'google';
       return lower;
-    }).filter((p): p is 'meta' | 'tiktok' => p === 'meta' || p === 'tiktok');
+    }).filter((p): p is 'meta' | 'tiktok' | 'google' => p === 'meta' || p === 'tiktok' || p === 'google');
 
     const uniquePlatforms = [...new Set(normalizedPlatforms)];
 

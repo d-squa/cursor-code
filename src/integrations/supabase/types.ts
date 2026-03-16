@@ -1682,6 +1682,7 @@ export type Database = {
           default_max_cpc_bid: number | null
           default_merchant_center_id: string | null
           default_non_conversion_budget_type: string | null
+          default_placements: Json | null
           default_target_cpa: number | null
           default_target_roas: number | null
           default_url_parameters: string | null
@@ -1711,6 +1712,7 @@ export type Database = {
           default_max_cpc_bid?: number | null
           default_merchant_center_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_placements?: Json | null
           default_target_cpa?: number | null
           default_target_roas?: number | null
           default_url_parameters?: string | null
@@ -1740,6 +1742,7 @@ export type Database = {
           default_max_cpc_bid?: number | null
           default_merchant_center_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_placements?: Json | null
           default_target_cpa?: number | null
           default_target_roas?: number | null
           default_url_parameters?: string | null

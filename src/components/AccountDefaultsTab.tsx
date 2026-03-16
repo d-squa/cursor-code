@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +53,7 @@ interface GoogleAdAccountDefaults {
   main_markets?: string[] | null;
   default_utm_mode?: string | null;
   default_url_parameters?: string | null;
+  default_placements?: string[] | null;
 }
 
 interface AdAccount {
@@ -375,7 +377,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Load Google Ads accounts for this client
       const { data: googleAccountsData, error: googleAccountsError } = await supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements")
         .eq("client_id", clientId);
 
       if (googleAccountsError) throw googleAccountsError;
@@ -409,6 +411,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           main_markets: acc.main_markets || [],
           default_utm_mode: acc.default_utm_mode || null,
           default_url_parameters: acc.default_url_parameters || null,
+          default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements : [],
         };
       });
       setGoogleLocalDefaults(gDefaults);
@@ -889,6 +892,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "main_markets",
         "default_utm_mode",
         "default_url_parameters",
+        "default_placements",
       ];
 
       const updateData: Record<string, any> = {};
@@ -2717,6 +2721,42 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <p className="text-xs text-muted-foreground">
                             Feed label used to filter product feeds by country/region
                           </p>
+                        </div>
+                      </div>
+
+                      {/* Default Placements */}
+                      <Separator className="my-4" />
+                      <div className="space-y-2">
+                        <Label>Default Placements</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Select default placements for Display and Video campaign types
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                          {["Websites", "YouTube Channels", "YouTube Videos", "Apps", "App Categories"].map((placement) => {
+                            const currentPlacements = (gDefaults as any).default_placements || [];
+                            const isChecked = Array.isArray(currentPlacements) && currentPlacements.includes(placement);
+                            return (
+                              <div key={placement} className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id={`gads-def-placement-${gAccount.id}-${placement}`}
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => {
+                                    const current = Array.isArray(currentPlacements) ? currentPlacements : [];
+                                    updateGoogleDefault(
+                                      gAccount.id,
+                                      "default_placements" as any,
+                                      checked
+                                        ? [...current, placement]
+                                        : current.filter((p: string) => p !== placement)
+                                    );
+                                  }}
+                                />
+                                <label htmlFor={`gads-def-placement-${gAccount.id}-${placement}`} className="text-sm">
+                                  {placement}
+                                </label>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 

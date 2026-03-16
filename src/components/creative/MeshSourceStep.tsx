@@ -1,5 +1,5 @@
 // Step 2: Creative Source Selection
-// Users can select from Upload (Meta only), Page Assets, and Ad Account Assets
+// Users can select from Upload, Page Assets, Ad Account Assets, and YouTube Links (Google)
 // Mix and match is supported - all selections accumulate
 
 import { useState, useMemo, useRef, useCallback } from 'react';
@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   Upload, 
   FileImage, 
@@ -18,6 +20,9 @@ import {
   Image as ImageIcon,
   Video,
   Loader2,
+  Youtube,
+  Link2,
+  CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SelectedAsset, CreativeSource } from '@/hooks/useCreativeMeshProgress';
@@ -62,11 +67,12 @@ export function MeshSourceStep({
   onRunMesh,
   isProcessing = false,
 }: MeshSourceStepProps) {
-  const [activeTab, setActiveTab] = useState<CreativeSource>(
-    platform === 'meta' ? 'upload' : 'page_assets'
-  );
+  const defaultTab = platform === 'google' ? 'upload' : (platform === 'meta' ? 'upload' : 'page_assets');
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
 
   // Filter assets by current platform
   const platformAssets = useMemo(() => 
@@ -81,30 +87,47 @@ export function MeshSourceStep({
     ad_account_assets: platformAssets.filter(a => a.source === 'ad_account_assets').length,
   }), [platformAssets]);
 
+  // YouTube video count
+  const youtubeCount = platformAssets.filter(a => 
+    a.source === 'ad_account_assets' && a.platformAssetId?.startsWith('yt:')
+  ).length;
+
   // Available tabs depend on platform
-  const availableTabs: Array<{ id: CreativeSource; label: string; icon: React.ReactNode }> = useMemo(() => {
-    const tabs = [];
+  const availableTabs = useMemo(() => {
+    const tabs: Array<{ id: string; label: string; icon: React.ReactNode }> = [];
     
-    // Upload only for Meta (TikTok API uploads don't work for ad delivery)
-    if (platform === 'meta') {
+    // Upload for Meta and Google (TikTok API uploads don't work for ad delivery)
+    if (platform === 'meta' || platform === 'google') {
       tabs.push({
-        id: 'upload' as CreativeSource,
+        id: 'upload',
         label: 'Upload',
         icon: <Upload className="h-4 w-4" />,
       });
     }
     
-    tabs.push({
-      id: 'page_assets' as CreativeSource,
-      label: 'Page Assets',
-      icon: <FileImage className="h-4 w-4" />,
-    });
+    // Page Assets only for Meta and TikTok (Google doesn't have page assets)
+    if (platform !== 'google') {
+      tabs.push({
+        id: 'page_assets',
+        label: 'Page Assets',
+        icon: <FileImage className="h-4 w-4" />,
+      });
+    }
     
     tabs.push({
-      id: 'ad_account_assets' as CreativeSource,
+      id: 'ad_account_assets',
       label: 'Ad Account Assets',
       icon: <Cloud className="h-4 w-4" />,
     });
+
+    // YouTube Video tab for Google only
+    if (platform === 'google') {
+      tabs.push({
+        id: 'youtube_video',
+        label: 'YouTube Video',
+        icon: <Youtube className="h-4 w-4" />,
+      });
+    }
     
     return tabs;
   }, [platform]);
@@ -114,7 +137,6 @@ export function MeshSourceStep({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Create assets from files - store File object for processFiles
     for (const file of files) {
       const isVideo = file.type.startsWith('video/');
       const previewUrl = URL.createObjectURL(file);
@@ -126,15 +148,13 @@ export function MeshSourceStep({
         assetType: isVideo ? 'video' : 'image',
         thumbnailUrl: previewUrl,
         name: file.name,
-        file, // Store File object for later use
+        file,
       };
       
       onAddAsset(asset);
     }
     
     toast.success(`Added ${files.length} files`);
-    
-    // Reset input
     if (e.target) e.target.value = '';
   }, [platform, onAddAsset]);
 
@@ -160,32 +180,90 @@ export function MeshSourceStep({
         assetType: isVideo ? 'video' : 'image',
         thumbnailUrl: previewUrl,
         name: file.name,
-        file, // Store File object for later use
+        file,
       };
       
       onAddAsset(asset);
     }
     
     toast.success(`Added ${files.length} files from folder`);
-    
     if (e.target) e.target.value = '';
   }, [platform, onAddAsset]);
+
+  // Handle YouTube video link
+  const handleAddYoutubeVideo = useCallback(() => {
+    if (!youtubeUrl.trim()) return;
+
+    setYoutubeLoading(true);
+    
+    // Extract YouTube video ID from various URL formats
+    let videoId: string | null = null;
+    try {
+      const url = new URL(youtubeUrl.trim());
+      if (url.hostname.includes('youtube.com')) {
+        videoId = url.searchParams.get('v');
+      } else if (url.hostname === 'youtu.be') {
+        videoId = url.pathname.slice(1);
+      }
+    } catch {
+      // Try as raw video ID
+      if (/^[a-zA-Z0-9_-]{11}$/.test(youtubeUrl.trim())) {
+        videoId = youtubeUrl.trim();
+      }
+    }
+
+    if (!videoId) {
+      toast.error('Invalid YouTube URL. Please provide a valid YouTube video link.');
+      setYoutubeLoading(false);
+      return;
+    }
+
+    // Check if already added
+    const exists = platformAssets.some(a => a.platformAssetId === `yt:${videoId}`);
+    if (exists) {
+      toast.info('This YouTube video is already added.');
+      setYoutubeLoading(false);
+      return;
+    }
+
+    const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+    const asset: SelectedAsset = {
+      id: `youtube-${videoId}-${Date.now()}`,
+      source: 'ad_account_assets',
+      platform: 'google',
+      assetType: 'video',
+      thumbnailUrl,
+      name: `YouTube: ${videoId}`,
+      platformAssetId: `yt:${videoId}`,
+    };
+
+    onAddAsset(asset);
+    setYoutubeUrl('');
+    setYoutubeLoading(false);
+    toast.success('YouTube video added');
+  }, [youtubeUrl, platformAssets, onAddAsset]);
 
   const hasAssets = platformAssets.length > 0;
 
   return (
     <div className="flex flex-col h-full">
       {/* Source Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CreativeSource)} className="flex-1 flex flex-col">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="px-6 border-b bg-background">
           <TabsList className="h-12">
             {availableTabs.map(tab => (
               <TabsTrigger key={tab.id} value={tab.id} className="gap-2 relative">
                 {tab.icon}
                 {tab.label}
-                {assetCounts[tab.id] > 0 && (
+                {tab.id === 'youtube_video' && youtubeCount > 0 && (
                   <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                    {assetCounts[tab.id]}
+                    {youtubeCount}
+                  </Badge>
+                )}
+                {tab.id !== 'youtube_video' && (assetCounts as any)[tab.id] > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                    {(assetCounts as any)[tab.id]}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -196,14 +274,14 @@ export function MeshSourceStep({
         <div className="flex-1 overflow-hidden flex">
           {/* Main content area */}
           <div className="flex-1 overflow-auto p-6">
-            {/* Upload Tab (Meta only) */}
-            {platform === 'meta' && (
+            {/* Upload Tab (Meta and Google) */}
+            {(platform === 'meta' || platform === 'google') && (
               <TabsContent value="upload" className="mt-0 h-full">
                 <Card className="h-full flex flex-col">
                   <CardHeader>
                     <CardTitle>Upload Creatives</CardTitle>
                     <CardDescription>
-                      Upload images and videos directly for meshing
+                      Upload images and videos {platform === 'google' ? 'to your Google Ads asset library' : 'directly for meshing'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1">
@@ -290,32 +368,34 @@ export function MeshSourceStep({
               </TabsContent>
             )}
 
-            {/* Page Assets Tab */}
-            <TabsContent value="page_assets" className="mt-0 h-full">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Page Assets</CardTitle>
-                  <CardDescription>
-                    Select organic posts from your connected {platform === 'meta' ? 'Facebook/Instagram Pages' : 'TikTok accounts'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {pageConfigs.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No pages connected to this campaign. Configure platform identities in the ActiPlan.
-                    </div>
-                  ) : (
-                    <MeshPageAssetsPicker
-                      platform={platform}
-                      pageConfigs={pageConfigs.filter(c => c.platform === platform)}
-                      selectedAssets={platformAssets.filter(a => a.source === 'page_assets')}
-                      onAddAsset={onAddAsset}
-                      onRemoveAsset={onRemoveAsset}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+            {/* Page Assets Tab (Meta and TikTok only) */}
+            {platform !== 'google' && (
+              <TabsContent value="page_assets" className="mt-0 h-full">
+                <Card className="h-full">
+                  <CardHeader>
+                    <CardTitle>Page Assets</CardTitle>
+                    <CardDescription>
+                      Select organic posts from your connected {platform === 'meta' ? 'Facebook/Instagram Pages' : 'TikTok accounts'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {pageConfigs.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No pages connected to this campaign. Configure platform identities in the ActiPlan.
+                      </div>
+                    ) : (
+                      <MeshPageAssetsPicker
+                        platform={platform}
+                        pageConfigs={pageConfigs.filter(c => c.platform === platform)}
+                        selectedAssets={platformAssets.filter(a => a.source === 'page_assets')}
+                        onAddAsset={onAddAsset}
+                        onRemoveAsset={onRemoveAsset}
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
 
             {/* Ad Account Assets Tab */}
             <TabsContent value="ad_account_assets" className="mt-0 h-full">
@@ -323,7 +403,7 @@ export function MeshSourceStep({
                 <CardHeader>
                   <CardTitle>Ad Account Assets</CardTitle>
                   <CardDescription>
-                    Select creatives from your {platform === 'meta' ? 'Meta' : 'TikTok'} ad account library
+                    Select creatives from your {platform === 'meta' ? 'Meta' : platform === 'google' ? 'Google Ads' : 'TikTok'} ad account library
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -342,6 +422,98 @@ export function MeshSourceStep({
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* YouTube Video Tab (Google only) */}
+            {platform === 'google' && (
+              <TabsContent value="youtube_video" className="mt-0 h-full">
+                <Card className="h-full flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Youtube className="h-5 w-5 text-red-600" />
+                      YouTube Video
+                    </CardTitle>
+                    <CardDescription>
+                      Add a YouTube video by pasting its URL. The video must be uploaded to your YouTube channel and linked to your Google Ads account.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">YouTube Video URL</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="https://www.youtube.com/watch?v=..."
+                          value={youtubeUrl}
+                          onChange={(e) => setYoutubeUrl(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddYoutubeVideo();
+                          }}
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={handleAddYoutubeVideo}
+                          disabled={!youtubeUrl.trim() || youtubeLoading}
+                        >
+                          {youtubeLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Link2 className="h-4 w-4" />
+                          )}
+                          Add
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Supports youtube.com, youtu.be URLs, or raw video IDs
+                      </p>
+                    </div>
+
+                    {/* Show added YouTube videos */}
+                    {youtubeCount > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Added YouTube Videos ({youtubeCount})</div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {platformAssets
+                            .filter(a => a.platformAssetId?.startsWith('yt:'))
+                            .map(asset => {
+                              const videoId = asset.platformAssetId?.replace('yt:', '');
+                              return (
+                                <div key={asset.id} className="relative rounded-lg overflow-hidden bg-muted border">
+                                  <div className="aspect-video relative">
+                                    {asset.thumbnailUrl && (
+                                      <img 
+                                        src={asset.thumbnailUrl} 
+                                        alt={asset.name || 'YouTube video'}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    )}
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div className="bg-red-600 rounded-full p-2">
+                                        <Video className="h-4 w-4 text-white" />
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => onRemoveAsset(asset.id)}
+                                      className="absolute top-1 right-1 p-1 rounded-full bg-background/80 hover:bg-background"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                  <div className="p-2">
+                                    <p className="text-xs font-medium truncate">{videoId}</p>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <CheckCircle className="h-3 w-3 text-green-600" />
+                                      <span className="text-[10px] text-muted-foreground">Ready</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </div>
 
           {/* Selected Assets Sidebar */}
@@ -394,7 +566,7 @@ export function MeshSourceStep({
                           {asset.name || asset.id.slice(0, 12)}
                         </p>
                         <Badge variant="outline" className="text-xs capitalize">
-                          {asset.source.replace('_', ' ')}
+                          {asset.platformAssetId?.startsWith('yt:') ? 'YouTube' : asset.source.replace('_', ' ')}
                         </Badge>
                       </div>
                       <button

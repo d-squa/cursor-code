@@ -1,0 +1,1 @@
+ALTER TABLE public.google_ad_accounts ADD COLUMN IF NOT EXISTS default_placements jsonb DEFAULT '[]'::jsonb;
