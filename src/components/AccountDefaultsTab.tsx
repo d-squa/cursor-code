@@ -890,6 +890,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "main_markets",
         "default_utm_mode",
         "default_url_parameters",
+        "default_placements",
       ];
 
       const updateData: Record<string, any> = {};
