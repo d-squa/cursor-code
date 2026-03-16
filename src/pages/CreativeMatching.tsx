@@ -81,7 +81,8 @@ export default function CreativeMatching() {
     adAccounts: AdAccountInfo[];
     pageConfigs: PageConfig[];
     platforms: string[];
-  }>({ adAccounts: [], pageConfigs: [], platforms: [] });
+    googleCampaignTypes: string[];
+  }>({ adAccounts: [], pageConfigs: [], platforms: [], googleCampaignTypes: [] });
 
   // Load campaign data when ActiPlan is selected
   useEffect(() => {
