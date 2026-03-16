@@ -110,6 +110,8 @@ export interface CampaignStructure {
   taxonomyElements?: Record<string, string>;
   // TikTok-specific fields from phase/market config
   tiktokIdentityId?: string;
+  // Google Ads campaign type (Search, Display, Video, Performance Max, etc.)
+  googleCampaignType?: string;
 }
 
 export interface UIMatchingResult {
@@ -357,6 +359,8 @@ export function useCreativeMatching(campaignId?: string) {
               objective: (campaign as any).objective,
               market: market?.name,
               funnelStage: phase?.funnelStage,
+              // Google Ads: carry campaign type for media-format filtering
+              googleCampaignType: platformKey === 'google' ? (phase?.googleCampaignType || market?.googleCampaignType) : undefined,
             };
 
             // Get placement constraints from multiple sources
@@ -764,6 +768,17 @@ export function useCreativeMatching(campaignId?: string) {
       // Only include valid assets for matching
       const validAssets = prev.assets.filter(a => !invalidDimensionAssets.has(a.id));
 
+      // Google Ads campaign type → allowed media types (for filtering at match time)
+      const GOOGLE_ALLOWED_MEDIA: Record<string, { image: boolean; video: boolean }> = {
+        'Search': { image: false, video: false },
+        'Shopping': { image: false, video: false },
+        'Display': { image: true, video: false },
+        'Video': { image: false, video: true },
+        'Performance Max': { image: true, video: true },
+        'Demand Gen': { image: true, video: true },
+        'App Promotion': { image: true, video: true },
+      };
+
       // Step 2: For each structure, find fitting assets (only from valid assets)
       const structureResults: StructureMatchResult[] = [];
       const assignedAssetIds = new Set<string>();
@@ -771,7 +786,20 @@ export function useCreativeMatching(campaignId?: string) {
       for (const structure of structuresToUse) {
         const assignedAssets: StructureMatchResult['assignedAssets'] = [];
 
+        // Determine allowed media types for this structure (Google campaign type filtering)
+        const googleCT = structure.googleCampaignType;
+        const googleMediaRules = googleCT ? GOOGLE_ALLOWED_MEDIA[googleCT] : null;
+
         for (const asset of validAssets) {
+          // Google Ads: skip assets whose media type is disallowed by the campaign type
+          if (structure.platform === 'google' && googleMediaRules) {
+            const isImage = asset.mediaType === 'image';
+            const isVideo = asset.mediaType === 'video';
+            if ((isImage && !googleMediaRules.image) || (isVideo && !googleMediaRules.video)) {
+              continue; // Skip — incompatible format for this Google campaign type
+            }
+          }
+
           const inferredSignals = assetSignalsMap.get(asset.id)!;
           
           // Match asset signals against structure taxonomy elements
@@ -822,6 +850,22 @@ export function useCreativeMatching(campaignId?: string) {
           }
 
           const reasons: string[] = [];
+
+          // Check if asset was excluded from ALL Google structures due to campaign type
+          const googleStructures = structuresToUse.filter(s => s.platform === 'google' && s.googleCampaignType);
+          if (googleStructures.length > 0) {
+            const excludedFromAll = googleStructures.every(s => {
+              const rules = GOOGLE_ALLOWED_MEDIA[s.googleCampaignType!];
+              if (!rules) return false;
+              const isImage = asset.mediaType === 'image';
+              const isVideo = asset.mediaType === 'video';
+              return (isImage && !rules.image) || (isVideo && !rules.video);
+            });
+            if (excludedFromAll) {
+              const types = [...new Set(googleStructures.map(s => s.googleCampaignType))].join(', ');
+              reasons.push(`⛔ ${asset.mediaType === 'image' ? 'Images' : 'Videos'} are not supported by ${types} campaigns`);
+            }
+          }
           
           // PRIORITY CHECK: Was this asset filtered out due to invalid dimensions?
           if (invalidDimensionAssets.has(asset.id)) {
