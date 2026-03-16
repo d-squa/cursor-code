@@ -407,7 +407,6 @@ export default function CreativeMatching() {
               isProcessing={matchingState.isProcessing}
               googleCampaignTypes={campaignData.googleCampaignTypes}
             />
-            />
           )}
 
           {/* Step 3: Match Creatives Review */}
