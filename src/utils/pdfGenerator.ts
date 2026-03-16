@@ -2,6 +2,19 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 
+export interface KeywordItemForExport {
+  id: string;
+  name: string;
+  platform: "google" | "tiktok";
+  avgMonthlySearches?: number;
+  competition?: string;
+  cpcLow?: number;
+  cpcHigh?: number;
+  strategy?: "brand" | "generic" | "competition";
+  matchType?: "exact" | "phrase" | "broad";
+  isNegative?: boolean;
+}
+
 export interface MediaPlanData {
   name: string;
   totalBudget: number;
