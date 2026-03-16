@@ -405,6 +405,8 @@ export default function CreativeMatching() {
               onClearAssets={clearAssets}
               onRunMesh={handleRunMesh}
               isProcessing={matchingState.isProcessing}
+              googleCampaignTypes={campaignData.googleCampaignTypes}
+            />
             />
           )}
 
