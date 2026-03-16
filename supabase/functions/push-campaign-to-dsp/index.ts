@@ -3846,6 +3846,39 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             const strategySuffix2 = strategyName ? ` [${strategyName}]` : "";
             const defaultAdGroupName = `${phase.name}${adGroupSuffix}${strategySuffix2} - Ad Group_${generateTimestampSuffix()}`;
 
+            // Try to use client taxonomy template for ad group naming
+            const googleAdGroupTaxonomyContext: TaxonomyContext = {
+              platform: "google",
+              activationName: campaign.name,
+              boNumber: campaign.bo_number || "",
+              market: market.name,
+              country: market.name,
+              objective: phase.googleObjective || campaign.objective || "",
+              funnelStage: phase.name || "",
+              bidStrategy: mappedBidStrategy || "",
+              budgetType: "daily",
+              totalBudget: campaign.total_budget,
+              platformBudget: phaseBudget,
+              phaseBudget: strategyDailyBudget,
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+              targetingType: adSetConfig.name || "",
+            };
+
+            const googleAdGroupTaxonomyName = cleanCustomerId
+              ? await generateTaxonomyName(
+                  supabase,
+                  campaign.user_id,
+                  cleanCustomerId,
+                  "google",
+                  "adset", // taxonomy uses "adset" entity type for ad groups too
+                  googleAdGroupTaxonomyContext,
+                  { ...(phase.adsetTaxonomyValues || {}), ...(strategyName ? { strategy: strategyName } : {}), ...(adSetConfig.id !== "default" ? { adSetName: adSetConfig.name } : {}) },
+                )
+              : null;
+
+            const finalAdGroupName = googleAdGroupTaxonomyName || defaultAdGroupName;
+
             // Calculate CPC bid for ad group (if manual bidding)
             const adGroupBidAmount = mappedBidStrategy === "MANUAL_CPC" ? (bidAmount || 1.0) : undefined;
 
