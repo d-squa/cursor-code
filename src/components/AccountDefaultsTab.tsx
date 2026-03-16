@@ -2722,6 +2722,42 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         </div>
                       </div>
 
+                      {/* Default Placements */}
+                      <Separator className="my-4" />
+                      <div className="space-y-2">
+                        <Label>Default Placements</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Select default placements for Display and Video campaign types
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                          {["Websites", "YouTube Channels", "YouTube Videos", "Apps", "App Categories"].map((placement) => {
+                            const currentPlacements = (gDefaults as any).default_placements || [];
+                            const isChecked = Array.isArray(currentPlacements) && currentPlacements.includes(placement);
+                            return (
+                              <div key={placement} className="flex items-center gap-1.5">
+                                <Checkbox
+                                  id={`gads-def-placement-${gAccount.id}-${placement}`}
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => {
+                                    const current = Array.isArray(currentPlacements) ? currentPlacements : [];
+                                    updateGoogleDefault(
+                                      gAccount.id,
+                                      "default_placements" as any,
+                                      checked
+                                        ? [...current, placement]
+                                        : current.filter((p: string) => p !== placement)
+                                    );
+                                  }}
+                                />
+                                <label htmlFor={`gads-def-placement-${gAccount.id}-${placement}`} className="text-sm">
+                                  {placement}
+                                </label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       {/* URL Parameters Section */}
                       <Separator className="my-4" />
                       <div className="space-y-4">
