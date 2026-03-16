@@ -47,7 +47,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Create client profiles with their industry, markets, and business objectives. Then link ad accounts to each client under Manage Accounts.",
     icon: <Users className="h-6 w-6" />,
-    action: { label: "Manage Clients", path: "/clients" },
+    action: { label: "Manage Clients", path: "/settings/accounts" },
     tip: "Clients help organize ad accounts and set targeting defaults.",
   },
   {
@@ -55,7 +55,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "For each linked ad account, set default pixels, pages, conversion events, budget types, merchant centers, and URL parameters. These auto-populate when creating ActiPlans.",
     icon: <Settings className="h-6 w-6" />,
-    action: { label: "Go to Clients → Defaults Tab", path: "/clients" },
+    action: { label: "Go to Clients → Defaults Tab", path: "/settings/accounts" },
     tip: "Defaults save hours of repetitive configuration.",
   },
   {
