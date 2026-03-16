@@ -185,12 +185,37 @@ export function MeshSourceStep({
   }, [platform, isGoogleTextOnly, googleMedia]);
 
   // Handle file selection
+  // Compute allowed file accept string for Google
+  const fileAcceptString = useMemo(() => {
+    if (!googleMedia) return 'image/*,video/*';
+    if (googleMedia.image && googleMedia.video) return 'image/*,video/*';
+    if (googleMedia.image) return 'image/*';
+    if (googleMedia.video) return 'video/*';
+    return 'image/*,video/*';
+  }, [googleMedia]);
+
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
+    let skipped = 0;
     for (const file of files) {
       const isVideo = file.type.startsWith('video/');
+      
+      // Validate against Google campaign type restrictions
+      if (googleMedia) {
+        if (isVideo && !googleMedia.video) {
+          toast.error(`Video files not allowed: ${googleCampaignTypes.join(', ')} campaigns don't support video creatives`);
+          skipped++;
+          continue;
+        }
+        if (!isVideo && !googleMedia.image) {
+          toast.error(`Image files not allowed: ${googleCampaignTypes.join(', ')} campaigns don't support image creatives`);
+          skipped++;
+          continue;
+        }
+      }
+
       const previewUrl = URL.createObjectURL(file);
       
       const asset: SelectedAsset = {
@@ -206,7 +231,8 @@ export function MeshSourceStep({
       onAddAsset(asset);
     }
     
-    toast.success(`Added ${files.length} files`);
+    const added = files.length - skipped;
+    if (added > 0) toast.success(`Added ${added} files`);
     if (e.target) e.target.value = '';
   }, [platform, onAddAsset]);
 
