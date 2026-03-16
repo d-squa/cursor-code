@@ -17,12 +17,12 @@ import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
 
 interface AdAccountInfo {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   accountId: string;
 }
 
 interface PageConfig {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   pageId?: string;
   identityId?: string;
   advertiserId?: string;
@@ -81,7 +81,8 @@ export default function CreativeMatching() {
     adAccounts: AdAccountInfo[];
     pageConfigs: PageConfig[];
     platforms: string[];
-  }>({ adAccounts: [], pageConfigs: [], platforms: [] });
+    googleCampaignTypes: string[];
+  }>({ adAccounts: [], pageConfigs: [], platforms: [], googleCampaignTypes: [] });
 
   // Load campaign data when ActiPlan is selected
   useEffect(() => {
@@ -111,6 +112,8 @@ export default function CreativeMatching() {
       // Extract ad accounts and page configs from market_splits
       // Structure: { "meta": [...markets], "tiktok": [...markets] }
       const marketSplits = data.market_splits as Record<string, any>;
+      const googleCampaignTypes: string[] = [];
+
       if (marketSplits && typeof marketSplits === 'object') {
         for (const [platformKey, markets] of Object.entries(marketSplits)) {
           if (!Array.isArray(markets)) continue;
@@ -119,18 +122,29 @@ export default function CreativeMatching() {
                          platformKey.toLowerCase().includes('facebook') || 
                          platformKey.toLowerCase().includes('instagram');
           const isTikTok = platformKey.toLowerCase().includes('tiktok');
+          const isGoogle = platformKey.toLowerCase().includes('google');
 
           for (const market of markets as any[]) {
-            // Extract ad account ID (works for both Meta and TikTok)
-            const adAccountId = market?.adAccountId || market?.tiktokAdvertiserId || market?.advertiser_id;
+            // Extract ad account ID (works for Meta, TikTok, and Google)
+            const adAccountId = market?.adAccountId || market?.tiktokAdvertiserId || market?.advertiser_id || market?.googleCustomerId;
             
             if (adAccountId) {
-              const platform = isTikTok ? 'tiktok' : 'meta';
-              // Normalize: strip 'act_' prefix for consistent matching with DB
+              const platform = isTikTok ? 'tiktok' : isGoogle ? 'google' : 'meta';
               const normalizedId = String(adAccountId).replace(/^act_/, '');
               const exists = adAccounts.some(a => a.platform === platform && a.accountId === normalizedId);
               if (!exists) {
                 adAccounts.push({ platform, accountId: normalizedId });
+              }
+            }
+
+            // Extract Google campaign types from phases
+            if (isGoogle) {
+              const phases = Array.isArray(market?.phases) ? market.phases : [];
+              for (const phase of phases) {
+                const gct = phase?.googleCampaignType;
+                if (gct && !googleCampaignTypes.includes(gct)) {
+                  googleCampaignTypes.push(gct);
+                }
               }
             }
 
@@ -143,13 +157,11 @@ export default function CreativeMatching() {
                   pageConfigs.push({ 
                     platform: 'meta', 
                     pageId: String(pageId), 
-                    // IMPORTANT: do not fall back to ad account name (it's not the page name)
                     pageName: market?.pageName || undefined,
                   });
                 }
               }
 
-              // Also check phases for page IDs
               const phases = Array.isArray(market?.phases) ? market.phases : [];
               for (const phase of phases) {
                 const phasePageId = phase?.pageId || phase?.page || phase?.metaPageId;
@@ -173,13 +185,11 @@ export default function CreativeMatching() {
                     platform: 'tiktok', 
                     identityId: String(identityId),
                     advertiserId: adAccountId ? String(adAccountId) : undefined,
-                    // IMPORTANT: do not fall back to ad account name (it's not the identity name)
                     pageName: market?.tiktokIdentityName || undefined,
                   });
                 }
               }
 
-              // Also check phases for TikTok identities
               const phases = Array.isArray(market?.phases) ? market.phases : [];
               for (const phase of phases) {
                 const phaseIdentity = phase?.tiktokIdentityId || phase?.tiktokIdentity;
@@ -197,7 +207,7 @@ export default function CreativeMatching() {
         }
       }
 
-      setCampaignData({ adAccounts, pageConfigs, platforms });
+      setCampaignData({ adAccounts, pageConfigs, platforms, googleCampaignTypes });
     };
 
     loadCampaignData();
@@ -395,6 +405,7 @@ export default function CreativeMatching() {
               onClearAssets={clearAssets}
               onRunMesh={handleRunMesh}
               isProcessing={matchingState.isProcessing}
+              googleCampaignTypes={campaignData.googleCampaignTypes}
             />
           )}
 

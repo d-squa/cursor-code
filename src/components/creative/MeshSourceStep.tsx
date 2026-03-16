@@ -43,6 +43,44 @@ interface PageConfig {
   pageName?: string;
 }
 
+// Google Ads campaign type → allowed media types
+const GOOGLE_CAMPAIGN_ALLOWED_MEDIA: Record<string, { image: boolean; video: boolean; youtube: boolean; label: string }> = {
+  'Search': { image: false, video: false, youtube: false, label: 'Search campaigns are text-only — no image or video creatives' },
+  'Shopping': { image: false, video: false, youtube: false, label: 'Shopping campaigns use product feed — no image or video creatives' },
+  'Display': { image: true, video: false, youtube: false, label: 'Display campaigns accept images only' },
+  'Video': { image: false, video: true, youtube: true, label: 'Video campaigns accept videos only' },
+  'Performance Max': { image: true, video: true, youtube: true, label: 'Performance Max accepts images and videos' },
+  'Demand Gen': { image: true, video: true, youtube: true, label: 'Demand Gen accepts images and videos' },
+  'App Promotion': { image: true, video: true, youtube: true, label: 'App Promotion accepts images and videos' },
+};
+
+function getGoogleAllowedMedia(campaignTypes: string[]): { image: boolean; video: boolean; youtube: boolean; textOnly: boolean; restrictions: string[] } {
+  if (campaignTypes.length === 0) return { image: true, video: true, youtube: true, textOnly: false, restrictions: [] };
+  
+  let allowImage = false;
+  let allowVideo = false;
+  let allowYoutube = false;
+  const restrictions: string[] = [];
+
+  for (const ct of campaignTypes) {
+    const config = GOOGLE_CAMPAIGN_ALLOWED_MEDIA[ct];
+    if (config) {
+      if (config.image) allowImage = true;
+      if (config.video) allowVideo = true;
+      if (config.youtube) allowYoutube = true;
+      restrictions.push(`${ct}: ${config.label}`);
+    } else {
+      // Unknown campaign type — allow everything
+      allowImage = true;
+      allowVideo = true;
+      allowYoutube = true;
+    }
+  }
+
+  const textOnly = !allowImage && !allowVideo;
+  return { image: allowImage, video: allowVideo, youtube: allowYoutube, textOnly, restrictions };
+}
+
 interface MeshSourceStepProps {
   platform: 'meta' | 'tiktok' | 'google';
   campaignId: string;
@@ -54,6 +92,7 @@ interface MeshSourceStepProps {
   onClearAssets: () => void;
   onRunMesh: () => void;
   isProcessing?: boolean;
+  googleCampaignTypes?: string[];
 }
 
 export function MeshSourceStep({
@@ -66,8 +105,16 @@ export function MeshSourceStep({
   onClearAssets,
   onRunMesh,
   isProcessing = false,
+  googleCampaignTypes = [],
 }: MeshSourceStepProps) {
-  const defaultTab = platform === 'google' ? 'upload' : (platform === 'meta' ? 'upload' : 'page_assets');
+  // Compute allowed media for Google
+  const googleMedia = useMemo(() => 
+    platform === 'google' ? getGoogleAllowedMedia(googleCampaignTypes) : null,
+    [platform, googleCampaignTypes]
+  );
+  // If Google and text-only, redirect default tab
+  const isGoogleTextOnly = googleMedia?.textOnly ?? false;
+  const defaultTab = isGoogleTextOnly ? 'upload' : (platform === 'google' ? 'upload' : (platform === 'meta' ? 'upload' : 'page_assets'));
   const [activeTab, setActiveTab] = useState<string>(defaultTab);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -94,8 +141,13 @@ export function MeshSourceStep({
 
   // Available tabs depend on platform
   const availableTabs = useMemo(() => {
-    const tabs: Array<{ id: string; label: string; icon: React.ReactNode }> = [];
+    const tabs: Array<{ id: string; label: string; icon: React.ReactNode; disabled?: boolean }> = [];
     
+    // For Google text-only campaigns (Search, Shopping), no media tabs
+    if (isGoogleTextOnly) {
+      return tabs; // Empty — will show text-only message instead
+    }
+
     // Upload for Meta and Google (TikTok API uploads don't work for ad delivery)
     if (platform === 'meta' || platform === 'google') {
       tabs.push({
@@ -120,8 +172,8 @@ export function MeshSourceStep({
       icon: <Cloud className="h-4 w-4" />,
     });
 
-    // YouTube Video tab for Google only
-    if (platform === 'google') {
+    // YouTube Video tab for Google only (if video is allowed)
+    if (platform === 'google' && googleMedia?.youtube) {
       tabs.push({
         id: 'youtube_video',
         label: 'YouTube Video',
@@ -130,15 +182,40 @@ export function MeshSourceStep({
     }
     
     return tabs;
-  }, [platform]);
+  }, [platform, isGoogleTextOnly, googleMedia]);
 
   // Handle file selection
+  // Compute allowed file accept string for Google
+  const fileAcceptString = useMemo(() => {
+    if (!googleMedia) return 'image/*,video/*';
+    if (googleMedia.image && googleMedia.video) return 'image/*,video/*';
+    if (googleMedia.image) return 'image/*';
+    if (googleMedia.video) return 'video/*';
+    return 'image/*,video/*';
+  }, [googleMedia]);
+
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
+    let skipped = 0;
     for (const file of files) {
       const isVideo = file.type.startsWith('video/');
+      
+      // Validate against Google campaign type restrictions
+      if (googleMedia) {
+        if (isVideo && !googleMedia.video) {
+          toast.error(`Video files not allowed: ${googleCampaignTypes.join(', ')} campaigns don't support video creatives`);
+          skipped++;
+          continue;
+        }
+        if (!isVideo && !googleMedia.image) {
+          toast.error(`Image files not allowed: ${googleCampaignTypes.join(', ')} campaigns don't support image creatives`);
+          skipped++;
+          continue;
+        }
+      }
+
       const previewUrl = URL.createObjectURL(file);
       
       const asset: SelectedAsset = {
@@ -154,18 +231,30 @@ export function MeshSourceStep({
       onAddAsset(asset);
     }
     
-    toast.success(`Added ${files.length} files`);
+    const added = files.length - skipped;
+    if (added > 0) toast.success(`Added ${added} files`);
     if (e.target) e.target.value = '';
   }, [platform, onAddAsset]);
 
   // Handle folder selection
   const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(f => 
+    let files = Array.from(e.target.files || []).filter(f => 
       f.type.startsWith('image/') || f.type.startsWith('video/')
     );
     
+    // Filter by Google campaign type restrictions
+    if (googleMedia) {
+      files = files.filter(f => {
+        const isVideo = f.type.startsWith('video/');
+        if (isVideo && !googleMedia.video) return false;
+        if (!isVideo && !googleMedia.image) return false;
+        return true;
+      });
+    }
+
     if (files.length === 0) {
-      toast.error('No image or video files found in folder');
+      const reason = googleMedia ? ` compatible with ${googleCampaignTypes.join(', ')} campaigns` : '';
+      toast.error(`No valid media files found${reason}`);
       return;
     }
 
@@ -188,7 +277,7 @@ export function MeshSourceStep({
     
     toast.success(`Added ${files.length} files from folder`);
     if (e.target) e.target.value = '';
-  }, [platform, onAddAsset]);
+  }, [platform, onAddAsset, googleMedia, googleCampaignTypes]);
 
   // Handle YouTube video link
   const handleAddYoutubeVideo = useCallback(() => {
@@ -246,9 +335,53 @@ export function MeshSourceStep({
 
   const hasAssets = platformAssets.length > 0;
 
+  // Determine upload description based on allowed media
+  const uploadDescription = useMemo(() => {
+    if (!googleMedia) return platform === 'google' ? 'Upload images and videos to your Google Ads asset library' : 'Upload images and videos directly for meshing';
+    if (googleMedia.image && googleMedia.video) return 'Upload images and videos to your Google Ads asset library';
+    if (googleMedia.image) return 'Upload images to your Google Ads asset library (videos not supported for current campaign types)';
+    if (googleMedia.video) return 'Upload videos to your Google Ads asset library (images not supported for current campaign types)';
+    return 'Upload creatives';
+  }, [platform, googleMedia]);
+
+  const uploadFileTypeLabel = useMemo(() => {
+    if (!googleMedia) return 'Images & Videos';
+    if (googleMedia.image && googleMedia.video) return 'Images & Videos';
+    if (googleMedia.image) return 'Images Only';
+    if (googleMedia.video) return 'Videos Only';
+    return 'Images & Videos';
+  }, [googleMedia]);
+
   return (
     <div className="flex flex-col h-full">
+      {/* Google text-only campaign banner */}
+      {isGoogleTextOnly && (
+        <div className="mx-6 mt-4 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 rounded-md bg-amber-100 dark:bg-amber-900/50">
+              <FileImage className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="font-medium text-sm text-amber-800 dark:text-amber-200">Text-Only Campaign Types Detected</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Your campaign includes only {googleCampaignTypes.join(' & ')} campaign types, which rely on text assets rather than image/video creatives. 
+                You can skip this step and proceed directly to text assets.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2"
+                onClick={onRunMesh}
+              >
+                Skip to Text Assets →
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Source Tabs */}
+      {!isGoogleTextOnly && (
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="px-6 border-b bg-background">
           <TabsList className="h-12">
@@ -274,15 +407,22 @@ export function MeshSourceStep({
         <div className="flex-1 overflow-hidden flex">
           {/* Main content area */}
           <div className="flex-1 overflow-auto p-6">
+            {/* Google media restriction info */}
+            {platform === 'google' && googleMedia && !(googleMedia.image && googleMedia.video) && (
+              <div className="mb-4 p-3 rounded-md border border-muted bg-muted/30 text-xs text-muted-foreground">
+                <strong>Format restrictions:</strong> Based on your campaign types ({googleCampaignTypes.join(', ')}), 
+                {googleMedia.image && !googleMedia.video && ' only image uploads are accepted.'}
+                {!googleMedia.image && googleMedia.video && ' only video uploads are accepted.'}
+              </div>
+            )}
+
             {/* Upload Tab (Meta and Google) */}
             {(platform === 'meta' || platform === 'google') && (
               <TabsContent value="upload" className="mt-0 h-full">
                 <Card className="h-full flex flex-col">
                   <CardHeader>
                     <CardTitle>Upload Creatives</CardTitle>
-                    <CardDescription>
-                      Upload images and videos {platform === 'google' ? 'to your Google Ads asset library' : 'directly for meshing'}
-                    </CardDescription>
+                    <CardDescription>{uploadDescription}</CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1">
                     <div className="grid grid-cols-2 gap-4 mb-4">
@@ -292,7 +432,7 @@ export function MeshSourceStep({
                       >
                         <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                         <p className="font-medium text-sm">Upload Files</p>
-                        <p className="text-xs text-muted-foreground">Images & Videos</p>
+                        <p className="text-xs text-muted-foreground">{uploadFileTypeLabel}</p>
                       </div>
                       <div 
                         onClick={() => folderInputRef.current?.click()}
@@ -307,7 +447,7 @@ export function MeshSourceStep({
                       ref={fileInputRef} 
                       type="file" 
                       multiple 
-                      accept="image/*,video/*" 
+                      accept={fileAcceptString} 
                       onChange={handleFileSelect} 
                       className="hidden" 
                     />
@@ -600,6 +740,7 @@ export function MeshSourceStep({
           </div>
         </div>
       </Tabs>
+      )}
     </div>
   );
 }
