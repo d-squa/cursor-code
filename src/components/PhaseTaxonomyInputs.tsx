@@ -3,7 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle } from "lucide-react";
+import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
@@ -54,6 +55,7 @@ export function PhaseTaxonomyInputs({
 }: PhaseTaxonomyInputsProps) {
   const [taxonomyString, setTaxonomyString] = useState("");
   const [extractedValues, setExtractedValues] = useState<Record<string, string>>({});
+  const [copiedField, setCopiedField] = useState(false);
 
   const validationCallbackRef = useRef(onValidationChange);
   validationCallbackRef.current = onValidationChange;
@@ -172,9 +174,32 @@ export function PhaseTaxonomyInputs({
         </div>
       </div>
 
-      <div className="p-3 bg-muted rounded-md border">
+      <div 
+        className={`p-3 bg-muted rounded-md border group relative ${taxonomyString ? 'cursor-pointer hover:bg-muted/80 transition-colors' : ''}`}
+        onClick={() => {
+          if (taxonomyString) {
+            navigator.clipboard.writeText(taxonomyString).then(() => {
+              setCopiedField(true);
+              toast.success(`${entityLabel} name copied to clipboard`);
+              setTimeout(() => setCopiedField(false), 2000);
+            }).catch(() => {
+              toast.error("Failed to copy to clipboard");
+            });
+          }
+        }}
+        title={taxonomyString ? `Click to copy ${entityLabel} name` : undefined}
+      >
         {taxonomyString ? (
-          <code className="text-sm font-mono break-all">{taxonomyString}</code>
+          <div className="flex items-center justify-between gap-2">
+            <code className="text-sm font-mono break-all flex-1">{taxonomyString}</code>
+            <span className="shrink-0 text-muted-foreground">
+              {copiedField ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <Copy className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </span>
+          </div>
         ) : (
           <span className="text-sm text-muted-foreground italic">
             Configure campaign settings to generate name

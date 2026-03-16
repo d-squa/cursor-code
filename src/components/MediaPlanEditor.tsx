@@ -37,8 +37,17 @@ import {
   Lock,
   Wand2,
   ShieldAlert,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -126,6 +135,8 @@ export function MediaPlanEditor() {
   // Guard: skip the next generic→market phase sync (prevents circular clobber of budgetType, etc.)
   const skipPhaseSyncRef = useRef(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
+  const [phaseExpandSignal, setPhaseExpandSignal] = useState<{ action: 'expand' | 'collapse'; target?: string; counter: number }>({ action: 'expand', counter: 0 });
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
   const [creativeMatcherOpen, setCreativeMatcherOpen] = useState(false);
@@ -2726,7 +2737,88 @@ export function MediaPlanEditor() {
                   // Multiple markets: show strategy controls and PhaseScheduler for each market
                   return (
                     <div className="mt-6 pt-6 border-t space-y-6">
-                      <h3 className="text-lg font-semibold">Market Configuration</h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Market Configuration</h3>
+                        <div className="flex items-center gap-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
+                                <ChevronsUpDown className="h-3 w-3" />
+                                Expand / Collapse
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel className="text-xs">Expand</DropdownMenuLabel>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                const newState: Record<string, boolean> = {};
+                                platformsWithMarkets.filter(p => p.enabled && p.markets.length > 0).forEach(p => { newState[p.id] = true; });
+                                setExpandedPlatforms(newState);
+                              }}>
+                                All Platforms
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                const newState: Record<string, boolean> = {};
+                                platformsWithMarkets.filter(p => p.enabled).forEach(p => p.markets.forEach(m => { newState[m.id] = true; }));
+                                setExpandedMarkets(prev => ({ ...prev, ...newState }));
+                              }}>
+                                All Markets
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setPhaseExpandSignal({ action: 'expand', counter: Date.now() });
+                              }}>
+                                All Phases
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel className="text-xs">Collapse</DropdownMenuLabel>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setExpandedPlatforms({});
+                              }}>
+                                All Platforms
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setExpandedMarkets({});
+                              }}>
+                                All Markets
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-xs" onClick={() => {
+                                setPhaseExpandSignal({ action: 'collapse', counter: Date.now() });
+                              }}>
+                                All Phases
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel className="text-xs">By Name</DropdownMenuLabel>
+                              {(() => {
+                                const uniqueMarketNames = [...new Set(platformsWithMarkets.filter(p => p.enabled).flatMap(p => p.markets.map(m => m.name)))];
+                                const uniquePhaseNames = [...new Set(platformsWithMarkets.filter(p => p.enabled).flatMap(p => p.markets.flatMap(m => (m.phases || []).map(ph => ph.name))))];
+                                return (
+                                  <>
+                                    {uniqueMarketNames.length > 1 && uniqueMarketNames.map(name => (
+                                      <DropdownMenuItem key={`market-${name}`} className="text-xs" onClick={() => {
+                                        setExpandedMarkets(prev => {
+                                          const newState = { ...prev };
+                                          const marketIds = platformsWithMarkets.filter(p => p.enabled).flatMap(p => p.markets.filter(m => m.name === name).map(m => m.id));
+                                          const allExpanded = marketIds.every(id => prev[id]);
+                                          marketIds.forEach(id => { newState[id] = !allExpanded; });
+                                          return newState;
+                                        });
+                                      }}>
+                                        Toggle: {getMarketLabel(name)}
+                                      </DropdownMenuItem>
+                                    ))}
+                                    {uniquePhaseNames.length > 0 && uniquePhaseNames.map(name => (
+                                      <DropdownMenuItem key={`phase-${name}`} className="text-xs" onClick={() => {
+                                        setPhaseExpandSignal({ action: 'expand', target: name, counter: Date.now() });
+                                      }}>
+                                        Toggle: {name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </>
+                                );
+                              })()}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
                       {platformsWithMarkets.map((platform) =>
                         platform.enabled && platform.markets.length > 0 ? (
                           <Collapsible
@@ -2807,7 +2899,7 @@ export function MediaPlanEditor() {
                             <CollapsibleContent className="px-4 pb-4">
                               <div className="space-y-4">
                                 {platform.markets.map((market) => (
-                                  <Collapsible key={market.id} defaultOpen={false}>
+                                  <Collapsible key={market.id} open={!!expandedMarkets[market.id]} onOpenChange={(open) => setExpandedMarkets(prev => ({ ...prev, [market.id]: open }))}>
                                     <Card className="overflow-hidden">
                                       <CollapsibleTrigger asChild>
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
@@ -3065,6 +3157,7 @@ export function MediaPlanEditor() {
                                             onTaxonomyValidationChange={(isComplete, missingCount) =>
                                               handleMarketTaxonomyValidation(market.id, isComplete, missingCount)
                                             }
+                                            phaseExpandSignal={phaseExpandSignal}
                                           />
                                         </div>
                                       </CollapsibleContent>
