@@ -55,6 +55,7 @@ export function PhaseTaxonomyInputs({
 }: PhaseTaxonomyInputsProps) {
   const [taxonomyString, setTaxonomyString] = useState("");
   const [extractedValues, setExtractedValues] = useState<Record<string, string>>({});
+  const [copiedField, setCopiedField] = useState(false);
 
   const validationCallbackRef = useRef(onValidationChange);
   validationCallbackRef.current = onValidationChange;
