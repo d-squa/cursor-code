@@ -84,9 +84,10 @@ export function MeshActiPlanStep({
         const lower = p.toLowerCase();
         if (lower.includes('meta') || lower.includes('facebook') || lower.includes('instagram')) return 'meta';
         if (lower.includes('tiktok')) return 'tiktok';
+        if (lower.includes('google')) return 'google';
         return null;
       })
-      .filter((p): p is 'meta' | 'tiktok' => p !== null);
+      .filter((p): p is 'meta' | 'tiktok' | 'google' => p !== null);
 
     const uniquePlatforms = [...new Set(normalizedPlatforms)];
     setAvailablePlatforms(uniquePlatforms);
