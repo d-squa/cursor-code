@@ -238,12 +238,23 @@ export function MeshSourceStep({
 
   // Handle folder selection
   const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(f => 
+    let files = Array.from(e.target.files || []).filter(f => 
       f.type.startsWith('image/') || f.type.startsWith('video/')
     );
     
+    // Filter by Google campaign type restrictions
+    if (googleMedia) {
+      files = files.filter(f => {
+        const isVideo = f.type.startsWith('video/');
+        if (isVideo && !googleMedia.video) return false;
+        if (!isVideo && !googleMedia.image) return false;
+        return true;
+      });
+    }
+
     if (files.length === 0) {
-      toast.error('No image or video files found in folder');
+      const reason = googleMedia ? ` compatible with ${googleCampaignTypes.join(', ')} campaigns` : '';
+      toast.error(`No valid media files found${reason}`);
       return;
     }
 
@@ -266,7 +277,7 @@ export function MeshSourceStep({
     
     toast.success(`Added ${files.length} files from folder`);
     if (e.target) e.target.value = '';
-  }, [platform, onAddAsset]);
+  }, [platform, onAddAsset, googleMedia, googleCampaignTypes]);
 
   // Handle YouTube video link
   const handleAddYoutubeVideo = useCallback(() => {
