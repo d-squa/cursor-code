@@ -3,7 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle } from "lucide-react";
+import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
