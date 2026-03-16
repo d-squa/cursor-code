@@ -359,6 +359,8 @@ export function useCreativeMatching(campaignId?: string) {
               objective: (campaign as any).objective,
               market: market?.name,
               funnelStage: phase?.funnelStage,
+              // Google Ads: carry campaign type for media-format filtering
+              googleCampaignType: platformKey === 'google' ? (phase?.googleCampaignType || market?.googleCampaignType) : undefined,
             };
 
             // Get placement constraints from multiple sources
