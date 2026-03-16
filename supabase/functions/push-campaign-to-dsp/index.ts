@@ -3644,6 +3644,38 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           const strategySuffix = strategyName ? ` - ${strategyName}` : "";
           const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
+          // Try to use client taxonomy template for campaign naming
+          const googleCampaignTaxonomyContext: TaxonomyContext = {
+            platform: "google",
+            activationName: campaign.name,
+            boNumber: campaign.bo_number || "",
+            market: market.name,
+            country: market.name,
+            objective: phase.googleObjective || campaign.objective || "",
+            funnelStage: phase.name || "",
+            bidStrategy: mappedBidStrategy || "",
+            budgetType: "daily",
+            totalBudget: campaign.total_budget,
+            platformBudget: phaseBudget,
+            phaseBudget: strategyDailyBudget,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          };
+
+          const googleCampaignTaxonomyName = cleanCustomerId
+            ? await generateTaxonomyName(
+                supabase,
+                campaign.user_id,
+                cleanCustomerId,
+                "google",
+                "campaign",
+                googleCampaignTaxonomyContext,
+                { ...(phase.campaignTaxonomyValues || {}), ...(strategyName ? { strategy: strategyName } : {}) },
+              )
+            : null;
+
+          const finalCampaignName = googleCampaignTaxonomyName || defaultCampaignName;
+
           // Adjust budget for strategy split using search-volume-weighted allocation
           const strategyCount = Math.max(1, Object.keys(keywordStrategies).length);
           let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
