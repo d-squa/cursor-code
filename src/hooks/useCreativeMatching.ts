@@ -768,6 +768,17 @@ export function useCreativeMatching(campaignId?: string) {
       // Only include valid assets for matching
       const validAssets = prev.assets.filter(a => !invalidDimensionAssets.has(a.id));
 
+      // Google Ads campaign type → allowed media types (for filtering at match time)
+      const GOOGLE_ALLOWED_MEDIA: Record<string, { image: boolean; video: boolean }> = {
+        'Search': { image: false, video: false },
+        'Shopping': { image: false, video: false },
+        'Display': { image: true, video: false },
+        'Video': { image: false, video: true },
+        'Performance Max': { image: true, video: true },
+        'Demand Gen': { image: true, video: true },
+        'App Promotion': { image: true, video: true },
+      };
+
       // Step 2: For each structure, find fitting assets (only from valid assets)
       const structureResults: StructureMatchResult[] = [];
       const assignedAssetIds = new Set<string>();
@@ -775,7 +786,20 @@ export function useCreativeMatching(campaignId?: string) {
       for (const structure of structuresToUse) {
         const assignedAssets: StructureMatchResult['assignedAssets'] = [];
 
+        // Determine allowed media types for this structure (Google campaign type filtering)
+        const googleCT = structure.googleCampaignType;
+        const googleMediaRules = googleCT ? GOOGLE_ALLOWED_MEDIA[googleCT] : null;
+
         for (const asset of validAssets) {
+          // Google Ads: skip assets whose media type is disallowed by the campaign type
+          if (structure.platform === 'google' && googleMediaRules) {
+            const isImage = asset.mediaType === 'image';
+            const isVideo = asset.mediaType === 'video';
+            if ((isImage && !googleMediaRules.image) || (isVideo && !googleMediaRules.video)) {
+              continue; // Skip — incompatible format for this Google campaign type
+            }
+          }
+
           const inferredSignals = assetSignalsMap.get(asset.id)!;
           
           // Match asset signals against structure taxonomy elements
