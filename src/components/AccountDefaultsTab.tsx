@@ -2630,22 +2630,83 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Default Merchant Center ID</Label>
-                          <Input
-                            placeholder="e.g. 123456789"
-                            value={gDefaults.default_merchant_center_id || ""}
-                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_merchant_center_id", e.target.value || null)}
-                          />
+                          {loadingGoogleMC[gAccount.id] ? (
+                            <div className="flex items-center gap-2 h-10">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="text-xs text-muted-foreground">Loading merchant centers...</span>
+                            </div>
+                          ) : (googleMerchantCenters[gAccount.id] || []).length > 0 ? (
+                            <Select
+                              value={gDefaults.default_merchant_center_id || undefined}
+                              onValueChange={(v) => updateGoogleDefault(gAccount.id, "default_merchant_center_id", v === "__clear__" ? null : v)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Merchant Center" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__clear__">None</SelectItem>
+                                {(googleMerchantCenters[gAccount.id] || []).map((mc) => (
+                                  <SelectItem key={mc.id} value={mc.merchantCenterId}>
+                                    {mc.merchantCenterName} ({mc.merchantCenterId})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="space-y-2">
+                              <Input
+                                placeholder="e.g. 123456789"
+                                value={gDefaults.default_merchant_center_id || ""}
+                                onChange={(e) => updateGoogleDefault(gAccount.id, "default_merchant_center_id", e.target.value || null)}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchGoogleMerchantCenters(gAccount.customer_id, gAccount.id)}
+                                className="gap-1"
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                                Fetch from API
+                              </Button>
+                            </div>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             Link your Google Merchant Center for Shopping & PMax campaigns
                           </p>
                         </div>
                         <div className="space-y-2">
                           <Label>Default Feed Label</Label>
-                          <Input
-                            placeholder="e.g. US or online"
-                            value={gDefaults.default_feed_label || ""}
-                            onChange={(e) => updateGoogleDefault(gAccount.id, "default_feed_label", e.target.value || null)}
-                          />
+                          {loadingGoogleMC[gAccount.id] ? (
+                            <div className="flex items-center gap-2 h-10">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span className="text-xs text-muted-foreground">Loading feed labels...</span>
+                            </div>
+                          ) : (googleFeedLabels[gAccount.id] || []).length > 0 ? (
+                            <Select
+                              value={gDefaults.default_feed_label || undefined}
+                              onValueChange={(v) => updateGoogleDefault(gAccount.id, "default_feed_label", v === "__clear__" ? null : v)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Feed Label" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__clear__">None</SelectItem>
+                                {(googleFeedLabels[gAccount.id] || []).map((fl) => (
+                                  <SelectItem key={fl.label} value={fl.label}>
+                                    {fl.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="space-y-2">
+                              <Input
+                                placeholder="e.g. US or online"
+                                value={gDefaults.default_feed_label || ""}
+                                onChange={(e) => updateGoogleDefault(gAccount.id, "default_feed_label", e.target.value || null)}
+                              />
+                            </div>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             Feed label used to filter product feeds by country/region
                           </p>
