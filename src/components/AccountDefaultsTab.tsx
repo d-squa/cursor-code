@@ -52,6 +52,7 @@ interface GoogleAdAccountDefaults {
   main_markets?: string[] | null;
   default_utm_mode?: string | null;
   default_url_parameters?: string | null;
+  default_placements?: string[] | null;
 }
 
 interface AdAccount {
