@@ -141,8 +141,13 @@ export function MeshSourceStep({
 
   // Available tabs depend on platform
   const availableTabs = useMemo(() => {
-    const tabs: Array<{ id: string; label: string; icon: React.ReactNode }> = [];
+    const tabs: Array<{ id: string; label: string; icon: React.ReactNode; disabled?: boolean }> = [];
     
+    // For Google text-only campaigns (Search, Shopping), no media tabs
+    if (isGoogleTextOnly) {
+      return tabs; // Empty — will show text-only message instead
+    }
+
     // Upload for Meta and Google (TikTok API uploads don't work for ad delivery)
     if (platform === 'meta' || platform === 'google') {
       tabs.push({
@@ -167,8 +172,8 @@ export function MeshSourceStep({
       icon: <Cloud className="h-4 w-4" />,
     });
 
-    // YouTube Video tab for Google only
-    if (platform === 'google') {
+    // YouTube Video tab for Google only (if video is allowed)
+    if (platform === 'google' && googleMedia?.youtube) {
       tabs.push({
         id: 'youtube_video',
         label: 'YouTube Video',
@@ -177,7 +182,7 @@ export function MeshSourceStep({
     }
     
     return tabs;
-  }, [platform]);
+  }, [platform, isGoogleTextOnly, googleMedia]);
 
   // Handle file selection
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
