@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ import {
   Settings,
   Type,
   Loader2,
+  Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DspConfigChange } from "@/hooks/useDspConfigSync";
@@ -63,6 +64,22 @@ const CATEGORY_COLORS: Record<string, string> = {
   naming: "text-muted-foreground",
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  budget: "Budget",
+  schedule: "Schedule",
+  targeting: "Targeting",
+  creative: "Creative",
+  status: "Status",
+  naming: "Naming",
+};
+
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  campaign: "Campaign",
+  adset: "Ad Set",
+  adgroup: "Ad Group",
+  ad: "Ad",
+};
+
 function ChangeItem({
   change,
   onAcknowledge,
@@ -86,7 +103,7 @@ function ChangeItem({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium">{change.field_label || change.field_name}</span>
           <Badge variant="outline" className="text-xs h-5">
-            {change.entity_type}
+            {ENTITY_TYPE_LABELS[change.entity_type] || change.entity_type}
           </Badge>
           {change.entity_name && (
             <span className="text-xs text-muted-foreground truncate max-w-[200px]">
@@ -120,7 +137,6 @@ function ChangeItem({
 
 function formatDisplayValue(val: string | null): string {
   if (!val) return "—";
-  // Try to make JSON more readable
   try {
     const parsed = JSON.parse(val);
     if (typeof parsed === "object") {
@@ -128,7 +144,6 @@ function formatDisplayValue(val: string | null): string {
     }
     return String(parsed);
   } catch {
-    // Truncate long values
     if (val.length > 80) return val.substring(0, 80) + "…";
     return val;
   }
@@ -145,21 +160,39 @@ export function DspConfigChangesView({
 }: DspConfigChangesViewProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [showAcknowledged, setShowAcknowledged] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // Derive available filter options from data
+  const filterOptions = useMemo(() => {
+    const entityTypes = new Set<string>();
+    const categories = new Set<string>();
+    for (const c of changes) {
+      entityTypes.add(c.entity_type);
+      categories.add(c.change_category);
+    }
+    return { entityTypes: Array.from(entityTypes), categories: Array.from(categories) };
+  }, [changes]);
 
   // Group changes by platform → entity
   const grouped = useMemo(() => {
-    const filtered = showAcknowledged ? changes : changes.filter((c) => !c.is_acknowledged);
-    const result: Record<string, Record<string, DspConfigChange[]>> = {};
+    let filtered = showAcknowledged ? changes : changes.filter((c) => !c.is_acknowledged);
+    if (entityTypeFilter !== "all") {
+      filtered = filtered.filter((c) => c.entity_type === entityTypeFilter);
+    }
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((c) => c.change_category === categoryFilter);
+    }
 
+    const result: Record<string, Record<string, DspConfigChange[]>> = {};
     for (const change of filtered) {
       if (!result[change.platform]) result[change.platform] = {};
       const entityKey = `${change.entity_type}:${change.dsp_entity_id}:${change.entity_name || ""}`;
       if (!result[change.platform][entityKey]) result[change.platform][entityKey] = [];
       result[change.platform][entityKey].push(change);
     }
-
     return result;
-  }, [changes, showAcknowledged]);
+  }, [changes, showAcknowledged, entityTypeFilter, categoryFilter]);
 
   const togglePlatform = (platform: string) => {
     setExpandedPlatforms((prev) => {
@@ -178,12 +211,14 @@ export function DspConfigChangesView({
     return null;
   }
 
+  const hasActiveFilters = entityTypeFilter !== "all" || categoryFilter !== "all";
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-base">DSP Config Sync</CardTitle>
+            <CardTitle className="text-base">Live Sync</CardTitle>
             {unacknowledgedCount > 0 && (
               <Badge variant="destructive" className="text-xs">
                 {unacknowledgedCount} unacknowledged
@@ -223,7 +258,7 @@ export function DspConfigChangesView({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Acknowledge All DSP Changes</AlertDialogTitle>
+                  <AlertDialogTitle>Acknowledge All Changes</AlertDialogTitle>
                   <AlertDialogDescription>
                     This will mark all {unacknowledgedCount} detected changes as acknowledged and log them in the
                     campaign history. The DSP values will be treated as the source of truth.
@@ -238,20 +273,63 @@ export function DspConfigChangesView({
           </div>
         )}
 
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground">{totalDisplayed} changes displayed</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs h-6"
-            onClick={() => setShowAcknowledged(!showAcknowledged)}
-          >
-            {showAcknowledged ? "Hide acknowledged" : "Show acknowledged"}
-          </Button>
+        {/* Filters row */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+            <SelectTrigger className="h-7 w-[140px] text-xs">
+              <SelectValue placeholder="Entity level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All levels</SelectItem>
+              {filterOptions.entityTypes.map((et) => (
+                <SelectItem key={et} value={et}>
+                  {ENTITY_TYPE_LABELS[et] || et}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="h-7 w-[140px] text-xs">
+              <SelectValue placeholder="Change type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {filterOptions.categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {CATEGORY_LABELS[cat] || cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setEntityTypeFilter("all");
+                setCategoryFilter("all");
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{totalDisplayed} changes displayed</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-6"
+              onClick={() => setShowAcknowledged(!showAcknowledged)}
+            >
+              {showAcknowledged ? "Hide acknowledged" : "Show acknowledged"}
+            </Button>
+          </div>
         </div>
 
-        <ScrollArea className="max-h-[400px]">
-          <div className="space-y-2">
+        <ScrollArea className="h-[420px]">
+          <div className="space-y-2 pr-3">
             {Object.entries(grouped).map(([platform, entities]) => (
               <Collapsible
                 key={platform}
@@ -276,7 +354,7 @@ export function DspConfigChangesView({
                       return (
                         <div key={entityKey}>
                           <div className="text-xs font-medium text-muted-foreground py-1 px-2">
-                            {entityType.toUpperCase()}: {entityName || "Unknown"}
+                            {(ENTITY_TYPE_LABELS[entityType] || entityType).toUpperCase()}: {entityName || "Unknown"}
                           </div>
                           <div className="space-y-1">
                             {entityChanges.map((change) => (
@@ -290,6 +368,13 @@ export function DspConfigChangesView({
                 </CollapsibleContent>
               </Collapsible>
             ))}
+            {totalDisplayed === 0 && !syncing && (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                {hasActiveFilters
+                  ? "No changes match the selected filters."
+                  : "No unacknowledged changes detected. Your DSP configuration is in sync."}
+              </div>
+            )}
           </div>
         </ScrollArea>
       </CardContent>
