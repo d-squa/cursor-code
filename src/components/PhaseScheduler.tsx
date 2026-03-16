@@ -191,7 +191,8 @@ export function PhaseScheduler({
   adAccountId,
   basicTargeting,
   activationContext,
-  onTaxonomyValidationChange
+  onTaxonomyValidationChange,
+  phaseExpandSignal,
 }: PhaseSchedulerProps) {
   const extensionMode = useExtensionModeOptional();
   const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
