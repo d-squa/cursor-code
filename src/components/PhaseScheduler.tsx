@@ -1859,7 +1859,7 @@ export function PhaseScheduler({
                   {/* Keyword Strategy Sub-rows for Search phases (Google & TikTok) */}
                   {isSearchPhase && keywordStrategyGroups.length > 0 && (
                     <div className="border-t bg-muted/10">
-                      {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol }) => {
+                      {keywordStrategyGroups.map(({ strategy, positives, negatives, totalVol, budgetPct }) => {
                         const strategyConfig: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
                           brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" />, colorClass: "text-blue-700 dark:text-blue-400" },
                           generic: { label: "Generic", icon: <Target className="h-3 w-3" />, colorClass: "text-emerald-700 dark:text-emerald-400" },
