@@ -1736,6 +1736,7 @@ export function PhaseScheduler({
             <p className="text-xs text-muted-foreground">Configure objectives, targeting, and placements for each phase</p>
           </div>
           
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           {phases.map((phase, index) => {
             const phaseDays = phase.startDate && phase.endDate ? 
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
@@ -3365,6 +3366,7 @@ export function PhaseScheduler({
               </Collapsible>
             );
           })}
+          </div>
           
           {phases.length > 0 && (
             <div className="flex items-center justify-between text-xs font-semibold pt-2 border-t mt-4">
