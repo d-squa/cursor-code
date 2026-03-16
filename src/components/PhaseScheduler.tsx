@@ -2002,6 +2002,46 @@ export function PhaseScheduler({
                         </div>
                       )}
 
+                      {/* === 3-Column Grid for Phase Configuration === */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 items-start">
+
+                      {/* --- Column 1: Campaign Setup --- */}
+                      <div className="space-y-4">
+                      {/* Campaign Objective */}
+                      {(() => {
+                        // TikTok Search Ads Toggle - placed before objective for context
+                        const isTikTokPlatform = platformName.toLowerCase().includes('tiktok');
+                        return isTikTokPlatform ? (
+                          <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
+                            <div className="flex items-center gap-2">
+                              <Search className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <Label className="text-sm font-medium">Search Ads</Label>
+                                <p className="text-xs text-muted-foreground">
+                                  {phase.tiktokCampaignType === 'Search' 
+                                    ? 'Search mode active — optimization goals and locations are restricted'
+                                    : 'Enable to use keyword-based search ads'}
+                                </p>
+                              </div>
+                            </div>
+                            <Switch
+                              checked={phase.tiktokCampaignType === 'Search'}
+                              onCheckedChange={(checked) => {
+                                const newType = checked ? 'Search' : undefined;
+                                const updates: Partial<Phase> = { tiktokCampaignType: newType as any };
+                                if (checked && phase.objective) {
+                                  const searchConfig = getTikTokSearchModeConfig(phase.objective);
+                                  if (searchConfig && phase.optimizationGoal && !searchConfig.allowedGoals.includes(phase.optimizationGoal)) {
+                                    updates.optimizationGoal = searchConfig.allowedGoals[0];
+                                  }
+                                }
+                                updatePhaseFields(phase.id, updates);
+                              }}
+                            />
+                          </div>
+                        ) : null;
+                      })()}
+
                       {/* Targeting Summary */}
                       {(() => {
                         const audienceStrategy = getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal);
