@@ -1631,19 +1631,33 @@ export function generatePhasesFromStrategy(
   const isSmart = strategy.variant === "smart";
 
   return strategy.phases.map((phase, index) => {
-    // Calculate cumulative duration offset
-    const prevDuration = strategy.phases
-      .slice(0, index)
-      .reduce((sum, p) => sum + p.durationPercent, 0);
-    const phaseStartDay = Math.round((prevDuration / 100) * totalDays);
-    const phaseEndDay = index === strategy.phases.length - 1
-      ? totalDays
-      : Math.round(((prevDuration + phase.durationPercent) / 100) * totalDays);
+    // Determine if this is a Search phase (Google or TikTok)
+    const isGoogleSearch = strategy.platform === "google" && phase.objective === "CONVERSION_SEARCH";
+    const isTikTokSearch = strategy.platform === "tiktok" && phase.adFormats.toLowerCase().includes("search");
+    const isSearchPhase = isGoogleSearch || isTikTokSearch;
 
-    const phaseStart = new Date(start);
-    phaseStart.setDate(phaseStart.getDate() + phaseStartDay);
-    const phaseEnd = new Date(start);
-    phaseEnd.setDate(phaseEnd.getDate() + phaseEndDay);
+    // Search phases are always-on: span the entire actiplan duration
+    let phaseStart: Date;
+    let phaseEnd: Date;
+
+    if (isSearchPhase) {
+      phaseStart = new Date(start);
+      phaseEnd = new Date(end);
+    } else {
+      // Calculate cumulative duration offset for non-search phases
+      const prevDuration = strategy.phases
+        .slice(0, index)
+        .reduce((sum, p) => sum + p.durationPercent, 0);
+      const phaseStartDay = Math.round((prevDuration / 100) * totalDays);
+      const phaseEndDay = index === strategy.phases.length - 1
+        ? totalDays
+        : Math.round(((prevDuration + phase.durationPercent) / 100) * totalDays);
+
+      phaseStart = new Date(start);
+      phaseStart.setDate(phaseStart.getDate() + phaseStartDay);
+      phaseEnd = new Date(start);
+      phaseEnd.setDate(phaseEnd.getDate() + phaseEndDay);
+    }
 
     // Determine broad targeting from audience types
     const audienceLower = phase.audienceTypes.toLowerCase();
