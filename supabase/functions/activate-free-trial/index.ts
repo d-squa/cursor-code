@@ -75,6 +75,27 @@ serve(async (req) => {
     if (billingCustomer) {
       customerId = billingCustomer.stripe_customer_id;
       logStep("Found existing billing_customers mapping", { customerId });
+
+      // Sync profile data to Stripe
+      try {
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select(PROFILE_SELECT)
+          .eq("id", user.id)
+          .single();
+        if (profile) {
+          const params = buildStripeCustomerParams(user.email!, user.id, profile);
+          await stripe.customers.update(customerId, {
+            name: params.name,
+            phone: params.phone,
+            address: params.address,
+            metadata: params.metadata,
+          });
+          logStep("Synced profile data to existing Stripe customer");
+        }
+      } catch (syncErr) {
+        logStep("Warning: failed to sync profile to Stripe", { error: String(syncErr) });
+      }
     } else {
       // Try to insert a placeholder first to "claim" the slot (prevents race condition)
       // Search Stripe by email first to avoid creating duplicates
