@@ -3938,7 +3938,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               accountId: cleanCustomerId,
               accessToken: platform.access_token,
               campaignId: campaignResult.campaignId,
-              adGroupName: defaultAdGroupName,
+              adGroupName: finalAdGroupName,
               targeting: adGroupTargetingPayload,
               placements: [],
               optimizationGoal: mappedBidStrategy,
