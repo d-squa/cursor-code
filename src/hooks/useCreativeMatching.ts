@@ -110,6 +110,8 @@ export interface CampaignStructure {
   taxonomyElements?: Record<string, string>;
   // TikTok-specific fields from phase/market config
   tiktokIdentityId?: string;
+  // Google Ads campaign type (Search, Display, Video, Performance Max, etc.)
+  googleCampaignType?: string;
 }
 
 export interface UIMatchingResult {
