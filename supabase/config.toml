@@ -2,3 +2,6 @@ project_id = "zrwwbnrindpfrehyhnta"
 
 [functions.invitation-account-status]
 verify_jwt = false
+
+[functions.ai-assistant-chat]
+verify_jwt = false

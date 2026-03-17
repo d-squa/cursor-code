@@ -175,7 +175,10 @@ export type Feature =
   | 'creative_bulk_editing'
   | 'creative_spreadsheet_upload'
   | 'creative_folder_upload'
-  | 'creative_dsp_push';
+  | 'creative_dsp_push'
+  
+  // AI Assistant
+  | 'ai_assistant';
 
 // Minimum tier required for each feature
 const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
@@ -352,6 +355,9 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   creative_spreadsheet_upload: 'enterprise',
   creative_folder_upload: 'enterprise',
   creative_dsp_push: 'enterprise',
+  
+  // AI Assistant - Enterprise and above
+  ai_assistant: 'enterprise',
 };
 
 // Check if a user has access to a feature

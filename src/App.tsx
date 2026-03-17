@@ -45,6 +45,7 @@ import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/AdminDashboard";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
+import { AIAssistantSidebar } from "./components/AIAssistantSidebar";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 import { MarketingGTM } from "./components/MarketingGTM";
 import { DataLayerUserID } from "./components/DataLayerUserID";
@@ -114,8 +115,9 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           
-          {/* Global floating bug report button */}
+          {/* Global floating components */}
           <BugReportButton />
+          <AIAssistantSidebar />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
