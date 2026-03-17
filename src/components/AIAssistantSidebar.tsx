@@ -5,10 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Bot, Send, Plus, Trash2, MessageSquare, Square, ChevronLeft,
-  Sparkles, Share2, Lock, X
-} from "lucide-react";
+import { Bot, Send, Plus, Trash2, MessageSquare, Square, ChevronLeft, Sparkles, Share2, Lock, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -41,9 +38,7 @@ function ConversationList({
               key={conv.id}
               className={cn(
                 "group flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer text-sm transition-colors",
-                activeId === conv.id
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-muted text-foreground"
+                activeId === conv.id ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground",
               )}
               onClick={() => onSelect(conv.id)}
             >
@@ -61,9 +56,7 @@ function ConversationList({
             </div>
           ))}
           {conversations.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-4">
-              No conversations yet. Start a new one!
-            </p>
+            <p className="text-xs text-muted-foreground text-center py-4">No conversations yet. Start a new one!</p>
           )}
         </div>
       </ScrollArea>
@@ -83,9 +76,7 @@ function ChatMessage({ message }: { message: AIMessage }) {
       <div
         className={cn(
           "max-w-[85%] rounded-xl px-4 py-2.5 text-sm",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground"
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
         )}
       >
         {isUser ? (
@@ -149,7 +140,8 @@ function ChatView({
             </div>
             <h3 className="font-semibold text-foreground mb-1">ActiPlan AI Assistant</h3>
             <p className="text-xs text-muted-foreground max-w-[240px]">
-              Ask me about benchmarks, campaign optimization, digital marketing strategies, or anything about your ActiPlans.
+              Ask me about benchmarks, campaign optimization, digital marketing strategies, or anything about your
+              ActiPlans.
             </p>
             <div className="mt-4 space-y-2 w-full max-w-[280px]">
               {[
@@ -247,7 +239,7 @@ export function AIAssistantSidebar() {
       <SheetTrigger asChild>
         <Button
           size="icon"
-          className="fixed bottom-20 right-5 z-50 h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+          className="fixed bottom-20 center-5 z-50 h-20 w-20 rounded-full shadow-lg bg-primary hover:bg-primary/90"
           title="AI Assistant"
         >
           <Bot className="h-5 w-5 text-primary-foreground" />
