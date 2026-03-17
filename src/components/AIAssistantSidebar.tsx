@@ -239,7 +239,7 @@ export function AIAssistantSidebar() {
       <SheetTrigger asChild>
         <Button
           size="icon"
-          className="fixed bottom-20 center-5 z-50 h-20 w-20 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+          className="fixed bottom-20 right-5 z-50 h-20 w-20 rounded-full shadow-lg bg-primary hover:bg-primary/90"
           title="AI Assistant"
         >
           <Bot className="h-5 w-5 text-primary-foreground" />
