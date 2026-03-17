@@ -268,7 +268,11 @@ export function AIAssistantSidebar() {
           </div>
         </SheetHeader>
 
-        {!hasAccess ? (
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : !hasAccess ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
             <Lock className="h-10 w-10 text-muted-foreground/50 mb-4" />
             <h3 className="font-semibold mb-1">Feature Locked</h3>
