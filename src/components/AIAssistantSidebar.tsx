@@ -246,17 +246,13 @@ export function AIAssistantSidebar() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              className="fixed bottom-20 right-5 z-50 h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90"
-            >
-              <Bot className="h-5 w-5 text-primary-foreground" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">AI Assistant</TooltipContent>
-        </Tooltip>
+        <Button
+          size="icon"
+          className="fixed bottom-20 right-5 z-50 h-12 w-12 rounded-full shadow-lg bg-primary hover:bg-primary/90"
+          title="AI Assistant"
+        >
+          <Bot className="h-5 w-5 text-primary-foreground" />
+        </Button>
       </SheetTrigger>
       <SheetContent side="right" className="w-[400px] sm:w-[440px] p-0 flex flex-col">
         <SheetHeader className="px-4 py-3 border-b border-border">
