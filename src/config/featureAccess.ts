@@ -355,6 +355,9 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   creative_spreadsheet_upload: 'enterprise',
   creative_folder_upload: 'enterprise',
   creative_dsp_push: 'enterprise',
+  
+  // AI Assistant - Enterprise and above
+  ai_assistant: 'enterprise',
 };
 
 // Check if a user has access to a feature
