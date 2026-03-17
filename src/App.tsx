@@ -115,8 +115,9 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           
-          {/* Global floating bug report button */}
+          {/* Global floating components */}
           <BugReportButton />
+          <AIAssistantSidebar />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
