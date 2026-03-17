@@ -144,6 +144,8 @@ export function useAIAssistant() {
           messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
           conversationId: convId,
           campaignContext,
+          isAdmin,
+          teamId: activeWorkspace?.id || null,
         }),
         signal: controller.signal,
       });
