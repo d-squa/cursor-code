@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useWorkspace } from "./useWorkspace";
+import { useRole } from "./useRole";
 import { toast } from "@/hooks/use-toast";
 
 export interface AIMessage {
