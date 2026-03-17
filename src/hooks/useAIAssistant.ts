@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useWorkspace } from "./useWorkspace";
+import { useRole } from "./useRole";
 import { toast } from "@/hooks/use-toast";
 
 export interface AIMessage {
@@ -31,6 +32,8 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant
 export function useAIAssistant() {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
+  const { role, isAdmin: roleIsAdmin, isOwner } = useRole();
+  const isAdmin = roleIsAdmin || isOwner;
   const queryClient = useQueryClient();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AIMessage[]>([]);
@@ -141,6 +144,8 @@ export function useAIAssistant() {
           messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
           conversationId: convId,
           campaignContext,
+          isAdmin,
+          teamId: activeWorkspace?.id || null,
         }),
         signal: controller.signal,
       });
