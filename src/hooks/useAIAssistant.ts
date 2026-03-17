@@ -32,8 +32,8 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant
 export function useAIAssistant() {
   const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
-  const { role, isTeamOwner } = useRole();
-  const isAdmin = role === "owner" || role === "admin" || isTeamOwner;
+  const { role, isAdmin: roleIsAdmin, isOwner } = useRole();
+  const isAdmin = roleIsAdmin || isOwner;
   const queryClient = useQueryClient();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AIMessage[]>([]);
