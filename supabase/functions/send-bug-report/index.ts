@@ -15,13 +15,13 @@ interface BugReportRequest {
   userAgent: string;
 }
 
-const SUPPORT_EMAIL = "dsquad.theagency@gmail.com";
+const SUPPORT_EMAIL = "beydound@actiplan.app";
 
 const severityColors: Record<string, string> = {
   low: "#22c55e",
   medium: "#eab308",
   high: "#f97316",
-  critical: "#ef4444"
+  critical: "#ef4444",
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -30,7 +30,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { title, description, severity, screenshot, userEmail, currentUrl, userAgent }: BugReportRequest = await req.json();
+    const { title, description, severity, screenshot, userEmail, currentUrl, userAgent }: BugReportRequest =
+      await req.json();
 
     console.log("[SEND-BUG-REPORT] Received bug report:", { title, severity, userEmail });
 
@@ -65,19 +66,23 @@ const handler = async (req: Request): Promise<Response> => {
         <p style="margin: 0; color: #3f3f46; white-space: pre-wrap;">${description}</p>
       </div>
       
-      ${screenshot ? `
+      ${
+        screenshot
+          ? `
       <div style="margin-bottom: 20px;">
         <h3 style="margin: 0 0 8px; color: #71717a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Screenshot</h3>
         <img src="${screenshot}" alt="Bug Screenshot" style="max-width: 100%; border-radius: 8px; border: 1px solid #e4e4e7;">
       </div>
-      ` : ''}
+      `
+          : ""
+      }
       
       <div style="border-top: 1px solid #e4e4e7; padding-top: 20px;">
         <h3 style="margin: 0 0 12px; color: #71717a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Technical Details</h3>
         <table style="width: 100%; font-size: 14px;">
           <tr>
             <td style="padding: 4px 0; color: #71717a;">Reporter:</td>
-            <td style="padding: 4px 0; color: #3f3f46;">${userEmail || 'Unknown'}</td>
+            <td style="padding: 4px 0; color: #3f3f46;">${userEmail || "Unknown"}</td>
           </tr>
           <tr>
             <td style="padding: 4px 0; color: #71717a;">URL:</td>
@@ -114,7 +119,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supportEmailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        Authorization: `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -139,7 +144,7 @@ const handler = async (req: Request): Promise<Response> => {
       const userEmailResponse = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${RESEND_API_KEY}`,
+          Authorization: `Bearer ${RESEND_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -199,13 +204,10 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error("[SEND-BUG-REPORT] Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 };
 
