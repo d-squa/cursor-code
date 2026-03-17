@@ -228,8 +228,6 @@ export function AIAssistantSidebar() {
     newConversation,
   } = useAIAssistant();
 
-  if (loading) return null;
-
   const handleSelectConversation = (id: string) => {
     loadConversation(id);
     setShowList(false);
