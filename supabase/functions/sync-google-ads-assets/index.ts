@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
 import { getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 
 /**
@@ -47,16 +48,18 @@ serve(async (req: Request) => {
 
     console.log(`Syncing Google Ads assets for customer ${customerId}`);
 
-    // Get Google platform connection
-    const { data: platform } = await supabase
-      .from("connected_platforms")
-      .select("id, access_token")
-      .eq("user_id", user.id)
-      .eq("platform_type", "google")
-      .eq("is_active", true)
-      .single();
+    const platformCandidates = await getGooglePlatformCandidatesForCustomer(
+      supabase,
+      user.id,
+      customerId,
+    );
+    const platform = platformCandidates[0];
 
-    if (!platform) throw new Error("Google Ads platform not connected");
+    if (!platform) {
+      throw new Error(`Google Ads platform not connected for customer ${customerId}`);
+    }
+
+    console.log(`Using Google platform ${platform.id} for customer ${customerId}`);
 
     const accessToken = await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, "google");
     if (!accessToken) throw new Error("Google Ads access token not found or refresh failed");

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getTikTokPlatformCandidatesForAdvertiser } from "../_shared/platform-connection-resolver.ts";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
@@ -37,18 +38,18 @@ serve(async (req) => {
 
     console.log('Syncing TikTok resources for advertiser:', advertiserId);
 
-    // Get TikTok connection and retrieve token from Vault
-    const { data: connection, error: connectionError } = await supabase
-      .from('connected_platforms')
-      .select('id, access_token, metadata')
-      .eq('user_id', user.id)
-      .eq('platform_type', 'tiktok')
-      .eq('is_active', true)
-      .single();
+    const connectionCandidates = await getTikTokPlatformCandidatesForAdvertiser(
+      supabase,
+      user.id,
+      advertiserId,
+    );
+    const connection = connectionCandidates[0];
 
-    if (connectionError || !connection) {
-      throw new Error('TikTok connection not found or inactive');
+    if (!connection) {
+      throw new Error(`TikTok connection not found for advertiser ${advertiserId}`);
     }
+
+    console.log(`Using TikTok platform ${connection.id} for advertiser ${advertiserId}`);
 
     // Get token from Vault with fallback to database column
     const accessToken = await getAccessToken(supabase, connection.id, connection.access_token);
