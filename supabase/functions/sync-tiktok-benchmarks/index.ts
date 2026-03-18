@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getTikTokPlatformCandidatesForAdvertiser } from "../_shared/platform-connection-resolver.ts";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
@@ -62,27 +63,17 @@ serve(async (req) => {
     console.log("Timestamp:", new Date().toISOString());
     console.log("=".repeat(60));
 
-    // Get user's active TikTok platform connection
-    const { data: platformData, error: platformError } = await supabase
-      .from("connected_platforms")
-      .select("id, access_token")
-      .eq("user_id", user.id)
-      .eq("platform_type", "tiktok")
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+    const platformCandidates = await getTikTokPlatformCandidatesForAdvertiser(
+      supabase,
+      user.id,
+      advertiserId,
+    );
 
-    if (platformError || !platformData) {
-      console.error("❌ Platform lookup error:", platformError);
-      throw new Error("No active TikTok platform connection found");
+    if (platformCandidates.length === 0) {
+      throw new Error(`No active TikTok connection found for advertiser ${advertiserId}`);
     }
 
-    // Get access token from Vault (with fallback to database column)
-    const accessToken = await getAccessToken(supabase, platformData.id, platformData.access_token);
-    
-    if (!accessToken) {
-      throw new Error("Failed to retrieve access token");
-    }
+    console.log(`[BENCHMARK] Found ${platformCandidates.length} TikTok connection candidate(s)`);
 
     // Get client industry for this advertiser
     let industry: string | null = null;
@@ -120,28 +111,11 @@ serve(async (req) => {
     // Fetch insights from TikTok API with country breakdown
     const benchmarkMap = new Map<string, BenchmarkData>();
 
-    // TikTok Integrated Reports API - fetch at campaign level with location breakdown
-    const reportPayload = {
-      advertiser_id: advertiserId,
-      report_type: "BASIC",
-      data_level: "AUCTION_ADGROUP", // Ad group level has optimization_goal
-      dimensions: ["adgroup_id", "country_code"],
-      metrics: [
-        "spend",
-        "impressions",
-        "clicks",
-        "conversion",
-        "reach",
-        "video_views_p100"
-      ],
-      start_date: dateRangeStart,
-      end_date: dateRangeEnd,
-      page_size: 1000,
-    };
+    let accessToken: string | null = null;
+    let selectedPlatformId: string | null = null;
+    let insights: any[] = [];
+    let lastTikTokError: string | null = null;
 
-    console.log(`[BENCHMARK] Fetching TikTok insights...`);
-    
-    // TikTok Integrated Reports API requires GET with query parameters
     const queryParams = new URLSearchParams({
       advertiser_id: advertiserId,
       report_type: "BASIC",
@@ -160,28 +134,60 @@ serve(async (req) => {
       page_size: "1000",
     });
 
-    const insightsResponse = await fetch(`${TIKTOK_API_BASE}/report/integrated/get/?${queryParams.toString()}`, {
-      method: "GET",
-      headers: {
-        "Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
-    });
+    console.log(`[BENCHMARK] Fetching TikTok insights...`);
 
-    if (!insightsResponse.ok) {
-      const errorText = await insightsResponse.text();
-      console.error(`[BENCHMARK] Error fetching insights: ${errorText}`);
-      throw new Error(`Failed to fetch TikTok insights: ${errorText}`);
+    for (const candidate of platformCandidates) {
+      const candidateToken = await getAccessToken(supabase, candidate.id, candidate.access_token);
+
+      if (!candidateToken) {
+        console.log(`[BENCHMARK] Skipping platform ${candidate.id} - no access token available`);
+        continue;
+      }
+
+      const insightsResponse = await fetch(`${TIKTOK_API_BASE}/report/integrated/get/?${queryParams.toString()}`, {
+        method: "GET",
+        headers: {
+          "Access-Token": candidateToken,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!insightsResponse.ok) {
+        const errorText = await insightsResponse.text();
+        lastTikTokError = `Failed to fetch TikTok insights: ${errorText}`;
+        console.error(`[BENCHMARK] Error fetching insights with platform ${candidate.id}: ${errorText}`);
+
+        if (errorText.includes("No permission to operate advertiser")) {
+          continue;
+        }
+
+        throw new Error(lastTikTokError);
+      }
+
+      const insightsData = await insightsResponse.json();
+
+      if (insightsData.code !== 0) {
+        lastTikTokError = `TikTok API error: ${insightsData.message}`;
+        console.error(`[BENCHMARK] TikTok API error with platform ${candidate.id}:`, insightsData.message);
+
+        if ((insightsData.message || "").includes("No permission to operate advertiser")) {
+          continue;
+        }
+
+        throw new Error(lastTikTokError);
+      }
+
+      accessToken = candidateToken;
+      selectedPlatformId = candidate.id;
+      insights = insightsData.data?.list || [];
+      console.log(`[BENCHMARK] Using TikTok platform ${candidate.id}`);
+      break;
     }
 
-    const insightsData = await insightsResponse.json();
-    
-    if (insightsData.code !== 0) {
-      console.error(`[BENCHMARK] TikTok API error:`, insightsData.message);
-      throw new Error(`TikTok API error: ${insightsData.message}`);
+    if (!accessToken || !selectedPlatformId) {
+      throw new Error(lastTikTokError || `No TikTok connection has permission for advertiser ${advertiserId}`);
     }
 
-    const insights = insightsData.data?.list || [];
     console.log(`[BENCHMARK] Retrieved ${insights.length} insight rows`);
 
     // We need to get optimization_goal from ad groups table or API
@@ -248,7 +254,7 @@ serve(async (req) => {
       const videoViews = parseFloat(metrics.video_views_p100 || "0");
 
       // Get optimization goal for this ad group
-      let rawGoal = adGroupOptimizationMap.get(adGroupId) || "UNKNOWN";
+      const rawGoal = adGroupOptimizationMap.get(adGroupId) || "UNKNOWN";
       const optimizationGoal = optimizationGoalMap[rawGoal] || rawGoal;
 
       // Skip if no spend
@@ -342,7 +348,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`[BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
+    console.log(`[BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks using platform ${selectedPlatformId}`);
 
     // Store benchmarks in database
     let storedCount = 0;
@@ -388,7 +394,8 @@ serve(async (req) => {
         success: true,
         advertiserId,
         benchmarksSynced: storedCount,
-        dateRange: { start: dateRangeStart, end: dateRangeEnd }
+        dateRange: { start: dateRangeStart, end: dateRangeEnd },
+        platformId: selectedPlatformId,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
