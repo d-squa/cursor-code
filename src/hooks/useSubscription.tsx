@@ -37,6 +37,8 @@ export function useSubscription() {
   // Track when we last successfully checked subscription
   const lastCheckTimeRef = useRef<number>(0);
   const hasCheckedOnceRef = useRef(false);
+  // Track whether we have data to avoid showing loading on re-checks
+  const hasDataRef = useRef(false);
 
   // Prevent cross-account leakage: never keep a previous user's subscription state.
   const currentUserIdRef = useRef<string | null>(null);
@@ -56,7 +58,8 @@ export function useSubscription() {
         return;
       }
 
-      const shouldShowLoading = showLoading ?? !hasCheckedOnceRef.current;
+      // Never show loading if we already have subscription data - prevents UI unmounts on re-checks
+      const shouldShowLoading = (showLoading ?? !hasCheckedOnceRef.current) && !hasDataRef.current;
 
       let sessionUserId: string | null = null;
 
@@ -108,6 +111,7 @@ export function useSubscription() {
         if (fnError) throw fnError;
 
         setSubscription(data);
+        hasDataRef.current = true;
         lastSuccessfulUserIdRef.current = sessionUserId;
         lastCheckTimeRef.current = Date.now();
       } catch (err: any) {
@@ -121,6 +125,7 @@ export function useSubscription() {
           lastSuccessfulUserIdRef.current !== sessionUserId
         ) {
           setSubscription(null);
+          hasDataRef.current = false;
           lastSuccessfulUserIdRef.current = null;
         }
       } finally {
@@ -150,6 +155,7 @@ export function useSubscription() {
         setError(null);
         setLoading(false);
         hasCheckedOnceRef.current = false;
+        hasDataRef.current = false;
         lastCheckTimeRef.current = 0;
         currentUserIdRef.current = null;
         lastSuccessfulUserIdRef.current = null;
