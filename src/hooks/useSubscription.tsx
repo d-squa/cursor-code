@@ -125,6 +125,7 @@ export function useSubscription() {
           lastSuccessfulUserIdRef.current !== sessionUserId
         ) {
           setSubscription(null);
+          hasDataRef.current = false;
           lastSuccessfulUserIdRef.current = null;
         }
       } finally {
