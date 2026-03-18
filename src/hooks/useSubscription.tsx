@@ -155,6 +155,7 @@ export function useSubscription() {
         setError(null);
         setLoading(false);
         hasCheckedOnceRef.current = false;
+        hasDataRef.current = false;
         lastCheckTimeRef.current = 0;
         currentUserIdRef.current = null;
         lastSuccessfulUserIdRef.current = null;
