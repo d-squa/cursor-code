@@ -170,8 +170,28 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     }
   }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed, workspaceLoading, activeWorkspaceId, recoveringWorkspace, processingInvitation]);
 
-  // Show loading while checking auth, workspace, and subscription (only when we *don't* already have
-  // a subscribed user). This prevents UI unmounts on background token refreshes.
+  // Once children have been successfully rendered, never unmount them for transient loading/errors.
+  // This prevents loss of in-progress work when the user minimizes the browser and returns.
+  const shouldRenderChildren =
+    user &&
+    isEmailConfirmed &&
+    (isSubscribed || wasSubscribedRef.current || subError);
+
+  if (shouldRenderChildren) {
+    childrenRenderedRef.current = true;
+  }
+
+  // If children were ever rendered, keep them rendered regardless of transient states
+  if (childrenRenderedRef.current && user) {
+    return (
+      <>
+        <AmplitudeAnalytics />
+        {children}
+      </>
+    );
+  }
+
+  // Show loading only on initial load (never after children have been rendered)
   if (authLoading || workspaceLoading || recoveringWorkspace || processingInvitation || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -181,7 +201,6 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   }
 
   // Don't render children if not authenticated or email not confirmed
-  // But DO render if there's a subscription error - let user see app while we retry
   if (!user || !isEmailConfirmed) {
     return null;
   }
