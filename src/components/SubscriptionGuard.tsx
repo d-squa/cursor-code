@@ -20,6 +20,8 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   
   // Track if user was ever subscribed in this session to prevent redirect during transient errors
   const wasSubscribedRef = useRef(false);
+  // Once children have been rendered, never unmount them due to transient loading states
+  const childrenRenderedRef = useRef(false);
   // Track if we've already attempted workspace recovery
   const [recoveringWorkspace, setRecoveringWorkspace] = useState(false);
   const recoveryAttemptedRef = useRef(false);
