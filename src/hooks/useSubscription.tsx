@@ -37,6 +37,8 @@ export function useSubscription() {
   // Track when we last successfully checked subscription
   const lastCheckTimeRef = useRef<number>(0);
   const hasCheckedOnceRef = useRef(false);
+  // Track whether we have data to avoid showing loading on re-checks
+  const hasDataRef = useRef(false);
 
   // Prevent cross-account leakage: never keep a previous user's subscription state.
   const currentUserIdRef = useRef<string | null>(null);
