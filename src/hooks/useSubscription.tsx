@@ -56,7 +56,8 @@ export function useSubscription() {
         return;
       }
 
-      const shouldShowLoading = showLoading ?? !hasCheckedOnceRef.current;
+      // Never show loading if we already have subscription data - prevents UI unmounts on re-checks
+      const shouldShowLoading = (showLoading ?? !hasCheckedOnceRef.current) && !subscription;
 
       let sessionUserId: string | null = null;
 
