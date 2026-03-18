@@ -111,6 +111,7 @@ export function useSubscription() {
         if (fnError) throw fnError;
 
         setSubscription(data);
+        hasDataRef.current = true;
         lastSuccessfulUserIdRef.current = sessionUserId;
         lastCheckTimeRef.current = Date.now();
       } catch (err: any) {
