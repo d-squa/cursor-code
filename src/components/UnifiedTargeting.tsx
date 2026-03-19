@@ -483,6 +483,45 @@ export function UnifiedTargeting({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent>
+                <div className="flex items-center gap-2 mb-3">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const updated = { ...targeting, selectedItems: [] };
+                      onUpdate(updated);
+                      persistToLocalStorage(updated);
+                      toast.success('Removed all targeting');
+                    }}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Remove All
+                  </Button>
+                  {(['meta', 'tiktok', 'google'] as const).map(platform => {
+                    const count = selectedItems.filter(i => i.platforms.includes(platform)).length;
+                    if (count === 0) return null;
+                    const label = platform === 'meta' ? 'Meta' : platform === 'tiktok' ? 'TikTok' : 'Google';
+                    return (
+                      <Button
+                        key={platform}
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newItems = selectedItems.filter(i => !i.platforms.includes(platform));
+                          const updated = { ...targeting, selectedItems: newItems };
+                          onUpdate(updated);
+                          persistToLocalStorage(updated);
+                          toast.success(`Removed all ${label} targeting`);
+                        }}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        {label} ({count})
+                      </Button>
+                    );
+                  })}
+                </div>
                 <div className="space-y-2">
                   {selectedItems.map((item, index) => (
                     <div

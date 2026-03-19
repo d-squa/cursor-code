@@ -490,24 +490,31 @@ const GOOGLE_ADS_API_VERSION = 'v23';
 async function searchGoogleAudiences(headers: Record<string, string>, customerId: string, query: string) {
   try {
     const escapedQuery = query.replace(/'/g, "''");
-    const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`;
+    const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:search`;
 
     const runGaqlSearch = async (gaql: string): Promise<any[]> => {
+      console.log(`Google GAQL query: ${gaql.trim().substring(0, 120)}...`);
       const resp = await fetch(searchUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ query: gaql }),
+        body: JSON.stringify({ query: gaql, pageSize: 50 }),
       });
 
       if (!resp.ok) {
         const errText = await resp.text();
-        console.error('Google data-segment search failed:', errText);
+        console.error('Google data-segment search failed:', resp.status, errText.substring(0, 500));
         return [];
       }
 
       const data = await resp.json();
-      const batches = Array.isArray(data) ? data : [];
-      return batches.flatMap((batch: any) => batch?.results || []);
+      console.log(`Google GAQL raw response keys: ${Object.keys(data).join(',')}, resultsCount: ${data.results?.length ?? 'none'}`);
+      
+      // search returns { results: [...] }, searchStream returns array of batches
+      const allResults = Array.isArray(data) 
+        ? data.flatMap((batch: any) => batch?.results || [])
+        : (data.results || []);
+      console.log(`Google GAQL parsed ${allResults.length} results`);
+      return allResults;
     };
 
     const [userListRows, combinedRows, inMarketRows, affinityRows, lifeEventRows, detailedDemoRows] = await Promise.all([
