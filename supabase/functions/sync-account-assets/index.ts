@@ -765,6 +765,15 @@ async function syncGoogleAdsAssets(
 
     console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Google Ads asset sync complete for ${cleanAccountId}:`, syncResults);
 
+    // 3. Sync Google Ads benchmarks (performance data)
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Syncing Google Ads benchmarks for ${cleanAccountId}...`);
+      const benchmarkResult = await syncGoogleAdsBenchmarks(supabase, user.id, cleanAccountId, accessToken, developerToken || "", managerAccountId || cleanAccountId);
+      console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Google Ads benchmarks synced: ${benchmarkResult.synced} benchmarks`);
+    } catch (benchmarkError) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Google Ads benchmark sync error (non-fatal):", benchmarkError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
