@@ -146,6 +146,7 @@ export function KeywordTargeting({
 
       const sorted = (data.results || []).sort((a: KeywordItem, b: KeywordItem) => (b.avgMonthlySearches || 0) - (a.avgMonthlySearches || 0));
       setResults(sorted);
+      setActivePlatformTab("all");
       setActiveMarketTab("all");
 
       if (data.results?.length > 0) {
