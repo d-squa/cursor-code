@@ -98,6 +98,39 @@ serve(async (req) => {
       userId: user.id,
     });
 
+    // Validate the ad account ID against meta_ad_accounts table
+    // This prevents using stale/incorrect IDs (e.g., business-scoped user IDs)
+    if (adAccountId) {
+      const { data: validAccounts } = await supabase
+        .from('meta_ad_accounts')
+        .select('account_id')
+        .or(`account_id.eq.act_${adAccountId},account_id.eq.${adAccountIdRaw}`)
+        .limit(1);
+
+      if (validAccounts && validAccounts.length > 0) {
+        const validId = toNumeric(validAccounts[0].account_id);
+        if (validId !== adAccountId) {
+          console.log(`🔄 Corrected ad account ID from ${adAccountId} to ${validId}`);
+          adAccountId = validId;
+        }
+      } else {
+        // The provided ID doesn't match any known account - try to find one linked to this connection
+        console.warn(`⚠️ Ad account ID ${adAccountId} not found in meta_ad_accounts, attempting fallback...`);
+        
+        const { data: userAccounts } = await supabase
+          .from('meta_ad_accounts')
+          .select('account_id')
+          .eq('user_id', user.id)
+          .limit(1);
+        
+        if (userAccounts && userAccounts.length > 0) {
+          const fallbackId = toNumeric(userAccounts[0].account_id);
+          console.log(`🔄 Using fallback ad account: ${fallbackId} (original was ${adAccountId})`);
+          adAccountId = fallbackId;
+        }
+      }
+    }
+
     if (!/^[0-9]{10,}$/.test(adAccountId)) {
       console.error("❌ Invalid ad account id detected:", {
         rawValue: adAccountIdRaw,
