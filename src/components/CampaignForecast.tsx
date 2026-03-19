@@ -739,9 +739,8 @@ export function CampaignForecast({
           optimizationGoal
         );
         
-        // Calculate cost per result using benchmark if available
-        const benchmarkKey = `${market.name}_${optimizationGoal}`;
-        const benchmark = benchmarks.get(benchmarkKey);
+        // Calculate cost per result using benchmark if available (platform-aware)
+        const benchmark = lookupBenchmark(benchmarks, 'meta', market.name, optimizationGoal);
         
         let costPerResult: number;
         
@@ -749,11 +748,11 @@ export function CampaignForecast({
           // Use benchmark data
           costPerResult = benchmark.avg_cost_per_result;
           result = budget / costPerResult; // Recalculate result based on benchmark
-          console.log(`✓ Using benchmark CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          console.log(`✓ Using META benchmark CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
         } else {
           // Use calculated data
           costPerResult = result > 0 ? budget / result : 0;
-          console.log(`✓ Using calculated CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          console.log(`✓ No META benchmark for ${market.name}/${optimizationGoal}, using calculated: $${costPerResult.toFixed(2)}`);
         }
         
         // Calculate result rate
