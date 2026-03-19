@@ -3606,14 +3606,15 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
         // Determine if this is a Search campaign with keyword strategies that need splitting
         const isSearchCampaign = advertisingChannelType === "SEARCH";
-        // Pull keywords from phase first, then fall back to global basicTargeting.selectedKeywords filtered for google
+        // Pull keywords from phase first, then fall back to global basicTargeting.selectedKeywords filtered for google AND market
         let phaseKeywords = phase.keywords || phase.searchKeywords || [];
         if ((!Array.isArray(phaseKeywords) || phaseKeywords.length === 0) && isSearchCampaign) {
+          const marketCode = (market.name || "").substring(0, 2).toUpperCase();
           const globalKeywords = (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
-            .filter((k: any) => k.platform === 'google' && !k.isNegative);
+            .filter((k: any) => k.platform === 'google' && !k.isNegative && (!k.market || k.market === marketCode));
           if (globalKeywords.length > 0) {
             phaseKeywords = globalKeywords;
-            console.log(`📝 Using ${globalKeywords.length} global Google keywords from basicTargeting.selectedKeywords`);
+            console.log(`📝 Using ${globalKeywords.length} global Google keywords for market ${marketCode} from basicTargeting.selectedKeywords`);
           }
         }
         
@@ -3640,9 +3641,11 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
         const needsAdGroupLevelTargeting = ["DEMAND_GEN", "DISPLAY", "VIDEO"].includes(advertisingChannelType);
 
         for (const [strategyName, strategyKeywords] of strategiesToProcess) {
-          // Generate campaign name - include strategy suffix for keyword-split campaigns
+          // Generate campaign name - include market>strategy for search campaigns
           const strategySuffix = strategyName ? ` - ${strategyName}` : "";
-          const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
+          const defaultCampaignName = isSearchCampaign && strategyName
+            ? `${campaign.name} - ${market.name} > ${strategyName}_${generateTimestampSuffix()}`
+            : `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
           // Try to use client taxonomy template for campaign naming
           const googleCampaignTaxonomyContext: TaxonomyContext = {
@@ -3681,9 +3684,10 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
 
           if (strategyCount > 1 && strategyName) {
-            // Calculate total search volume across all strategies
+            // Calculate total search volume across all strategies (filtered by market)
+            const marketCode = (market.name || "").substring(0, 2).toUpperCase();
             const allKeywords = (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
-              .filter((k: any) => k.platform === 'google' && !k.isNegative);
+              .filter((k: any) => k.platform === 'google' && !k.isNegative && (!k.market || k.market === marketCode));
             const strategyVolumes: Record<string, number> = {};
             let totalVolume = 0;
             for (const [sName] of Object.entries(keywordStrategies)) {
@@ -3697,7 +3701,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             if (totalVolume > 0) {
               const volumeRatio = (strategyVolumes[strategyName] || 0) / totalVolume;
               strategyDailyBudget = dailyBudget * volumeRatio;
-              console.log(`📊 Volume-weighted budget for "${strategyName}": ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
+              console.log(`📊 Volume-weighted budget for "${strategyName}" in ${marketCode}: ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
             }
           }
 
@@ -4711,12 +4715,13 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
           // Build search keywords for TikTok Search Ads
-          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform) if phase.keywords is empty
+          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform AND market) if phase.keywords is empty
           const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
           if (searchEnabled || isSearchPhase) {
+            const marketCode = (market.name || "").substring(0, 2).toUpperCase();
             const rawKeywords = phase.keywords || 
               (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
-                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
             
             if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
               for (const kw of rawKeywords) {
@@ -4726,7 +4731,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
                 });
               }
             }
-            console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
+            console.log(`📝 ${tiktokSearchKeywords.length} search keywords for market ${marketCode} to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
           }
 
           const resolvedTiktokConversionEvent =

@@ -349,7 +349,7 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   <TableCell className="text-muted-foreground">${adSet.costPerResult.toFixed(3)}</TableCell>
                                 </TableRow>
                               ))}
-                              {/* Keyword strategy sub-rows for Search phases */}
+                              {/* Keyword strategy sub-rows for Search phases - filtered by market */}
                                {selectedKeywords && selectedKeywords.length > 0 && 
                                phase.phaseName.toLowerCase().includes('search') && (() => {
                                 const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -357,28 +357,36 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   generic: { label: "Generic", icon: <Target className="h-3 w-3" /> },
                                   competition: { label: "Competition", icon: <Swords className="h-3 w-3" /> },
                                 };
-                                // Filter keywords by platform context
+                                // Filter keywords by platform AND market
                                 const platformLower = platform.platformId.toLowerCase();
                                 const kwPlatform = platformLower.includes('google') ? 'google' : platformLower.includes('tiktok') ? 'tiktok' : null;
                                 const platformKeywords = kwPlatform ? selectedKeywords.filter(k => k.platform === kwPlatform) : selectedKeywords;
+                                // Filter by market name (country code)
+                                const marketCode = (market.marketName || '').substring(0, 2).toUpperCase();
+                                const marketKeywords = platformKeywords.filter(k => !k.market || k.market === marketCode);
                                 const strategies = (['brand', 'generic', 'competition'] as const)
                                   .map(s => ({
                                     strategy: s,
-                                    positives: platformKeywords.filter(k => k.strategy === s && !k.isNegative),
-                                    negatives: platformKeywords.filter(k => k.strategy === s && k.isNegative),
+                                    positives: marketKeywords.filter(k => k.strategy === s && !k.isNegative),
+                                    negatives: marketKeywords.filter(k => k.strategy === s && k.isNegative),
                                   }))
                                   .filter(s => s.positives.length > 0 || s.negatives.length > 0);
                                 if (strategies.length === 0) return null;
                                 return strategies.map(({ strategy, positives, negatives }) => {
                                   const meta = STRATEGY_META[strategy];
                                   const totalVol = positives.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
+                                  const avgCpc = positives.length > 0
+                                    ? positives.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / positives.length
+                                    : 0;
+                                  const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0;
+                                  const ctr = totalVol > 0 && estimatedClicks > 0 ? ((estimatedClicks / totalVol) * 100).toFixed(2) : "—";
                                   const fmtVol = totalVol >= 1_000_000 ? `${(totalVol / 1_000_000).toFixed(1)}M` : totalVol >= 1_000 ? `${(totalVol / 1_000).toFixed(1)}K` : String(totalVol);
                                   return (
                                     <TableRow key={`${idx}-kw-${strategy}`} className="bg-muted/20">
                                       <TableCell className="pl-8 text-muted-foreground">
                                         <div className="flex items-center gap-1.5">
                                           {meta.icon}
-                                          <span className="text-xs font-medium">{meta.label}</span>
+                                          <span className="text-xs font-medium">{market.marketName} &gt; {meta.label}</span>
                                           <Badge variant="outline" className="text-[10px] ml-1">{positives.length} kw</Badge>
                                           {negatives.length > 0 && (
                                             <span className="flex items-center gap-0.5 text-destructive text-[10px]">
@@ -388,16 +396,16 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                         </div>
                                       </TableCell>
                                       <TableCell className="text-muted-foreground text-xs">{totalVol > 0 ? `${fmtVol} vol/mo` : "—"}</TableCell>
-                                      <TableCell className="text-muted-foreground">-</TableCell>
-                                      <TableCell className="text-muted-foreground">-</TableCell>
-                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">{avgCpc > 0 ? `$${avgCpc.toFixed(2)} CPC` : "—"}</TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">{estimatedClicks > 0 ? `${estimatedClicks} clicks` : "—"}</TableCell>
+                                      <TableCell className="text-muted-foreground text-xs">{ctr !== "—" ? `${ctr}% CTR` : "—"}</TableCell>
                                       <TableCell className="text-muted-foreground">-</TableCell>
                                       <TableCell className="text-muted-foreground">-</TableCell>
                                       <TableCell className="text-muted-foreground">-</TableCell>
                                     </TableRow>
                                   );
                                 });
-                              })()}
+                               })()}
                             </>
                           ))}
                         </TableBody>
