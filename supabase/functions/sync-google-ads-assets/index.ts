@@ -394,6 +394,7 @@ async function syncGoogleAdsBenchmarks(
     const impressions = Number(row.metrics?.impressions || 0);
     const clicks = Number(row.metrics?.clicks || 0);
     const conversions = Number(row.metrics?.conversions || 0);
+    const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
     const optimizationGoal = CHANNEL_TYPE_GOAL_MAP[channelType] || channelType;
 
@@ -418,6 +419,10 @@ async function syncGoogleAdsBenchmarks(
         total_spend: 0,
         total_results: 0,
         impressions: 0,
+        clicks: 0,
+        link_clicks: 0,
+        landing_page_views: 0,
+        revenue: 0,
         campaign_count: 0,
         industry,
       });
@@ -427,6 +432,8 @@ async function syncGoogleAdsBenchmarks(
     benchmark.total_spend += spend;
     benchmark.total_results += results;
     benchmark.impressions += impressions;
+    benchmark.clicks += clicks;
+    benchmark.revenue += revenue;
     benchmark.campaign_count += 1;
 
     if (clicks > 0) {
