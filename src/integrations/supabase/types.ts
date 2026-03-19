@@ -681,8 +681,6 @@ export type Database = {
       campaign_performance_benchmarks: {
         Row: {
           avg_cost_per_result: number | null
-          avg_ctr: number | null
-          avg_roas: number | null
           campaign_count: number
           clicks: number | null
           created_at: string
@@ -704,8 +702,6 @@ export type Database = {
         }
         Insert: {
           avg_cost_per_result?: number | null
-          avg_ctr?: number | null
-          avg_roas?: number | null
           campaign_count?: number
           clicks?: number | null
           created_at?: string
@@ -727,8 +723,6 @@ export type Database = {
         }
         Update: {
           avg_cost_per_result?: number | null
-          avg_ctr?: number | null
-          avg_roas?: number | null
           campaign_count?: number
           clicks?: number | null
           created_at?: string
