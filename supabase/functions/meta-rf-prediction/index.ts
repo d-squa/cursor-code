@@ -114,14 +114,30 @@ serve(async (req) => {
           adAccountId = validId;
         }
       } else {
-        // The provided ID doesn't match any known account - try to find one linked to this connection
-        console.warn(`⚠️ Ad account ID ${adAccountId} not found in meta_ad_accounts, attempting fallback...`);
+        // The provided ID doesn't match any known account - try team-aware fallback
+        console.warn(`⚠️ Ad account ID ${adAccountId} not found in meta_ad_accounts, attempting team-aware fallback...`);
         
-        const { data: userAccounts } = await supabase
+        // Get user's team IDs for team-scoped lookup
+        const { data: teamRolesForFallback } = await supabase
+          .from('user_roles')
+          .select('team_id')
+          .eq('user_id', user.id)
+          .not('team_id', 'is', null);
+        const fallbackTeamIds = (teamRolesForFallback || []).map((r: any) => r.team_id).filter(Boolean);
+        
+        let fallbackQuery = supabase
           .from('meta_ad_accounts')
           .select('account_id')
-          .eq('user_id', user.id)
           .limit(1);
+        
+        if (fallbackTeamIds.length > 0) {
+          const filters = [`user_id.eq.${user.id}`, ...fallbackTeamIds.map((tid: string) => `team_id.eq.${tid}`)];
+          fallbackQuery = fallbackQuery.or(filters.join(','));
+        } else {
+          fallbackQuery = fallbackQuery.eq('user_id', user.id);
+        }
+        
+        const { data: userAccounts } = await fallbackQuery;
         
         if (userAccounts && userAccounts.length > 0) {
           const fallbackId = toNumeric(userAccounts[0].account_id);

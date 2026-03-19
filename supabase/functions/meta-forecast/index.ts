@@ -102,24 +102,59 @@ serve(async (req) => {
       throw new Error("Meta access token not found. Please reconnect your Meta account.");
     }
 
+    // Helper to strip act_ prefix
+    const toNumeric = (v: string) => String(v).replace(/^act_/i, '');
+
     // Resolve ad account ID: prefer body.adAccountId, then platform, then env
-    let adAccountId = body.adAccountId || platformData.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+    let adAccountIdRaw = body.adAccountId || platformData.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID") || '';
+    let adAccountId = toNumeric(String(adAccountIdRaw));
     
-    // If the ad account ID looks like a Meta account_id (starts with act_ or is numeric), validate it
+    // Get user's team IDs for team-scoped lookups
+    const { data: teamRolesForAcct } = await supabase
+      .from('user_roles')
+      .select('team_id')
+      .eq('user_id', user.id)
+      .not('team_id', 'is', null);
+    const userTeamIds = (teamRolesForAcct || []).map((r: any) => r.team_id).filter(Boolean);
+
+    // Validate against meta_ad_accounts table
     if (adAccountId) {
-      const numericId = String(adAccountId).replace(/^act_/i, '');
-      // Validate against meta_ad_accounts table to ensure it's a real account
       const { data: validAccount } = await supabase
         .from('meta_ad_accounts')
         .select('account_id')
-        .or(`account_id.eq.${adAccountId},account_id.eq.act_${numericId}`)
+        .or(`account_id.eq.act_${adAccountId},account_id.eq.${adAccountIdRaw}`)
         .limit(1);
       
       if (validAccount && validAccount.length > 0) {
-        adAccountId = validAccount[0].account_id;
+        adAccountId = toNumeric(validAccount[0].account_id);
+      } else {
+        // Provided ID is invalid — fallback to any account accessible by user or team
+        console.warn(`⚠️ Ad account ${adAccountId} not found, attempting team-aware fallback...`);
+        adAccountId = '';
       }
     }
     
+    // If still no valid account, find one via user_id or team membership
+    if (!adAccountId) {
+      let fallbackQuery = supabase
+        .from('meta_ad_accounts')
+        .select('account_id')
+        .limit(1);
+      
+      if (userTeamIds.length > 0) {
+        const filters = [`user_id.eq.${user.id}`, ...userTeamIds.map((tid: string) => `team_id.eq.${tid}`)];
+        fallbackQuery = fallbackQuery.or(filters.join(','));
+      } else {
+        fallbackQuery = fallbackQuery.eq('user_id', user.id);
+      }
+      
+      const { data: fallbackAccounts } = await fallbackQuery;
+      if (fallbackAccounts && fallbackAccounts.length > 0) {
+        adAccountId = toNumeric(fallbackAccounts[0].account_id);
+        console.log(`🔄 Using fallback ad account: ${adAccountId}`);
+      }
+    }
+
     if (!adAccountId) {
       throw new Error("No ad account configured. Please select an ad account in Settings.");
     }
