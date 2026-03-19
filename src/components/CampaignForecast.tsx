@@ -95,6 +95,8 @@ interface PhaseForecast {
   resultRate: number;
   isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
   adSets?: AdSetForecast[];
+  ctr?: number | null; // Calculated CTR for click/visit-based goals
+  roas?: number | null; // Calculated ROAS for revenue-based goals
 }
 
 interface MarketForecast {
