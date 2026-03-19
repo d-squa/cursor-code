@@ -1311,9 +1311,9 @@ export function CampaignForecast({
               let costPerResult: number;
               let isBenchmarkBased = false;
               
-              // Apply benchmark if available (industry + market + optimization_goal must all match)
-              const benchmarkKey = `${(market.name || '').toUpperCase()}_${(optimizationGoal || '').toUpperCase()}`;
-              const benchmark = benchmarks.get(benchmarkKey);
+              // Apply benchmark if available (platform-aware: industry + platform + market + optimization_goal must all match)
+              const platformKey = getPlatformKeyFromId(platform.id);
+              const benchmark = lookupBenchmark(benchmarks, platformKey, market.name || '', optimizationGoal || '');
               
               if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
