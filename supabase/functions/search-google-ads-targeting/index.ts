@@ -65,17 +65,12 @@ serve(async (req: Request) => {
 
     console.log(`Searching Google Ads targeting: ${type} for "${query}"`);
 
-    // Get platform connection
-    const { data: platform } = await supabase
-      .from("connected_platforms")
-      .select("id, access_token")
-      .eq("user_id", user.id)
-      .eq("platform_type", "google")
-      .eq("is_active", true)
-      .single();
+    // Get platform connection using team-aware resolver
+    const platformCandidates = await getGooglePlatformCandidatesForCustomer(supabase, user.id, customerId);
 
-    if (!platform) throw new Error("Google Ads platform not connected");
+    if (platformCandidates.length === 0) throw new Error("Google Ads platform not connected");
 
+    const platform = platformCandidates[0];
     const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
     if (!accessToken) throw new Error("Google Ads access token not found");
 
