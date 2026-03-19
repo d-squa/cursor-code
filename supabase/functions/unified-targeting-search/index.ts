@@ -190,6 +190,8 @@ serve(async (req) => {
         } else {
           console.error('No Google Ads access token available');
         }
+      } else {
+        console.error('No Google platform connection found for user:', user.id);
       }
     }
 
