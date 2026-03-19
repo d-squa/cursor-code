@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getGooglePlatformCandidatesForCustomer, getTikTokPlatformCandidatesForAdvertiser } from "../_shared/platform-connection-resolver.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
