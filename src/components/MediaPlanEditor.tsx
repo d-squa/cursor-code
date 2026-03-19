@@ -67,6 +67,7 @@ import { MARKET_OPTIONS } from "@/utils/markets";
 import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
 import BulkBudgetTypeDialog from "./BulkBudgetTypeDialog";
 import { normalizeLanguageValues } from "@/utils/targetingOptions";
+import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { CreativeMatchingDialog } from "@/components/creative/CreativeMatchingDialog";
 
 // Helper: map internal focus to funnel template key
