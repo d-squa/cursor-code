@@ -514,7 +514,7 @@ export function UnifiedTargeting({
       )}
 
       {/* Keyword Targeting for Search Campaigns */}
-      {(googleCustomerId || tiktokAdvertiserId || selectedPlatforms?.some(p => p.id === 'google_ads' || p.id === 'tiktok')) && (
+      {(googleCustomerId || tiktokAdvertiserId || selectedPlatforms?.some(p => p.id === 'google_ads' || p.id === 'google' || p.id === 'tiktok')) && (
         <KeywordTargeting
           selectedKeywords={targeting.selectedKeywords || []}
           onUpdate={(keywords) => {
