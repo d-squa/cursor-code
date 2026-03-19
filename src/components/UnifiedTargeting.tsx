@@ -97,6 +97,8 @@ interface UnifiedTargetingProps {
   skipLocalStorage?: boolean;
   // Markets for keyword targeting per-market search
   markets?: MarketInfo[];
+  googleMarkets?: MarketInfo[];
+  tiktokMarkets?: MarketInfo[];
 }
 
 export function UnifiedTargeting({ 
@@ -112,6 +114,8 @@ export function UnifiedTargeting({
   selectedPlatforms,
   skipLocalStorage = false,
   markets,
+  googleMarkets,
+  tiktokMarkets,
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
