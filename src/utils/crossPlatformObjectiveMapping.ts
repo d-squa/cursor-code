@@ -266,6 +266,42 @@ function mapIntentToTarget(
   };
 }
 
+/**
+ * Placement-aware overrides: detect specific campaign formats (e.g. TikTok Search)
+ * and route to the correct target campaign type instead of the generic intent mapping.
+ */
+function getPlacementAwareOverride(
+  sourcePlatform: string,
+  targetPlatform: string,
+  sourceObjective: string,
+  phaseContext?: { tiktokPlacementType?: string; tiktokPlacements?: string[]; keywords?: any[]; searchKeywords?: any[] }
+): TranslatedObjective | null {
+  if (!phaseContext) return null;
+
+  const src = sourcePlatform.toLowerCase();
+  const tgt = targetPlatform.toLowerCase();
+
+  // TikTok Search → Google Search
+  if (src.includes("tiktok") && tgt.includes("google")) {
+    const isSearch =
+      phaseContext.tiktokPlacementType === "PLACEMENT_TYPE_SEARCH" ||
+      phaseContext.tiktokPlacements?.some((p) => String(p).toUpperCase().includes("SEARCH")) ||
+      (phaseContext.searchKeywords && phaseContext.searchKeywords.length > 0) ||
+      (phaseContext.keywords && phaseContext.keywords.length > 0);
+
+    if (isSearch) {
+      return {
+        objective: "CONVERSION_SEARCH",
+        optimizationGoal: "MAXIMIZE_CLICKS",
+        translated: true,
+        note: `${sourceObjective} (Search placement) → Google Search`,
+      };
+    }
+  }
+
+  return null;
+}
+
 function guessIntentFromString(objective: string): FunnelIntent | undefined {
   const upper = objective.toUpperCase();
   if (upper.includes("REACH") || upper.includes("AWARENESS")) return "reach";
