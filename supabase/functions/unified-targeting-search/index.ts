@@ -156,13 +156,9 @@ serve(async (req) => {
     if (googleCustomerId) {
       console.log('Searching Google Ads...');
       
-      const { data: googlePlatform } = await supabaseClient
-        .from('connected_platforms')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('platform_type', 'google')
-        .eq('is_active', true)
-        .single();
+      // Use shared team-aware resolver
+      const googleCandidates = await getGooglePlatformCandidatesForCustomer(supabaseClient, user.id, googleCustomerId);
+      const googlePlatform = googleCandidates[0] || null;
 
       if (googlePlatform) {
         const accessToken = await getAccessTokenWithRefresh(supabaseClient, googlePlatform.id, googlePlatform.access_token, 'google');
