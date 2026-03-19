@@ -67,14 +67,33 @@ serve(async (req) => {
     if (metaAdAccountId) {
       console.log('Searching Meta...');
       
-      // Get Meta platform connection
-      const { data: metaPlatform } = await supabaseClient
+      // Get user's team IDs for team-aware lookup
+      const { data: teamRoles } = await supabaseClient
+        .from('user_roles')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .not('team_id', 'is', null);
+      const teamIds = (teamRoles || []).map((r: any) => r.team_id).filter(Boolean);
+
+      // Team-aware Meta platform lookup
+      let metaPlatformQuery = supabaseClient
         .from('connected_platforms')
         .select('*')
-        .eq('user_id', user.id)
         .eq('platform_type', 'meta')
         .eq('is_active', true)
-        .single();
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (teamIds.length > 0) {
+        metaPlatformQuery = metaPlatformQuery.or(
+          [`user_id.eq.${user.id}`, ...teamIds.map((id: string) => `team_id.eq.${id}`)].join(',')
+        );
+      } else {
+        metaPlatformQuery = metaPlatformQuery.eq('user_id', user.id);
+      }
+
+      const { data: metaPlatforms } = await metaPlatformQuery;
+      const metaPlatform = metaPlatforms?.[0] || null;
 
       if (metaPlatform) {
         // Get access token from Vault with fallback to database column
@@ -88,12 +107,16 @@ serve(async (req) => {
             searchMetaCategory(accessToken, metaAdAccountId, 'demographics', query)
           ]);
 
+          console.log(`Meta found ${interests.length} interests, ${behaviors.length} behaviors, ${demographics.length} demographics`);
+
           interests.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
           behaviors.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
           demographics.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'demographic' }));
         } else {
           console.error('No Meta access token available');
         }
+      } else {
+        console.error('No Meta platform connection found for user:', user.id);
       }
     }
 
