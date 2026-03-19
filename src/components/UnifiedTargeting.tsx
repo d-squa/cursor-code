@@ -527,6 +527,7 @@ export function UnifiedTargeting({
           markets={markets}
           googleMarkets={googleMarkets}
           tiktokMarkets={tiktokMarkets}
+          showWithoutAccountIds={selectedPlatforms?.some(p => p.id === 'google_ads' || p.id === 'google' || p.id === 'tiktok')}
         />
       )}
 

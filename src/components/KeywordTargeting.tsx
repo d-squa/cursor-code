@@ -43,6 +43,7 @@ interface KeywordTargetingProps {
   markets?: MarketInfo[];
   googleMarkets?: MarketInfo[];
   tiktokMarkets?: MarketInfo[];
+  showWithoutAccountIds?: boolean;
 }
 
 const STRATEGY_META: Record<KeywordStrategy, { label: string; icon: React.ReactNode; color: string }> = {
@@ -65,6 +66,7 @@ export function KeywordTargeting({
   markets = [],
   googleMarkets = [],
   tiktokMarkets = [],
+  showWithoutAccountIds = false,
 }: KeywordTargetingProps) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -74,7 +76,8 @@ export function KeywordTargeting({
   const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
   const [activeMarketTab, setActiveMarketTab] = useState<string>("all");
 
-  const hasGoogleOrTiktok = !!googleCustomerId || !!tiktokAdvertiserId;
+  const hasSearchAccountIds = !!googleCustomerId || !!tiktokAdvertiserId;
+  const canRenderKeywordTargeting = hasSearchAccountIds || showWithoutAccountIds;
   const toMarketCodes = (items?: MarketInfo[]) =>
     Array.from(new Set((items || []).map((market) => (market.name || "").substring(0, 2).toUpperCase()).filter(Boolean)));
 
@@ -96,7 +99,7 @@ export function KeywordTargeting({
 
   const filteredResults = getFilteredResults();
 
-  if (!hasGoogleOrTiktok) return null;
+  if (!canRenderKeywordTargeting) return null;
 
   const handleSearch = async () => {
     if (!query.trim()) {
