@@ -3606,14 +3606,15 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
         // Determine if this is a Search campaign with keyword strategies that need splitting
         const isSearchCampaign = advertisingChannelType === "SEARCH";
-        // Pull keywords from phase first, then fall back to global basicTargeting.selectedKeywords filtered for google
+        // Pull keywords from phase first, then fall back to global basicTargeting.selectedKeywords filtered for google AND market
         let phaseKeywords = phase.keywords || phase.searchKeywords || [];
         if ((!Array.isArray(phaseKeywords) || phaseKeywords.length === 0) && isSearchCampaign) {
+          const marketCode = (market.name || "").substring(0, 2).toUpperCase();
           const globalKeywords = (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
-            .filter((k: any) => k.platform === 'google' && !k.isNegative);
+            .filter((k: any) => k.platform === 'google' && !k.isNegative && (!k.market || k.market === marketCode));
           if (globalKeywords.length > 0) {
             phaseKeywords = globalKeywords;
-            console.log(`📝 Using ${globalKeywords.length} global Google keywords from basicTargeting.selectedKeywords`);
+            console.log(`📝 Using ${globalKeywords.length} global Google keywords for market ${marketCode} from basicTargeting.selectedKeywords`);
           }
         }
         
