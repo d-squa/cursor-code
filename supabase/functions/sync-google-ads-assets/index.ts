@@ -346,7 +346,7 @@ async function syncGoogleAdsBenchmarks(
   let nextPageToken: string | undefined;
 
   do {
-    const requestBody: Record<string, unknown> = { query, pageSize: 10000 };
+    const requestBody: Record<string, unknown> = { query };
     if (nextPageToken) {
       requestBody.pageToken = nextPageToken;
     }
