@@ -105,11 +105,10 @@ serve(async (req: Request) => {
       "developer-token": developerToken,
       "Content-Type": "application/json",
     };
-    if (managerAccountId) {
-      headers["login-customer-id"] = managerAccountId.replace(/-/g, "");
-    }
+    // Always set login-customer-id: prefer manager account, fallback to customer ID itself
+    headers["login-customer-id"] = (managerAccountId || cleanCustomerId).replace(/-/g, "");
 
-    const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}/googleAds:searchStream`;
+    console.log(`Using login-customer-id: ${headers["login-customer-id"]} for customer ${cleanCustomerId}`);
     const response = await fetch(searchUrl, {
       method: "POST",
       headers,
