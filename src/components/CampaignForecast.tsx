@@ -18,7 +18,7 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
-import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
+import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
