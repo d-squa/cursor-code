@@ -301,7 +301,7 @@ async function processCampaignInsights(
   try {
     const insightsUrl = `https://graph.facebook.com/v21.0/${campaign.id}/insights?` +
       `time_range={'since':'${startDate}','until':'${endDate}'}` +
-      `&fields=spend,impressions,actions,country` +
+      `&fields=spend,impressions,clicks,actions,action_values,country` +
       `&level=campaign` +
       `&breakdowns=country` +
       `&access_token=${accessToken}`;
