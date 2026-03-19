@@ -4,6 +4,7 @@ export interface BenchmarkData {
   market: string;
   optimization_goal: string;
   industry: string | null;
+  platform: string;
   avg_cost_per_result: number | null;
   total_spend: number;
   total_results: number;
@@ -12,32 +13,82 @@ export interface BenchmarkData {
 }
 
 /**
- * Fetches benchmark data for a specific market, optimization goal, and industry
- * All three conditions are HARD requirements - benchmark is only returned if all match
- * @param market - The market code (e.g., "US", "AE")
- * @param optimizationGoal - The optimization goal (e.g., "LINK_CLICKS", "THRUPLAY")
- * @param industry - The client's industry (e.g., "e-commerce", "finance")
- * @returns The benchmark cost per result or null if not available
+ * Normalizes optimization goal names across platforms for benchmark lookup.
+ * TikTok API/UI uses different names than what's stored in benchmarks.
+ */
+function normalizeBenchmarkGoal(goal: string, platform: string): string {
+  const upper = goal.toUpperCase();
+  
+  if (platform === 'tiktok') {
+    // TikTok UI goals → DB stored goals mapping
+    const tiktokGoalMap: Record<string, string> = {
+      'CONVERT': 'CONVERSION',
+      'LANDING_PAGE_VIEW': 'TRAFFIC_LANDING_PAGE_VIEW',
+      'FORM': 'LEAD_GENERATION',
+      'PROFILE_VISIT': 'ENGAGED_VIEW_FIFTEEN', // closest match
+      'SHOW': 'IMPRESSION',
+      'VIDEO_VIEW': 'VIDEO_VIEWS',
+      'ENGAGED_VIEW': 'ENGAGED_VIEW_FIFTEEN',
+      'SIX_SECOND_VIDEO_VIEW': 'ENGAGED_VIEW_FIFTEEN',
+      'INSTALL': 'APP_INSTALLS',
+      'ON_WEB_ORDER': 'CONVERSION',
+      'ON_WEB_ADD_TO_CART': 'CONVERSION',
+      'COMPLETE_PAYMENT': 'CONVERSION',
+    };
+    return tiktokGoalMap[upper] || upper;
+  }
+  
+  if (platform === 'meta') {
+    // Meta goals are mostly stored as-is
+    const metaGoalMap: Record<string, string> = {
+      'IMPRESSIONS': 'REACH', // closest benchmark match
+    };
+    return metaGoalMap[upper] || upper;
+  }
+  
+  return upper;
+}
+
+/**
+ * Determines the platform key for benchmark lookup from platform ID string
+ */
+export function getPlatformKeyFromId(platformId: string): string {
+  const lower = platformId.toLowerCase();
+  if (lower.includes('tiktok')) return 'tiktok';
+  if (lower.includes('meta') || lower.includes('facebook') || lower.includes('instagram')) return 'meta';
+  if (lower.includes('google')) return 'google';
+  if (lower.includes('snapchat')) return 'snapchat';
+  return 'meta'; // default
+}
+
+/**
+ * Fetches benchmark data for a specific platform, market, optimization goal, and industry
+ * All conditions are HARD requirements - benchmark is only returned if all match
  */
 export async function getBenchmarkCostPerResult(
   market: string,
   optimizationGoal: string,
-  industry?: string | null
+  industry?: string | null,
+  platform?: string
 ): Promise<number | null> {
   try {
+    const platformKey = platform || 'meta';
+    const normalizedGoal = normalizeBenchmarkGoal(optimizationGoal, platformKey);
+    
     let query = supabase
       .from("campaign_performance_benchmarks")
       .select("avg_cost_per_result")
       .ilike("market", market)
-      .ilike("optimization_goal", optimizationGoal);
+      .eq("platform", platformKey);
     
-    // Industry is a HARD condition - only match if industry is provided and matches
+    // Try normalized goal first
+    query = query.ilike("optimization_goal", normalizedGoal);
+    
+    // Industry is a HARD condition
     if (industry) {
-      // Use case-insensitive matching for industry
       query = query.ilike("industry", industry);
     } else {
-      // If no industry provided, we can't use benchmarks (hard requirement)
-      console.log(`No industry provided, skipping benchmark for ${market}/${optimizationGoal}`);
+      console.log(`No industry provided, skipping benchmark for ${platformKey}/${market}/${normalizedGoal}`);
       return null;
     }
     
@@ -46,12 +97,35 @@ export async function getBenchmarkCostPerResult(
       .limit(1)
       .single();
 
-    if (error) {
-      console.log(`No benchmark found for ${industry}/${market}/${optimizationGoal}`);
+    if (error || !data?.avg_cost_per_result) {
+      // If normalized goal didn't match, try original goal
+      if (normalizedGoal !== optimizationGoal.toUpperCase()) {
+        let fallbackQuery = supabase
+          .from("campaign_performance_benchmarks")
+          .select("avg_cost_per_result")
+          .ilike("market", market)
+          .eq("platform", platformKey)
+          .ilike("optimization_goal", optimizationGoal);
+        
+        if (industry) {
+          fallbackQuery = fallbackQuery.ilike("industry", industry);
+        }
+        
+        const { data: fbData } = await fallbackQuery
+          .order("date_range_end", { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (fbData?.avg_cost_per_result) {
+          return fbData.avg_cost_per_result;
+        }
+      }
+      
+      console.log(`No benchmark found for ${platformKey}/${industry}/${market}/${normalizedGoal}`);
       return null;
     }
 
-    return data?.avg_cost_per_result || null;
+    return data.avg_cost_per_result;
   } catch (error) {
     console.error("Error fetching benchmark:", error);
     return null;
@@ -59,24 +133,33 @@ export async function getBenchmarkCostPerResult(
 }
 
 /**
- * Fetches all benchmarks for the current user, optionally filtered by industry
+ * Fetches all benchmarks for the current user, filtered by platform and optionally by industry
  * @param industry - If provided, only returns benchmarks matching this industry (HARD condition)
- * @returns Map of benchmarks keyed by "market_optimizationGoal"
+ * @param platform - Platform to filter by (e.g., 'meta', 'tiktok', 'google')
+ * @returns Map of benchmarks keyed by "PLATFORM_MARKET_optimizationGoal"
  */
-export async function getAllBenchmarks(industry?: string | null): Promise<Map<string, BenchmarkData>> {
+export async function getAllBenchmarks(
+  industry?: string | null,
+  platform?: string
+): Promise<Map<string, BenchmarkData>> {
   try {
     let query = supabase
       .from("campaign_performance_benchmarks")
       .select("*");
     
+    // Filter by platform if provided
+    if (platform) {
+      query = query.eq("platform", platform);
+      console.log(`📊 Fetching benchmarks for platform: ${platform}`);
+    }
+    
     // Industry is a HARD condition when provided
     if (industry) {
-      // Use case-insensitive matching via ilike
       query = query.ilike("industry", industry);
       console.log(`📊 Fetching benchmarks filtered by industry (case-insensitive): ${industry}`);
     } else {
       console.log(`⚠️ No industry provided - benchmarks will not be used (hard requirement)`);
-      return new Map(); // Return empty map if no industry - can't use benchmarks without it
+      return new Map();
     }
     
     const { data, error } = await query.order("date_range_end", { ascending: false });
@@ -92,10 +175,11 @@ export async function getAllBenchmarks(industry?: string | null): Promise<Map<st
     // Use uppercase keys for case-insensitive lookup
     const seen = new Set<string>();
     for (const item of data || []) {
-      // Normalize to uppercase for consistent lookup
+      const normalizedPlatform = (item.platform || 'meta').toLowerCase();
       const normalizedMarket = item.market?.toUpperCase() || '';
       const normalizedGoal = item.optimization_goal?.toUpperCase() || '';
-      const key = `${normalizedMarket}_${normalizedGoal}`;
+      // Key includes platform to prevent cross-platform collisions
+      const key = `${normalizedPlatform}_${normalizedMarket}_${normalizedGoal}`;
       if (!seen.has(key)) {
         benchmarkMap.set(key, item as BenchmarkData);
         seen.add(key);
@@ -103,7 +187,7 @@ export async function getAllBenchmarks(industry?: string | null): Promise<Map<st
       }
     }
     
-    console.log(`✅ Loaded ${benchmarkMap.size} benchmarks for industry: ${industry}`);
+    console.log(`✅ Loaded ${benchmarkMap.size} benchmarks for industry: ${industry}${platform ? `, platform: ${platform}` : ''}`);
 
     return benchmarkMap;
   } catch (error) {
@@ -113,31 +197,59 @@ export async function getAllBenchmarks(industry?: string | null): Promise<Map<st
 }
 
 /**
+ * Looks up a benchmark from a pre-loaded map, trying normalized goal names
+ */
+export function lookupBenchmark(
+  benchmarks: Map<string, BenchmarkData>,
+  platform: string,
+  market: string,
+  optimizationGoal: string
+): BenchmarkData | undefined {
+  const platformKey = platform.toLowerCase();
+  const marketKey = market.toUpperCase();
+  const goalKey = optimizationGoal.toUpperCase();
+  
+  // Try direct lookup
+  const directKey = `${platformKey}_${marketKey}_${goalKey}`;
+  let benchmark = benchmarks.get(directKey);
+  if (benchmark) return benchmark;
+  
+  // Try normalized goal
+  const normalizedGoal = normalizeBenchmarkGoal(optimizationGoal, platformKey);
+  if (normalizedGoal !== goalKey) {
+    const normalizedKey = `${platformKey}_${marketKey}_${normalizedGoal}`;
+    benchmark = benchmarks.get(normalizedKey);
+    if (benchmark) return benchmark;
+  }
+  
+  // Try CLICK as fallback for traffic-related goals
+  if (['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'TRAFFIC_LANDING_PAGE_VIEW', 'LANDING_PAGE_VIEW'].includes(goalKey)) {
+    const clickKey = `${platformKey}_${marketKey}_CLICK`;
+    benchmark = benchmarks.get(clickKey);
+    if (benchmark) return benchmark;
+  }
+  
+  return undefined;
+}
+
+/**
  * Calculates cost per result using benchmark if available, otherwise uses estimation
- * Benchmark is only used if all three conditions match: industry, market, optimization goal
- * @param market - The market code
- * @param optimizationGoal - The optimization goal
- * @param industry - The client's industry (HARD requirement for benchmark matching)
- * @param budget - The campaign budget
- * @param fallbackResult - Fallback result count if no benchmark available
- * @returns Tuple of [costPerResult, result, isBenchmark]
  */
 export async function calculateCostPerResultWithBenchmark(
   market: string,
   optimizationGoal: string,
   industry: string | null | undefined,
   budget: number,
-  fallbackResult: number
+  fallbackResult: number,
+  platform?: string
 ): Promise<[number, number, boolean]> {
-  const benchmarkCPR = await getBenchmarkCostPerResult(market, optimizationGoal, industry);
+  const benchmarkCPR = await getBenchmarkCostPerResult(market, optimizationGoal, industry, platform);
   
   if (benchmarkCPR && benchmarkCPR > 0) {
-    // Use benchmark data
     const result = budget / benchmarkCPR;
     return [benchmarkCPR, result, true];
   }
   
-  // Use fallback estimation
   const costPerResult = fallbackResult > 0 ? budget / fallbackResult : 0;
   return [costPerResult, fallbackResult, false];
 }

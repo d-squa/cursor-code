@@ -538,7 +538,7 @@ async function syncAccountBenchmarks(
         date_range_start: dateRangeStart,
         date_range_end: dateRangeEnd,
       }, {
-        onConflict: "user_id,market,optimization_goal,date_range_start,date_range_end"
+        onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
       });
 
     if (error) {
@@ -765,6 +765,15 @@ async function syncGoogleAdsAssets(
 
     console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Google Ads asset sync complete for ${cleanAccountId}:`, syncResults);
 
+    // 3. Sync Google Ads benchmarks (performance data)
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Syncing Google Ads benchmarks for ${cleanAccountId}...`);
+      const benchmarkResult = await syncGoogleAdsBenchmarks(supabase, user.id, cleanAccountId, accessToken, developerToken || "", managerAccountId || cleanAccountId);
+      console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Google Ads benchmarks synced: ${benchmarkResult.synced} benchmarks`);
+    } catch (benchmarkError) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Google Ads benchmark sync error (non-fatal):", benchmarkError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -787,4 +796,239 @@ async function syncGoogleAdsAssets(
       }
     );
   }
+}
+
+/**
+ * Sync Google Ads performance benchmarks
+ * Fetches campaign performance data and calculates CPR by market/optimization goal
+ */
+async function syncGoogleAdsBenchmarks(
+  supabase: any,
+  userId: string,
+  customerId: string,
+  accessToken: string,
+  developerToken: string,
+  loginCustomerId: string
+): Promise<{ synced: number }> {
+  // Calculate date range (last 3 months)
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 3);
+
+  const dateRangeStart = startDate.toISOString().split("T")[0];
+  const dateRangeEnd = endDate.toISOString().split("T")[0];
+
+  console.log(`[GOOGLE-BENCHMARK] Date range: ${dateRangeStart} to ${dateRangeEnd}`);
+
+  // Get client industry
+  let industry: string | null = null;
+  const { data: accountData } = await supabase
+    .from("google_ad_accounts")
+    .select("client_id")
+    .eq("customer_id", customerId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (accountData?.client_id) {
+    const { data: clientData } = await supabase
+      .from("clients")
+      .select("industry")
+      .eq("id", accountData.client_id)
+      .maybeSingle();
+    industry = clientData?.industry || null;
+    console.log(`[GOOGLE-BENCHMARK] Found client industry: ${industry}`);
+  }
+
+  // Fetch campaign metrics with geo breakdown
+  const query = `
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.advertising_channel_type,
+      geographic_view.country_criterion_id,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.video_views,
+      metrics.all_conversions
+    FROM geographic_view
+    WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
+      AND metrics.cost_micros > 0
+  `;
+
+  const response = await fetch(
+    `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "developer-token": developerToken,
+        "login-customer-id": loginCustomerId,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[GOOGLE-BENCHMARK] Error fetching performance data: ${errorText}`);
+    return { synced: 0 };
+  }
+
+  const responseData = await response.json();
+
+  // Map Google Ads geo criterion IDs to ISO country codes
+  const geoIdToCountry: Record<string, string> = {
+    "2784": "AE", "2682": "SA", "2414": "KW", "2634": "QA",
+    "2512": "OM", "2048": "BH", "2840": "US", "2826": "GB",
+    "2276": "DE", "2250": "FR", "2380": "IT", "2724": "ES",
+    "2356": "IN", "2036": "AU", "2124": "CA", "2392": "JP",
+    "2076": "BR", "2484": "MX", "2566": "NG", "2710": "ZA",
+    "2818": "EG", "2792": "TR", "2586": "PK", "2360": "ID",
+    "2458": "MY", "2702": "SG", "2764": "TH", "2704": "VN",
+    "2608": "PH", "2410": "KR", "2158": "TW", "2344": "HK",
+    "2400": "JO", "2422": "LB", "2368": "IQ",
+  };
+
+  // Map channel types to optimization goals
+  const channelTypeGoalMap: Record<string, string> = {
+    "SEARCH": "SEARCH_CLICKS",
+    "DISPLAY": "DISPLAY_IMPRESSIONS",
+    "VIDEO": "VIDEO_VIEWS",
+    "SHOPPING": "SHOPPING_CONVERSIONS",
+    "PERFORMANCE_MAX": "PMAX_CONVERSIONS",
+    "DEMAND_GEN": "DEMAND_GEN_CLICKS",
+  };
+
+  const benchmarkMap = new Map<string, {
+    market: string;
+    optimization_goal: string;
+    total_spend: number;
+    total_results: number;
+    impressions: number;
+    campaign_count: number;
+    industry: string | null;
+  }>();
+
+  if (Array.isArray(responseData)) {
+    for (const chunk of responseData) {
+      for (const row of (chunk.results || [])) {
+        const geoId = row.geographicView?.countryCriterionId;
+        const country = geoIdToCountry[geoId] || `GEO_${geoId}`;
+        const costMicros = parseInt(row.metrics?.costMicros || "0");
+        const spend = costMicros / 1_000_000;
+        const impressions = parseInt(row.metrics?.impressions || "0");
+        const clicks = parseInt(row.metrics?.clicks || "0");
+        const conversions = parseFloat(row.metrics?.conversions || "0");
+        const videoViews = parseInt(row.metrics?.videoViews || "0");
+        const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
+
+        const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
+
+        // Determine primary result based on channel type
+        let results = 0;
+        if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
+          results = clicks;
+        } else if (channelType === "VIDEO") {
+          results = videoViews > 0 ? videoViews : clicks;
+        } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
+          results = conversions > 0 ? conversions : clicks;
+        } else if (channelType === "DISPLAY") {
+          results = clicks > 0 ? clicks : impressions / 1000;
+        } else {
+          results = clicks > 0 ? clicks : impressions / 1000;
+        }
+
+        const key = `${country}_${optimizationGoal}`;
+        if (!benchmarkMap.has(key)) {
+          benchmarkMap.set(key, {
+            market: country,
+            optimization_goal: optimizationGoal,
+            total_spend: 0,
+            total_results: 0,
+            impressions: 0,
+            campaign_count: 0,
+            industry,
+          });
+        }
+
+        const benchmark = benchmarkMap.get(key)!;
+        benchmark.total_spend += spend;
+        benchmark.total_results += results;
+        benchmark.impressions += impressions;
+        benchmark.campaign_count += 1;
+
+        // Also add generic CLICK and CONVERSION benchmarks
+        if (clicks > 0) {
+          const clickKey = `${country}_CLICK`;
+          if (!benchmarkMap.has(clickKey)) {
+            benchmarkMap.set(clickKey, {
+              market: country, optimization_goal: "CLICK",
+              total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+            });
+          }
+          const clickBm = benchmarkMap.get(clickKey)!;
+          clickBm.total_spend += spend;
+          clickBm.total_results += clicks;
+          clickBm.impressions += impressions;
+          clickBm.campaign_count += 1;
+        }
+
+        if (conversions > 0) {
+          const convKey = `${country}_CONVERSION`;
+          if (!benchmarkMap.has(convKey)) {
+            benchmarkMap.set(convKey, {
+              market: country, optimization_goal: "CONVERSION",
+              total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+            });
+          }
+          const convBm = benchmarkMap.get(convKey)!;
+          convBm.total_spend += spend;
+          convBm.total_results += conversions;
+          convBm.impressions += impressions;
+          convBm.campaign_count += 1;
+        }
+      }
+    }
+  }
+
+  console.log(`[GOOGLE-BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
+
+  // Store benchmarks
+  let storedCount = 0;
+  for (const [key, benchmark] of benchmarkMap.entries()) {
+    const avgCostPerResult = benchmark.total_results > 0
+      ? benchmark.total_spend / benchmark.total_results
+      : null;
+
+    const { error } = await supabase
+      .from("campaign_performance_benchmarks")
+      .upsert({
+        user_id: userId,
+        platform: 'google',
+        market: benchmark.market,
+        optimization_goal: benchmark.optimization_goal,
+        industry: benchmark.industry,
+        avg_cost_per_result: avgCostPerResult,
+        total_spend: benchmark.total_spend,
+        total_results: benchmark.total_results,
+        impressions: benchmark.impressions,
+        campaign_count: benchmark.campaign_count,
+        date_range_start: dateRangeStart,
+        date_range_end: dateRangeEnd,
+      }, {
+        onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
+      });
+
+    if (error) {
+      console.error(`[GOOGLE-BENCHMARK] Error storing ${key}:`, error);
+    } else {
+      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'}`);
+      storedCount++;
+    }
+  }
+
+  return { synced: storedCount };
 }

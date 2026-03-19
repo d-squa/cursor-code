@@ -18,7 +18,7 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
-import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
+import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
@@ -269,13 +269,14 @@ export function CampaignForecast({
 
     const loadBenchmarks = async () => {
       console.log("📊 Loading benchmarks for industry:", resolvedIndustry || "(none)");
+      // Load all benchmarks (no platform filter - we filter at lookup time)
       const benchmarkData = await getAllBenchmarks(resolvedIndustry);
       setBenchmarks(benchmarkData);
       console.log(`✅ Loaded ${benchmarkData.size} benchmarks:`);
       
       // Log details of each benchmark
       benchmarkData.forEach((benchmark, key) => {
-        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Industry=${benchmark.industry}, Campaigns=${benchmark.campaign_count}`);
+        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Platform=${(benchmark as any).platform || 'unknown'}, Industry=${benchmark.industry}, Campaigns=${benchmark.campaign_count}`);
       });
     };
 
@@ -335,35 +336,37 @@ export function CampaignForecast({
     // Extract unique account IDs from platforms
     const metaAccountIds = new Set<string>();
     const tiktokAdvertiserIds = new Set<string>();
+    const googleAccountIds = new Set<string>();
 
     for (const platform of platforms) {
       const platformName = platform.id.toLowerCase();
       const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
       const isTikTok = platformName.includes("tiktok");
+      const isGoogle = platformName.includes("google");
 
       for (const market of platform.markets) {
         if (market.adAccountId) {
           if (isMeta) {
-            // Clean the account ID (remove "act_" prefix if present for sync)
             const cleanId = market.adAccountId.startsWith("act_") 
               ? market.adAccountId 
               : `act_${market.adAccountId}`;
             metaAccountIds.add(cleanId);
           } else if (isTikTok) {
-            // TikTok uses advertiser_id directly
             tiktokAdvertiserIds.add(market.adAccountId);
+          } else if (isGoogle) {
+            googleAccountIds.add(market.adAccountId);
           }
         }
       }
     }
 
-    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size;
+    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size + googleAccountIds.size;
     if (totalSyncs === 0) {
       console.log("📊 No ad accounts found in ActiPlan - skipping benchmark sync");
       return;
     }
 
-    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta accounts and ${tiktokAdvertiserIds.size} TikTok accounts...`);
+    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta, ${tiktokAdvertiserIds.size} TikTok, ${googleAccountIds.size} Google accounts...`);
 
     const syncPromises: Promise<any>[] = [];
 
@@ -380,12 +383,24 @@ export function CampaignForecast({
       );
     }
 
-    // Sync TikTok accounts (per-account, same as Meta)
+    // Sync Google Ads accounts (per-account)
+    for (const accountId of googleAccountIds) {
+      console.log(`  → Syncing Google Ads account: ${accountId}`);
+      syncPromises.push(
+        supabase.functions.invoke('sync-account-assets', {
+          body: { accountId, platform: 'google' }
+        }).catch(err => {
+          console.warn(`Failed to sync Google account ${accountId}:`, err);
+          return null;
+        })
+      );
+    }
+
+    // Sync TikTok accounts (per-account)
     for (const advertiserId of tiktokAdvertiserIds) {
       console.log(`  → Syncing TikTok account: ${advertiserId}`);
       syncPromises.push(
         (async () => {
-          // Mirror Meta behavior: sync account assets + benchmarks before forecasting
           const { error: resourcesError } = await supabase.functions.invoke('sync-tiktok-resources', {
             body: { advertiserId },
           });
@@ -738,9 +753,8 @@ export function CampaignForecast({
           optimizationGoal
         );
         
-        // Calculate cost per result using benchmark if available
-        const benchmarkKey = `${market.name}_${optimizationGoal}`;
-        const benchmark = benchmarks.get(benchmarkKey);
+        // Calculate cost per result using benchmark if available (platform-aware)
+        const benchmark = lookupBenchmark(benchmarks, 'meta', market.name, optimizationGoal);
         
         let costPerResult: number;
         
@@ -748,11 +762,11 @@ export function CampaignForecast({
           // Use benchmark data
           costPerResult = benchmark.avg_cost_per_result;
           result = budget / costPerResult; // Recalculate result based on benchmark
-          console.log(`✓ Using benchmark CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          console.log(`✓ Using META benchmark CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
         } else {
           // Use calculated data
           costPerResult = result > 0 ? budget / result : 0;
-          console.log(`✓ Using calculated CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          console.log(`✓ No META benchmark for ${market.name}/${optimizationGoal}, using calculated: $${costPerResult.toFixed(2)}`);
         }
         
         // Calculate result rate
@@ -943,9 +957,8 @@ export function CampaignForecast({
           const impressions = Number((fallbackData as any).impressions) || 0;
           let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
           
-          // Apply benchmark if available
-          const benchmarkKey = `${market.name}_${optimizationGoal}`;
-          const benchmark = benchmarks.get(benchmarkKey);
+          // Apply benchmark if available (platform-aware)
+          const benchmark = lookupBenchmark(benchmarks, 'meta', market.name, optimizationGoal);
           
           let costPerResult: number;
           if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
@@ -1312,9 +1325,9 @@ export function CampaignForecast({
               let costPerResult: number;
               let isBenchmarkBased = false;
               
-              // Apply benchmark if available (industry + market + optimization_goal must all match)
-              const benchmarkKey = `${(market.name || '').toUpperCase()}_${(optimizationGoal || '').toUpperCase()}`;
-              const benchmark = benchmarks.get(benchmarkKey);
+              // Apply benchmark if available (platform-aware: industry + platform + market + optimization_goal must all match)
+              const platformKey = getPlatformKeyFromId(platform.id);
+              const benchmark = lookupBenchmark(benchmarks, platformKey, market.name || '', optimizationGoal || '');
               
               if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
