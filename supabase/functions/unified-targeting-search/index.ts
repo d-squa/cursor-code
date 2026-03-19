@@ -497,7 +497,7 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       const resp = await fetch(searchUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ query: gaql }),
+        body: JSON.stringify({ query: gaql, pageSize: 50 }),
       });
 
       if (!resp.ok) {
@@ -507,12 +507,13 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       }
 
       const data = await resp.json();
-      console.log(`Google GAQL raw response type: ${typeof data}, isArray: ${Array.isArray(data)}, length: ${Array.isArray(data) ? data.length : 'N/A'}, keys: ${!Array.isArray(data) ? Object.keys(data).join(',') : ''}`);
+      console.log(`Google GAQL raw response keys: ${Object.keys(data).join(',')}, resultsCount: ${data.results?.length ?? 'none'}`);
       
-      // searchStream returns an array of batches
-      const batches = Array.isArray(data) ? data : [data];
-      const allResults = batches.flatMap((batch: any) => batch?.results || []);
-      console.log(`Google GAQL parsed ${allResults.length} results from ${batches.length} batches`);
+      // search returns { results: [...] }, searchStream returns array of batches
+      const allResults = Array.isArray(data) 
+        ? data.flatMap((batch: any) => batch?.results || [])
+        : (data.results || []);
+      console.log(`Google GAQL parsed ${allResults.length} results`);
       return allResults;
     };
 
