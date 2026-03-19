@@ -75,6 +75,10 @@ interface BenchmarkAccumulator {
   total_spend: number;
   total_results: number;
   impressions: number;
+  clicks: number;
+  link_clicks: number;
+  landing_page_views: number;
+  revenue: number;
   campaign_count: number;
   industry: string | null;
 }
@@ -333,7 +337,9 @@ async function syncGoogleAdsBenchmarks(
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
-      metrics.all_conversions
+      metrics.all_conversions,
+      metrics.conversions_value,
+      metrics.all_conversions_value
     FROM geographic_view
     WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
       AND metrics.cost_micros > 0
@@ -392,6 +398,7 @@ async function syncGoogleAdsBenchmarks(
     const impressions = Number(row.metrics?.impressions || 0);
     const clicks = Number(row.metrics?.clicks || 0);
     const conversions = Number(row.metrics?.conversions || 0);
+    const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
     const optimizationGoal = CHANNEL_TYPE_GOAL_MAP[channelType] || channelType;
 
@@ -416,6 +423,10 @@ async function syncGoogleAdsBenchmarks(
         total_spend: 0,
         total_results: 0,
         impressions: 0,
+        clicks: 0,
+        link_clicks: 0,
+        landing_page_views: 0,
+        revenue: 0,
         campaign_count: 0,
         industry,
       });
@@ -425,6 +436,8 @@ async function syncGoogleAdsBenchmarks(
     benchmark.total_spend += spend;
     benchmark.total_results += results;
     benchmark.impressions += impressions;
+    benchmark.clicks += clicks;
+    benchmark.revenue += revenue;
     benchmark.campaign_count += 1;
 
     if (clicks > 0) {
@@ -436,6 +449,10 @@ async function syncGoogleAdsBenchmarks(
           total_spend: 0,
           total_results: 0,
           impressions: 0,
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
           campaign_count: 0,
           industry,
         });
@@ -444,6 +461,8 @@ async function syncGoogleAdsBenchmarks(
       clickBenchmark.total_spend += spend;
       clickBenchmark.total_results += clicks;
       clickBenchmark.impressions += impressions;
+      clickBenchmark.clicks += clicks;
+      clickBenchmark.revenue += revenue;
       clickBenchmark.campaign_count += 1;
     }
 
@@ -456,6 +475,10 @@ async function syncGoogleAdsBenchmarks(
           total_spend: 0,
           total_results: 0,
           impressions: 0,
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
           campaign_count: 0,
           industry,
         });
@@ -464,6 +487,8 @@ async function syncGoogleAdsBenchmarks(
       conversionBenchmark.total_spend += spend;
       conversionBenchmark.total_results += conversions;
       conversionBenchmark.impressions += impressions;
+      conversionBenchmark.clicks += clicks;
+      conversionBenchmark.revenue += revenue;
       conversionBenchmark.campaign_count += 1;
     }
   }
@@ -474,6 +499,12 @@ async function syncGoogleAdsBenchmarks(
   for (const [key, benchmark] of benchmarkMap.entries()) {
     const avgCostPerResult = benchmark.total_results > 0
       ? benchmark.total_spend / benchmark.total_results
+      : null;
+    const avgCtr = benchmark.impressions > 0
+      ? (benchmark.clicks / benchmark.impressions) * 100
+      : null;
+    const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
+      ? benchmark.revenue / benchmark.total_spend
       : null;
 
     const { error } = await supabase
@@ -489,6 +520,12 @@ async function syncGoogleAdsBenchmarks(
           total_spend: benchmark.total_spend,
           total_results: benchmark.total_results,
           impressions: benchmark.impressions,
+          clicks: benchmark.clicks,
+          link_clicks: benchmark.link_clicks,
+          landing_page_views: benchmark.landing_page_views,
+          revenue: benchmark.revenue,
+          avg_ctr: avgCtr,
+          avg_roas: avgRoas,
           campaign_count: benchmark.campaign_count,
           date_range_start: dateRangeStart,
           date_range_end: dateRangeEnd,

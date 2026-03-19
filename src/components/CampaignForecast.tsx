@@ -18,7 +18,7 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
-import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId } from "@/utils/benchmarkData";
+import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId, isRevenueBasedGoal } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
@@ -932,7 +932,19 @@ export function CampaignForecast({
         
         let costPerResult: number;
         
-        if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+        // For revenue-based goals, use ROAS from benchmark if available
+        if (isRevenueBasedGoal(optimizationGoal) && benchmark?.avg_roas && benchmark.avg_roas > 0) {
+          // ROAS = revenue / spend, so estimated revenue = budget * ROAS
+          const estimatedRevenue = budget * benchmark.avg_roas;
+          // For ROAS-based, result = estimated conversions from CPR
+          if (benchmark.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+            costPerResult = benchmark.avg_cost_per_result;
+            result = budget / costPerResult;
+          } else {
+            costPerResult = result > 0 ? budget / result : 0;
+          }
+          console.log(`✓ Using META benchmark ROAS for ${market.name}/${optimizationGoal}: ${benchmark.avg_roas.toFixed(2)}x, Revenue: $${estimatedRevenue.toFixed(2)}`);
+        } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
           // Use benchmark data
           costPerResult = benchmark.avg_cost_per_result;
           result = budget / costPerResult; // Recalculate result based on benchmark
@@ -1505,7 +1517,13 @@ export function CampaignForecast({
               const platformKey = getPlatformKeyFromId(platform.id);
               const benchmark = lookupBenchmark(benchmarks, platformKey, market.name || '', optimizationGoal || '');
               
-              if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+              // For revenue-based goals, prefer ROAS from benchmark
+              if (isRevenueBasedGoal(optimizationGoal) && benchmark?.avg_roas && benchmark.avg_roas > 0 && benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+                costPerResult = benchmark.avg_cost_per_result;
+                result = campaignBudget / costPerResult;
+                isBenchmarkBased = true;
+                console.log(`✓ Using benchmark ROAS (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: ROAS=${benchmark.avg_roas.toFixed(2)}x, CPR=$${costPerResult.toFixed(2)}`);
+              } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
                 isBenchmarkBased = true;

@@ -9,7 +9,9 @@ const corsHeaders = {
 interface CampaignInsight {
   spend: string;
   impressions: string;
+  clicks?: string;
   actions?: Array<{ action_type: string; value: string }>;
+  action_values?: Array<{ action_type: string; value: string }>;
   country?: string;
 }
 
@@ -19,6 +21,10 @@ interface BenchmarkData {
   total_spend: number;
   total_results: number;
   impressions: number;
+  clicks: number;
+  link_clicks: number;
+  landing_page_views: number;
+  revenue: number;
   campaign_count: number;
   industry: string | null;
 }
@@ -148,6 +154,12 @@ serve(async (req) => {
       const avgCostPerResult = benchmark.total_results > 0
         ? benchmark.total_spend / benchmark.total_results
         : null;
+      const avgCtr = benchmark.impressions > 0
+        ? (benchmark.clicks / benchmark.impressions) * 100
+        : null;
+      const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
+        ? benchmark.revenue / benchmark.total_spend
+        : null;
 
       try {
         const { error } = await supabase
@@ -162,6 +174,12 @@ serve(async (req) => {
             total_spend: benchmark.total_spend,
             total_results: benchmark.total_results,
             impressions: benchmark.impressions,
+            clicks: benchmark.clicks,
+            link_clicks: benchmark.link_clicks,
+            landing_page_views: benchmark.landing_page_views,
+            revenue: benchmark.revenue,
+            avg_ctr: avgCtr,
+            avg_roas: avgRoas,
             campaign_count: benchmark.campaign_count,
             date_range_start: dateRangeStart,
             date_range_end: dateRangeEnd,
@@ -283,7 +301,7 @@ async function processCampaignInsights(
   try {
     const insightsUrl = `https://graph.facebook.com/v21.0/${campaign.id}/insights?` +
       `time_range={'since':'${startDate}','until':'${endDate}'}` +
-      `&fields=spend,impressions,actions,country` +
+      `&fields=spend,impressions,clicks,actions,action_values,country` +
       `&level=campaign` +
       `&breakdowns=country` +
       `&access_token=${accessToken}`;
@@ -310,9 +328,25 @@ async function processCampaignInsights(
       const country = insight.country || "UNKNOWN";
       const spend = parseFloat(insight.spend || "0");
       const impressions = parseFloat(insight.impressions || "0");
+      const totalClicks = parseFloat(insight.clicks || "0");
 
       // Extract results based on actions
       const actions = insight.actions || [];
+      const actionValues = insight.action_values || [];
+      
+      // Extract specific action counts
+      const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
+      const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
+      const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
+      const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
+      
+      // Extract revenue from action_values (purchase-related)
+      let revenue = 0;
+      for (const av of actionValues) {
+        if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
+          revenue += parseFloat(av.value || "0");
+        }
+      }
       
       // Map action types to optimization goals
       const actionTypeMap: { [key: string]: string } = {
@@ -341,6 +375,10 @@ async function processCampaignInsights(
             total_spend: 0,
             total_results: 0,
             impressions: 0,
+            clicks: 0,
+            link_clicks: 0,
+            landing_page_views: 0,
+            revenue: 0,
             campaign_count: 0,
             industry: industry,
           });
@@ -350,6 +388,10 @@ async function processCampaignInsights(
         benchmark.total_spend += spend;
         benchmark.total_results += results;
         benchmark.impressions += impressions;
+        benchmark.clicks += totalClicks;
+        benchmark.link_clicks += linkClicks;
+        benchmark.landing_page_views += landingPageViews;
+        benchmark.revenue += revenue;
         benchmark.campaign_count += 1;
         benchmarksAdded++;
       }
@@ -365,6 +407,10 @@ async function processCampaignInsights(
             total_spend: 0,
             total_results: 0,
             impressions: 0,
+            clicks: 0,
+            link_clicks: 0,
+            landing_page_views: 0,
+            revenue: 0,
             campaign_count: 0,
             industry: industry,
           });
@@ -373,6 +419,7 @@ async function processCampaignInsights(
         const benchmark = benchmarkMap.get(key)!;
         benchmark.total_spend += spend;
         benchmark.impressions += impressions;
+        benchmark.clicks += totalClicks;
         benchmark.campaign_count += 1;
         benchmarksAdded++;
       }

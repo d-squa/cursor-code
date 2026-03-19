@@ -16,6 +16,10 @@ interface BenchmarkData {
   total_spend: number;
   total_results: number;
   impressions: number;
+  clicks: number;
+  link_clicks: number;
+  landing_page_views: number;
+  revenue: number;
   campaign_count: number;
   industry: string | null;
 }
@@ -127,7 +131,9 @@ serve(async (req) => {
         "clicks",
         "conversion",
         "reach",
-        "video_views_p100"
+        "video_views_p100",
+        "total_purchase_value",
+        "real_time_result"
       ]),
       start_date: dateRangeStart,
       end_date: dateRangeEnd,
@@ -252,6 +258,7 @@ serve(async (req) => {
       const conversions = parseFloat(metrics.conversion || "0");
       const reach = parseFloat(metrics.reach || "0");
       const videoViews = parseFloat(metrics.video_views_p100 || "0");
+      const revenue = parseFloat(metrics.total_purchase_value || "0");
 
       // Get optimization goal for this ad group
       const rawGoal = adGroupOptimizationMap.get(adGroupId) || "UNKNOWN";
@@ -271,11 +278,11 @@ serve(async (req) => {
       } else if (optimizationGoal.includes("VIDEO")) {
         results = videoViews;
       } else if (optimizationGoal === "APP_INSTALLS" || optimizationGoal === "INSTALL") {
-        results = conversions; // App installs come through as conversions
+        results = conversions;
       } else if (optimizationGoal === "LEAD_GENERATION") {
         results = conversions;
       } else {
-        results = impressions / 1000; // Fallback to CPM-style
+        results = impressions / 1000;
       }
 
       const key = `${country}_${optimizationGoal}`;
@@ -287,6 +294,10 @@ serve(async (req) => {
           total_spend: 0,
           total_results: 0,
           impressions: 0,
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
           campaign_count: 0,
           industry: industry,
         });
@@ -296,12 +307,14 @@ serve(async (req) => {
       benchmark.total_spend += spend;
       benchmark.total_results += results;
       benchmark.impressions += impressions;
+      benchmark.clicks += clicks;
+      benchmark.revenue += revenue;
       benchmark.campaign_count += 1;
     }
 
     // Also add REACH and CLICK benchmarks if we have the data
     // These are useful for broad targeting campaigns
-    const countrySpendMap = new Map<string, { spend: number; reach: number; clicks: number; impressions: number }>();
+    const countrySpendMap = new Map<string, { spend: number; reach: number; clicks: number; impressions: number; revenue: number }>();
     
     for (const insight of insights) {
       const dimensions = insight.dimensions || {};
@@ -311,15 +324,17 @@ serve(async (req) => {
       const reach = parseFloat(metrics.reach || "0");
       const clicks = parseFloat(metrics.clicks || "0");
       const impressions = parseFloat(metrics.impressions || "0");
+      const revenue = parseFloat(metrics.total_purchase_value || "0");
 
       if (!countrySpendMap.has(country)) {
-        countrySpendMap.set(country, { spend: 0, reach: 0, clicks: 0, impressions: 0 });
+        countrySpendMap.set(country, { spend: 0, reach: 0, clicks: 0, impressions: 0, revenue: 0 });
       }
       const countryData = countrySpendMap.get(country)!;
       countryData.spend += spend;
       countryData.reach += reach;
       countryData.clicks += clicks;
       countryData.impressions += impressions;
+      countryData.revenue += revenue;
     }
 
     // Add aggregated REACH and CLICK benchmarks per country
@@ -331,6 +346,10 @@ serve(async (req) => {
           total_spend: data.spend,
           total_results: data.reach,
           impressions: data.impressions,
+          clicks: data.clicks,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: data.revenue,
           campaign_count: 1,
           industry: industry,
         });
@@ -342,6 +361,10 @@ serve(async (req) => {
           total_spend: data.spend,
           total_results: data.clicks,
           impressions: data.impressions,
+          clicks: data.clicks,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: data.revenue,
           campaign_count: 1,
           industry: industry,
         });
@@ -357,6 +380,12 @@ serve(async (req) => {
       const avgCostPerResult = benchmark.total_results > 0
         ? benchmark.total_spend / benchmark.total_results
         : null;
+      const avgCtr = benchmark.impressions > 0
+        ? (benchmark.clicks / benchmark.impressions) * 100
+        : null;
+      const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
+        ? benchmark.revenue / benchmark.total_spend
+        : null;
 
       const { error } = await supabase
         .from("campaign_performance_benchmarks")
@@ -370,6 +399,12 @@ serve(async (req) => {
           total_spend: benchmark.total_spend,
           total_results: benchmark.total_results,
           impressions: benchmark.impressions,
+          clicks: benchmark.clicks,
+          link_clicks: benchmark.link_clicks,
+          landing_page_views: benchmark.landing_page_views,
+          revenue: benchmark.revenue,
+          avg_ctr: avgCtr,
+          avg_roas: avgRoas,
           campaign_count: benchmark.campaign_count,
           date_range_start: dateRangeStart,
           date_range_end: dateRangeEnd,

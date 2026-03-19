@@ -422,6 +422,10 @@ async function syncAccountBenchmarks(
     total_spend: number;
     total_results: number;
     impressions: number;
+    clicks: number;
+    link_clicks: number;
+    landing_page_views: number;
+    revenue: number;
     campaign_count: number;
     industry: string | null;
   }>();
@@ -429,7 +433,7 @@ async function syncAccountBenchmarks(
   // Fetch insights at ad account level with country breakdown
   const insightsUrl = `https://graph.facebook.com/v21.0/${accountId}/insights?` +
     `time_range={'since':'${dateRangeStart}','until':'${dateRangeEnd}'}` +
-    `&fields=spend,impressions,actions,clicks,reach` +
+    `&fields=spend,impressions,actions,action_values,clicks,reach` +
     `&breakdowns=country` +
     `&level=account` +
     `&limit=500` +
@@ -476,13 +480,28 @@ async function syncAccountBenchmarks(
     const impressions = parseFloat(insight.impressions || "0");
     const clicks = parseFloat(insight.clicks || "0");
     const reach = parseFloat(insight.reach || "0");
+    
+    // Extract specific action counts
+    const actions = insight.actions || [];
+    const actionValues = insight.action_values || [];
+    
+    const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
+    const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
+    const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
+    const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
+    
+    // Extract revenue from action_values
+    let revenue = 0;
+    for (const av of actionValues) {
+      if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
+        revenue += parseFloat(av.value || "0");
+      }
+    }
 
     // Process actions
-    const actions = insight.actions || [];
-    
     for (const action of actions) {
       const optimizationGoal = actionTypeMap[action.action_type];
-      if (!optimizationGoal) continue; // Skip unmapped action types
+      if (!optimizationGoal) continue;
       
       const results = parseFloat(action.value || "0");
       if (results <= 0) continue;
@@ -496,15 +515,23 @@ async function syncAccountBenchmarks(
           total_spend: 0,
           total_results: 0,
           impressions: 0,
-          campaign_count: 1, // Account-level aggregation
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
+          campaign_count: 1,
           industry: industry,
         });
       }
 
       const benchmark = benchmarkMap.get(key)!;
-      benchmark.total_spend = spend; // Use full spend for this country
+      benchmark.total_spend = spend;
       benchmark.total_results += results;
       benchmark.impressions = impressions;
+      benchmark.clicks = clicks;
+      benchmark.link_clicks = linkClicks;
+      benchmark.landing_page_views = landingPageViews;
+      benchmark.revenue = revenue;
     }
 
     // Also add REACH and IMPRESSIONS benchmarks
@@ -517,6 +544,10 @@ async function syncAccountBenchmarks(
           total_spend: spend,
           total_results: reach,
           impressions: impressions,
+          clicks: clicks,
+          link_clicks: linkClicks,
+          landing_page_views: landingPageViews,
+          revenue: revenue,
           campaign_count: 1,
           industry: industry,
         });
@@ -534,6 +565,10 @@ async function syncAccountBenchmarks(
           total_spend: spend,
           total_results: parseFloat(thruplayAction.value || "0"),
           impressions: impressions,
+          clicks: clicks,
+          link_clicks: linkClicks,
+          landing_page_views: landingPageViews,
+          revenue: revenue,
           campaign_count: 1,
           industry: industry,
         });
@@ -550,6 +585,12 @@ async function syncAccountBenchmarks(
     const avgCostPerResult = benchmark.total_results > 0
       ? benchmark.total_spend / benchmark.total_results
       : null;
+    const avgCtr = benchmark.impressions > 0
+      ? (benchmark.clicks / benchmark.impressions) * 100
+      : null;
+    const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
+      ? benchmark.revenue / benchmark.total_spend
+      : null;
 
     const { error } = await supabase
       .from("campaign_performance_benchmarks")
@@ -563,6 +604,12 @@ async function syncAccountBenchmarks(
         total_spend: benchmark.total_spend,
         total_results: benchmark.total_results,
         impressions: benchmark.impressions,
+        clicks: benchmark.clicks,
+        link_clicks: benchmark.link_clicks,
+        landing_page_views: benchmark.landing_page_views,
+        revenue: benchmark.revenue,
+        avg_ctr: avgCtr,
+        avg_roas: avgRoas,
         campaign_count: benchmark.campaign_count,
         date_range_start: dateRangeStart,
         date_range_end: dateRangeEnd,
@@ -886,7 +933,9 @@ async function syncGoogleAdsBenchmarks(
       metrics.clicks,
       metrics.conversions,
       metrics.video_views,
-      metrics.all_conversions
+      metrics.all_conversions,
+      metrics.conversions_value,
+      metrics.all_conversions_value
     FROM geographic_view
     WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
       AND metrics.cost_micros > 0
@@ -967,6 +1016,10 @@ async function syncGoogleAdsBenchmarks(
     total_spend: number;
     total_results: number;
     impressions: number;
+    clicks: number;
+    link_clicks: number;
+    landing_page_views: number;
+    revenue: number;
     campaign_count: number;
     industry: string | null;
   }>();
@@ -980,6 +1033,7 @@ async function syncGoogleAdsBenchmarks(
     const clicks = parseInt(row.metrics?.clicks || "0");
     const conversions = parseFloat(row.metrics?.conversions || "0");
     const videoViews = parseInt(row.metrics?.videoViews || "0");
+    const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
 
     const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
@@ -1006,6 +1060,10 @@ async function syncGoogleAdsBenchmarks(
         total_spend: 0,
         total_results: 0,
         impressions: 0,
+        clicks: 0,
+        link_clicks: 0,
+        landing_page_views: 0,
+        revenue: 0,
         campaign_count: 0,
         industry,
       });
@@ -1015,6 +1073,8 @@ async function syncGoogleAdsBenchmarks(
     benchmark.total_spend += spend;
     benchmark.total_results += results;
     benchmark.impressions += impressions;
+    benchmark.clicks += clicks;
+    benchmark.revenue += revenue;
     benchmark.campaign_count += 1;
 
     // Also add generic CLICK and CONVERSION benchmarks
@@ -1023,13 +1083,16 @@ async function syncGoogleAdsBenchmarks(
       if (!benchmarkMap.has(clickKey)) {
         benchmarkMap.set(clickKey, {
           market: country, optimization_goal: "CLICK",
-          total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0, campaign_count: 0, industry,
         });
       }
       const clickBm = benchmarkMap.get(clickKey)!;
       clickBm.total_spend += spend;
       clickBm.total_results += clicks;
       clickBm.impressions += impressions;
+      clickBm.clicks += clicks;
+      clickBm.revenue += revenue;
       clickBm.campaign_count += 1;
     }
 
@@ -1038,13 +1101,16 @@ async function syncGoogleAdsBenchmarks(
       if (!benchmarkMap.has(convKey)) {
         benchmarkMap.set(convKey, {
           market: country, optimization_goal: "CONVERSION",
-          total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0, campaign_count: 0, industry,
         });
       }
       const convBm = benchmarkMap.get(convKey)!;
       convBm.total_spend += spend;
       convBm.total_results += conversions;
       convBm.impressions += impressions;
+      convBm.clicks += clicks;
+      convBm.revenue += revenue;
       convBm.campaign_count += 1;
     }
   }
@@ -1056,6 +1122,12 @@ async function syncGoogleAdsBenchmarks(
   for (const [key, benchmark] of benchmarkMap.entries()) {
     const avgCostPerResult = benchmark.total_results > 0
       ? benchmark.total_spend / benchmark.total_results
+      : null;
+    const avgCtr = benchmark.impressions > 0
+      ? (benchmark.clicks / benchmark.impressions) * 100
+      : null;
+    const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
+      ? benchmark.revenue / benchmark.total_spend
       : null;
 
     const { error } = await supabase
@@ -1070,6 +1142,12 @@ async function syncGoogleAdsBenchmarks(
         total_spend: benchmark.total_spend,
         total_results: benchmark.total_results,
         impressions: benchmark.impressions,
+        clicks: benchmark.clicks,
+        link_clicks: benchmark.link_clicks,
+        landing_page_views: benchmark.landing_page_views,
+        revenue: benchmark.revenue,
+        avg_ctr: avgCtr,
+        avg_roas: avgRoas,
         campaign_count: benchmark.campaign_count,
         date_range_start: dateRangeStart,
         date_range_end: dateRangeEnd,
@@ -1080,7 +1158,7 @@ async function syncGoogleAdsBenchmarks(
     if (error) {
       console.error(`[GOOGLE-BENCHMARK] Error storing ${key}:`, error);
     } else {
-      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'}`);
+      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} ROAS ${avgRoas?.toFixed(2) || 'N/A'}`);
       storedCount++;
     }
   }

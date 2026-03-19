@@ -681,16 +681,22 @@ export type Database = {
       campaign_performance_benchmarks: {
         Row: {
           avg_cost_per_result: number | null
+          avg_ctr: number | null
+          avg_roas: number | null
           campaign_count: number
+          clicks: number | null
           created_at: string
           date_range_end: string
           date_range_start: string
           id: string
           impressions: number
           industry: string | null
+          landing_page_views: number | null
+          link_clicks: number | null
           market: string
           optimization_goal: string
           platform: string
+          revenue: number | null
           total_results: number
           total_spend: number
           updated_at: string
@@ -698,16 +704,22 @@ export type Database = {
         }
         Insert: {
           avg_cost_per_result?: number | null
+          avg_ctr?: number | null
+          avg_roas?: number | null
           campaign_count?: number
+          clicks?: number | null
           created_at?: string
           date_range_end: string
           date_range_start: string
           id?: string
           impressions?: number
           industry?: string | null
+          landing_page_views?: number | null
+          link_clicks?: number | null
           market: string
           optimization_goal: string
           platform?: string
+          revenue?: number | null
           total_results?: number
           total_spend?: number
           updated_at?: string
@@ -715,16 +727,22 @@ export type Database = {
         }
         Update: {
           avg_cost_per_result?: number | null
+          avg_ctr?: number | null
+          avg_roas?: number | null
           campaign_count?: number
+          clicks?: number | null
           created_at?: string
           date_range_end?: string
           date_range_start?: string
           id?: string
           impressions?: number
           industry?: string | null
+          landing_page_views?: number | null
+          link_clicks?: number | null
           market?: string
           optimization_goal?: string
           platform?: string
+          revenue?: number | null
           total_results?: number
           total_spend?: number
           updated_at?: string
