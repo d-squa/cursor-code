@@ -41,6 +41,8 @@ interface KeywordTargetingProps {
   googleCustomerId?: string;
   tiktokAdvertiserId?: string;
   markets?: MarketInfo[];
+  googleMarkets?: MarketInfo[];
+  tiktokMarkets?: MarketInfo[];
 }
 
 const STRATEGY_META: Record<KeywordStrategy, { label: string; icon: React.ReactNode; color: string }> = {
@@ -61,6 +63,8 @@ export function KeywordTargeting({
   googleCustomerId,
   tiktokAdvertiserId,
   markets = [],
+  googleMarkets = [],
+  tiktokMarkets = [],
 }: KeywordTargetingProps) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -71,10 +75,12 @@ export function KeywordTargeting({
   const [activeMarketTab, setActiveMarketTab] = useState<string>("all");
 
   const hasGoogleOrTiktok = !!googleCustomerId || !!tiktokAdvertiserId;
-  const hasMultipleMarkets = markets.length > 1;
+  const toMarketCodes = (items?: MarketInfo[]) =>
+    Array.from(new Set((items || []).map((market) => (market.name || "").substring(0, 2).toUpperCase()).filter(Boolean)));
 
   // Derive unique market codes from results
   const resultMarkets = Array.from(new Set(results.map(r => r.market).filter(Boolean))) as string[];
+  const hasMultipleMarkets = markets.length > 1 || resultMarkets.length > 1;
 
   // Filter results by active market tab and platform
   const getFilteredResults = () => {
@@ -100,25 +106,33 @@ export function KeywordTargeting({
 
     setSearching(true);
     try {
-      // Pass market country codes to the edge function
-      const marketCodes = markets.length > 0 ? markets.map(m => m.name.substring(0, 2).toUpperCase()) : undefined;
+      const googleMarketCodes = googleMarkets.length > 0
+        ? toMarketCodes(googleMarkets)
+        : (googleCustomerId ? toMarketCodes(markets) : undefined);
+      const tiktokMarketCodes = tiktokMarkets.length > 0
+        ? toMarketCodes(tiktokMarkets)
+        : (tiktokAdvertiserId ? toMarketCodes(markets) : undefined);
+      const requestedMarkets = Array.from(new Set([...(googleMarketCodes || []), ...(tiktokMarketCodes || [])]));
 
       const { data, error } = await supabase.functions.invoke("search-platform-keywords", {
-        body: { query, googleCustomerId, tiktokAdvertiserId, markets: marketCodes },
+        body: {
+          query,
+          googleCustomerId,
+          tiktokAdvertiserId,
+          googleMarkets: googleMarketCodes,
+          tiktokMarkets: tiktokMarketCodes,
+          markets: requestedMarkets,
+        },
       });
 
       if (error) throw error;
 
       const sorted = (data.results || []).sort((a: KeywordItem, b: KeywordItem) => (b.avgMonthlySearches || 0) - (a.avgMonthlySearches || 0));
       setResults(sorted);
-
-      // Auto-select first market tab if multi-market
-      if (hasMultipleMarkets && marketCodes && marketCodes.length > 0) {
-        setActiveMarketTab(marketCodes[0]);
-      }
+      setActiveMarketTab("all");
 
       if (data.results?.length > 0) {
-        toast.success(`Found ${data.results.length} keyword suggestions across ${data.markets?.length || 1} market(s)`);
+        toast.success(`Found ${data.results.length} keyword suggestions across ${data.markets?.length || requestedMarkets.length || 1} market(s)`);
       } else {
         toast.warning("No keyword suggestions found");
       }
@@ -533,9 +547,12 @@ export function KeywordTargeting({
               </span>
               <div className="flex gap-1">
                 {(['all', 'google', 'tiktok'] as const).map(f => {
-                  const count = f === 'all' 
-                    ? (activeMarketTab === 'all' ? results : results.filter(r => r.market === activeMarketTab)).length
-                    : (activeMarketTab === 'all' ? results : results.filter(r => r.market === activeMarketTab)).filter(r => r.platform === f).length;
+                  const activeMarketResults = activeMarketTab === 'all'
+                    ? results
+                    : results.filter(r => r.market === activeMarketTab);
+                  const count = f === 'all'
+                    ? activeMarketResults.length
+                    : activeMarketResults.filter(r => r.platform === f).length;
                   if (f !== 'all' && count === 0) return null;
                   return (
                     <Button
@@ -556,6 +573,13 @@ export function KeywordTargeting({
             {hasMultipleMarkets && resultMarkets.length > 1 ? (
               <Tabs value={activeMarketTab} onValueChange={setActiveMarketTab} className="mb-2">
                 <TabsList className="h-8">
+                  <TabsTrigger value="all" className="text-xs gap-1 h-7 px-3">
+                    <Globe className="h-3 w-3" />
+                    All markets
+                    <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
+                      {results.length}
+                    </Badge>
+                  </TabsTrigger>
                   {resultMarkets.map((market) => {
                     const count = results.filter(r => r.market === market).length;
                     return (

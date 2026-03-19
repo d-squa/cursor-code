@@ -47,22 +47,36 @@ serve(async (req: Request) => {
       });
     }
 
-    const { query, googleCustomerId, tiktokAdvertiserId, markets } = await req.json();
+    const {
+      query,
+      googleCustomerId,
+      tiktokAdvertiserId,
+      markets,
+      googleMarkets,
+      tiktokMarkets,
+    } = await req.json();
 
     if (!query) {
       throw new Error("query is required");
     }
 
-    // Markets is an array of country codes, e.g. ["AE", "US"]
-    // If not provided, fall back to ["US"]
-    const targetMarkets: string[] = (markets && markets.length > 0) ? markets : ["US"];
+    const fallbackMarkets: string[] = (markets && markets.length > 0) ? markets : ["US"];
+    const googleTargetMarkets: string[] = (googleMarkets && googleMarkets.length > 0)
+      ? googleMarkets
+      : (googleCustomerId ? fallbackMarkets : []);
+    const tiktokTargetMarkets: string[] = (tiktokMarkets && tiktokMarkets.length > 0)
+      ? tiktokMarkets
+      : (tiktokAdvertiserId ? fallbackMarkets : []);
+    const targetMarkets: string[] = Array.from(new Set([...googleTargetMarkets, ...tiktokTargetMarkets]));
 
-    console.log(`Searching keywords: "${query}" google=${googleCustomerId} tiktok=${tiktokAdvertiserId} markets=${targetMarkets.join(",")}`);
+    console.log(
+      `Searching keywords: "${query}" google=${googleCustomerId} tiktok=${tiktokAdvertiserId} googleMarkets=${googleTargetMarkets.join(",") || "-"} tiktokMarkets=${tiktokTargetMarkets.join(",") || "-"}`
+    );
 
     const allResults: KeywordResult[] = [];
 
-    // Search Google Ads Keywords - parallel per market
-    if (googleCustomerId) {
+    // Search Google Ads Keywords - parallel per Google search market
+    if (googleCustomerId && googleTargetMarkets.length > 0) {
       const platformCandidates = await getGooglePlatformCandidatesForCustomer(supabase, user.id, googleCustomerId);
       const platform = platformCandidates.length > 0 ? platformCandidates[0] : null;
 
@@ -102,8 +116,7 @@ serve(async (req: Request) => {
             headers["login-customer-id"] = loginCustomerId;
           }
 
-          // Make parallel requests per market
-          const marketPromises = targetMarkets.map(async (marketCode) => {
+          const marketPromises = googleTargetMarkets.map(async (marketCode) => {
             const geoId = getGeoTargetId(marketCode);
             const keywordUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}:generateKeywordIdeas`;
             const keywordBody = {
@@ -157,10 +170,10 @@ serve(async (req: Request) => {
       }
     }
 
-    // Search TikTok Keywords - single call, tag with all markets
+    // Search TikTok Keywords - single call, tagged only to TikTok search markets
     // TikTok's keyword recommend API does NOT support geo-filtering,
-    // so we make ONE call and tag results with all target markets
-    if (tiktokAdvertiserId) {
+    // so we make ONE call and fan out only to the TikTok search markets.
+    if (tiktokAdvertiserId && tiktokTargetMarkets.length > 0) {
       const platformCandidates = await getTikTokPlatformCandidatesForAdvertiser(supabase, user.id, tiktokAdvertiserId);
       const platform = platformCandidates.length > 0 ? platformCandidates[0] : null;
 
@@ -185,11 +198,10 @@ serve(async (req: Request) => {
               const data = await resp.json();
               if (data.code === 0 && data.data?.recommended_keywords) {
                 const keywords = data.data.recommended_keywords;
-                console.log(`TikTok returned ${keywords.length} keyword recommendations (applied to ${targetMarkets.length} markets)`);
-                
-                // Create one result per keyword per market
+                console.log(`TikTok returned ${keywords.length} keyword recommendations (applied to ${tiktokTargetMarkets.length} markets)`);
+
                 for (const kw of keywords) {
-                  for (const marketCode of targetMarkets) {
+                  for (const marketCode of tiktokTargetMarkets) {
                     allResults.push({
                       id: `tiktok_kw_${kw.keyword_id || kw.keyword}_${marketCode}`,
                       name: kw.keyword,
@@ -214,7 +226,12 @@ serve(async (req: Request) => {
     console.log(`Total keyword results: ${allResults.length} across ${targetMarkets.length} markets`);
 
     return new Response(
-      JSON.stringify({ results: allResults, markets: targetMarkets }),
+      JSON.stringify({
+        results: allResults,
+        markets: targetMarkets,
+        googleMarkets: googleTargetMarkets,
+        tiktokMarkets: tiktokTargetMarkets,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

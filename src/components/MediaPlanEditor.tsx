@@ -557,6 +557,56 @@ export function MediaPlanEditor() {
     );
   }, [platformsWithMarkets]);
 
+  const keywordSearchScope = useMemo(() => {
+    const googleMarketMap = new Map<string, string>();
+    const tiktokMarketMap = new Map<string, string>();
+    let scopedGoogleCustomerId: string | undefined;
+    let scopedTiktokAdvertiserId: string | undefined;
+
+    const toMarketInfo = (marketMap: Map<string, string>) =>
+      Array.from(marketMap.entries()).map(([code, name]) => ({ name: code, label: name }));
+
+    platformsWithMarkets
+      .filter((platform) => platform.enabled)
+      .forEach((platform) => {
+        const platformName = platform.name.toLowerCase();
+        const isGoogle = platform.id === "google_ads" || platform.id === "google" || platformName.includes("google");
+        const isTikTok = platform.id === "tiktok" || platformName.includes("tiktok");
+
+        if (!isGoogle && !isTikTok) return;
+
+        platform.markets.forEach((market) => {
+          const marketCode = (market.name || "").substring(0, 2).toUpperCase();
+          if (!marketCode) return;
+
+          const phases = Array.isArray(market.phases) ? market.phases : [];
+          const hasSearchCampaign = phases.some((phase: any) =>
+            isGoogle ? phase?.googleCampaignType === "Search" : phase?.tiktokCampaignType === "Search"
+          );
+
+          if (!hasSearchCampaign) return;
+
+          if (isGoogle) {
+            googleMarketMap.set(marketCode, market.name);
+            scopedGoogleCustomerId ||= market.adAccountId || firstGoogleCustomerId || undefined;
+          }
+
+          if (isTikTok) {
+            tiktokMarketMap.set(marketCode, market.name);
+            scopedTiktokAdvertiserId ||= market.adAccountId || firstTiktokAdvertiserId || undefined;
+          }
+        });
+      });
+
+    return {
+      googleCustomerId: googleMarketMap.size > 0 ? (scopedGoogleCustomerId || firstGoogleCustomerId || undefined) : undefined,
+      tiktokAdvertiserId: tiktokMarketMap.size > 0 ? (scopedTiktokAdvertiserId || firstTiktokAdvertiserId || undefined) : undefined,
+      googleMarkets: toMarketInfo(googleMarketMap),
+      tiktokMarkets: toMarketInfo(tiktokMarketMap),
+      markets: toMarketInfo(new Map([...googleMarketMap.entries(), ...tiktokMarketMap.entries()])),
+    };
+  }, [platformsWithMarkets, firstGoogleCustomerId, firstTiktokAdvertiserId]);
+
   // Sync derived values to state only when they provide a non-null value
   // (don't override DB-fetched values with null derived values)
   useEffect(() => {
@@ -2394,8 +2444,8 @@ export function MediaPlanEditor() {
                   }
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
-                tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
-                googleCustomerId={firstGoogleCustomerId || undefined}
+                tiktokAdvertiserId={keywordSearchScope.tiktokAdvertiserId}
+                googleCustomerId={keywordSearchScope.googleCustomerId}
                 platformId={
                   platformsWithMarkets.find((p) => p.id === "meta")?.id || platformsWithMarkets[0]?.id || "meta"
                 }
@@ -2410,19 +2460,9 @@ export function MediaPlanEditor() {
                     adAccountId:
                       p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : (p.id === "google" || p.id === "google_ads") ? firstGoogleCustomerId : undefined,
                   }))}
-                markets={(() => {
-                  // Collect unique market codes from all enabled platforms
-                  const marketSet = new Map<string, string>();
-                  platformsWithMarkets.filter(p => p.enabled).forEach(p => {
-                    p.markets.forEach(m => {
-                      const code = (m.name || "").substring(0, 2).toUpperCase();
-                      if (code && !marketSet.has(code)) {
-                        marketSet.set(code, m.name);
-                      }
-                    });
-                  });
-                  return Array.from(marketSet.entries()).map(([code, name]) => ({ name: code, label: name }));
-                })()}
+                markets={keywordSearchScope.markets}
+                googleMarkets={keywordSearchScope.googleMarkets}
+                tiktokMarkets={keywordSearchScope.tiktokMarkets}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
