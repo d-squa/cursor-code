@@ -136,20 +136,28 @@ serve(async (req) => {
     }
 
     const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');
-    const managerAccountId = Deno.env.get('GOOGLE_ADS_MANAGER_ACCOUNT_ID');
 
     if (!developerToken) {
       throw new Error('Google Ads developer token not configured');
     }
 
+    // Look up the manager_customer_id from the google_ad_accounts table
+    const { data: googleAccount } = await supabase
+      .from("google_ad_accounts")
+      .select("manager_customer_id")
+      .eq("customer_id", cleanCustomerId)
+      .limit(1)
+      .single();
+
+    const managerAccountId = googleAccount?.manager_customer_id
+      || Deno.env.get('GOOGLE_ADS_MANAGER_ACCOUNT_ID');
+
     const apiHeaders: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'developer-token': developerToken,
       'Content-Type': 'application/json',
+      'login-customer-id': (managerAccountId || cleanCustomerId).replace(/-/g, ''),
     };
-    if (managerAccountId) {
-      apiHeaders['login-customer-id'] = managerAccountId.replace(/-/g, '');
-    }
 
     const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}/googleAds:searchStream`;
     const allAudiences: AudienceResult[] = [];
