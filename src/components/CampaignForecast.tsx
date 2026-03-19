@@ -180,60 +180,204 @@ export function CampaignForecast({
   const [existingLoadComplete, setExistingLoadComplete] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Map<string, BenchmarkData>>(new Map());
   const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
-  const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(clientIndustry);
+  const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
+  const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
+  const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(
+    clientIndustry || persistedClientIndustry,
+  );
 
-  // Resolve industry from linked ad accounts if not provided directly
+  // Resolve industry from explicit client selection, saved campaign config, or linked ad accounts
   useEffect(() => {
     const resolveIndustryFromAdAccounts = async () => {
-      if (clientIndustry) {
-        setResolvedIndustry(clientIndustry);
+      const directIndustry = clientIndustry || persistedClientIndustry;
+      if (directIndustry) {
+        setResolvedIndustry(directIndustry);
         return;
       }
 
       try {
-        const metaAccountIds = new Set<string>();
-        const googleCustomerIds = new Set<string>();
+        if (persistedClientId) {
+          const { data: selectedClient, error: selectedClientError } = await supabase
+            .from("clients")
+            .select("industry")
+            .eq("id", persistedClientId)
+            .maybeSingle();
+
+          if (selectedClientError) throw selectedClientError;
+
+          if (selectedClient?.industry) {
+            console.log(`✅ Resolved industry from selected client ${persistedClientId}: ${selectedClient.industry}`);
+            setResolvedIndustry(selectedClient.industry);
+            return;
+          }
+        }
+
+        if (campaignId) {
+          const { data: campaign, error: campaignError } = await supabase
+            .from("campaigns")
+            .select("generic_config")
+            .eq("id", campaignId)
+            .maybeSingle();
+
+          if (campaignError) throw campaignError;
+
+          const savedConfig = (campaign?.generic_config as Record<string, any> | null) || null;
+          const savedIndustry = savedConfig?.clientIndustry as string | undefined;
+          const savedClientId = savedConfig?.selectedClientId as string | undefined;
+
+          if (savedIndustry) {
+            console.log(`✅ Resolved industry from saved campaign config: ${savedIndustry}`);
+            setResolvedIndustry(savedIndustry);
+            return;
+          }
+
+          if (savedClientId) {
+            const { data: savedClient, error: savedClientError } = await supabase
+              .from("clients")
+              .select("industry")
+              .eq("id", savedClientId)
+              .maybeSingle();
+
+            if (savedClientError) throw savedClientError;
+
+            if (savedClient?.industry) {
+              console.log(`✅ Resolved industry from saved client ${savedClientId}: ${savedClient.industry}`);
+              setResolvedIndustry(savedClient.industry);
+              return;
+            }
+          }
+        }
+
+        const isUuid = (value: string) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+        const metaInternalIds = new Set<string>();
+        const metaExternalIds = new Set<string>();
+        const googleInternalIds = new Set<string>();
+        const googleExternalIds = new Set<string>();
+        const tiktokInternalIds = new Set<string>();
+        const tiktokExternalIds = new Set<string>();
+        const snapchatInternalIds = new Set<string>();
+        const snapchatExternalIds = new Set<string>();
 
         for (const platform of platforms) {
           const platformKey = getPlatformKeyFromId(platform.id);
 
           for (const market of platform.markets) {
-            if (!market.adAccountId) continue;
+            const rawAccountId = market.adAccountId?.trim();
+            if (!rawAccountId) continue;
 
             if (platformKey === "meta") {
-              const accountId = market.adAccountId.replace(/^act_/, "");
-              metaAccountIds.add(accountId);
-              metaAccountIds.add(`act_${accountId}`);
+              if (isUuid(rawAccountId)) {
+                metaInternalIds.add(rawAccountId);
+              } else {
+                const accountId = rawAccountId.replace(/^act_/, "");
+                metaExternalIds.add(accountId);
+                metaExternalIds.add(`act_${accountId}`);
+              }
             }
 
             if (platformKey === "google") {
-              googleCustomerIds.add(market.adAccountId.replace(/-/g, ""));
+              if (isUuid(rawAccountId)) {
+                googleInternalIds.add(rawAccountId);
+              } else {
+                googleExternalIds.add(rawAccountId);
+                googleExternalIds.add(rawAccountId.replace(/-/g, ""));
+              }
+            }
+
+            if (platformKey === "tiktok") {
+              if (isUuid(rawAccountId)) {
+                tiktokInternalIds.add(rawAccountId);
+              } else {
+                tiktokExternalIds.add(rawAccountId);
+              }
+            }
+
+            if (platformKey === "snapchat") {
+              if (isUuid(rawAccountId)) {
+                snapchatInternalIds.add(rawAccountId);
+              } else {
+                snapchatExternalIds.add(rawAccountId);
+              }
             }
           }
         }
 
-        if (metaAccountIds.size === 0 && googleCustomerIds.size === 0) {
-          console.log("📊 No supported ad accounts found in campaign, cannot resolve industry");
+        if (
+          metaInternalIds.size === 0 &&
+          metaExternalIds.size === 0 &&
+          googleInternalIds.size === 0 &&
+          googleExternalIds.size === 0 &&
+          tiktokInternalIds.size === 0 &&
+          tiktokExternalIds.size === 0 &&
+          snapchatInternalIds.size === 0 &&
+          snapchatExternalIds.size === 0
+        ) {
+          console.log("📊 No linked ad accounts found in campaign, cannot resolve industry");
+          setResolvedIndustry(undefined);
           return;
         }
 
         console.log("📊 Resolving industry from ad accounts:", {
-          meta: Array.from(metaAccountIds),
-          google: Array.from(googleCustomerIds),
+          metaInternal: Array.from(metaInternalIds),
+          metaExternal: Array.from(metaExternalIds),
+          googleInternal: Array.from(googleInternalIds),
+          googleExternal: Array.from(googleExternalIds),
+          tiktokInternal: Array.from(tiktokInternalIds),
+          tiktokExternal: Array.from(tiktokExternalIds),
+          snapchatInternal: Array.from(snapchatInternalIds),
+          snapchatExternal: Array.from(snapchatExternalIds),
         });
 
         const accountResults = await Promise.all([
-          metaAccountIds.size > 0
+          metaInternalIds.size > 0
             ? supabase
                 .from("meta_ad_accounts")
-                .select("account_id, client_id, clients(industry)")
-                .in("account_id", Array.from(metaAccountIds))
+                .select("id, account_id, client_id, clients(industry)")
+                .in("id", Array.from(metaInternalIds))
             : Promise.resolve({ data: [], error: null }),
-          googleCustomerIds.size > 0
+          metaExternalIds.size > 0
+            ? supabase
+                .from("meta_ad_accounts")
+                .select("id, account_id, client_id, clients(industry)")
+                .in("account_id", Array.from(metaExternalIds))
+            : Promise.resolve({ data: [], error: null }),
+          googleInternalIds.size > 0
             ? supabase
                 .from("google_ad_accounts")
-                .select("customer_id, client_id, clients(industry)")
-                .in("customer_id", Array.from(googleCustomerIds))
+                .select("id, customer_id, client_id, clients(industry)")
+                .in("id", Array.from(googleInternalIds))
+            : Promise.resolve({ data: [], error: null }),
+          googleExternalIds.size > 0
+            ? supabase
+                .from("google_ad_accounts")
+                .select("id, customer_id, client_id, clients(industry)")
+                .in("customer_id", Array.from(googleExternalIds))
+            : Promise.resolve({ data: [], error: null }),
+          tiktokInternalIds.size > 0
+            ? supabase
+                .from("tiktok_ad_accounts")
+                .select("id, advertiser_id, account_id, client_id, clients(industry)")
+                .in("id", Array.from(tiktokInternalIds))
+            : Promise.resolve({ data: [], error: null }),
+          tiktokExternalIds.size > 0
+            ? supabase
+                .from("tiktok_ad_accounts")
+                .select("id, advertiser_id, account_id, client_id, clients(industry)")
+                .in("advertiser_id", Array.from(tiktokExternalIds))
+            : Promise.resolve({ data: [], error: null }),
+          snapchatInternalIds.size > 0
+            ? supabase
+                .from("snapchat_ad_accounts")
+                .select("id, advertiser_id, account_id, client_id, clients(industry)")
+                .in("id", Array.from(snapchatInternalIds))
+            : Promise.resolve({ data: [], error: null }),
+          snapchatExternalIds.size > 0
+            ? supabase
+                .from("snapchat_ad_accounts")
+                .select("id, advertiser_id, account_id, client_id, clients(industry)")
+                .in("account_id", Array.from(snapchatExternalIds))
             : Promise.resolve({ data: [], error: null }),
         ]);
 
@@ -249,21 +393,26 @@ export function CampaignForecast({
             : clientRelation?.industry;
 
           if (industry) {
-            const accountLabel = (acc as any).account_id || (acc as any).customer_id;
+            const accountLabel =
+              (acc as any).account_id ||
+              (acc as any).customer_id ||
+              (acc as any).advertiser_id ||
+              (acc as any).id;
             console.log(`✅ Resolved industry from linked ad account ${accountLabel}: ${industry}`);
             setResolvedIndustry(industry);
             return;
           }
         }
 
-        console.log("⚠️ Could not resolve industry from linked ad accounts");
+        console.log("⚠️ Could not resolve industry from client or linked ad accounts");
+        setResolvedIndustry(undefined);
       } catch (error) {
         console.error("Error resolving industry from ad accounts:", error);
       }
     };
 
     resolveIndustryFromAdAccounts();
-  }, [clientIndustry, platforms]);
+  }, [campaignId, clientIndustry, persistedClientId, persistedClientIndustry, platforms]);
 
   // Load existing forecast on mount
   useEffect(() => {
