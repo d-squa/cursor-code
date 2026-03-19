@@ -490,7 +490,7 @@ const GOOGLE_ADS_API_VERSION = 'v23';
 async function searchGoogleAudiences(headers: Record<string, string>, customerId: string, query: string) {
   try {
     const escapedQuery = query.replace(/'/g, "''");
-    const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`;
+    const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:search`;
 
     const runGaqlSearch = async (gaql: string): Promise<any[]> => {
       console.log(`Google GAQL query: ${gaql.trim().substring(0, 120)}...`);
