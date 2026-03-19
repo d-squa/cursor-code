@@ -72,9 +72,9 @@ export function KeywordTargeting({
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<KeywordItem[]>([]);
   const [defaultMatchType, setDefaultMatchType] = useState<KeywordMatchType>("broad");
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
-  const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
+  const [activePlatformTab, setActivePlatformTab] = useState<string>("all");
   const [activeMarketTab, setActiveMarketTab] = useState<string>("all");
+  const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
 
   const hasSearchAccountIds = !!googleCustomerId || !!tiktokAdvertiserId;
   const canRenderKeywordTargeting = hasSearchAccountIds || showWithoutAccountIds;
@@ -85,19 +85,28 @@ export function KeywordTargeting({
   const resultMarkets = Array.from(new Set(results.map(r => r.market).filter(Boolean))) as string[];
   const hasMultipleMarkets = markets.length > 1 || resultMarkets.length > 1;
 
-  // Filter results by active market tab and platform
+  // Filter results by platform tab then market tab
   const getFilteredResults = () => {
     let filtered = results;
+    if (activePlatformTab !== "all") {
+      filtered = filtered.filter(r => r.platform === activePlatformTab);
+    }
     if (activeMarketTab !== "all") {
       filtered = filtered.filter(r => r.market === activeMarketTab);
-    }
-    if (platformFilter !== 'all') {
-      filtered = filtered.filter(r => r.platform === platformFilter);
     }
     return filtered;
   };
 
   const filteredResults = getFilteredResults();
+
+  // Markets available for the current platform tab
+  const marketsForPlatformTab = Array.from(
+    new Set(
+      (activePlatformTab === "all" ? results : results.filter(r => r.platform === activePlatformTab))
+        .map(r => r.market)
+        .filter(Boolean)
+    )
+  ) as string[];
 
   if (!canRenderKeywordTargeting) return null;
 
@@ -137,6 +146,7 @@ export function KeywordTargeting({
 
       const sorted = (data.results || []).sort((a: KeywordItem, b: KeywordItem) => (b.avgMonthlySearches || 0) - (a.avgMonthlySearches || 0));
       setResults(sorted);
+      setActivePlatformTab("all");
       setActiveMarketTab("all");
 
       if (data.results?.length > 0) {
@@ -546,69 +556,75 @@ export function KeywordTargeting({
           </div>
         )}
 
-        {/* Results with Market Tabs */}
+        {/* Results with Platform Tabs → Market Sub-Tabs */}
         {results.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">
                 Suggestions ({filteredResults.length})
               </span>
-              <div className="flex gap-1">
-                {(['all', 'google', 'tiktok'] as const).map(f => {
-                  const activeMarketResults = activeMarketTab === 'all'
-                    ? results
-                    : results.filter(r => r.market === activeMarketTab);
-                  const count = f === 'all'
-                    ? activeMarketResults.length
-                    : activeMarketResults.filter(r => r.platform === f).length;
-                  if (f !== 'all' && count === 0) return null;
-                  return (
-                    <Button
-                      key={f}
-                      size="sm"
-                      variant={platformFilter === f ? "default" : "outline"}
-                      className="h-6 text-[10px] px-2"
-                      onClick={() => setPlatformFilter(f)}
-                    >
-                      {f === 'all' ? 'All' : f === 'google' ? 'Google' : 'TikTok'} ({count})
-                    </Button>
-                  );
-                })}
+              <div className="flex items-center gap-1.5">
+                <BulkStrategyDropdown isNegative={false} />
+                <BulkStrategyDropdown isNegative={true} />
               </div>
             </div>
 
-            {/* Market Tabs - show only when multiple markets */}
-            {hasMultipleMarkets && resultMarkets.length > 1 ? (
-              <Tabs value={activeMarketTab} onValueChange={setActiveMarketTab} className="mb-2">
-                <TabsList className="h-8">
-                  <TabsTrigger value="all" className="text-xs gap-1 h-7 px-3">
-                    <Globe className="h-3 w-3" />
-                    All markets
+            {/* Platform Tabs */}
+            <Tabs value={activePlatformTab} onValueChange={(v) => { setActivePlatformTab(v); setActiveMarketTab("all"); }}>
+              <TabsList className="h-8 w-full">
+                <TabsTrigger value="all" className="text-xs gap-1 h-7 px-3 flex-1">
+                  All
+                  <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
+                    {results.length}
+                  </Badge>
+                </TabsTrigger>
+                {results.some(r => r.platform === "google") && (
+                  <TabsTrigger value="google" className="text-xs gap-1 h-7 px-3 flex-1">
+                    Google Ads
                     <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
-                      {results.length}
+                      {results.filter(r => r.platform === "google").length}
                     </Badge>
                   </TabsTrigger>
-                  {resultMarkets.map((market) => {
-                    const count = results.filter(r => r.market === market).length;
-                    return (
-                      <TabsTrigger key={market} value={market} className="text-xs gap-1 h-7 px-3">
-                        <Globe className="h-3 w-3" />
-                        {getMarketLabel(market)}
-                        <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
-                          {count}
-                        </Badge>
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
-              </Tabs>
-            ) : null}
+                )}
+                {results.some(r => r.platform === "tiktok") && (
+                  <TabsTrigger value="tiktok" className="text-xs gap-1 h-7 px-3 flex-1">
+                    TikTok
+                    <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
+                      {results.filter(r => r.platform === "tiktok").length}
+                    </Badge>
+                  </TabsTrigger>
+                )}
+              </TabsList>
 
-            <div className="flex items-center justify-end gap-1.5 mb-2">
-              <BulkStrategyDropdown isNegative={false} />
-              <BulkStrategyDropdown isNegative={true} />
-            </div>
-            <ScrollArea className="h-[320px]">
+              {/* Market Sub-Tabs (shown when multiple markets exist for current platform) */}
+              {marketsForPlatformTab.length > 1 && (
+                <Tabs value={activeMarketTab} onValueChange={setActiveMarketTab} className="mt-2">
+                  <TabsList className="h-7 flex-wrap">
+                    <TabsTrigger value="all" className="text-[10px] gap-1 h-6 px-2">
+                      <Globe className="h-3 w-3" />
+                      All
+                      <Badge variant="secondary" className="h-4 min-w-[16px] text-[9px] px-1">
+                        {(activePlatformTab === "all" ? results : results.filter(r => r.platform === activePlatformTab)).length}
+                      </Badge>
+                    </TabsTrigger>
+                    {marketsForPlatformTab.map((market) => {
+                      const platformScoped = activePlatformTab === "all" ? results : results.filter(r => r.platform === activePlatformTab);
+                      const count = platformScoped.filter(r => r.market === market).length;
+                      return (
+                        <TabsTrigger key={market} value={market} className="text-[10px] gap-1 h-6 px-2">
+                          {getMarketLabel(market)}
+                          <Badge variant="secondary" className="h-4 min-w-[16px] text-[9px] px-1">
+                            {count}
+                          </Badge>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                </Tabs>
+              )}
+            </Tabs>
+
+            <ScrollArea className="h-[320px] mt-2">
               <div className="space-y-2">
                 {filteredResults.map((kw) => {
                   const existing = selectedKeywords.find((s) => s.id === kw.id);
@@ -624,10 +640,12 @@ export function KeywordTargeting({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm truncate">{kw.name}</span>
-                          <Badge variant="outline" className={`text-xs ${getPlatformColor(kw.platform)}`}>
-                            {kw.platform === "google" ? "Google" : "TikTok"}
-                          </Badge>
-                          {kw.market && (
+                          {activePlatformTab === "all" && (
+                            <Badge variant="outline" className={`text-xs ${getPlatformColor(kw.platform)}`}>
+                              {kw.platform === "google" ? "Google" : "TikTok"}
+                            </Badge>
+                          )}
+                          {kw.market && activeMarketTab === "all" && (
                             <Badge variant="secondary" className="text-[10px]">
                               {kw.market}
                             </Badge>
