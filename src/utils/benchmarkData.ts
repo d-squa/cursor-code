@@ -9,6 +9,12 @@ export interface BenchmarkData {
   total_spend: number;
   total_results: number;
   impressions: number;
+  clicks: number;
+  link_clicks: number;
+  landing_page_views: number;
+  revenue: number;
+  avg_ctr: number | null;
+  avg_roas: number | null;
   campaign_count: number;
 }
 
