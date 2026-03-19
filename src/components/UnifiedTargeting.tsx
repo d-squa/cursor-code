@@ -16,7 +16,7 @@ import { AdSetSplitDimension, AdSetSplitDimensionPerPlatform } from "@/types/med
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
-import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
+import { KeywordTargeting, KeywordItem, MarketInfo } from "./KeywordTargeting";
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -95,6 +95,8 @@ interface UnifiedTargetingProps {
   selectedPlatforms?: PlatformInfo[];
   // When true, skip writing to localStorage (used for phase override targeting)
   skipLocalStorage?: boolean;
+  // Markets for keyword targeting per-market search
+  markets?: MarketInfo[];
 }
 
 export function UnifiedTargeting({ 
@@ -109,6 +111,7 @@ export function UnifiedTargeting({
   platformName = 'Meta',
   selectedPlatforms,
   skipLocalStorage = false,
+  markets,
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -517,6 +520,7 @@ export function UnifiedTargeting({
           }}
           googleCustomerId={googleCustomerId}
           tiktokAdvertiserId={tiktokAdvertiserId}
+          markets={markets}
         />
       )}
 
