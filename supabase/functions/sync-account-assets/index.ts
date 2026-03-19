@@ -480,13 +480,28 @@ async function syncAccountBenchmarks(
     const impressions = parseFloat(insight.impressions || "0");
     const clicks = parseFloat(insight.clicks || "0");
     const reach = parseFloat(insight.reach || "0");
+    
+    // Extract specific action counts
+    const actions = insight.actions || [];
+    const actionValues = insight.action_values || [];
+    
+    const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
+    const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
+    const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
+    const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
+    
+    // Extract revenue from action_values
+    let revenue = 0;
+    for (const av of actionValues) {
+      if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
+        revenue += parseFloat(av.value || "0");
+      }
+    }
 
     // Process actions
-    const actions = insight.actions || [];
-    
     for (const action of actions) {
       const optimizationGoal = actionTypeMap[action.action_type];
-      if (!optimizationGoal) continue; // Skip unmapped action types
+      if (!optimizationGoal) continue;
       
       const results = parseFloat(action.value || "0");
       if (results <= 0) continue;
@@ -500,15 +515,23 @@ async function syncAccountBenchmarks(
           total_spend: 0,
           total_results: 0,
           impressions: 0,
-          campaign_count: 1, // Account-level aggregation
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
+          campaign_count: 1,
           industry: industry,
         });
       }
 
       const benchmark = benchmarkMap.get(key)!;
-      benchmark.total_spend = spend; // Use full spend for this country
+      benchmark.total_spend = spend;
       benchmark.total_results += results;
       benchmark.impressions = impressions;
+      benchmark.clicks = clicks;
+      benchmark.link_clicks = linkClicks;
+      benchmark.landing_page_views = landingPageViews;
+      benchmark.revenue = revenue;
     }
 
     // Also add REACH and IMPRESSIONS benchmarks
