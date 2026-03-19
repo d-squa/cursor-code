@@ -16,7 +16,7 @@ import { AdSetSplitDimension, AdSetSplitDimensionPerPlatform } from "@/types/med
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
-import { KeywordTargeting, KeywordItem } from "./KeywordTargeting";
+import { KeywordTargeting, KeywordItem, MarketInfo } from "./KeywordTargeting";
 
 export interface UnifiedTargetingItem {
   id: string;
