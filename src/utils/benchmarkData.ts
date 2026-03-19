@@ -265,6 +265,22 @@ export function lookupBenchmark(
 }
 
 /**
+ * Revenue-based optimization goals where ROAS is the primary metric
+ */
+const REVENUE_BASED_GOALS = new Set([
+  'PURCHASE', 'OFFSITE_CONVERSIONS', 'VALUE_OPTIMIZATION', 'VALUE',
+  'SHOPPING_CONVERSIONS', 'PMAX_CONVERSIONS', 'CATALOG_SALES',
+  'COMPLETE_PAYMENT', 'ON_WEB_ORDER', 'OMNI_PURCHASE',
+]);
+
+/**
+ * Check if an optimization goal is revenue/ROAS-based
+ */
+export function isRevenueBasedGoal(optimizationGoal: string): boolean {
+  return REVENUE_BASED_GOALS.has(optimizationGoal.toUpperCase());
+}
+
+/**
  * Calculates cost per result using benchmark if available, otherwise uses estimation
  */
 export async function calculateCostPerResultWithBenchmark(
