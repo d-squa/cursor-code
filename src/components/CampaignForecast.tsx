@@ -1814,39 +1814,22 @@ export function CampaignForecast({
     };
   };
 
-  // Keyword Strategy Forecast sub-component
+  // Keyword Strategy Forecast sub-component - now with market-level tabs
   const KeywordStrategyForecast = ({ keywords, platform }: { keywords: KeywordItem[]; platform?: string }) => {
-    // Filter keywords by platform if provided
     const kwPlatform = platform?.toLowerCase().includes('google') ? 'google' : platform?.toLowerCase().includes('tiktok') ? 'tiktok' : null;
     const filteredKeywords = kwPlatform ? keywords.filter(k => k.platform === kwPlatform) : keywords;
-    keywords = filteredKeywords;
-    const strategies = ["brand", "generic", "competition"] as const;
-    const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
+
+    // Derive unique markets from keywords
+    const marketCodes = Array.from(new Set(filteredKeywords.map(k => k.market).filter(Boolean))) as string[];
+    const hasMultipleMarkets = marketCodes.length > 1;
+    const [activeMarket, setActiveMarket] = useState<string>(marketCodes[0] || "all");
+
+    const strategiesList = ["brand", "generic", "competition"] as const;
+    const STRAT_META: Record<string, { label: string; icon: React.ReactNode; colorClass: string }> = {
       brand: { label: "Brand", icon: <ShieldCheck className="h-4 w-4" />, colorClass: "bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800" },
       generic: { label: "Generic", icon: <TargetIcon className="h-4 w-4" />, colorClass: "bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800" },
       competition: { label: "Competition", icon: <Swords className="h-4 w-4" />, colorClass: "bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800" },
     };
-
-    const strategyData = strategies.map(strategy => {
-      const kws = keywords.filter(k => k.strategy === strategy && !k.isNegative);
-      const negatives = keywords.filter(k => k.strategy === strategy && k.isNegative);
-      const totalVol = kws.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
-      const avgCpcLow = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcLow || 0), 0) / kws.length : 0;
-      const avgCpcHigh = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcHigh || 0), 0) / kws.length : 0;
-      const avgCpc = (avgCpcLow + avgCpcHigh) / 2;
-      // Estimated clicks = budget portion / avg CPC (rough estimate)
-      const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0; // ~3% CTR estimate
-      return { strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks };
-    }).filter(s => s.kws.length > 0);
-
-    // Calculate volume-weighted budget percentages
-    const totalStrategyVol = strategyData.reduce((s, d) => s + d.totalVol, 0);
-    const strategyDataWithBudget = strategyData.map(d => ({
-      ...d,
-      budgetPct: totalStrategyVol > 0 ? Math.round((d.totalVol / totalStrategyVol) * 100) : Math.round(100 / strategyData.length),
-    }));
-
-    if (strategyDataWithBudget.length === 0) return null;
 
     const fmtNum = (n: number) => {
       if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -1854,80 +1837,137 @@ export function CampaignForecast({
       return String(Math.round(n));
     };
 
+    const renderMarketTable = (marketKeywords: KeywordItem[], marketLabel: string) => {
+      const strategyData = strategiesList.map(strategy => {
+        const kws = marketKeywords.filter(k => k.strategy === strategy && !k.isNegative);
+        const negatives = marketKeywords.filter(k => k.strategy === strategy && k.isNegative);
+        const totalVol = kws.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
+        const avgCpcLow = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcLow || 0), 0) / kws.length : 0;
+        const avgCpcHigh = kws.length > 0 ? kws.reduce((s, k) => s + (k.cpcHigh || 0), 0) / kws.length : 0;
+        const avgCpc = (avgCpcLow + avgCpcHigh) / 2;
+        const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0;
+        const ctr = totalVol > 0 && estimatedClicks > 0 ? (estimatedClicks / totalVol) * 100 : 0;
+        const estimatedCost = estimatedClicks * avgCpc;
+        const estimatedConversions = Math.round(estimatedClicks * 0.03);
+        const costPerConversion = estimatedConversions > 0 ? estimatedCost / estimatedConversions : 0;
+        return { strategy, kws, negatives, totalVol, avgCpc, estimatedClicks, ctr, costPerConversion };
+      }).filter(s => s.kws.length > 0);
+
+      const totalStrategyVol = strategyData.reduce((s, d) => s + d.totalVol, 0);
+      const withBudget = strategyData.map(d => ({
+        ...d,
+        budgetPct: totalStrategyVol > 0 ? Math.round((d.totalVol / totalStrategyVol) * 100) : Math.round(100 / Math.max(strategyData.length, 1)),
+      }));
+
+      if (withBudget.length === 0) {
+        return <p className="text-sm text-muted-foreground py-4 text-center">No keywords for {marketLabel}</p>;
+      }
+
+      return (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Strategy</TableHead>
+              <TableHead className="text-xs text-right">Keywords</TableHead>
+              <TableHead className="text-xs text-right">Budget %</TableHead>
+              <TableHead className="text-xs text-right">Search Volume</TableHead>
+              <TableHead className="text-xs text-right">CPC</TableHead>
+              <TableHead className="text-xs text-right">Cost/Conv.</TableHead>
+              <TableHead className="text-xs text-right">Clicks</TableHead>
+              <TableHead className="text-xs text-right">CTR</TableHead>
+              <TableHead className="text-xs text-right">Negatives</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {withBudget.map(({ strategy, kws, negatives, totalVol, avgCpc, estimatedClicks, ctr, costPerConversion, budgetPct }) => {
+              const meta = STRAT_META[strategy];
+              return (
+                <TableRow key={strategy}>
+                  <TableCell>
+                    <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${meta.colorClass}`}>
+                      {meta.icon}
+                      {meta.label}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-right font-medium">{kws.length}</TableCell>
+                  <TableCell className="text-xs text-right font-medium">{budgetPct}%</TableCell>
+                  <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
+                  <TableCell className="text-xs text-right font-medium">{avgCpc > 0 ? `$${avgCpc.toFixed(2)}` : "—"}</TableCell>
+                  <TableCell className="text-xs text-right">{costPerConversion > 0 ? `$${costPerConversion.toFixed(2)}` : "—"}</TableCell>
+                  <TableCell className="text-xs text-right">{estimatedClicks > 0 ? fmtNum(estimatedClicks) : "—"}</TableCell>
+                  <TableCell className="text-xs text-right">{ctr > 0 ? `${ctr.toFixed(2)}%` : "—"}</TableCell>
+                  <TableCell className="text-xs text-right">
+                    {negatives.length > 0 ? (
+                      <span className="flex items-center justify-end gap-1 text-destructive">
+                        <Ban className="h-3 w-3" />{negatives.length}
+                      </span>
+                    ) : "—"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            <TableRow className="font-semibold border-t-2">
+              <TableCell className="text-xs">Total</TableCell>
+              <TableCell className="text-xs text-right">{strategyData.reduce((s, d) => s + d.kws.length, 0)}</TableCell>
+              <TableCell className="text-xs text-right">100%</TableCell>
+              <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.totalVol, 0))}</TableCell>
+              <TableCell className="text-xs text-right">
+                {(() => {
+                  const allKws = strategyData.flatMap(d => d.kws);
+                  const avg = allKws.length > 0 ? allKws.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / allKws.length : 0;
+                  return avg > 0 ? `$${avg.toFixed(2)}` : "—";
+                })()}
+              </TableCell>
+              <TableCell className="text-xs text-right">—</TableCell>
+              <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.estimatedClicks, 0))}</TableCell>
+              <TableCell className="text-xs text-right">
+                {(() => {
+                  const tc = strategyData.reduce((s, d) => s + d.estimatedClicks, 0);
+                  const tv = strategyData.reduce((s, d) => s + d.totalVol, 0);
+                  return tv > 0 && tc > 0 ? `${((tc / tv) * 100).toFixed(2)}%` : "—";
+                })()}
+              </TableCell>
+              <TableCell className="text-xs text-right">{strategyData.reduce((s, d) => s + d.negatives.length, 0) || "—"}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      );
+    };
+
+    if (filteredKeywords.length === 0) return null;
+
     return (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 text-xs">Google Ads</Badge>
-            Keyword Strategy Forecast
+            <Badge variant="outline" className="bg-blue-500/10 text-blue-700 border-blue-200 text-xs">
+              {kwPlatform === 'tiktok' ? 'TikTok' : 'Google Ads'}
+            </Badge>
+            Search Campaign Forecast
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Strategy</TableHead>
-                 <TableHead className="text-xs text-right">Keywords</TableHead>
-                 <TableHead className="text-xs text-right">Budget %</TableHead>
-                 <TableHead className="text-xs text-right">Avg. Monthly Searches</TableHead>
-                 <TableHead className="text-xs text-right">Est. Impressions</TableHead>
-                 <TableHead className="text-xs text-right">CPC Range</TableHead>
-                 <TableHead className="text-xs text-right">Avg. CPC</TableHead>
-                 <TableHead className="text-xs text-right">Est. Clicks</TableHead>
-                 <TableHead className="text-xs text-right">Negatives</TableHead>
-               </TableRow>
-             </TableHeader>
-             <TableBody>
-               {strategyDataWithBudget.map(({ strategy, kws, negatives, totalVol, avgCpcLow, avgCpcHigh, avgCpc, estimatedClicks, budgetPct }) => {
-                const meta = STRATEGY_META[strategy];
-                return (
-                  <TableRow key={strategy}>
-                    <TableCell>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${meta.colorClass}`}>
-                        {meta.icon}
-                        {meta.label}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-right font-medium">{kws.length}</TableCell>
-                    <TableCell className="text-xs text-right font-medium">{budgetPct}%</TableCell>
-                    <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
-                    <TableCell className="text-xs text-right">{fmtNum(totalVol)}</TableCell>
-                    <TableCell className="text-xs text-right">
-                      {avgCpcLow > 0 ? `$${avgCpcLow.toFixed(2)} – $${avgCpcHigh.toFixed(2)}` : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-right font-medium">
-                      {avgCpc > 0 ? `$${avgCpc.toFixed(2)}` : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-right">{estimatedClicks > 0 ? fmtNum(estimatedClicks) : "—"}</TableCell>
-                    <TableCell className="text-xs text-right">
-                      {negatives.length > 0 ? (
-                        <span className="flex items-center justify-end gap-1 text-destructive">
-                          <Ban className="h-3 w-3" />{negatives.length}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {/* Totals row */}
-              <TableRow className="font-semibold border-t-2">
-                <TableCell className="text-xs">Total</TableCell>
-                <TableCell className="text-xs text-right">{strategyData.reduce((s, d) => s + d.kws.length, 0)}</TableCell>
-                <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.totalVol, 0))}</TableCell>
-                <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.totalVol, 0))}</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-                <TableCell className="text-xs text-right">
-                  {(() => {
-                    const allKws = strategyData.flatMap(d => d.kws);
-                    const avg = allKws.length > 0 ? allKws.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / allKws.length : 0;
-                    return avg > 0 ? `$${avg.toFixed(2)}` : "—";
-                  })()}
-                </TableCell>
-                <TableCell className="text-xs text-right">{fmtNum(strategyData.reduce((s, d) => s + d.estimatedClicks, 0))}</TableCell>
-                <TableCell className="text-xs text-right">{strategyData.reduce((s, d) => s + d.negatives.length, 0) || "—"}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+          {hasMultipleMarkets ? (
+            <Tabs value={activeMarket} onValueChange={setActiveMarket}>
+              <TabsList className="mb-4">
+                {marketCodes.map(mc => (
+                  <TabsTrigger key={mc} value={mc} className="text-xs">
+                    {mc}
+                    <Badge variant="secondary" className="ml-1.5 text-[10px]">
+                      {filteredKeywords.filter(k => k.market === mc && !k.isNegative).length}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {marketCodes.map(mc => (
+                <TabsContent key={mc} value={mc}>
+                  {renderMarketTable(filteredKeywords.filter(k => k.market === mc), mc)}
+                </TabsContent>
+              ))}
+            </Tabs>
+          ) : (
+            renderMarketTable(filteredKeywords, marketCodes[0] || "All")
+          )}
         </CardContent>
       </Card>
     );
