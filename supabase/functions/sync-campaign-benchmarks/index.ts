@@ -9,7 +9,9 @@ const corsHeaders = {
 interface CampaignInsight {
   spend: string;
   impressions: string;
+  clicks?: string;
   actions?: Array<{ action_type: string; value: string }>;
+  action_values?: Array<{ action_type: string; value: string }>;
   country?: string;
 }
 
@@ -19,6 +21,10 @@ interface BenchmarkData {
   total_spend: number;
   total_results: number;
   impressions: number;
+  clicks: number;
+  link_clicks: number;
+  landing_page_views: number;
+  revenue: number;
   campaign_count: number;
   industry: string | null;
 }
