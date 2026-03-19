@@ -165,17 +165,36 @@ serve(async (req) => {
         
         if (accessToken) {
           const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');
-          const managerAccountId = Deno.env.get('GOOGLE_ADS_MANAGER_ACCOUNT_ID');
           
           if (developerToken) {
             const cleanCustomerId = googleCustomerId.replace(/-/g, '');
+            
+            // Resolve login-customer-id from google_ad_accounts table first, then env var fallback
+            let loginCustomerId: string | null = null;
+            const { data: googleAdAccount } = await supabaseClient
+              .from('google_ad_accounts')
+              .select('manager_customer_id')
+              .eq('customer_id', cleanCustomerId)
+              .limit(1)
+              .maybeSingle();
+
+            if (googleAdAccount?.manager_customer_id) {
+              loginCustomerId = googleAdAccount.manager_customer_id.replace(/-/g, '');
+              console.log(`Google: Using manager_customer_id from DB: ${loginCustomerId}`);
+            } else {
+              const managerAccountId = Deno.env.get('GOOGLE_ADS_MANAGER_ACCOUNT_ID');
+              if (managerAccountId) {
+                loginCustomerId = managerAccountId.replace(/-/g, '');
+              }
+            }
+
             const headers: Record<string, string> = {
               Authorization: `Bearer ${accessToken}`,
               'developer-token': developerToken,
               'Content-Type': 'application/json',
             };
-            if (managerAccountId) {
-              headers['login-customer-id'] = managerAccountId.replace(/-/g, '');
+            if (loginCustomerId) {
+              headers['login-customer-id'] = loginCustomerId;
             }
 
             // Search audience segments only (locations excluded - handled separately)
