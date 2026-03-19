@@ -47,20 +47,49 @@ serve(async (req) => {
       return await syncGoogleAdsAssets(supabase, user, accountId, req.headers.get("authorization")!);
     }
 
-    // Get user's active Meta platform connection
-    const { data: platformData, error: platformError } = await supabase
-      .from("connected_platforms")
-      .select("id, access_token")
+    // Find the correct Meta platform connection for this specific ad account
+    // First check if the ad account has a known platform_id mapping
+    let platformId: string | null = null;
+    let fallbackToken: string | null = null;
+
+    // Try to find the platform connection that was used to sync this ad account
+    const { data: metaAdAccount } = await supabase
+      .from("meta_ad_accounts")
+      .select("user_id, team_id")
+      .eq("account_id", accountId)
       .eq("user_id", user.id)
-      .eq("platform_type", "meta")
-      .eq("is_active", true)
-      .limit(1)
       .maybeSingle();
 
-    if (platformError || !platformData) {
+    // Get all active Meta platform connections for this user
+    const { data: metaPlatforms, error: platformError } = await supabase
+      .from("connected_platforms")
+      .select("id, access_token, ad_account_id, metadata, team_id")
+      .eq("platform_type", "meta")
+      .eq("is_active", true)
+      .or(`user_id.eq.${user.id}${metaAdAccount?.team_id ? `,team_id.eq.${metaAdAccount.team_id}` : ""}`)
+      .order("updated_at", { ascending: false });
+
+    if (platformError || !metaPlatforms || metaPlatforms.length === 0) {
       console.error("[SYNC-ACCOUNT-ASSETS] Platform lookup error:", platformError);
       throw new Error("No active Meta platform connection found");
     }
+
+    // Prefer the platform connection whose metadata contains this ad account
+    let platformData = metaPlatforms[0]; // default to most recent
+    for (const p of metaPlatforms) {
+      const accounts = Array.isArray(p.metadata?.ad_accounts) ? p.metadata.ad_accounts : [];
+      const hasAccount = accounts.some((a: any) => 
+        String(a?.account_id || a?.id || "") === accountId || 
+        String(a?.account_id || a?.id || "").replace("act_", "") === accountId.replace("act_", "")
+      );
+      if (hasAccount) {
+        platformData = p;
+        console.log(`[SYNC-ACCOUNT-ASSETS] Matched platform ${p.id} via metadata for account ${accountId}`);
+        break;
+      }
+    }
+
+    console.log(`[SYNC-ACCOUNT-ASSETS] Using platform connection ${platformData.id} for Meta account ${accountId}`);
 
     // Get access token from Vault (with fallback to database column)
     const accessToken = await getAccessToken(supabase, platformData.id, platformData.access_token);
