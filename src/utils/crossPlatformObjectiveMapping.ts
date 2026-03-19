@@ -196,6 +196,7 @@ export interface TranslatedObjective {
 
 /**
  * Translate an objective + optimization goal from one platform to another.
+ * Optionally accepts phase context for placement-aware mapping (e.g. TikTok Search → Google Search).
  *
  * @example
  * translateObjective("VIDEO_VIEWS", "FOCUSED_VIEW", "tiktok", "google_ads")
@@ -205,12 +206,17 @@ export function translateObjective(
   sourceObjective: string,
   sourceOptimizationGoal: string,
   sourcePlatform: string,
-  targetPlatform: string
+  targetPlatform: string,
+  phaseContext?: { tiktokPlacementType?: string; tiktokPlacements?: string[]; keywords?: any[]; searchKeywords?: any[] }
 ): TranslatedObjective {
   // Same platform → no translation needed
   if (sourcePlatform.toLowerCase() === targetPlatform.toLowerCase()) {
     return { objective: sourceObjective, optimizationGoal: sourceOptimizationGoal, translated: false };
   }
+
+  // Placement-aware overrides before generic intent mapping
+  const placementOverride = getPlacementAwareOverride(sourcePlatform, targetPlatform, sourceObjective, phaseContext);
+  if (placementOverride) return placementOverride;
 
   // Step 1: Resolve funnel intent from source objective
   const sourceIntentMap = getIntentMap(sourcePlatform);
