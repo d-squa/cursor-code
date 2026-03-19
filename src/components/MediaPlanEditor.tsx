@@ -2047,8 +2047,6 @@ export function MediaPlanEditor() {
               {
                 tiktokPlacementType: phase.tiktokPlacementType,
                 tiktokPlacements: phase.tiktokPlacements,
-                keywords: phase.googleKeywords,
-                searchKeywords: phase.googleSearchThemes,
               }
             );
             const newPhase = {
