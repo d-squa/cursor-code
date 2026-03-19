@@ -445,6 +445,10 @@ async function syncGoogleAdsBenchmarks(
           total_spend: 0,
           total_results: 0,
           impressions: 0,
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
           campaign_count: 0,
           industry,
         });
@@ -453,6 +457,8 @@ async function syncGoogleAdsBenchmarks(
       clickBenchmark.total_spend += spend;
       clickBenchmark.total_results += clicks;
       clickBenchmark.impressions += impressions;
+      clickBenchmark.clicks += clicks;
+      clickBenchmark.revenue += revenue;
       clickBenchmark.campaign_count += 1;
     }
 
