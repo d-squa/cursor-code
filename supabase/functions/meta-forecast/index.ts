@@ -47,16 +47,51 @@ serve(async (req) => {
       throw new Error('Maximum 50 markets allowed per request');
     }
 
-    // Get user's Meta connection and retrieve token from Vault
-    const { data: platformData, error: platformError } = await supabase
-      .from('connected_platforms')
-      .select('id, access_token, ad_account_id')
-      .eq('user_id', user.id)
-      .eq('platform_type', 'meta')
-      .eq('is_active', true)
-      .single();
+    // Resolve Meta connection - support explicit connectedPlatformId or auto-detect
+    let platformData: any = null;
 
-    if (platformError || !platformData) {
+    if (body.connectedPlatformId) {
+      // Use explicitly provided connection
+      const { data, error } = await supabase
+        .from('connected_platforms')
+        .select('id, access_token, ad_account_id')
+        .eq('id', body.connectedPlatformId)
+        .eq('platform_type', 'meta')
+        .eq('is_active', true)
+        .single();
+      if (!error && data) platformData = data;
+    }
+
+    if (!platformData) {
+      // Fallback: find any accessible Meta connection (user-owned or team-shared)
+      const { data: teamRoles } = await supabase
+        .from('user_roles')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .not('team_id', 'is', null);
+      
+      const teamIds = (teamRoles || []).map((r: any) => r.team_id).filter(Boolean);
+      
+      let query = supabase
+        .from('connected_platforms')
+        .select('id, access_token, ad_account_id')
+        .eq('platform_type', 'meta')
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (teamIds.length > 0) {
+        const filters = [`user_id.eq.${user.id}`, ...teamIds.map((tid: string) => `team_id.eq.${tid}`)];
+        query = query.or(filters.join(','));
+      } else {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) platformData = data[0];
+    }
+
+    if (!platformData) {
       console.error("No Meta platform connected for user:", user.id);
       throw new Error("Meta platform not connected. Please connect your Meta account in Settings.");
     }
@@ -67,8 +102,24 @@ serve(async (req) => {
       throw new Error("Meta access token not found. Please reconnect your Meta account.");
     }
 
-    // Use user's ad account or fall back to global
-    const adAccountId = platformData.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+    // Resolve ad account ID: prefer body.adAccountId, then platform, then env
+    let adAccountId = body.adAccountId || platformData.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+    
+    // If the ad account ID looks like a Meta account_id (starts with act_ or is numeric), validate it
+    if (adAccountId) {
+      const numericId = String(adAccountId).replace(/^act_/i, '');
+      // Validate against meta_ad_accounts table to ensure it's a real account
+      const { data: validAccount } = await supabase
+        .from('meta_ad_accounts')
+        .select('account_id')
+        .or(`account_id.eq.${adAccountId},account_id.eq.act_${numericId}`)
+        .limit(1);
+      
+      if (validAccount && validAccount.length > 0) {
+        adAccountId = validAccount[0].account_id;
+      }
+    }
+    
     if (!adAccountId) {
       throw new Error("No ad account configured. Please select an ad account in Settings.");
     }
