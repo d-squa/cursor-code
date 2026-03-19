@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
+import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -120,17 +121,14 @@ serve(async (req) => {
     const cleanCustomerId = customerId.replace(/-/g, '');
     console.log('Fetching Google Ads Audience Manager segments for customer:', cleanCustomerId);
 
-    const { data: platformData, error: platformError } = await supabase
-      .from('connected_platforms')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('platform_type', 'google')
-      .eq('is_active', true)
-      .maybeSingle();
+    const platformCandidates = await getGooglePlatformCandidatesForCustomer(supabase, user.id, cleanCustomerId);
 
-    if (platformError || !platformData) {
+    if (platformCandidates.length === 0) {
       throw new Error('Google Ads platform not connected');
     }
+
+    const platformData = platformCandidates[0];
+    console.log(`Using platform connection ${platformData.id} for customer ${cleanCustomerId}`);
 
     const accessToken = await getAccessToken(supabase, platformData.id);
     if (!accessToken) {
