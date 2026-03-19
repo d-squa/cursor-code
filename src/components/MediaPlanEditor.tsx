@@ -2444,8 +2444,8 @@ export function MediaPlanEditor() {
                   }
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
-                tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
-                googleCustomerId={firstGoogleCustomerId || undefined}
+                tiktokAdvertiserId={keywordSearchScope.tiktokAdvertiserId}
+                googleCustomerId={keywordSearchScope.googleCustomerId}
                 platformId={
                   platformsWithMarkets.find((p) => p.id === "meta")?.id || platformsWithMarkets[0]?.id || "meta"
                 }
@@ -2460,19 +2460,9 @@ export function MediaPlanEditor() {
                     adAccountId:
                       p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : (p.id === "google" || p.id === "google_ads") ? firstGoogleCustomerId : undefined,
                   }))}
-                markets={(() => {
-                  // Collect unique market codes from all enabled platforms
-                  const marketSet = new Map<string, string>();
-                  platformsWithMarkets.filter(p => p.enabled).forEach(p => {
-                    p.markets.forEach(m => {
-                      const code = (m.name || "").substring(0, 2).toUpperCase();
-                      if (code && !marketSet.has(code)) {
-                        marketSet.set(code, m.name);
-                      }
-                    });
-                  });
-                  return Array.from(marketSet.entries()).map(([code, name]) => ({ name: code, label: name }));
-                })()}
+                markets={keywordSearchScope.markets}
+                googleMarkets={keywordSearchScope.googleMarkets}
+                tiktokMarkets={keywordSearchScope.tiktokMarkets}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>

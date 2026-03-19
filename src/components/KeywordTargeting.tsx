@@ -547,9 +547,12 @@ export function KeywordTargeting({
               </span>
               <div className="flex gap-1">
                 {(['all', 'google', 'tiktok'] as const).map(f => {
-                  const count = f === 'all' 
-                    ? (activeMarketTab === 'all' ? results : results.filter(r => r.market === activeMarketTab)).length
-                    : (activeMarketTab === 'all' ? results : results.filter(r => r.market === activeMarketTab)).filter(r => r.platform === f).length;
+                  const activeMarketResults = activeMarketTab === 'all'
+                    ? results
+                    : results.filter(r => r.market === activeMarketTab);
+                  const count = f === 'all'
+                    ? activeMarketResults.length
+                    : activeMarketResults.filter(r => r.platform === f).length;
                   if (f !== 'all' && count === 0) return null;
                   return (
                     <Button
@@ -570,6 +573,13 @@ export function KeywordTargeting({
             {hasMultipleMarkets && resultMarkets.length > 1 ? (
               <Tabs value={activeMarketTab} onValueChange={setActiveMarketTab} className="mb-2">
                 <TabsList className="h-8">
+                  <TabsTrigger value="all" className="text-xs gap-1 h-7 px-3">
+                    <Globe className="h-3 w-3" />
+                    All markets
+                    <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
+                      {results.length}
+                    </Badge>
+                  </TabsTrigger>
                   {resultMarkets.map((market) => {
                     const count = results.filter(r => r.market === market).length;
                     return (

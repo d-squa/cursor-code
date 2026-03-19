@@ -525,6 +525,8 @@ export function UnifiedTargeting({
           googleCustomerId={googleCustomerId}
           tiktokAdvertiserId={tiktokAdvertiserId}
           markets={markets}
+          googleMarkets={googleMarkets}
+          tiktokMarkets={tiktokMarkets}
         />
       )}
 
