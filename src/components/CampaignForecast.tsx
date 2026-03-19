@@ -933,17 +933,18 @@ export function CampaignForecast({
         let costPerResult: number;
         
         // For revenue-based goals, use ROAS from benchmark if available
-        if (isRevenueBasedGoal(optimizationGoal) && benchmark?.avg_roas && benchmark.avg_roas > 0) {
+        const benchmarkROAS = benchmark ? calculateBenchmarkROAS(benchmark) : null;
+        if (isRevenueBasedGoal(optimizationGoal) && benchmarkROAS && benchmarkROAS > 0) {
           // ROAS = revenue / spend, so estimated revenue = budget * ROAS
-          const estimatedRevenue = budget * benchmark.avg_roas;
+          const estimatedRevenue = budget * benchmarkROAS;
           // For ROAS-based, result = estimated conversions from CPR
-          if (benchmark.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+          if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
             costPerResult = benchmark.avg_cost_per_result;
             result = budget / costPerResult;
           } else {
             costPerResult = result > 0 ? budget / result : 0;
           }
-          console.log(`✓ Using META benchmark ROAS for ${market.name}/${optimizationGoal}: ${benchmark.avg_roas.toFixed(2)}x, Revenue: $${estimatedRevenue.toFixed(2)}`);
+          console.log(`✓ Using META benchmark ROAS for ${market.name}/${optimizationGoal}: ${benchmarkROAS.toFixed(2)}x, Revenue: $${estimatedRevenue.toFixed(2)}`);
         } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
           // Use benchmark data
           costPerResult = benchmark.avg_cost_per_result;
