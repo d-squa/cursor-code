@@ -433,7 +433,7 @@ async function syncAccountBenchmarks(
   // Fetch insights at ad account level with country breakdown
   const insightsUrl = `https://graph.facebook.com/v21.0/${accountId}/insights?` +
     `time_range={'since':'${dateRangeStart}','until':'${dateRangeEnd}'}` +
-    `&fields=spend,impressions,actions,clicks,reach` +
+    `&fields=spend,impressions,actions,action_values,clicks,reach` +
     `&breakdowns=country` +
     `&level=account` +
     `&limit=500` +
