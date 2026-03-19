@@ -2028,21 +2028,103 @@ export function MediaPlanEditor() {
     if (!platformToDuplicate) return;
 
     const newPlatformName = getAvailablePlatforms().find((p) => p.id === newPlatformId)?.name || newPlatformId;
+    const sourcePlatformId = platformToDuplicate.id;
 
     const newPlatform = {
       ...platformToDuplicate,
       id: newPlatformId,
       name: newPlatformName,
-      markets: platformToDuplicate.markets.map((market) => ({
-        ...market,
-        id: `${market.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      })),
+      markets: platformToDuplicate.markets.map((market) => {
+        const translatedPhases = (market.phases || []).map((phase) => {
+          // Translate objective & optimization goal to target platform
+          if (phase.objective && phase.optimizationGoal) {
+            const translated = translateObjective(
+              phase.objective,
+              phase.optimizationGoal,
+              sourcePlatformId,
+              newPlatformId
+            );
+            const newPhase = {
+              ...phase,
+              objective: translated.objective,
+              optimizationGoal: translated.optimizationGoal,
+            };
+
+            // Set Google campaign type when target is Google
+            if (newPlatformId.toLowerCase().includes("google") && translated.translated) {
+              newPhase.googleCampaignType = translateGoogleCampaignType(translated.objective) || phase.googleCampaignType;
+            }
+
+            // Clear platform-specific fields that don't apply to the target
+            if (!newPlatformId.toLowerCase().includes("tiktok")) {
+              delete newPhase.tiktokOptimizationLocation;
+              delete newPhase.tiktokBidStrategy;
+              delete newPhase.tiktokBidAmount;
+              delete newPhase.tiktokPlacementType;
+              delete newPhase.tiktokPlacements;
+              delete newPhase.tiktokBillingEvent;
+              delete newPhase.tiktokCampaignType;
+              delete newPhase.tiktokSmartPlusEnabled;
+            }
+            if (!newPlatformId.toLowerCase().includes("meta")) {
+              delete newPhase.metaBidStrategy;
+              delete newPhase.metaBidAmount;
+              delete newPhase.metaBillingEvent;
+              delete newPhase.metaAdvantagePlusCampaign;
+              delete newPhase.metaOptimizationLocation;
+            }
+            if (!newPlatformId.toLowerCase().includes("google")) {
+              delete newPhase.googleCampaignType;
+              delete newPhase.googleCampaignSubtype;
+              delete newPhase.googleBidStrategy;
+              delete newPhase.googleTargetCpa;
+              delete newPhase.googleTargetRoas;
+            }
+            if (!newPlatformId.toLowerCase().includes("snap")) {
+              delete newPhase.snapchatBidStrategy;
+              delete newPhase.snapchatBidAmount;
+              delete newPhase.snapchatPlacementType;
+              delete newPhase.snapchatPlacements;
+            }
+
+            return newPhase;
+          }
+          return { ...phase };
+        });
+
+        return {
+          ...market,
+          id: `${market.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          phases: translatedPhases,
+          // Clear source-platform-specific market-level fields
+          ...(newPlatformId.toLowerCase().includes("tiktok") ? {} : {
+            tiktokPixel: undefined, tiktokIdentity: undefined, tiktokCatalog: undefined,
+            tiktokProductSet: undefined, tiktokOptimizationEvent: undefined,
+          }),
+          ...(newPlatformId.toLowerCase().includes("meta") ? {} : {
+            pixel: undefined, catalog: undefined, productSet: undefined,
+            pageId: undefined, instagramActorId: undefined,
+          }),
+          ...(newPlatformId.toLowerCase().includes("google") ? {} : {
+            googleObjective: undefined, googleBidStrategy: undefined,
+            googleMerchantCenterId: undefined, googleFeedLabel: undefined,
+          }),
+        };
+      }),
     };
 
     setPlatformsWithMarkets((prev) => [...prev, newPlatform]);
     setPendingDuplication(null);
     ensureDraft();
-    toast.success("Platform duplicated successfully");
+    
+    const translationCount = newPlatform.markets.reduce((acc, m) => 
+      acc + (m.phases || []).filter(p => p.objective).length, 0
+    );
+    toast.success(
+      translationCount > 0
+        ? `Platform duplicated — ${translationCount} phase objective(s) translated to ${newPlatformName}`
+        : "Platform duplicated successfully"
+    );
   };
 
   const deletePlatform = (platformId: string) => {
