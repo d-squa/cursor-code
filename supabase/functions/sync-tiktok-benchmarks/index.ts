@@ -258,6 +258,7 @@ serve(async (req) => {
       const conversions = parseFloat(metrics.conversion || "0");
       const reach = parseFloat(metrics.reach || "0");
       const videoViews = parseFloat(metrics.video_views_p100 || "0");
+      const revenue = parseFloat(metrics.total_purchase_value || "0");
 
       // Get optimization goal for this ad group
       const rawGoal = adGroupOptimizationMap.get(adGroupId) || "UNKNOWN";
@@ -277,11 +278,11 @@ serve(async (req) => {
       } else if (optimizationGoal.includes("VIDEO")) {
         results = videoViews;
       } else if (optimizationGoal === "APP_INSTALLS" || optimizationGoal === "INSTALL") {
-        results = conversions; // App installs come through as conversions
+        results = conversions;
       } else if (optimizationGoal === "LEAD_GENERATION") {
         results = conversions;
       } else {
-        results = impressions / 1000; // Fallback to CPM-style
+        results = impressions / 1000;
       }
 
       const key = `${country}_${optimizationGoal}`;
@@ -293,6 +294,10 @@ serve(async (req) => {
           total_spend: 0,
           total_results: 0,
           impressions: 0,
+          clicks: 0,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: 0,
           campaign_count: 0,
           industry: industry,
         });
@@ -302,6 +307,8 @@ serve(async (req) => {
       benchmark.total_spend += spend;
       benchmark.total_results += results;
       benchmark.impressions += impressions;
+      benchmark.clicks += clicks;
+      benchmark.revenue += revenue;
       benchmark.campaign_count += 1;
     }
 
