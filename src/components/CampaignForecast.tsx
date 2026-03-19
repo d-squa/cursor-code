@@ -182,56 +182,81 @@ export function CampaignForecast({
   const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
   const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(clientIndustry);
 
-  // Resolve industry from ad accounts if not provided directly
+  // Resolve industry from linked ad accounts if not provided directly
   useEffect(() => {
     const resolveIndustryFromAdAccounts = async () => {
-      // If industry already provided, use it
       if (clientIndustry) {
         setResolvedIndustry(clientIndustry);
         return;
       }
 
-      // Try to get industry from ad accounts used in the campaign
       try {
-        // Collect all ad account IDs from platforms/markets
-        const adAccountIds: string[] = [];
+        const metaAccountIds = new Set<string>();
+        const googleCustomerIds = new Set<string>();
+
         for (const platform of platforms) {
+          const platformKey = getPlatformKeyFromId(platform.id);
+
           for (const market of platform.markets) {
-            if (market.adAccountId) {
-              // Normalize: remove 'act_' prefix if present
-              const accountId = market.adAccountId.replace(/^act_/, '');
-              adAccountIds.push(accountId);
-              adAccountIds.push(`act_${accountId}`); // Also check with prefix
+            if (!market.adAccountId) continue;
+
+            if (platformKey === "meta") {
+              const accountId = market.adAccountId.replace(/^act_/, "");
+              metaAccountIds.add(accountId);
+              metaAccountIds.add(`act_${accountId}`);
+            }
+
+            if (platformKey === "google") {
+              googleCustomerIds.add(market.adAccountId.replace(/-/g, ""));
             }
           }
         }
 
-        if (adAccountIds.length === 0) {
-          console.log("📊 No ad accounts found in campaign, cannot resolve industry");
+        if (metaAccountIds.size === 0 && googleCustomerIds.size === 0) {
+          console.log("📊 No supported ad accounts found in campaign, cannot resolve industry");
           return;
         }
 
-        console.log("📊 Resolving industry from ad accounts:", adAccountIds);
+        console.log("📊 Resolving industry from ad accounts:", {
+          meta: Array.from(metaAccountIds),
+          google: Array.from(googleCustomerIds),
+        });
 
-        // Query meta_ad_accounts joined with clients to get industry
-        const { data: accounts } = await supabase
-          .from('meta_ad_accounts')
-          .select('account_id, client_id, clients(industry)')
-          .in('account_id', adAccountIds);
+        const accountResults = await Promise.all([
+          metaAccountIds.size > 0
+            ? supabase
+                .from("meta_ad_accounts")
+                .select("account_id, client_id, clients(industry)")
+                .in("account_id", Array.from(metaAccountIds))
+            : Promise.resolve({ data: [], error: null }),
+          googleCustomerIds.size > 0
+            ? supabase
+                .from("google_ad_accounts")
+                .select("customer_id, client_id, clients(industry)")
+                .in("customer_id", Array.from(googleCustomerIds))
+            : Promise.resolve({ data: [], error: null }),
+        ]);
 
-        if (accounts && accounts.length > 0) {
-          // Find first account with a linked client that has industry
-          for (const acc of accounts) {
-            const industry = (acc.clients as any)?.industry;
-            if (industry) {
-              console.log(`✅ Resolved industry from ad account ${acc.account_id}: ${industry}`);
-              setResolvedIndustry(industry);
-              return;
-            }
+        const accountError = accountResults.find((result) => result.error)?.error;
+        if (accountError) throw accountError;
+
+        const accounts = accountResults.flatMap((result) => result.data || []);
+
+        for (const acc of accounts) {
+          const clientRelation = (acc as any).clients;
+          const industry = Array.isArray(clientRelation)
+            ? clientRelation[0]?.industry
+            : clientRelation?.industry;
+
+          if (industry) {
+            const accountLabel = (acc as any).account_id || (acc as any).customer_id;
+            console.log(`✅ Resolved industry from linked ad account ${accountLabel}: ${industry}`);
+            setResolvedIndustry(industry);
+            return;
           }
         }
 
-        console.log("⚠️ Could not resolve industry from ad accounts");
+        console.log("⚠️ Could not resolve industry from linked ad accounts");
       } catch (error) {
         console.error("Error resolving industry from ad accounts:", error);
       }
