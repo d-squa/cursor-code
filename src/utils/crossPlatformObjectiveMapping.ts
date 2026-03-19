@@ -207,7 +207,14 @@ export function translateObjective(
   sourceOptimizationGoal: string,
   sourcePlatform: string,
   targetPlatform: string,
-  phaseContext?: { tiktokPlacementType?: string; tiktokPlacements?: string[]; keywords?: any[]; searchKeywords?: any[] }
+  phaseContext?: {
+    tiktokPlacementType?: string;
+    tiktokPlacements?: string[];
+    tiktokCampaignType?: string;
+    adFormats?: string[];
+    keywords?: any[];
+    searchKeywords?: any[];
+  }
 ): TranslatedObjective {
   // Same platform → no translation needed
   if (sourcePlatform.toLowerCase() === targetPlatform.toLowerCase()) {
@@ -274,7 +281,14 @@ function getPlacementAwareOverride(
   sourcePlatform: string,
   targetPlatform: string,
   sourceObjective: string,
-  phaseContext?: { tiktokPlacementType?: string; tiktokPlacements?: string[]; keywords?: any[]; searchKeywords?: any[] }
+  phaseContext?: {
+    tiktokPlacementType?: string;
+    tiktokPlacements?: string[];
+    tiktokCampaignType?: string;
+    adFormats?: string[];
+    keywords?: any[];
+    searchKeywords?: any[];
+  }
 ): TranslatedObjective | null {
   if (!phaseContext) return null;
 
@@ -284,6 +298,8 @@ function getPlacementAwareOverride(
   // TikTok Search → Google Search
   if (src.includes("tiktok") && tgt.includes("google")) {
     const isSearch =
+      phaseContext.tiktokCampaignType?.toLowerCase() === "search" ||
+      phaseContext.adFormats?.some((format) => String(format).toLowerCase().includes("search")) ||
       phaseContext.tiktokPlacementType === "PLACEMENT_TYPE_SEARCH" ||
       phaseContext.tiktokPlacements?.some((p) => String(p).toUpperCase().includes("SEARCH")) ||
       (phaseContext.searchKeywords && phaseContext.searchKeywords.length > 0) ||

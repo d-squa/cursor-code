@@ -2047,6 +2047,8 @@ export function MediaPlanEditor() {
               {
                 tiktokPlacementType: phase.tiktokPlacementType,
                 tiktokPlacements: phase.tiktokPlacements,
+                tiktokCampaignType: phase.tiktokCampaignType,
+                adFormats: phase.targeting?.adFormats ?? market.adFormats,
               }
             );
             const newPhase = {
