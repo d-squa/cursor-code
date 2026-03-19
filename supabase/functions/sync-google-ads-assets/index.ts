@@ -392,7 +392,6 @@ async function syncGoogleAdsBenchmarks(
     const impressions = Number(row.metrics?.impressions || 0);
     const clicks = Number(row.metrics?.clicks || 0);
     const conversions = Number(row.metrics?.conversions || 0);
-    const videoViews = Number(row.metrics?.videoViews || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
     const optimizationGoal = CHANNEL_TYPE_GOAL_MAP[channelType] || channelType;
 
@@ -400,7 +399,7 @@ async function syncGoogleAdsBenchmarks(
     if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
       results = clicks;
     } else if (channelType === "VIDEO") {
-      results = videoViews > 0 ? videoViews : clicks;
+      results = clicks;
     } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
       results = conversions > 0 ? conversions : clicks;
     } else if (channelType === "DISPLAY") {
