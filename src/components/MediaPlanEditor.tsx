@@ -558,10 +558,14 @@ export function MediaPlanEditor() {
   }, [platformsWithMarkets]);
 
   const keywordSearchScope = useMemo(() => {
-    const googleMarketMap = new Map<string, string>();
-    const tiktokMarketMap = new Map<string, string>();
+    const googleSearchMarketMap = new Map<string, string>();
+    const tiktokSearchMarketMap = new Map<string, string>();
+    const googleFallbackMarketMap = new Map<string, string>();
+    const tiktokFallbackMarketMap = new Map<string, string>();
     let scopedGoogleCustomerId: string | undefined;
     let scopedTiktokAdvertiserId: string | undefined;
+    let fallbackGoogleCustomerId: string | undefined;
+    let fallbackTiktokAdvertiserId: string | undefined;
 
     const toMarketInfo = (marketMap: Map<string, string>) =>
       Array.from(marketMap.entries()).map(([code, name]) => ({ name: code, label: name }));
@@ -579,6 +583,16 @@ export function MediaPlanEditor() {
           const marketCode = (market.name || "").substring(0, 2).toUpperCase();
           if (!marketCode) return;
 
+          if (isGoogle) {
+            googleFallbackMarketMap.set(marketCode, market.name);
+            fallbackGoogleCustomerId ||= market.adAccountId || firstGoogleCustomerId || undefined;
+          }
+
+          if (isTikTok) {
+            tiktokFallbackMarketMap.set(marketCode, market.name);
+            fallbackTiktokAdvertiserId ||= market.adAccountId || firstTiktokAdvertiserId || undefined;
+          }
+
           const phases = Array.isArray(market.phases) ? market.phases : [];
           const hasSearchCampaign = phases.some((phase: any) =>
             isGoogle ? phase?.googleCampaignType === "Search" : phase?.tiktokCampaignType === "Search"
@@ -587,23 +601,26 @@ export function MediaPlanEditor() {
           if (!hasSearchCampaign) return;
 
           if (isGoogle) {
-            googleMarketMap.set(marketCode, market.name);
-            scopedGoogleCustomerId ||= market.adAccountId || firstGoogleCustomerId || undefined;
+            googleSearchMarketMap.set(marketCode, market.name);
+            scopedGoogleCustomerId ||= market.adAccountId || fallbackGoogleCustomerId || firstGoogleCustomerId || undefined;
           }
 
           if (isTikTok) {
-            tiktokMarketMap.set(marketCode, market.name);
-            scopedTiktokAdvertiserId ||= market.adAccountId || firstTiktokAdvertiserId || undefined;
+            tiktokSearchMarketMap.set(marketCode, market.name);
+            scopedTiktokAdvertiserId ||= market.adAccountId || fallbackTiktokAdvertiserId || firstTiktokAdvertiserId || undefined;
           }
         });
       });
 
+    const effectiveGoogleMarketMap = googleSearchMarketMap.size > 0 ? googleSearchMarketMap : googleFallbackMarketMap;
+    const effectiveTikTokMarketMap = tiktokSearchMarketMap.size > 0 ? tiktokSearchMarketMap : tiktokFallbackMarketMap;
+
     return {
-      googleCustomerId: googleMarketMap.size > 0 ? (scopedGoogleCustomerId || firstGoogleCustomerId || undefined) : undefined,
-      tiktokAdvertiserId: tiktokMarketMap.size > 0 ? (scopedTiktokAdvertiserId || firstTiktokAdvertiserId || undefined) : undefined,
-      googleMarkets: toMarketInfo(googleMarketMap),
-      tiktokMarkets: toMarketInfo(tiktokMarketMap),
-      markets: toMarketInfo(new Map([...googleMarketMap.entries(), ...tiktokMarketMap.entries()])),
+      googleCustomerId: effectiveGoogleMarketMap.size > 0 ? (scopedGoogleCustomerId || fallbackGoogleCustomerId || firstGoogleCustomerId || undefined) : undefined,
+      tiktokAdvertiserId: effectiveTikTokMarketMap.size > 0 ? (scopedTiktokAdvertiserId || fallbackTiktokAdvertiserId || firstTiktokAdvertiserId || undefined) : undefined,
+      googleMarkets: toMarketInfo(effectiveGoogleMarketMap),
+      tiktokMarkets: toMarketInfo(effectiveTikTokMarketMap),
+      markets: toMarketInfo(new Map([...effectiveGoogleMarketMap.entries(), ...effectiveTikTokMarketMap.entries()])),
     };
   }, [platformsWithMarkets, firstGoogleCustomerId, firstTiktokAdvertiserId]);
 

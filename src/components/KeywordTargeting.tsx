@@ -107,6 +107,11 @@ export function KeywordTargeting({
       return;
     }
 
+    if (!googleCustomerId && !tiktokAdvertiserId) {
+      toast.error("No Google Ads or TikTok account is available for keyword search yet");
+      return;
+    }
+
     setSearching(true);
     try {
       const googleMarketCodes = googleMarkets.length > 0
