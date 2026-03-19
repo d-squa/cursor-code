@@ -95,6 +95,8 @@ interface UnifiedTargetingProps {
   selectedPlatforms?: PlatformInfo[];
   // When true, skip writing to localStorage (used for phase override targeting)
   skipLocalStorage?: boolean;
+  // Markets for keyword targeting per-market search
+  markets?: MarketInfo[];
 }
 
 export function UnifiedTargeting({ 
