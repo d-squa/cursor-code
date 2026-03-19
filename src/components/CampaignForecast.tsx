@@ -943,9 +943,8 @@ export function CampaignForecast({
           const impressions = Number((fallbackData as any).impressions) || 0;
           let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
           
-          // Apply benchmark if available
-          const benchmarkKey = `${market.name}_${optimizationGoal}`;
-          const benchmark = benchmarks.get(benchmarkKey);
+          // Apply benchmark if available (platform-aware)
+          const benchmark = lookupBenchmark(benchmarks, 'meta', market.name, optimizationGoal);
           
           let costPerResult: number;
           if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
