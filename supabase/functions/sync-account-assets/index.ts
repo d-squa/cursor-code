@@ -1016,6 +1016,10 @@ async function syncGoogleAdsBenchmarks(
     total_spend: number;
     total_results: number;
     impressions: number;
+    clicks: number;
+    link_clicks: number;
+    landing_page_views: number;
+    revenue: number;
     campaign_count: number;
     industry: string | null;
   }>();
@@ -1029,6 +1033,7 @@ async function syncGoogleAdsBenchmarks(
     const clicks = parseInt(row.metrics?.clicks || "0");
     const conversions = parseFloat(row.metrics?.conversions || "0");
     const videoViews = parseInt(row.metrics?.videoViews || "0");
+    const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
 
     const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
@@ -1055,6 +1060,10 @@ async function syncGoogleAdsBenchmarks(
         total_spend: 0,
         total_results: 0,
         impressions: 0,
+        clicks: 0,
+        link_clicks: 0,
+        landing_page_views: 0,
+        revenue: 0,
         campaign_count: 0,
         industry,
       });
@@ -1064,6 +1073,8 @@ async function syncGoogleAdsBenchmarks(
     benchmark.total_spend += spend;
     benchmark.total_results += results;
     benchmark.impressions += impressions;
+    benchmark.clicks += clicks;
+    benchmark.revenue += revenue;
     benchmark.campaign_count += 1;
 
     // Also add generic CLICK and CONVERSION benchmarks
@@ -1072,13 +1083,16 @@ async function syncGoogleAdsBenchmarks(
       if (!benchmarkMap.has(clickKey)) {
         benchmarkMap.set(clickKey, {
           market: country, optimization_goal: "CLICK",
-          total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0, campaign_count: 0, industry,
         });
       }
       const clickBm = benchmarkMap.get(clickKey)!;
       clickBm.total_spend += spend;
       clickBm.total_results += clicks;
       clickBm.impressions += impressions;
+      clickBm.clicks += clicks;
+      clickBm.revenue += revenue;
       clickBm.campaign_count += 1;
     }
 
@@ -1087,13 +1101,16 @@ async function syncGoogleAdsBenchmarks(
       if (!benchmarkMap.has(convKey)) {
         benchmarkMap.set(convKey, {
           market: country, optimization_goal: "CONVERSION",
-          total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0, campaign_count: 0, industry,
         });
       }
       const convBm = benchmarkMap.get(convKey)!;
       convBm.total_spend += spend;
       convBm.total_results += conversions;
       convBm.impressions += impressions;
+      convBm.clicks += clicks;
+      convBm.revenue += revenue;
       convBm.campaign_count += 1;
     }
   }
@@ -1105,6 +1122,12 @@ async function syncGoogleAdsBenchmarks(
   for (const [key, benchmark] of benchmarkMap.entries()) {
     const avgCostPerResult = benchmark.total_results > 0
       ? benchmark.total_spend / benchmark.total_results
+      : null;
+    const avgCtr = benchmark.impressions > 0
+      ? (benchmark.clicks / benchmark.impressions) * 100
+      : null;
+    const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
+      ? benchmark.revenue / benchmark.total_spend
       : null;
 
     const { error } = await supabase
@@ -1119,6 +1142,12 @@ async function syncGoogleAdsBenchmarks(
         total_spend: benchmark.total_spend,
         total_results: benchmark.total_results,
         impressions: benchmark.impressions,
+        clicks: benchmark.clicks,
+        link_clicks: benchmark.link_clicks,
+        landing_page_views: benchmark.landing_page_views,
+        revenue: benchmark.revenue,
+        avg_ctr: avgCtr,
+        avg_roas: avgRoas,
         campaign_count: benchmark.campaign_count,
         date_range_start: dateRangeStart,
         date_range_end: dateRangeEnd,
@@ -1129,7 +1158,7 @@ async function syncGoogleAdsBenchmarks(
     if (error) {
       console.error(`[GOOGLE-BENCHMARK] Error storing ${key}:`, error);
     } else {
-      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'}`);
+      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} ROAS ${avgRoas?.toFixed(2) || 'N/A'}`);
       storedCount++;
     }
   }
