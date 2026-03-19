@@ -74,19 +74,49 @@ serve(async (req) => {
 
     console.log('Fetching audiences:', { adAccountId, sources, type, userId: user.id });
 
-    // Get user's Meta platform connection
-    const { data: platformData, error: platformError } = await supabaseClient
+    // Get user's team IDs for team-aware platform lookup
+    const { data: userTeams } = await supabaseClient
+      .from('user_roles')
+      .select('team_id')
+      .eq('user_id', user.id);
+    const teamIds = (userTeams || []).map((t: any) => t.team_id).filter(Boolean);
+
+    // Get all active Meta platform connections for this user or their teams
+    let platformQuery = supabaseClient
       .from('connected_platforms')
-      .select('id')
-      .eq('user_id', user.id)
+      .select('id, metadata')
       .eq('platform_type', 'meta')
       .eq('is_active', true)
-      .single();
+      .order('updated_at', { ascending: false });
 
-    if (platformError || !platformData) {
+    if (teamIds.length > 0) {
+      platformQuery = platformQuery.or(`user_id.eq.${user.id},team_id.in.(${teamIds.join(',')})`);
+    } else {
+      platformQuery = platformQuery.eq('user_id', user.id);
+    }
+
+    const { data: platforms, error: platformError } = await platformQuery;
+
+    if (platformError || !platforms || platforms.length === 0) {
       console.error('Platform error:', platformError);
       throw new Error('Meta platform not connected');
     }
+
+    // Prefer the connection whose metadata contains this ad account
+    const cleanId = adAccountId.replace('act_', '');
+    let platformData = platforms[0];
+    for (const p of platforms) {
+      const accounts = Array.isArray(p.metadata?.ad_accounts) ? p.metadata.ad_accounts : [];
+      const hasAccount = accounts.some((a: any) =>
+        String(a?.account_id || a?.id || '').replace('act_', '') === cleanId
+      );
+      if (hasAccount) {
+        platformData = p;
+        console.log(`Matched platform ${p.id} via metadata for ad account ${adAccountId}`);
+        break;
+      }
+    }
+    console.log(`Using platform connection ${platformData.id} for audience fetch`);
 
     // Get access token from Vault
     const accessToken = await getAccessToken(supabaseClient, platformData.id);
