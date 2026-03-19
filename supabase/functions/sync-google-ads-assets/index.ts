@@ -333,7 +333,6 @@ async function syncGoogleAdsBenchmarks(
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
-      metrics.video_views,
       metrics.all_conversions
     FROM geographic_view
     WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
