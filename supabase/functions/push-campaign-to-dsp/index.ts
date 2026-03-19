@@ -3682,9 +3682,10 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
 
           if (strategyCount > 1 && strategyName) {
-            // Calculate total search volume across all strategies
+            // Calculate total search volume across all strategies (filtered by market)
+            const marketCode = (market.name || "").substring(0, 2).toUpperCase();
             const allKeywords = (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
-              .filter((k: any) => k.platform === 'google' && !k.isNegative);
+              .filter((k: any) => k.platform === 'google' && !k.isNegative && (!k.market || k.market === marketCode));
             const strategyVolumes: Record<string, number> = {};
             let totalVolume = 0;
             for (const [sName] of Object.entries(keywordStrategies)) {
@@ -3698,7 +3699,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             if (totalVolume > 0) {
               const volumeRatio = (strategyVolumes[strategyName] || 0) / totalVolume;
               strategyDailyBudget = dailyBudget * volumeRatio;
-              console.log(`📊 Volume-weighted budget for "${strategyName}": ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
+              console.log(`📊 Volume-weighted budget for "${strategyName}" in ${marketCode}: ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
             }
           }
 
