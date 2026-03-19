@@ -39,11 +39,37 @@ function normalizeBenchmarkGoal(goal: string, platform: string): string {
   }
   
   if (platform === 'meta') {
-    // Meta goals are mostly stored as-is
     const metaGoalMap: Record<string, string> = {
-      'IMPRESSIONS': 'REACH', // closest benchmark match
+      'IMPRESSIONS': 'REACH',
     };
     return metaGoalMap[upper] || upper;
+  }
+  
+  if (platform === 'google') {
+    // Google Ads UI goals → DB stored goals mapping
+    const googleGoalMap: Record<string, string> = {
+      'REACH': 'CLICK',
+      'VIDEO VIEWS': 'CLICK',
+      'VIDEO_VIEWS': 'CLICK',
+      'AD SEQUENCE': 'CLICK',
+      'AD_SEQUENCE': 'CLICK',
+      'AUDIO REACH': 'CLICK',
+      'AUDIO_REACH': 'CLICK',
+      'SEARCH': 'SEARCH_CLICKS',
+      'PERFORMANCE MAX': 'PMAX_CONVERSIONS',
+      'PERFORMANCE_MAX': 'PMAX_CONVERSIONS',
+      'CONVERSIONS': 'CONVERSION',
+      'SHOPPING': 'SHOPPING_CONVERSIONS',
+      'APP INSTALLS': 'CONVERSION',
+      'APP_INSTALLS': 'CONVERSION',
+      'APP ENGAGEMENT': 'CONVERSION',
+      'APP_ENGAGEMENT': 'CONVERSION',
+      'APP PRE-REGISTRATION': 'CONVERSION',
+      'APP_PRE-REGISTRATION': 'CONVERSION',
+      'DEMAND GEN': 'DEMAND_GEN_CLICKS',
+      'DEMAND_GEN': 'DEMAND_GEN_CLICKS',
+    };
+    return googleGoalMap[upper] || upper;
   }
   
   return upper;
