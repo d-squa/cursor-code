@@ -72,9 +72,9 @@ export function KeywordTargeting({
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<KeywordItem[]>([]);
   const [defaultMatchType, setDefaultMatchType] = useState<KeywordMatchType>("broad");
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
-  const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
+  const [activePlatformTab, setActivePlatformTab] = useState<string>("all");
   const [activeMarketTab, setActiveMarketTab] = useState<string>("all");
+  const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
 
   const hasSearchAccountIds = !!googleCustomerId || !!tiktokAdvertiserId;
   const canRenderKeywordTargeting = hasSearchAccountIds || showWithoutAccountIds;
@@ -85,19 +85,28 @@ export function KeywordTargeting({
   const resultMarkets = Array.from(new Set(results.map(r => r.market).filter(Boolean))) as string[];
   const hasMultipleMarkets = markets.length > 1 || resultMarkets.length > 1;
 
-  // Filter results by active market tab and platform
+  // Filter results by platform tab then market tab
   const getFilteredResults = () => {
     let filtered = results;
+    if (activePlatformTab !== "all") {
+      filtered = filtered.filter(r => r.platform === activePlatformTab);
+    }
     if (activeMarketTab !== "all") {
       filtered = filtered.filter(r => r.market === activeMarketTab);
-    }
-    if (platformFilter !== 'all') {
-      filtered = filtered.filter(r => r.platform === platformFilter);
     }
     return filtered;
   };
 
   const filteredResults = getFilteredResults();
+
+  // Markets available for the current platform tab
+  const marketsForPlatformTab = Array.from(
+    new Set(
+      (activePlatformTab === "all" ? results : results.filter(r => r.platform === activePlatformTab))
+        .map(r => r.market)
+        .filter(Boolean)
+    )
+  ) as string[];
 
   if (!canRenderKeywordTargeting) return null;
 
