@@ -1517,7 +1517,13 @@ export function CampaignForecast({
               const platformKey = getPlatformKeyFromId(platform.id);
               const benchmark = lookupBenchmark(benchmarks, platformKey, market.name || '', optimizationGoal || '');
               
-              if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+              // For revenue-based goals, prefer ROAS from benchmark
+              if (isRevenueBasedGoal(optimizationGoal) && benchmark?.avg_roas && benchmark.avg_roas > 0 && benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+                costPerResult = benchmark.avg_cost_per_result;
+                result = campaignBudget / costPerResult;
+                isBenchmarkBased = true;
+                console.log(`✓ Using benchmark ROAS (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: ROAS=${benchmark.avg_roas.toFixed(2)}x, CPR=$${costPerResult.toFixed(2)}`);
+              } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
                 isBenchmarkBased = true;
