@@ -314,7 +314,7 @@ serve(async (req) => {
 
     // Also add REACH and CLICK benchmarks if we have the data
     // These are useful for broad targeting campaigns
-    const countrySpendMap = new Map<string, { spend: number; reach: number; clicks: number; impressions: number }>();
+    const countrySpendMap = new Map<string, { spend: number; reach: number; clicks: number; impressions: number; revenue: number }>();
     
     for (const insight of insights) {
       const dimensions = insight.dimensions || {};
@@ -324,15 +324,17 @@ serve(async (req) => {
       const reach = parseFloat(metrics.reach || "0");
       const clicks = parseFloat(metrics.clicks || "0");
       const impressions = parseFloat(metrics.impressions || "0");
+      const revenue = parseFloat(metrics.total_purchase_value || "0");
 
       if (!countrySpendMap.has(country)) {
-        countrySpendMap.set(country, { spend: 0, reach: 0, clicks: 0, impressions: 0 });
+        countrySpendMap.set(country, { spend: 0, reach: 0, clicks: 0, impressions: 0, revenue: 0 });
       }
       const countryData = countrySpendMap.get(country)!;
       countryData.spend += spend;
       countryData.reach += reach;
       countryData.clicks += clicks;
       countryData.impressions += impressions;
+      countryData.revenue += revenue;
     }
 
     // Add aggregated REACH and CLICK benchmarks per country
@@ -344,6 +346,10 @@ serve(async (req) => {
           total_spend: data.spend,
           total_results: data.reach,
           impressions: data.impressions,
+          clicks: data.clicks,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: data.revenue,
           campaign_count: 1,
           industry: industry,
         });
@@ -355,6 +361,10 @@ serve(async (req) => {
           total_spend: data.spend,
           total_results: data.clicks,
           impressions: data.impressions,
+          clicks: data.clicks,
+          link_clicks: 0,
+          landing_page_views: 0,
+          revenue: data.revenue,
           campaign_count: 1,
           industry: industry,
         });
