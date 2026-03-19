@@ -2043,7 +2043,11 @@ export function MediaPlanEditor() {
               phase.objective,
               phase.optimizationGoal,
               sourcePlatformId,
-              newPlatformId
+              newPlatformId,
+              {
+                tiktokPlacementType: phase.tiktokPlacementType,
+                tiktokPlacements: phase.tiktokPlacements,
+              }
             );
             const newPhase = {
               ...phase,
