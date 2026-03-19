@@ -336,35 +336,37 @@ export function CampaignForecast({
     // Extract unique account IDs from platforms
     const metaAccountIds = new Set<string>();
     const tiktokAdvertiserIds = new Set<string>();
+    const googleAccountIds = new Set<string>();
 
     for (const platform of platforms) {
       const platformName = platform.id.toLowerCase();
       const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
       const isTikTok = platformName.includes("tiktok");
+      const isGoogle = platformName.includes("google");
 
       for (const market of platform.markets) {
         if (market.adAccountId) {
           if (isMeta) {
-            // Clean the account ID (remove "act_" prefix if present for sync)
             const cleanId = market.adAccountId.startsWith("act_") 
               ? market.adAccountId 
               : `act_${market.adAccountId}`;
             metaAccountIds.add(cleanId);
           } else if (isTikTok) {
-            // TikTok uses advertiser_id directly
             tiktokAdvertiserIds.add(market.adAccountId);
+          } else if (isGoogle) {
+            googleAccountIds.add(market.adAccountId);
           }
         }
       }
     }
 
-    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size;
+    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size + googleAccountIds.size;
     if (totalSyncs === 0) {
       console.log("📊 No ad accounts found in ActiPlan - skipping benchmark sync");
       return;
     }
 
-    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta accounts and ${tiktokAdvertiserIds.size} TikTok accounts...`);
+    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta, ${tiktokAdvertiserIds.size} TikTok, ${googleAccountIds.size} Google accounts...`);
 
     const syncPromises: Promise<any>[] = [];
 
@@ -381,12 +383,24 @@ export function CampaignForecast({
       );
     }
 
-    // Sync TikTok accounts (per-account, same as Meta)
+    // Sync Google Ads accounts (per-account)
+    for (const accountId of googleAccountIds) {
+      console.log(`  → Syncing Google Ads account: ${accountId}`);
+      syncPromises.push(
+        supabase.functions.invoke('sync-account-assets', {
+          body: { accountId, platform: 'google' }
+        }).catch(err => {
+          console.warn(`Failed to sync Google account ${accountId}:`, err);
+          return null;
+        })
+      );
+    }
+
+    // Sync TikTok accounts (per-account)
     for (const advertiserId of tiktokAdvertiserIds) {
       console.log(`  → Syncing TikTok account: ${advertiserId}`);
       syncPromises.push(
         (async () => {
-          // Mirror Meta behavior: sync account assets + benchmarks before forecasting
           const { error: resourcesError } = await supabase.functions.invoke('sync-tiktok-resources', {
             body: { advertiserId },
           });
