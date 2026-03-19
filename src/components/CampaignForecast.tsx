@@ -269,13 +269,14 @@ export function CampaignForecast({
 
     const loadBenchmarks = async () => {
       console.log("📊 Loading benchmarks for industry:", resolvedIndustry || "(none)");
+      // Load all benchmarks (no platform filter - we filter at lookup time)
       const benchmarkData = await getAllBenchmarks(resolvedIndustry);
       setBenchmarks(benchmarkData);
       console.log(`✅ Loaded ${benchmarkData.size} benchmarks:`);
       
       // Log details of each benchmark
       benchmarkData.forEach((benchmark, key) => {
-        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Industry=${benchmark.industry}, Campaigns=${benchmark.campaign_count}`);
+        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Platform=${(benchmark as any).platform || 'unknown'}, Industry=${benchmark.industry}, Campaigns=${benchmark.campaign_count}`);
       });
     };
 
