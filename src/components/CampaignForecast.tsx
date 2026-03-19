@@ -1646,6 +1646,19 @@ export function CampaignForecast({
                 });
               }
 
+              // Calculate CTR and ROAS from benchmark raw data
+              let phaseCTR: number | null = null;
+              let phaseROAS: number | null = null;
+              
+              if (benchmark) {
+                if (isClickBasedGoal(optimizationGoal)) {
+                  phaseCTR = calculateBenchmarkCTR(benchmark);
+                }
+                if (isRevenueBasedGoal(optimizationGoal)) {
+                  phaseROAS = calculateBenchmarkROAS(benchmark);
+                }
+              }
+
               // Store phase forecast
               phaseForecasts.push({
                 phaseName: phase.name,
@@ -1659,6 +1672,8 @@ export function CampaignForecast({
                 resultRate: parseFloat(resultRate.toFixed(2)),
                 isBenchmarkBased,
                 adSets: adSetForecasts,
+                ctr: phaseCTR,
+                roas: phaseROAS,
               });
 
               // Aggregate results by goal

@@ -49,27 +49,29 @@ interface ActiplanDeliverablesViewProps {
             resultRate: number;
             isBenchmarkBased?: boolean;
           }>;
-          phases: Array<{
-            phaseName: string;
-            budget: number;
-            startDate: string;
-            endDate: string;
-            kpi: string;
-            optimizationGoal: string;
-            result: number;
-            costPerResult: number;
-            resultRate: number;
-            isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
-            adSets?: Array<{
-              adSetName: string;
-              budget: number;
-              budgetPercentage: number;
-              impressions: number;
-              reach: number;
-              result: number;
-              costPerResult: number;
-            }>;
-          }>;
+           phases: Array<{
+             phaseName: string;
+             budget: number;
+             startDate: string;
+             endDate: string;
+             kpi: string;
+             optimizationGoal: string;
+             result: number;
+             costPerResult: number;
+             resultRate: number;
+             isBenchmarkBased?: boolean;
+             ctr?: number | null;
+             roas?: number | null;
+             adSets?: Array<{
+               adSetName: string;
+               budget: number;
+               budgetPercentage: number;
+               impressions: number;
+               reach: number;
+               result: number;
+               costPerResult: number;
+             }>;
+           }>;
       }>;
     }>;
   };
