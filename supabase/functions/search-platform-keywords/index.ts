@@ -69,17 +69,37 @@ serve(async (req: Request) => {
       if (platform) {
         const accessToken = await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, 'google');
         const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
-        const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+
+        // Resolve login-customer-id from google_ad_accounts table first, then env var fallback
+        const cleanCustomerId = googleCustomerId.replace(/-/g, "");
+        let loginCustomerId: string | null = null;
+
+        const { data: googleAdAccount } = await supabase
+          .from('google_ad_accounts')
+          .select('manager_customer_id')
+          .eq('customer_id', cleanCustomerId)
+          .limit(1)
+          .maybeSingle();
+
+        if (googleAdAccount?.manager_customer_id) {
+          loginCustomerId = googleAdAccount.manager_customer_id.replace(/-/g, "");
+          console.log(`Using manager_customer_id from google_ad_accounts: ${loginCustomerId}`);
+        } else {
+          const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+          if (managerAccountId) {
+            loginCustomerId = managerAccountId.replace(/-/g, "");
+            console.log(`Using GOOGLE_ADS_MANAGER_ACCOUNT_ID env var: ${loginCustomerId}`);
+          }
+        }
 
         if (accessToken && developerToken) {
-          const cleanCustomerId = googleCustomerId.replace(/-/g, "");
           const headers: Record<string, string> = {
             Authorization: `Bearer ${accessToken}`,
             "developer-token": developerToken,
             "Content-Type": "application/json",
           };
-          if (managerAccountId) {
-            headers["login-customer-id"] = managerAccountId.replace(/-/g, "");
+          if (loginCustomerId) {
+            headers["login-customer-id"] = loginCustomerId;
           }
 
           // Make parallel requests per market
@@ -137,7 +157,9 @@ serve(async (req: Request) => {
       }
     }
 
-    // Search TikTok Keywords - parallel per market
+    // Search TikTok Keywords - single call, tag with all markets
+    // TikTok's keyword recommend API does NOT support geo-filtering,
+    // so we make ONE call and tag results with all target markets
     if (tiktokAdvertiserId) {
       const platformCandidates = await getTikTokPlatformCandidatesForAdvertiser(supabase, user.id, tiktokAdvertiserId);
       const platform = platformCandidates.length > 0 ? platformCandidates[0] : null;
@@ -146,28 +168,29 @@ serve(async (req: Request) => {
         const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
 
         if (accessToken) {
-          // TikTok keyword recommend API doesn't have strong geo filtering,
-          // but we'll tag results with each market code for consistency
           const apiVersion = "v1.3";
 
-          const marketPromises = targetMarkets.map(async (marketCode) => {
-            try {
-              const fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/interest_keyword/recommend/?advertiser_id=${tiktokAdvertiserId}&keywords=["${encodeURIComponent(query)}"]&language=en&limit=50`;
+          try {
+            const fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/interest_keyword/recommend/?advertiser_id=${tiktokAdvertiserId}&keywords=["${encodeURIComponent(query)}"]&language=en&limit=50`;
 
-              const resp = await fetch(fetchUrl, {
-                method: "GET",
-                headers: {
-                  "Access-Token": accessToken,
-                  "Content-Type": "application/json",
-                },
-              });
+            const resp = await fetch(fetchUrl, {
+              method: "GET",
+              headers: {
+                "Access-Token": accessToken,
+                "Content-Type": "application/json",
+              },
+            });
 
-              if (resp.ok) {
-                const data = await resp.json();
-                const marketResults: KeywordResult[] = [];
-                if (data.code === 0 && data.data?.recommended_keywords) {
-                  data.data.recommended_keywords.forEach((kw: any) => {
-                    marketResults.push({
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.code === 0 && data.data?.recommended_keywords) {
+                const keywords = data.data.recommended_keywords;
+                console.log(`TikTok returned ${keywords.length} keyword recommendations (applied to ${targetMarkets.length} markets)`);
+                
+                // Create one result per keyword per market
+                for (const kw of keywords) {
+                  for (const marketCode of targetMarkets) {
+                    allResults.push({
                       id: `tiktok_kw_${kw.keyword_id || kw.keyword}_${marketCode}`,
                       name: kw.keyword,
                       platform: "tiktok",
@@ -175,23 +198,14 @@ serve(async (req: Request) => {
                       avgMonthlySearches: kw.search_volume || 0,
                       competition: kw.competition_index ? String(kw.competition_index) : undefined,
                     });
-                  });
-                  console.log(`TikTok returned ${marketResults.length} keyword recommendations for market ${marketCode}`);
+                  }
                 }
-                return marketResults;
-              } else {
-                console.error(`TikTok keyword recommend failed for ${marketCode}:`, resp.status);
-                return [];
               }
-            } catch (err) {
-              console.error(`TikTok keyword search error for ${marketCode}:`, err);
-              return [];
+            } else {
+              console.error(`TikTok keyword recommend failed:`, resp.status);
             }
-          });
-
-          const marketResultArrays = await Promise.all(marketPromises);
-          for (const results of marketResultArrays) {
-            allResults.push(...results);
+          } catch (err) {
+            console.error(`TikTok keyword search error:`, err);
           }
         }
       }
