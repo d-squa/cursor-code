@@ -1084,7 +1084,7 @@ export function CampaignForecast({
               budget,
               strategyFocus,
               adAccountId: market.adAccountId,
-              connectedPlatformId: connectedPlatformId,
+              // connectedPlatformId will be auto-resolved by the edge function
               ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
               ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
               gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
