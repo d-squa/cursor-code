@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getGooglePlatformCandidatesForCustomer, getTikTokPlatformCandidatesForAdvertiser } from "../_shared/platform-connection-resolver.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,14 +67,33 @@ serve(async (req) => {
     if (metaAdAccountId) {
       console.log('Searching Meta...');
       
-      // Get Meta platform connection
-      const { data: metaPlatform } = await supabaseClient
+      // Get user's team IDs for team-aware lookup
+      const { data: teamRoles } = await supabaseClient
+        .from('user_roles')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .not('team_id', 'is', null);
+      const teamIds = (teamRoles || []).map((r: any) => r.team_id).filter(Boolean);
+
+      // Team-aware Meta platform lookup
+      let metaPlatformQuery = supabaseClient
         .from('connected_platforms')
         .select('*')
-        .eq('user_id', user.id)
         .eq('platform_type', 'meta')
         .eq('is_active', true)
-        .single();
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (teamIds.length > 0) {
+        metaPlatformQuery = metaPlatformQuery.or(
+          [`user_id.eq.${user.id}`, ...teamIds.map((id: string) => `team_id.eq.${id}`)].join(',')
+        );
+      } else {
+        metaPlatformQuery = metaPlatformQuery.eq('user_id', user.id);
+      }
+
+      const { data: metaPlatforms } = await metaPlatformQuery;
+      const metaPlatform = metaPlatforms?.[0] || null;
 
       if (metaPlatform) {
         // Get access token from Vault with fallback to database column
@@ -87,12 +107,16 @@ serve(async (req) => {
             searchMetaCategory(accessToken, metaAdAccountId, 'demographics', query)
           ]);
 
+          console.log(`Meta found ${interests.length} interests, ${behaviors.length} behaviors, ${demographics.length} demographics`);
+
           interests.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
           behaviors.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
           demographics.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'demographic' }));
         } else {
           console.error('No Meta access token available');
         }
+      } else {
+        console.error('No Meta platform connection found for user:', user.id);
       }
     }
 
@@ -100,14 +124,9 @@ serve(async (req) => {
     if (tiktokAdvertiserId) {
       console.log('Searching TikTok...');
       
-      // Get TikTok platform connection
-      const { data: tiktokPlatform } = await supabaseClient
-        .from('connected_platforms')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('platform_type', 'tiktok')
-        .eq('is_active', true)
-        .single();
+      // Use shared team-aware resolver
+      const tiktokCandidates = await getTikTokPlatformCandidatesForAdvertiser(supabaseClient, user.id, tiktokAdvertiserId);
+      const tiktokPlatform = tiktokCandidates[0] || null;
 
       if (tiktokPlatform) {
         // Get access token from Vault with fallback to database column
@@ -127,6 +146,8 @@ serve(async (req) => {
         } else {
           console.error('No TikTok access token available');
         }
+      } else {
+        console.error('No TikTok platform connection found for user:', user.id);
       }
     }
 
@@ -135,13 +156,9 @@ serve(async (req) => {
     if (googleCustomerId) {
       console.log('Searching Google Ads...');
       
-      const { data: googlePlatform } = await supabaseClient
-        .from('connected_platforms')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('platform_type', 'google')
-        .eq('is_active', true)
-        .single();
+      // Use shared team-aware resolver
+      const googleCandidates = await getGooglePlatformCandidatesForCustomer(supabaseClient, user.id, googleCustomerId);
+      const googlePlatform = googleCandidates[0] || null;
 
       if (googlePlatform) {
         const accessToken = await getAccessTokenWithRefresh(supabaseClient, googlePlatform.id, googlePlatform.access_token, 'google');
@@ -173,6 +190,8 @@ serve(async (req) => {
         } else {
           console.error('No Google Ads access token available');
         }
+      } else {
+        console.error('No Google platform connection found for user:', user.id);
       }
     }
 
