@@ -67,8 +67,18 @@ serve(async (req: Request) => {
     const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
     if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN not set");
 
-    const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
     const cleanCustomerId = customerId.replace(/-/g, "");
+
+    // Look up the manager_customer_id from the google_ad_accounts table
+    const { data: googleAccount } = await supabase
+      .from("google_ad_accounts")
+      .select("manager_customer_id")
+      .eq("customer_id", cleanCustomerId)
+      .limit(1)
+      .single();
+
+    const managerAccountId = googleAccount?.manager_customer_id
+      || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
 
     // Build GAQL query for assets
     const assetTypeFilter = assetTypes.map(t => `'${t}'`).join(", ");
