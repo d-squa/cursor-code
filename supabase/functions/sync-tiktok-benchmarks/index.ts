@@ -131,7 +131,9 @@ serve(async (req) => {
         "clicks",
         "conversion",
         "reach",
-        "video_views_p100"
+        "video_views_p100",
+        "total_purchase_value",
+        "real_time_result"
       ]),
       start_date: dateRangeStart,
       end_date: dateRangeEnd,
