@@ -380,12 +380,6 @@ serve(async (req) => {
       const avgCostPerResult = benchmark.total_results > 0
         ? benchmark.total_spend / benchmark.total_results
         : null;
-      const avgCtr = benchmark.impressions > 0
-        ? (benchmark.clicks / benchmark.impressions) * 100
-        : null;
-      const avgRoas = benchmark.total_spend > 0 && benchmark.revenue > 0
-        ? benchmark.revenue / benchmark.total_spend
-        : null;
 
       const { error } = await supabase
         .from("campaign_performance_benchmarks")
@@ -403,8 +397,6 @@ serve(async (req) => {
           link_clicks: benchmark.link_clicks,
           landing_page_views: benchmark.landing_page_views,
           revenue: benchmark.revenue,
-          avg_ctr: avgCtr,
-          avg_roas: avgRoas,
           campaign_count: benchmark.campaign_count,
           date_range_start: dateRangeStart,
           date_range_end: dateRangeEnd,

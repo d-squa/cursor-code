@@ -49,27 +49,29 @@ interface ActiplanDeliverablesViewProps {
             resultRate: number;
             isBenchmarkBased?: boolean;
           }>;
-          phases: Array<{
-            phaseName: string;
-            budget: number;
-            startDate: string;
-            endDate: string;
-            kpi: string;
-            optimizationGoal: string;
-            result: number;
-            costPerResult: number;
-            resultRate: number;
-            isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
-            adSets?: Array<{
-              adSetName: string;
-              budget: number;
-              budgetPercentage: number;
-              impressions: number;
-              reach: number;
-              result: number;
-              costPerResult: number;
-            }>;
-          }>;
+           phases: Array<{
+             phaseName: string;
+             budget: number;
+             startDate: string;
+             endDate: string;
+             kpi: string;
+             optimizationGoal: string;
+             result: number;
+             costPerResult: number;
+             resultRate: number;
+             isBenchmarkBased?: boolean;
+             ctr?: number | null;
+             roas?: number | null;
+             adSets?: Array<{
+               adSetName: string;
+               budget: number;
+               budgetPercentage: number;
+               impressions: number;
+               reach: number;
+               result: number;
+               costPerResult: number;
+             }>;
+           }>;
       }>;
     }>;
   };
@@ -283,30 +285,40 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                   {market.phases.length > 0 && (
                     <div>
                       <h4 className="text-sm font-semibold mb-2">Phase Details</h4>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Phase</TableHead>
-                            <TableHead>KPI</TableHead>
-                            <TableHead>Start Date</TableHead>
-                            <TableHead>End Date</TableHead>
-                            <TableHead>Budget</TableHead>
-                            <TableHead>Result</TableHead>
-                            <TableHead>Cost/Result</TableHead>
-                            <TableHead>Source</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {market.phases.map((phase, idx) => (
-                            <>
-                              <TableRow key={idx}>
-                                <TableCell className="font-medium">{phase.phaseName}</TableCell>
-                                <TableCell>{phase.kpi}</TableCell>
-                                <TableCell>{format(new Date(phase.startDate), 'MMM d, yyyy')}</TableCell>
-                                <TableCell>{format(new Date(phase.endDate), 'MMM d, yyyy')}</TableCell>
-                                <TableCell>${formatNumber(phase.budget)}</TableCell>
-                                <TableCell>{formatNumber(phase.result)}</TableCell>
-                                <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
+                       <Table>
+                         <TableHeader>
+                           <TableRow>
+                             <TableHead>Phase</TableHead>
+                             <TableHead>KPI</TableHead>
+                             <TableHead>Start Date</TableHead>
+                             <TableHead>End Date</TableHead>
+                             <TableHead>Budget</TableHead>
+                             <TableHead>Result</TableHead>
+                             <TableHead>Cost/Result</TableHead>
+                             <TableHead>CTR / ROAS</TableHead>
+                             <TableHead>Source</TableHead>
+                           </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                           {market.phases.map((phase, idx) => (
+                             <>
+                               <TableRow key={idx}>
+                                 <TableCell className="font-medium">{phase.phaseName}</TableCell>
+                                 <TableCell>{phase.kpi}</TableCell>
+                                 <TableCell>{format(new Date(phase.startDate), 'MMM d, yyyy')}</TableCell>
+                                 <TableCell>{format(new Date(phase.endDate), 'MMM d, yyyy')}</TableCell>
+                                 <TableCell>${formatNumber(phase.budget)}</TableCell>
+                                 <TableCell>{formatNumber(phase.result)}</TableCell>
+                                 <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
+                                 <TableCell>
+                                   {phase.roas != null ? (
+                                     <span className="text-xs font-medium">{phase.roas.toFixed(2)}x ROAS</span>
+                                   ) : phase.ctr != null ? (
+                                     <span className="text-xs font-medium">{phase.ctr.toFixed(2)}% CTR</span>
+                                   ) : (
+                                     <span className="text-xs text-muted-foreground">—</span>
+                                   )}
+                                 </TableCell>
                                 <TableCell>
                                   <TooltipProvider>
                                     <Tooltip>

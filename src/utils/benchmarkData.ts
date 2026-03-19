@@ -13,9 +13,61 @@ export interface BenchmarkData {
   link_clicks: number;
   landing_page_views: number;
   revenue: number;
-  avg_ctr: number | null;
-  avg_roas: number | null;
   campaign_count: number;
+}
+
+/**
+ * Click-based / visit-based optimization goals where CTR is the primary rate metric.
+ * CTR click metric depends on goal:
+ *   - LINK_CLICKS, TRAFFIC → link_clicks
+ *   - LANDING_PAGE_VIEWS, TRAFFIC_LANDING_PAGE_VIEW → landing_page_views
+ *   - Default → clicks
+ */
+const CLICK_BASED_GOALS = new Set([
+  'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'TRAFFIC_LANDING_PAGE_VIEW',
+  'CLICK', 'TRAFFIC', 'DEMAND_GEN_CLICKS', 'SEARCH_CLICKS',
+]);
+
+/**
+ * Check if an optimization goal is click/visit-based (should show CTR)
+ */
+export function isClickBasedGoal(optimizationGoal: string): boolean {
+  return CLICK_BASED_GOALS.has(optimizationGoal.toUpperCase());
+}
+
+/**
+ * Calculate CTR from raw benchmark data.
+ * The "click" metric used depends on the optimization goal:
+ *   - Landing page view goals → landing_page_views / impressions
+ *   - Link click goals → link_clicks / impressions  
+ *   - Default → clicks / impressions
+ */
+export function calculateBenchmarkCTR(benchmark: BenchmarkData): number | null {
+  if (!benchmark.impressions || benchmark.impressions <= 0) return null;
+  
+  const goal = benchmark.optimization_goal?.toUpperCase() || '';
+  
+  let clickMetric: number;
+  if (goal.includes('LANDING_PAGE') || goal === 'TRAFFIC_LANDING_PAGE_VIEW') {
+    clickMetric = benchmark.landing_page_views || 0;
+  } else if (goal.includes('LINK_CLICK') || goal === 'CLICK' || goal === 'TRAFFIC') {
+    clickMetric = benchmark.link_clicks || benchmark.clicks || 0;
+  } else {
+    clickMetric = benchmark.clicks || 0;
+  }
+  
+  if (clickMetric <= 0) return null;
+  return (clickMetric / benchmark.impressions) * 100;
+}
+
+/**
+ * Calculate ROAS from raw benchmark data: revenue / total_spend
+ * Only meaningful for revenue-based objectives.
+ */
+export function calculateBenchmarkROAS(benchmark: BenchmarkData): number | null {
+  if (!benchmark.total_spend || benchmark.total_spend <= 0) return null;
+  if (!benchmark.revenue || benchmark.revenue <= 0) return null;
+  return benchmark.revenue / benchmark.total_spend;
 }
 
 /**

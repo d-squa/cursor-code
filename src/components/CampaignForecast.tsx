@@ -18,7 +18,7 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
-import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId, isRevenueBasedGoal } from "@/utils/benchmarkData";
+import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId, isRevenueBasedGoal, isClickBasedGoal, calculateBenchmarkCTR, calculateBenchmarkROAS } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
@@ -95,6 +95,8 @@ interface PhaseForecast {
   resultRate: number;
   isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
   adSets?: AdSetForecast[];
+  ctr?: number | null; // Calculated CTR for click/visit-based goals
+  roas?: number | null; // Calculated ROAS for revenue-based goals
 }
 
 interface MarketForecast {
@@ -933,17 +935,18 @@ export function CampaignForecast({
         let costPerResult: number;
         
         // For revenue-based goals, use ROAS from benchmark if available
-        if (isRevenueBasedGoal(optimizationGoal) && benchmark?.avg_roas && benchmark.avg_roas > 0) {
+        const benchmarkROAS = benchmark ? calculateBenchmarkROAS(benchmark) : null;
+        if (isRevenueBasedGoal(optimizationGoal) && benchmarkROAS && benchmarkROAS > 0) {
           // ROAS = revenue / spend, so estimated revenue = budget * ROAS
-          const estimatedRevenue = budget * benchmark.avg_roas;
+          const estimatedRevenue = budget * benchmarkROAS;
           // For ROAS-based, result = estimated conversions from CPR
-          if (benchmark.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+          if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
             costPerResult = benchmark.avg_cost_per_result;
             result = budget / costPerResult;
           } else {
             costPerResult = result > 0 ? budget / result : 0;
           }
-          console.log(`✓ Using META benchmark ROAS for ${market.name}/${optimizationGoal}: ${benchmark.avg_roas.toFixed(2)}x, Revenue: $${estimatedRevenue.toFixed(2)}`);
+          console.log(`✓ Using META benchmark ROAS for ${market.name}/${optimizationGoal}: ${benchmarkROAS.toFixed(2)}x, Revenue: $${estimatedRevenue.toFixed(2)}`);
         } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
           // Use benchmark data
           costPerResult = benchmark.avg_cost_per_result;
@@ -1517,12 +1520,12 @@ export function CampaignForecast({
               const platformKey = getPlatformKeyFromId(platform.id);
               const benchmark = lookupBenchmark(benchmarks, platformKey, market.name || '', optimizationGoal || '');
               
-              // For revenue-based goals, prefer ROAS from benchmark
-              if (isRevenueBasedGoal(optimizationGoal) && benchmark?.avg_roas && benchmark.avg_roas > 0 && benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+              const benchmarkROAS = benchmark ? calculateBenchmarkROAS(benchmark) : null;
+              if (isRevenueBasedGoal(optimizationGoal) && benchmarkROAS && benchmarkROAS > 0 && benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
                 isBenchmarkBased = true;
-                console.log(`✓ Using benchmark ROAS (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: ROAS=${benchmark.avg_roas.toFixed(2)}x, CPR=$${costPerResult.toFixed(2)}`);
+                console.log(`✓ Using benchmark ROAS (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: ROAS=${benchmarkROAS.toFixed(2)}x, CPR=$${costPerResult.toFixed(2)}`);
               } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
@@ -1643,6 +1646,19 @@ export function CampaignForecast({
                 });
               }
 
+              // Calculate CTR and ROAS from benchmark raw data
+              let phaseCTR: number | null = null;
+              let phaseROAS: number | null = null;
+              
+              if (benchmark) {
+                if (isClickBasedGoal(optimizationGoal)) {
+                  phaseCTR = calculateBenchmarkCTR(benchmark);
+                }
+                if (isRevenueBasedGoal(optimizationGoal)) {
+                  phaseROAS = calculateBenchmarkROAS(benchmark);
+                }
+              }
+
               // Store phase forecast
               phaseForecasts.push({
                 phaseName: phase.name,
@@ -1656,6 +1672,8 @@ export function CampaignForecast({
                 resultRate: parseFloat(resultRate.toFixed(2)),
                 isBenchmarkBased,
                 adSets: adSetForecasts,
+                ctr: phaseCTR,
+                roas: phaseROAS,
               });
 
               // Aggregate results by goal
