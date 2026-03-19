@@ -497,7 +497,7 @@ async function searchGoogleAudiences(headers: Record<string, string>, customerId
       const resp = await fetch(searchUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ query: gaql, pageSize: 50 }),
+        body: JSON.stringify({ query: gaql }),
       });
 
       if (!resp.ok) {
