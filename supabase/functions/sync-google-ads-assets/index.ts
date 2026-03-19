@@ -109,6 +109,8 @@ serve(async (req: Request) => {
     headers["login-customer-id"] = (managerAccountId || cleanCustomerId).replace(/-/g, "");
 
     console.log(`Using login-customer-id: ${headers["login-customer-id"]} for customer ${cleanCustomerId}`);
+
+    const searchUrl = `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cleanCustomerId}/googleAds:searchStream`;
     const response = await fetch(searchUrl, {
       method: "POST",
       headers,
