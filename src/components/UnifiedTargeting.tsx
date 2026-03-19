@@ -111,6 +111,7 @@ export function UnifiedTargeting({
   platformName = 'Meta',
   selectedPlatforms,
   skipLocalStorage = false,
+  markets,
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
