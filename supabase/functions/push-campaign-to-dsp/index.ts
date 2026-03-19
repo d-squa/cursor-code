@@ -3641,9 +3641,11 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
         const needsAdGroupLevelTargeting = ["DEMAND_GEN", "DISPLAY", "VIDEO"].includes(advertisingChannelType);
 
         for (const [strategyName, strategyKeywords] of strategiesToProcess) {
-          // Generate campaign name - include strategy suffix for keyword-split campaigns
+          // Generate campaign name - include market>strategy for search campaigns
           const strategySuffix = strategyName ? ` - ${strategyName}` : "";
-          const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
+          const defaultCampaignName = isSearchCampaign && strategyName
+            ? `${campaign.name} - ${market.name} > ${strategyName}_${generateTimestampSuffix()}`
+            : `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
           // Try to use client taxonomy template for campaign naming
           const googleCampaignTaxonomyContext: TaxonomyContext = {
