@@ -422,6 +422,10 @@ async function syncAccountBenchmarks(
     total_spend: number;
     total_results: number;
     impressions: number;
+    clicks: number;
+    link_clicks: number;
+    landing_page_views: number;
+    revenue: number;
     campaign_count: number;
     industry: string | null;
   }>();
