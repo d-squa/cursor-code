@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Search, X, Plus, KeyRound, Ban, ChevronDown, ChevronRight, Target, ShieldCheck, Swords } from "lucide-react";
+import { Loader2, Search, X, Plus, KeyRound, Ban, ChevronDown, ChevronRight, Target, ShieldCheck, Swords, Globe } from "lucide-react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ export interface KeywordItem {
   id: string;
   name: string;
   platform: "google" | "tiktok";
+  market?: string; // Country code (e.g. "AE", "US")
   avgMonthlySearches?: number;
   competition?: string;
   cpcLow?: number;
@@ -29,11 +30,17 @@ export interface KeywordItem {
   isNegative?: boolean;
 }
 
+export interface MarketInfo {
+  name: string; // Country code (e.g. "AE")
+  label?: string; // Display name (e.g. "UAE")
+}
+
 interface KeywordTargetingProps {
   selectedKeywords: KeywordItem[];
   onUpdate: (keywords: KeywordItem[]) => void;
   googleCustomerId?: string;
   tiktokAdvertiserId?: string;
+  markets?: MarketInfo[];
 }
 
 const STRATEGY_META: Record<KeywordStrategy, { label: string; icon: React.ReactNode; color: string }> = {
@@ -53,6 +60,7 @@ export function KeywordTargeting({
   onUpdate,
   googleCustomerId,
   tiktokAdvertiserId,
+  markets = [],
 }: KeywordTargetingProps) {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -60,9 +68,27 @@ export function KeywordTargeting({
   const [defaultMatchType, setDefaultMatchType] = useState<KeywordMatchType>("broad");
   const [platformFilter, setPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
   const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
+  const [activeMarketTab, setActiveMarketTab] = useState<string>("all");
 
   const hasGoogleOrTiktok = !!googleCustomerId || !!tiktokAdvertiserId;
-  const filteredResults = platformFilter === 'all' ? results : results.filter(r => r.platform === platformFilter);
+  const hasMultipleMarkets = markets.length > 1;
+
+  // Derive unique market codes from results
+  const resultMarkets = Array.from(new Set(results.map(r => r.market).filter(Boolean))) as string[];
+
+  // Filter results by active market tab and platform
+  const getFilteredResults = () => {
+    let filtered = results;
+    if (activeMarketTab !== "all") {
+      filtered = filtered.filter(r => r.market === activeMarketTab);
+    }
+    if (platformFilter !== 'all') {
+      filtered = filtered.filter(r => r.platform === platformFilter);
+    }
+    return filtered;
+  };
+
+  const filteredResults = getFilteredResults();
 
   if (!hasGoogleOrTiktok) return null;
 
@@ -74,16 +100,25 @@ export function KeywordTargeting({
 
     setSearching(true);
     try {
+      // Pass market country codes to the edge function
+      const marketCodes = markets.length > 0 ? markets.map(m => m.name.substring(0, 2).toUpperCase()) : undefined;
+
       const { data, error } = await supabase.functions.invoke("search-platform-keywords", {
-        body: { query, googleCustomerId, tiktokAdvertiserId },
+        body: { query, googleCustomerId, tiktokAdvertiserId, markets: marketCodes },
       });
 
       if (error) throw error;
 
       const sorted = (data.results || []).sort((a: KeywordItem, b: KeywordItem) => (b.avgMonthlySearches || 0) - (a.avgMonthlySearches || 0));
       setResults(sorted);
+
+      // Auto-select first market tab if multi-market
+      if (hasMultipleMarkets && marketCodes && marketCodes.length > 0) {
+        setActiveMarketTab(marketCodes[0]);
+      }
+
       if (data.results?.length > 0) {
-        toast.success(`Found ${data.results.length} keyword suggestions`);
+        toast.success(`Found ${data.results.length} keyword suggestions across ${data.markets?.length || 1} market(s)`);
       } else {
         toast.warning("No keyword suggestions found");
       }
@@ -95,15 +130,14 @@ export function KeywordTargeting({
     }
   };
 
-  // Create a unique key for a keyword entry based on base id + strategy + negative status
-  const entryKey = (id: string, strategy: KeywordStrategy, isNegative: boolean) =>
-    `${id}__${strategy}__${isNegative ? "neg" : "pos"}`;
+  // Create a unique key for a keyword entry based on base id + strategy + negative status + market
+  const entryKey = (id: string, strategy: KeywordStrategy, isNegative: boolean, market?: string) =>
+    `${id}__${strategy}__${isNegative ? "neg" : "pos"}${market ? `__${market}` : ""}`;
 
   const isSelected = (kw: KeywordItem) =>
     selectedKeywords.some((s) => s.id === kw.id);
 
   const addKeyword = (kw: KeywordItem, strategy: KeywordStrategy, isNegative: boolean) => {
-    // Check if this exact combination already exists
     const alreadyExists = selectedKeywords.some(
       (s) => s.id === kw.id && s.strategy === strategy && s.isNegative === isNegative
     );
@@ -113,14 +147,14 @@ export function KeywordTargeting({
     }
     const newKw: KeywordItem = {
       ...kw,
-      // Give a unique id for this strategy+negative combination
-      id: entryKey(kw.id, strategy, isNegative),
+      id: entryKey(kw.id, strategy, isNegative, kw.market),
       strategy,
       matchType: defaultMatchType,
       isNegative,
+      market: kw.market,
     };
     onUpdate([...selectedKeywords, newKw]);
-    toast.success(`${isNegative ? "Negated" : "Added"} "${kw.name}" → ${STRATEGY_META[strategy].label}`);
+    toast.success(`${isNegative ? "Negated" : "Added"} "${kw.name}" → ${STRATEGY_META[strategy].label}${kw.market ? ` (${kw.market})` : ""}`);
   };
 
   const handleRemove = (kw: KeywordItem) => {
@@ -128,16 +162,17 @@ export function KeywordTargeting({
   };
 
   const handleBulkAdd = (strategy: KeywordStrategy, isNegative: boolean) => {
-    const newKeywords = results
+    const newKeywords = filteredResults
       .filter((kw) => !selectedKeywords.some(
-        (s) => s.id === entryKey(kw.id, strategy, isNegative)
+        (s) => s.id === entryKey(kw.id, strategy, isNegative, kw.market)
       ))
       .map((kw) => ({
         ...kw,
-        id: entryKey(kw.id, strategy, isNegative),
+        id: entryKey(kw.id, strategy, isNegative, kw.market),
         strategy,
         matchType: defaultMatchType,
         isNegative,
+        market: kw.market,
       }));
     if (newKeywords.length === 0) {
       toast.info("All keywords already added");
@@ -184,6 +219,11 @@ export function KeywordTargeting({
 
   const getPlatformColor = (platform: string) => {
     return platform === "google" ? "border-green-200" : "border-pink-200";
+  };
+
+  const getMarketLabel = (code: string) => {
+    const m = markets.find(m => m.name.substring(0, 2).toUpperCase() === code);
+    return m?.label || code;
   };
 
   const StrategyDropdown = ({ kw, isNegative, label, icon }: { kw: KeywordItem; isNegative: boolean; label: string; icon: React.ReactNode }) => (
@@ -244,6 +284,14 @@ export function KeywordTargeting({
     const googleCount = allKeywords.filter(kw => kw.platform === 'google').length;
     const tiktokCount = allKeywords.filter(kw => kw.platform === 'tiktok').length;
 
+    // Group keywords by market for display
+    const keywordsByMarket = new Map<string, KeywordItem[]>();
+    keywords.forEach(kw => {
+      const market = kw.market || "Global";
+      if (!keywordsByMarket.has(market)) keywordsByMarket.set(market, []);
+      keywordsByMarket.get(market)!.push(kw);
+    });
+
     return (
       <div className="space-y-3">
         {allKeywords.length === 0 ? (
@@ -300,31 +348,77 @@ export function KeywordTargeting({
             </div>
             <ScrollArea className="h-[280px]">
               <div className="space-y-3 pr-3">
-                {positives.length > 0 && (
-                  <Collapsible>
-                    <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors w-full">
-                      <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
-                      Positive ({positives.length})
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-1.5 mt-1.5">
-                      {positives.map((kw) => (
-                        <KeywordRow key={kw.id} kw={kw} />
-                      ))}
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-                {negatives.length > 0 && (
-                  <Collapsible>
-                    <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-destructive uppercase tracking-wider hover:text-destructive/80 transition-colors w-full">
-                      <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
-                      Negative ({negatives.length})
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-1.5 mt-1.5">
-                      {negatives.map((kw) => (
-                        <KeywordRow key={kw.id} kw={kw} />
-                      ))}
-                    </CollapsibleContent>
-                  </Collapsible>
+                {/* Group by market if multiple markets */}
+                {hasMultipleMarkets && keywordsByMarket.size > 1 ? (
+                  Array.from(keywordsByMarket.entries()).map(([market, marketKws]) => {
+                    const marketPositives = marketKws.filter(kw => !kw.isNegative);
+                    const marketNegatives = marketKws.filter(kw => kw.isNegative);
+                    return (
+                      <div key={market} className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 px-1">
+                          <Globe className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            {getMarketLabel(market)} ({marketKws.length})
+                          </span>
+                        </div>
+                        {marketPositives.length > 0 && (
+                          <Collapsible>
+                            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors w-full pl-4">
+                              <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                              Positive ({marketPositives.length})
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-1.5 mt-1.5 pl-4">
+                              {marketPositives.map((kw) => (
+                                <KeywordRow key={kw.id} kw={kw} />
+                              ))}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+                        {marketNegatives.length > 0 && (
+                          <Collapsible>
+                            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-destructive uppercase tracking-wider hover:text-destructive/80 transition-colors w-full pl-4">
+                              <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                              Negative ({marketNegatives.length})
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-1.5 mt-1.5 pl-4">
+                              {marketNegatives.map((kw) => (
+                                <KeywordRow key={kw.id} kw={kw} />
+                              ))}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <>
+                    {positives.length > 0 && (
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors w-full">
+                          <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                          Positive ({positives.length})
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-1.5 mt-1.5">
+                          {positives.map((kw) => (
+                            <KeywordRow key={kw.id} kw={kw} />
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                    {negatives.length > 0 && (
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-destructive uppercase tracking-wider hover:text-destructive/80 transition-colors w-full">
+                          <ChevronRight className="h-3 w-3 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                          Negative ({negatives.length})
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-1.5 mt-1.5">
+                          {negatives.map((kw) => (
+                            <KeywordRow key={kw.id} kw={kw} />
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                  </>
                 )}
               </div>
             </ScrollArea>
@@ -348,6 +442,11 @@ export function KeywordTargeting({
         <Badge variant="outline" className={`text-[10px] shrink-0 ${getPlatformColor(kw.platform)}`}>
           {kw.platform === "google" ? "G" : "TT"}
         </Badge>
+        {kw.market && hasMultipleMarkets && (
+          <Badge variant="secondary" className="text-[10px] shrink-0">
+            {kw.market}
+          </Badge>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
@@ -417,7 +516,15 @@ export function KeywordTargeting({
           </Button>
         </div>
 
-        {/* Results */}
+        {/* Market info indicator */}
+        {hasMultipleMarkets && markets.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Globe className="h-3.5 w-3.5" />
+            <span>Searching across {markets.length} markets: {markets.map(m => m.label || m.name).join(", ")}</span>
+          </div>
+        )}
+
+        {/* Results with Market Tabs */}
         {results.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -427,8 +534,8 @@ export function KeywordTargeting({
               <div className="flex gap-1">
                 {(['all', 'google', 'tiktok'] as const).map(f => {
                   const count = f === 'all' 
-                    ? results.length 
-                    : results.filter(r => r.platform === f).length;
+                    ? (activeMarketTab === 'all' ? results : results.filter(r => r.market === activeMarketTab)).length
+                    : (activeMarketTab === 'all' ? results : results.filter(r => r.market === activeMarketTab)).filter(r => r.platform === f).length;
                   if (f !== 'all' && count === 0) return null;
                   return (
                     <Button
@@ -444,6 +551,27 @@ export function KeywordTargeting({
                 })}
               </div>
             </div>
+
+            {/* Market Tabs - show only when multiple markets */}
+            {hasMultipleMarkets && resultMarkets.length > 1 ? (
+              <Tabs value={activeMarketTab} onValueChange={setActiveMarketTab} className="mb-2">
+                <TabsList className="h-8">
+                  {resultMarkets.map((market) => {
+                    const count = results.filter(r => r.market === market).length;
+                    return (
+                      <TabsTrigger key={market} value={market} className="text-xs gap-1 h-7 px-3">
+                        <Globe className="h-3 w-3" />
+                        {getMarketLabel(market)}
+                        <Badge variant="secondary" className="h-4 min-w-[18px] text-[10px] px-1">
+                          {count}
+                        </Badge>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </Tabs>
+            ) : null}
+
             <div className="flex items-center justify-end gap-1.5 mb-2">
               <BulkStrategyDropdown isNegative={false} />
               <BulkStrategyDropdown isNegative={true} />
@@ -467,6 +595,11 @@ export function KeywordTargeting({
                           <Badge variant="outline" className={`text-xs ${getPlatformColor(kw.platform)}`}>
                             {kw.platform === "google" ? "Google" : "TikTok"}
                           </Badge>
+                          {kw.market && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              {kw.market}
+                            </Badge>
+                          )}
                           {existing && (
                             <Badge className={`text-[10px] ${STRATEGY_META[existing.strategy || "generic"].color}`}>
                               {existing.isNegative ? "−" : "+"} {STRATEGY_META[existing.strategy || "generic"].label}
