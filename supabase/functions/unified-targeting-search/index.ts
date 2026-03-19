@@ -124,14 +124,9 @@ serve(async (req) => {
     if (tiktokAdvertiserId) {
       console.log('Searching TikTok...');
       
-      // Get TikTok platform connection
-      const { data: tiktokPlatform } = await supabaseClient
-        .from('connected_platforms')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('platform_type', 'tiktok')
-        .eq('is_active', true)
-        .single();
+      // Use shared team-aware resolver
+      const tiktokCandidates = await getTikTokPlatformCandidatesForAdvertiser(supabaseClient, user.id, tiktokAdvertiserId);
+      const tiktokPlatform = tiktokCandidates[0] || null;
 
       if (tiktokPlatform) {
         // Get access token from Vault with fallback to database column
@@ -151,6 +146,8 @@ serve(async (req) => {
         } else {
           console.error('No TikTok access token available');
         }
+      } else {
+        console.error('No TikTok platform connection found for user:', user.id);
       }
     }
 
