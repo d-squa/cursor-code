@@ -866,9 +866,15 @@ async function syncGoogleAdsBenchmarks(
       .maybeSingle();
     industry = clientData?.industry || null;
     console.log(`[GOOGLE-BENCHMARK] Found client industry: ${industry}`);
+  } else {
+    console.log(`[GOOGLE-BENCHMARK] No client linked to account ${customerId}, industry will be null`);
   }
 
-  // Fetch campaign metrics with geo breakdown
+  // Strip dashes from IDs for the API
+  const cleanCustomerId = customerId.replace(/-/g, "");
+  const cleanLoginCustomerId = loginCustomerId.replace(/-/g, "");
+
+  // Fetch campaign metrics with geo breakdown using regular search (not searchStream)
   const query = `
     SELECT
       campaign.id,
@@ -886,27 +892,51 @@ async function syncGoogleAdsBenchmarks(
       AND metrics.cost_micros > 0
   `;
 
-  const response = await fetch(
-    `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "developer-token": developerToken,
-        "login-customer-id": loginCustomerId,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query }),
-    }
-  );
+  console.log(`[GOOGLE-BENCHMARK] Fetching performance data for customer ${cleanCustomerId} (login: ${cleanLoginCustomerId})...`);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[GOOGLE-BENCHMARK] Error fetching performance data: ${errorText}`);
+  let allResults: any[] = [];
+  let nextPageToken: string | undefined;
+
+  // Paginate through results using regular search endpoint
+  do {
+    const requestBody: any = { query, pageSize: 10000 };
+    if (nextPageToken) {
+      requestBody.pageToken = nextPageToken;
+    }
+
+    const response = await fetch(
+      `https://googleads.googleapis.com/v23/customers/${cleanCustomerId}/googleAds:search`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "developer-token": developerToken,
+          "login-customer-id": cleanLoginCustomerId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[GOOGLE-BENCHMARK] Error fetching performance data: ${errorText}`);
+      return { synced: 0 };
+    }
+
+    const responseData = await response.json();
+    const results = responseData.results || [];
+    allResults.push(...results);
+    nextPageToken = responseData.nextPageToken;
+    console.log(`[GOOGLE-BENCHMARK] Fetched ${results.length} rows (total: ${allResults.length})`);
+  } while (nextPageToken);
+
+  console.log(`[GOOGLE-BENCHMARK] Total rows fetched: ${allResults.length}`);
+
+  if (allResults.length === 0) {
+    console.log(`[GOOGLE-BENCHMARK] No performance data found for customer ${cleanCustomerId}`);
     return { synced: 0 };
   }
-
-  const responseData = await response.json();
 
   // Map Google Ads geo criterion IDs to ISO country codes
   const geoIdToCountry: Record<string, string> = {
@@ -941,85 +971,81 @@ async function syncGoogleAdsBenchmarks(
     industry: string | null;
   }>();
 
-  if (Array.isArray(responseData)) {
-    for (const chunk of responseData) {
-      for (const row of (chunk.results || [])) {
-        const geoId = row.geographicView?.countryCriterionId;
-        const country = geoIdToCountry[geoId] || `GEO_${geoId}`;
-        const costMicros = parseInt(row.metrics?.costMicros || "0");
-        const spend = costMicros / 1_000_000;
-        const impressions = parseInt(row.metrics?.impressions || "0");
-        const clicks = parseInt(row.metrics?.clicks || "0");
-        const conversions = parseFloat(row.metrics?.conversions || "0");
-        const videoViews = parseInt(row.metrics?.videoViews || "0");
-        const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
+  for (const row of allResults) {
+    const geoId = String(row.geographicView?.countryCriterionId || "");
+    const country = geoIdToCountry[geoId] || `GEO_${geoId}`;
+    const costMicros = parseInt(row.metrics?.costMicros || "0");
+    const spend = costMicros / 1_000_000;
+    const impressions = parseInt(row.metrics?.impressions || "0");
+    const clicks = parseInt(row.metrics?.clicks || "0");
+    const conversions = parseFloat(row.metrics?.conversions || "0");
+    const videoViews = parseInt(row.metrics?.videoViews || "0");
+    const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
 
-        const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
+    const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
 
-        // Determine primary result based on channel type
-        let results = 0;
-        if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
-          results = clicks;
-        } else if (channelType === "VIDEO") {
-          results = videoViews > 0 ? videoViews : clicks;
-        } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
-          results = conversions > 0 ? conversions : clicks;
-        } else if (channelType === "DISPLAY") {
-          results = clicks > 0 ? clicks : impressions / 1000;
-        } else {
-          results = clicks > 0 ? clicks : impressions / 1000;
-        }
+    // Determine primary result based on channel type
+    let results = 0;
+    if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
+      results = clicks;
+    } else if (channelType === "VIDEO") {
+      results = videoViews > 0 ? videoViews : clicks;
+    } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
+      results = conversions > 0 ? conversions : clicks;
+    } else if (channelType === "DISPLAY") {
+      results = clicks > 0 ? clicks : impressions / 1000;
+    } else {
+      results = clicks > 0 ? clicks : impressions / 1000;
+    }
 
-        const key = `${country}_${optimizationGoal}`;
-        if (!benchmarkMap.has(key)) {
-          benchmarkMap.set(key, {
-            market: country,
-            optimization_goal: optimizationGoal,
-            total_spend: 0,
-            total_results: 0,
-            impressions: 0,
-            campaign_count: 0,
-            industry,
-          });
-        }
+    const key = `${country}_${optimizationGoal}`;
+    if (!benchmarkMap.has(key)) {
+      benchmarkMap.set(key, {
+        market: country,
+        optimization_goal: optimizationGoal,
+        total_spend: 0,
+        total_results: 0,
+        impressions: 0,
+        campaign_count: 0,
+        industry,
+      });
+    }
 
-        const benchmark = benchmarkMap.get(key)!;
-        benchmark.total_spend += spend;
-        benchmark.total_results += results;
-        benchmark.impressions += impressions;
-        benchmark.campaign_count += 1;
+    const benchmark = benchmarkMap.get(key)!;
+    benchmark.total_spend += spend;
+    benchmark.total_results += results;
+    benchmark.impressions += impressions;
+    benchmark.campaign_count += 1;
 
-        // Also add generic CLICK and CONVERSION benchmarks
-        if (clicks > 0) {
-          const clickKey = `${country}_CLICK`;
-          if (!benchmarkMap.has(clickKey)) {
-            benchmarkMap.set(clickKey, {
-              market: country, optimization_goal: "CLICK",
-              total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
-            });
-          }
-          const clickBm = benchmarkMap.get(clickKey)!;
-          clickBm.total_spend += spend;
-          clickBm.total_results += clicks;
-          clickBm.impressions += impressions;
-          clickBm.campaign_count += 1;
-        }
-
-        if (conversions > 0) {
-          const convKey = `${country}_CONVERSION`;
-          if (!benchmarkMap.has(convKey)) {
-            benchmarkMap.set(convKey, {
-              market: country, optimization_goal: "CONVERSION",
-              total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
-            });
-          }
-          const convBm = benchmarkMap.get(convKey)!;
-          convBm.total_spend += spend;
-          convBm.total_results += conversions;
-          convBm.impressions += impressions;
-          convBm.campaign_count += 1;
-        }
+    // Also add generic CLICK and CONVERSION benchmarks
+    if (clicks > 0) {
+      const clickKey = `${country}_CLICK`;
+      if (!benchmarkMap.has(clickKey)) {
+        benchmarkMap.set(clickKey, {
+          market: country, optimization_goal: "CLICK",
+          total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+        });
       }
+      const clickBm = benchmarkMap.get(clickKey)!;
+      clickBm.total_spend += spend;
+      clickBm.total_results += clicks;
+      clickBm.impressions += impressions;
+      clickBm.campaign_count += 1;
+    }
+
+    if (conversions > 0) {
+      const convKey = `${country}_CONVERSION`;
+      if (!benchmarkMap.has(convKey)) {
+        benchmarkMap.set(convKey, {
+          market: country, optimization_goal: "CONVERSION",
+          total_spend: 0, total_results: 0, impressions: 0, campaign_count: 0, industry,
+        });
+      }
+      const convBm = benchmarkMap.get(convKey)!;
+      convBm.total_spend += spend;
+      convBm.total_results += conversions;
+      convBm.impressions += impressions;
+      convBm.campaign_count += 1;
     }
   }
 
@@ -1059,5 +1085,6 @@ async function syncGoogleAdsBenchmarks(
     }
   }
 
+  console.log(`[GOOGLE-BENCHMARK] ✅ Stored ${storedCount} benchmarks`);
   return { synced: storedCount };
 }
