@@ -5,7 +5,7 @@ import { getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 
 /**
  * SYNC-GOOGLE-ADS-ASSETS
- * 
+ *
  * Fetches and caches assets (images, videos, YouTube videos) from Google Ads
  * asset library. Supports PMax asset groups, Demand Gen, and standard campaigns.
  */
@@ -17,9 +17,66 @@ const corsHeaders = {
 
 const GOOGLE_ADS_API_VERSION = "v23";
 
+const GEO_ID_TO_COUNTRY: Record<string, string> = {
+  "2784": "AE",
+  "2682": "SA",
+  "2414": "KW",
+  "2634": "QA",
+  "2512": "OM",
+  "2048": "BH",
+  "2840": "US",
+  "2826": "GB",
+  "2276": "DE",
+  "2250": "FR",
+  "2380": "IT",
+  "2724": "ES",
+  "2356": "IN",
+  "2036": "AU",
+  "2124": "CA",
+  "2392": "JP",
+  "2076": "BR",
+  "2484": "MX",
+  "2566": "NG",
+  "2710": "ZA",
+  "2818": "EG",
+  "2792": "TR",
+  "2586": "PK",
+  "2360": "ID",
+  "2458": "MY",
+  "2702": "SG",
+  "2764": "TH",
+  "2704": "VN",
+  "2608": "PH",
+  "2410": "KR",
+  "2158": "TW",
+  "2344": "HK",
+  "2400": "JO",
+  "2422": "LB",
+  "2368": "IQ",
+};
+
+const CHANNEL_TYPE_GOAL_MAP: Record<string, string> = {
+  SEARCH: "SEARCH_CLICKS",
+  DISPLAY: "DISPLAY_IMPRESSIONS",
+  VIDEO: "VIDEO_VIEWS",
+  SHOPPING: "SHOPPING_CONVERSIONS",
+  PERFORMANCE_MAX: "PMAX_CONVERSIONS",
+  DEMAND_GEN: "DEMAND_GEN_CLICKS",
+};
+
 interface SyncRequest {
   customerId: string;
   assetTypes?: ("IMAGE" | "YOUTUBE_VIDEO" | "MEDIA_BUNDLE")[];
+}
+
+interface BenchmarkAccumulator {
+  market: string;
+  optimization_goal: string;
+  total_spend: number;
+  total_results: number;
+  impressions: number;
+  campaign_count: number;
+  industry: string | null;
 }
 
 serve(async (req: Request) => {
@@ -38,7 +95,10 @@ serve(async (req: Request) => {
     if (!authHeader) throw new Error("Missing authorization header");
 
     const jwt = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(jwt);
     if (userError || !user) throw new Error("Unauthorized");
 
     const body: SyncRequest = await req.json();
@@ -69,20 +129,18 @@ serve(async (req: Request) => {
 
     const cleanCustomerId = customerId.replace(/-/g, "");
 
-    // Look up the manager_customer_id from the google_ad_accounts table
     const { data: googleAccount } = await supabase
       .from("google_ad_accounts")
       .select("manager_customer_id")
       .eq("customer_id", cleanCustomerId)
-      .limit(1)
-      .single();
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    const managerAccountId = googleAccount?.manager_customer_id
-      || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+    const loginCustomerId = (googleAccount?.manager_customer_id || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID") || cleanCustomerId)
+      .replace(/-/g, "");
 
-    // Build GAQL query for assets
-    const assetTypeFilter = assetTypes.map(t => `'${t}'`).join(", ");
-    const query = `
+    const assetTypeFilter = assetTypes.map((type) => `'${type}'`).join(", ");
+    const assetQuery = `
       SELECT
         asset.id,
         asset.name,
@@ -103,10 +161,9 @@ serve(async (req: Request) => {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       "developer-token": developerToken,
+      "login-customer-id": loginCustomerId,
       "Content-Type": "application/json",
     };
-    // Always set login-customer-id: prefer manager account, fallback to customer ID itself
-    headers["login-customer-id"] = (managerAccountId || cleanCustomerId).replace(/-/g, "");
 
     console.log(`Using login-customer-id: ${headers["login-customer-id"]} for customer ${cleanCustomerId}`);
 
@@ -114,7 +171,7 @@ serve(async (req: Request) => {
     const response = await fetch(searchUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query: assetQuery }),
     });
 
     if (!response.ok) {
@@ -127,11 +184,9 @@ serve(async (req: Request) => {
     const results = responseData?.[0]?.results || [];
     console.log(`Fetched ${results.length} assets from Google Ads`);
 
-    // Upsert into creative_library_assets
     let synced = 0;
     let errors = 0;
 
-    // Get team_id for this user
     const { data: teamData } = await supabase
       .from("user_roles")
       .select("team_id")
@@ -187,9 +242,26 @@ serve(async (req: Request) => {
           synced++;
         }
       } catch (e) {
-        console.error(`Error processing asset:`, e);
+        console.error("Error processing asset:", e);
         errors++;
       }
+    }
+
+    let benchmarksSynced = 0;
+    try {
+      console.log(`[SYNC-GOOGLE-ADS-ASSETS] Syncing benchmarks for customer ${cleanCustomerId}...`);
+      const benchmarkResult = await syncGoogleAdsBenchmarks(
+        supabase,
+        user.id,
+        cleanCustomerId,
+        accessToken,
+        developerToken,
+        loginCustomerId,
+      );
+      benchmarksSynced = benchmarkResult.synced;
+      console.log(`[SYNC-GOOGLE-ADS-ASSETS] Benchmarks synced: ${benchmarksSynced}`);
+    } catch (benchmarkError) {
+      console.error("[SYNC-GOOGLE-ADS-ASSETS] Benchmark sync error:", benchmarkError);
     }
 
     console.log(`✅ Sync complete: ${synced} synced, ${errors} errors`);
@@ -200,14 +272,245 @@ serve(async (req: Request) => {
         synced,
         errors,
         total: results.length,
+        benchmarksSynced,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
     console.error("sync-google-ads-assets error:", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
+
+async function syncGoogleAdsBenchmarks(
+  supabase: any,
+  userId: string,
+  customerId: string,
+  accessToken: string,
+  developerToken: string,
+  loginCustomerId: string,
+): Promise<{ synced: number }> {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 3);
+
+  const dateRangeStart = startDate.toISOString().split("T")[0];
+  const dateRangeEnd = endDate.toISOString().split("T")[0];
+
+  console.log(`[GOOGLE-BENCHMARK] Date range: ${dateRangeStart} to ${dateRangeEnd}`);
+
+  let industry: string | null = null;
+  const { data: accountData } = await supabase
+    .from("google_ad_accounts")
+    .select("client_id")
+    .eq("customer_id", customerId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (accountData?.client_id) {
+    const { data: clientData } = await supabase
+      .from("clients")
+      .select("industry")
+      .eq("id", accountData.client_id)
+      .maybeSingle();
+
+    industry = clientData?.industry || null;
+    console.log(`[GOOGLE-BENCHMARK] Found client industry: ${industry}`);
+  } else {
+    console.log(`[GOOGLE-BENCHMARK] No client linked to account ${customerId}, industry will be null`);
+  }
+
+  const query = `
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.advertising_channel_type,
+      geographic_view.country_criterion_id,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      metrics.video_views,
+      metrics.all_conversions
+    FROM geographic_view
+    WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
+      AND metrics.cost_micros > 0
+  `;
+
+  console.log(`[GOOGLE-BENCHMARK] Fetching performance data for customer ${customerId} (login: ${loginCustomerId})...`);
+
+  const allResults: any[] = [];
+  let nextPageToken: string | undefined;
+
+  do {
+    const requestBody: Record<string, unknown> = { query, pageSize: 10000 };
+    if (nextPageToken) {
+      requestBody.pageToken = nextPageToken;
+    }
+
+    const response = await fetch(
+      `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}/googleAds:search`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "developer-token": developerToken,
+          "login-customer-id": loginCustomerId,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[GOOGLE-BENCHMARK] Error fetching performance data: ${errorText}`);
+      return { synced: 0 };
+    }
+
+    const responseData = await response.json();
+    const pageResults = responseData.results || [];
+    allResults.push(...pageResults);
+    nextPageToken = responseData.nextPageToken;
+    console.log(`[GOOGLE-BENCHMARK] Fetched ${pageResults.length} rows (total: ${allResults.length})`);
+  } while (nextPageToken);
+
+  if (allResults.length === 0) {
+    console.log(`[GOOGLE-BENCHMARK] No performance data found for customer ${customerId}`);
+    return { synced: 0 };
+  }
+
+  const benchmarkMap = new Map<string, BenchmarkAccumulator>();
+
+  for (const row of allResults) {
+    const geoId = String(row.geographicView?.countryCriterionId || "");
+    const market = GEO_ID_TO_COUNTRY[geoId] || (geoId ? `GEO_${geoId}` : "UNKNOWN");
+    const costMicros = Number(row.metrics?.costMicros || 0);
+    const spend = costMicros / 1_000_000;
+    const impressions = Number(row.metrics?.impressions || 0);
+    const clicks = Number(row.metrics?.clicks || 0);
+    const conversions = Number(row.metrics?.conversions || 0);
+    const videoViews = Number(row.metrics?.videoViews || 0);
+    const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
+    const optimizationGoal = CHANNEL_TYPE_GOAL_MAP[channelType] || channelType;
+
+    let results = 0;
+    if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
+      results = clicks;
+    } else if (channelType === "VIDEO") {
+      results = videoViews > 0 ? videoViews : clicks;
+    } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
+      results = conversions > 0 ? conversions : clicks;
+    } else if (channelType === "DISPLAY") {
+      results = clicks > 0 ? clicks : impressions / 1000;
+    } else {
+      results = clicks > 0 ? clicks : impressions / 1000;
+    }
+
+    const key = `${market}_${optimizationGoal}`;
+    if (!benchmarkMap.has(key)) {
+      benchmarkMap.set(key, {
+        market,
+        optimization_goal: optimizationGoal,
+        total_spend: 0,
+        total_results: 0,
+        impressions: 0,
+        campaign_count: 0,
+        industry,
+      });
+    }
+
+    const benchmark = benchmarkMap.get(key)!;
+    benchmark.total_spend += spend;
+    benchmark.total_results += results;
+    benchmark.impressions += impressions;
+    benchmark.campaign_count += 1;
+
+    if (clicks > 0) {
+      const clickKey = `${market}_CLICK`;
+      if (!benchmarkMap.has(clickKey)) {
+        benchmarkMap.set(clickKey, {
+          market,
+          optimization_goal: "CLICK",
+          total_spend: 0,
+          total_results: 0,
+          impressions: 0,
+          campaign_count: 0,
+          industry,
+        });
+      }
+      const clickBenchmark = benchmarkMap.get(clickKey)!;
+      clickBenchmark.total_spend += spend;
+      clickBenchmark.total_results += clicks;
+      clickBenchmark.impressions += impressions;
+      clickBenchmark.campaign_count += 1;
+    }
+
+    if (conversions > 0) {
+      const conversionKey = `${market}_CONVERSION`;
+      if (!benchmarkMap.has(conversionKey)) {
+        benchmarkMap.set(conversionKey, {
+          market,
+          optimization_goal: "CONVERSION",
+          total_spend: 0,
+          total_results: 0,
+          impressions: 0,
+          campaign_count: 0,
+          industry,
+        });
+      }
+      const conversionBenchmark = benchmarkMap.get(conversionKey)!;
+      conversionBenchmark.total_spend += spend;
+      conversionBenchmark.total_results += conversions;
+      conversionBenchmark.impressions += impressions;
+      conversionBenchmark.campaign_count += 1;
+    }
+  }
+
+  console.log(`[GOOGLE-BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
+
+  let storedCount = 0;
+  for (const [key, benchmark] of benchmarkMap.entries()) {
+    const avgCostPerResult = benchmark.total_results > 0
+      ? benchmark.total_spend / benchmark.total_results
+      : null;
+
+    const { error } = await supabase
+      .from("campaign_performance_benchmarks")
+      .upsert(
+        {
+          user_id: userId,
+          platform: "google",
+          market: benchmark.market,
+          optimization_goal: benchmark.optimization_goal,
+          industry: benchmark.industry,
+          avg_cost_per_result: avgCostPerResult,
+          total_spend: benchmark.total_spend,
+          total_results: benchmark.total_results,
+          impressions: benchmark.impressions,
+          campaign_count: benchmark.campaign_count,
+          date_range_start: dateRangeStart,
+          date_range_end: dateRangeEnd,
+        },
+        {
+          onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end",
+        },
+      );
+
+    if (error) {
+      console.error(`[GOOGLE-BENCHMARK] Error storing ${key}:`, error);
+      continue;
+    }
+
+    storedCount++;
+    console.log(
+      `[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || "N/A"}`,
+    );
+  }
+
+  console.log(`[GOOGLE-BENCHMARK] ✅ Stored ${storedCount} benchmarks`);
+  return { synced: storedCount };
+}
