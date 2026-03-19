@@ -4712,12 +4712,13 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
           // Build search keywords for TikTok Search Ads
-          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform) if phase.keywords is empty
+          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform AND market) if phase.keywords is empty
           const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
           if (searchEnabled || isSearchPhase) {
+            const marketCode = (market.name || "").substring(0, 2).toUpperCase();
             const rawKeywords = phase.keywords || 
               (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
-                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
             
             if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
               for (const kw of rawKeywords) {
@@ -4727,7 +4728,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
                 });
               }
             }
-            console.log(`📝 ${tiktokSearchKeywords.length} search keywords to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
+            console.log(`📝 ${tiktokSearchKeywords.length} search keywords for market ${marketCode} to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
           }
 
           const resolvedTiktokConversionEvent =
