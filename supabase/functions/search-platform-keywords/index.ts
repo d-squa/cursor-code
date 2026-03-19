@@ -69,17 +69,37 @@ serve(async (req: Request) => {
       if (platform) {
         const accessToken = await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, 'google');
         const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
-        const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+
+        // Resolve login-customer-id from google_ad_accounts table first, then env var fallback
+        const cleanCustomerId = googleCustomerId.replace(/-/g, "");
+        let loginCustomerId: string | null = null;
+
+        const { data: googleAdAccount } = await supabase
+          .from('google_ad_accounts')
+          .select('manager_customer_id')
+          .eq('customer_id', cleanCustomerId)
+          .limit(1)
+          .maybeSingle();
+
+        if (googleAdAccount?.manager_customer_id) {
+          loginCustomerId = googleAdAccount.manager_customer_id.replace(/-/g, "");
+          console.log(`Using manager_customer_id from google_ad_accounts: ${loginCustomerId}`);
+        } else {
+          const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+          if (managerAccountId) {
+            loginCustomerId = managerAccountId.replace(/-/g, "");
+            console.log(`Using GOOGLE_ADS_MANAGER_ACCOUNT_ID env var: ${loginCustomerId}`);
+          }
+        }
 
         if (accessToken && developerToken) {
-          const cleanCustomerId = googleCustomerId.replace(/-/g, "");
           const headers: Record<string, string> = {
             Authorization: `Bearer ${accessToken}`,
             "developer-token": developerToken,
             "Content-Type": "application/json",
           };
-          if (managerAccountId) {
-            headers["login-customer-id"] = managerAccountId.replace(/-/g, "");
+          if (loginCustomerId) {
+            headers["login-customer-id"] = loginCustomerId;
           }
 
           // Make parallel requests per market
