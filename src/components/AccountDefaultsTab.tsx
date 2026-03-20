@@ -1266,7 +1266,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Default Pixel</Label>
                             <Select
                               value={defaults.default_pixel_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
+                              onValueChange={(value) => {
+                                updateDefault(account.id, "default_pixel_id", value);
+                                updateDefault(account.id, "default_conversion_event", null);
+                                if (value) fetchMetaConversionEvents(value);
+                              }}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select pixel" />
