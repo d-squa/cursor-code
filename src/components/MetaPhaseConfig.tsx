@@ -102,6 +102,20 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
     if (!phase.metaProductSetId && adAccountDefaults.metaProductSetId) {
       onUpdate("metaProductSetId", adAccountDefaults.metaProductSetId);
     }
+    // Auto-populate Advantage+ settings from defaults
+    if (phase.metaAdvantagePlusCampaign === undefined && adAccountDefaults.metaAdvantagePlusCampaign !== undefined) {
+      onUpdate("metaAdvantagePlusCampaign", adAccountDefaults.metaAdvantagePlusCampaign);
+    }
+    if (phase.metaAdvantagePlusAudience === undefined && adAccountDefaults.metaAdvantagePlusAudience !== undefined) {
+      onUpdate("metaAdvantagePlusAudience", adAccountDefaults.metaAdvantagePlusAudience);
+    }
+    if (phase.metaAdvantagePlusCreative === undefined && adAccountDefaults.metaAdvantagePlusCreative !== undefined) {
+      onUpdate("metaAdvantagePlusCreative", adAccountDefaults.metaAdvantagePlusCreative);
+    }
+    // Auto-populate conversion count
+    if (!phase.metaConversionCount && adAccountDefaults.metaConversionCount) {
+      onUpdate("metaConversionCount", adAccountDefaults.metaConversionCount);
+    }
   }, [adAccountDefaults, phase.id, canInheritDefaults]);
   
   const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
