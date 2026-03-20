@@ -1199,6 +1199,7 @@ export function CampaignForecast({
           
           const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
 
+          console.log(`📋 Forecast source for ${marketCode}: Meta reach estimates (meta-forecast API). Labeled as 'estimated' because R&F API failed and this uses simplified reach model.`);
           return {
             audienceSize: (fallbackData as any).reach * 10,
             reach: fbReach,
