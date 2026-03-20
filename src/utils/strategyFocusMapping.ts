@@ -51,7 +51,7 @@ export function determineStrategyFocus(input: StrategyFocusInput): StrategyFocus
     return "app-installs";
   }
 
-  // Video and awareness formats
+  // Video and awareness formats (including generic image/story formats)
   if (
     formatString.includes("video views") ||
     formatString.includes("brand awareness") ||
@@ -60,6 +60,9 @@ export function determineStrategyFocus(input: StrategyFocusInput): StrategyFocus
     formatString.includes("in-stream") ||
     formatString.includes("in-feed video") ||
     formatString.includes("story ads") ||
+    formatString.includes("stories ads") ||
+    formatString.includes("story image") ||
+    formatString.includes("image ads") ||
     formatString.includes("bumper") ||
     formatString.includes("shorts ads") ||
     formatString.includes("audio ads") ||
