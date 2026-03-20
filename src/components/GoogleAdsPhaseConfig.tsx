@@ -102,6 +102,66 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     }
   }, [phase.objective, phase.googleCampaignType]);
 
+  // Auto-populate from client defaults when fields are empty
+  useEffect(() => {
+    if (!googleDefaults) return;
+    if (!phase.googleCampaignType && googleDefaults.googleCampaignType) {
+      onUpdate("googleCampaignType", googleDefaults.googleCampaignType);
+      if (googleDefaults.googleCampaignSubtype) {
+        onUpdate("googleCampaignSubtype", googleDefaults.googleCampaignSubtype);
+      }
+    }
+    if (!phase.googleBidStrategy && googleDefaults.googleBidStrategy) {
+      onUpdate("googleBidStrategy", googleDefaults.googleBidStrategy);
+    }
+    if (phase.googleTargetCpa === undefined && googleDefaults.googleTargetCpa) {
+      onUpdate("googleTargetCpa", googleDefaults.googleTargetCpa);
+    }
+    if (phase.googleTargetRoas === undefined && googleDefaults.googleTargetRoas) {
+      onUpdate("googleTargetRoas", googleDefaults.googleTargetRoas);
+    }
+    if (phase.googleMaxCpcBid === undefined && googleDefaults.googleMaxCpcBid) {
+      onUpdate("googleMaxCpcBid", googleDefaults.googleMaxCpcBid);
+    }
+    if (phase.googleLocationTargeting === undefined && googleDefaults.googleLocationTargeting) {
+      onUpdate("googleLocationTargeting", googleDefaults.googleLocationTargeting);
+    }
+    if (phase.googleSearchPartner === undefined && googleDefaults.googleSearchPartner !== undefined) {
+      onUpdate("googleSearchPartner", googleDefaults.googleSearchPartner);
+    }
+    if (phase.googleDisplayNetwork === undefined && googleDefaults.googleDisplayNetwork !== undefined) {
+      onUpdate("googleDisplayNetwork", googleDefaults.googleDisplayNetwork);
+    }
+    if (phase.googleCustomerAcquisition === undefined && googleDefaults.googleCustomerAcquisition) {
+      onUpdate("googleCustomerAcquisition", googleDefaults.googleCustomerAcquisition);
+    }
+    if (phase.googleOptimizedTargeting === undefined && googleDefaults.googleOptimizedTargeting !== undefined) {
+      onUpdate("googleOptimizedTargeting", googleDefaults.googleOptimizedTargeting);
+    }
+    if (phase.googleInventoryType === undefined && googleDefaults.googleInventoryType) {
+      onUpdate("googleInventoryType", googleDefaults.googleInventoryType);
+    }
+    if (phase.googleAiMax === undefined && googleDefaults.googleAiMax !== undefined) {
+      onUpdate("googleAiMax", googleDefaults.googleAiMax);
+    }
+    if (!phase.googleAiMaxOptions?.length && googleDefaults.googleAiMaxOptions?.length) {
+      onUpdate("googleAiMaxOptions", googleDefaults.googleAiMaxOptions);
+    }
+    if (!phase.googleLandingPageUrl && googleDefaults.googleLandingPageUrl) {
+      onUpdate("googleLandingPageUrl", googleDefaults.googleLandingPageUrl);
+    }
+    if (!phase.googleMerchantCenterId && googleDefaults.googleMerchantCenterId) {
+      onUpdate("googleMerchantCenterId", googleDefaults.googleMerchantCenterId);
+      onUpdate("googleProductFeed", true);
+    }
+    if (!phase.googleFeedLabel && googleDefaults.googleFeedLabel) {
+      onUpdate("googleFeedLabel", googleDefaults.googleFeedLabel);
+    }
+    if (!phase.googlePlacements?.length && googleDefaults.googlePlacements?.length) {
+      onUpdate("googlePlacements", googleDefaults.googlePlacements);
+    }
+  }, [phase.id, googleDefaults]);
+
   const [merchantCenters, setMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);
   const [feedLabels, setFeedLabels] = useState<Array<{ label: string; country: string }>>([]);
   const [loadingMC, setLoadingMC] = useState(false);
