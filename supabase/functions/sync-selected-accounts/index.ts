@@ -776,11 +776,12 @@ serve(async (req) => {
     if (platform.platform_type === "tiktok") {
       // Handle TikTok account syncing (synchronous - typically fewer accounts)
       
-      // SWAP DETECTION: Get existing TikTok accounts for this team
+      // SWAP DETECTION: Get existing TikTok accounts for this connection only
       const { data: existingTiktokAccounts, error: existingError } = await supabase
         .from('tiktok_ad_accounts')
         .select('account_id, account_name')
-        .eq('team_id', teamId);
+        .eq('team_id', teamId)
+        .eq('platform_id', platformId);
       
       if (existingError) {
         console.error('Error fetching existing TikTok accounts:', existingError);
