@@ -1974,8 +1974,8 @@ export function CampaignForecast({
       };
       saveVersion(forecastPayload, platforms, totalBudget);
 
-      // Reset auto-pop for new forecast run
-      hasAutoPopped.current = false;
+      // Generate a unique ID for this forecast run
+      const forecastRunId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       console.log("💡 Budget optimization check:", {
         platformCount: platformForecasts.length,
         platformNames: platformForecasts.map(p => p.platformName),
@@ -1990,10 +1990,10 @@ export function CampaignForecast({
           });
           if (optimizationResult.hasRecommendations) {
             setBudgetOptimization(optimizationResult);
-            // Only auto-pop once per forecast session
-            if (!hasAutoPopped.current) {
+            // Only auto-pop once per unique forecast run
+            if (lastPoppedForecastId.current !== forecastRunId) {
               setBudgetRecommendationOpen(true);
-              hasAutoPopped.current = true;
+              lastPoppedForecastId.current = forecastRunId;
             }
             console.log("💡 Budget optimization recommendations found:", optimizationResult.recommendations.length);
           } else {
