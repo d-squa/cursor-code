@@ -424,6 +424,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_utm_mode: acc.default_utm_mode || null,
           default_url_parameters: acc.default_url_parameters || null,
           default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements : [],
+          // New campaign configuration defaults
+          default_campaign_objective: (acc as any).default_campaign_objective || null,
+          default_campaign_type: (acc as any).default_campaign_type || null,
+          default_campaign_subtype: (acc as any).default_campaign_subtype || null,
+          default_location_targeting: (acc as any).default_location_targeting || 'PRESENCE_OR_INTEREST',
+          default_search_partner: (acc as any).default_search_partner ?? false,
+          default_display_network: (acc as any).default_display_network ?? false,
+          default_customer_acquisition: (acc as any).default_customer_acquisition || 'Everyone',
+          default_optimized_targeting: (acc as any).default_optimized_targeting ?? true,
+          default_inventory_type: (acc as any).default_inventory_type || null,
+          default_ai_max: (acc as any).default_ai_max ?? false,
+          default_ai_max_options: Array.isArray((acc as any).default_ai_max_options) ? (acc as any).default_ai_max_options : [],
         };
       });
       setGoogleLocalDefaults(gDefaults);
