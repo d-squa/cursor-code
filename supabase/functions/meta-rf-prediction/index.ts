@@ -316,6 +316,25 @@ serve(async (req) => {
     startDate.setUTCHours(7, 0, 0, 0);
     endDate.setUTCHours(7, 0, 0, 0);
 
+    // If start date is today or in the past, push it forward to be valid for Meta R&F
+    // Meta requires start_time to be at least ~1 hour in the future
+    const now = new Date();
+    const minimumStart = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
+    if (startDate.getTime() <= minimumStart.getTime()) {
+      // Round up to next hour boundary for cleanliness
+      const nextValidHour = new Date(minimumStart);
+      nextValidHour.setUTCMinutes(0, 0, 0);
+      nextValidHour.setUTCHours(nextValidHour.getUTCHours() + 1);
+      console.log(`⚠️ Start date ${startDate.toISOString()} is too soon. Adjusting to ${nextValidHour.toISOString()}`);
+      startDate.setTime(nextValidHour.getTime());
+    }
+
+    // Ensure end date is after start date
+    if (endDate.getTime() <= startDate.getTime()) {
+      endDate.setTime(startDate.getTime() + 24 * 60 * 60 * 1000); // At least 1 day after start
+      console.log(`⚠️ End date adjusted to ${endDate.toISOString()} (must be after start)`);
+    }
+
     const startTimeUnix = Math.floor(startDate.getTime() / 1000);
     const endTimeUnix = Math.floor(endDate.getTime() / 1000);
 
