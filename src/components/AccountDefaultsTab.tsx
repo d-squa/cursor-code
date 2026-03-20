@@ -1410,6 +1410,57 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
+                          {/* Advantage+ Shopping Campaign */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Shopping Campaign</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_campaign ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_campaign" as any, value === "true")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Manual Campaign</SelectItem>
+                                <SelectItem value="true">Advantage+ Shopping Campaign</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Advantage+ Audience */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Audience</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_audience ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_audience" as any, value === "true")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Manual Audience</SelectItem>
+                                <SelectItem value="true">Advantage+ Audience</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Advantage+ Creative */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Creative</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_creative ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_creative" as any, value === "true")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Standard Creative</SelectItem>
+                                <SelectItem value="true">Advantage+ Creative</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
                           {/* Bid Strategy */}
                           <div className="space-y-2">
                             <Label>Default Bid Strategy</Label>
