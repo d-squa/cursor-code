@@ -1927,6 +1927,23 @@ export function CampaignForecast({
       });
       toast.success("Forecasts fetched successfully!");
 
+      // Save forecast version
+      const forecastPayload = {
+        forecasts: newForecasts,
+        actiplanForecast: {
+          totalBudget: actiplanBudget,
+          totalAudienceSize: actiplanAudience,
+          totalImpressions: actiplanImpressions,
+          totalReach: actiplanReach,
+          avgCPM: actiplanAvgCPM,
+          frequency: actiplanFrequency,
+          sov: actiplanSOV,
+          platformDeliverables,
+          platforms: platformForecasts,
+        },
+      };
+      saveVersion(forecastPayload, platforms, totalBudget);
+
       // Analyze budget optimization across platforms
       console.log("💡 Budget optimization check:", {
         platformCount: platformForecasts.length,
@@ -1942,7 +1959,11 @@ export function CampaignForecast({
           });
           if (optimizationResult.hasRecommendations) {
             setBudgetOptimization(optimizationResult);
-            setBudgetRecommendationOpen(true);
+            // Only auto-pop once per forecast session
+            if (!hasAutoPopped.current) {
+              setBudgetRecommendationOpen(true);
+              hasAutoPopped.current = true;
+            }
             console.log("💡 Budget optimization recommendations found:", optimizationResult.recommendations.length);
           } else {
             setBudgetOptimization(null);
