@@ -1931,10 +1931,10 @@ export function CampaignForecast({
       const forecastPayload = {
         forecasts: newForecasts,
         actiplanForecast: {
-          totalBudget: actiplanBudget,
-          totalAudienceSize: actiplanAudience,
-          totalImpressions: actiplanImpressions,
-          totalReach: actiplanReach,
+          totalBudget: actiplanTotalBudget,
+          totalAudienceSize: actiplanTotalAudienceSize,
+          totalImpressions: actiplanTotalImpressions,
+          totalReach: actiplanTotalReach,
           avgCPM: actiplanAvgCPM,
           frequency: actiplanFrequency,
           sov: actiplanSOV,
@@ -1944,7 +1944,8 @@ export function CampaignForecast({
       };
       saveVersion(forecastPayload, platforms, totalBudget);
 
-      // Analyze budget optimization across platforms
+      // Reset auto-pop for new forecast run
+      hasAutoPopped.current = false;
       console.log("💡 Budget optimization check:", {
         platformCount: platformForecasts.length,
         platformNames: platformForecasts.map(p => p.platformName),
