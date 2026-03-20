@@ -917,6 +917,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_utm_mode",
         "default_url_parameters",
         "default_placements",
+        // New campaign configuration defaults
+        "default_campaign_objective",
+        "default_campaign_type",
+        "default_campaign_subtype",
+        "default_location_targeting",
+        "default_search_partner",
+        "default_display_network",
+        "default_customer_acquisition",
+        "default_optimized_targeting",
+        "default_inventory_type",
+        "default_ai_max",
+        "default_ai_max_options",
       ];
 
       const updateData: Record<string, any> = {};
