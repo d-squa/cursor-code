@@ -838,11 +838,12 @@ serve(async (req) => {
         });
       });
 
-      // Replace the team's synced TikTok account set with the new selection
+      // Replace only accounts from THIS connection (not all team accounts)
       await supabase
         .from("tiktok_ad_accounts")
         .delete()
-        .eq("team_id", teamId);
+        .eq("team_id", teamId)
+        .eq("platform_id", platformId);
       
       const { error: insertError } = await supabase
         .from("tiktok_ad_accounts")
