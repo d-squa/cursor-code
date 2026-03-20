@@ -1244,11 +1244,12 @@ serve(async (req) => {
         manager_customer_id: platform.metadata?.manager_customer_id || null,
       }));
 
-      // Replace existing Google accounts for this team
+      // Replace only accounts from THIS connection (not all team accounts)
       await supabase
         .from("google_ad_accounts")
         .delete()
-        .eq("team_id", teamId);
+        .eq("team_id", teamId)
+        .eq("platform_id", platformId);
 
       const { error: insertError } = await supabase
         .from("google_ad_accounts")
