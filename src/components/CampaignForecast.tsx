@@ -1050,29 +1050,27 @@ export function CampaignForecast({
 
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
         
-        // Use AI forecast as primary source for TikTok
+        // Use AI forecast as primary source for TikTok (with retry for 429)
         console.log("🤖 Calling AI forecast for TikTok...");
-        const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
-          body: {
-            platform: 'TikTok',
-            market: marketCode,
-            budget,
-            strategyFocus: strategyFocusValue,
-            objective,
-            optimizationGoal,
-            destination,
-            ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
-            ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
-            gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
-            startDate: campaignStartDate || startDate,
-            endDate: campaignEndDate || endDate,
-            industry: resolvedIndustry,
-            phaseName: market.phaseName,
-          }
+        const { data: aiData, error: aiError } = await invokeAIForecastWithRetry({
+          platform: 'TikTok',
+          market: marketCode,
+          budget,
+          strategyFocus: strategyFocusValue,
+          objective,
+          optimizationGoal,
+          destination,
+          ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+          ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+          gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
+          startDate: campaignStartDate || startDate,
+          endDate: campaignEndDate || endDate,
+          industry: resolvedIndustry,
+          phaseName: market.phaseName,
         });
 
         if (aiError) {
-          console.error("AI forecast failed for TikTok:", aiError);
+          console.error("❌ AI forecast failed for TikTok (after retries):", aiError);
           throw aiError;
         }
 
