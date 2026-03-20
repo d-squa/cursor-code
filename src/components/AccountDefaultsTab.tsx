@@ -645,6 +645,49 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
+  // Fetch Meta conversion events for a pixel via edge function
+  const fetchMetaConversionEvents = async (pixelId: string) => {
+    if (metaConversionEvents[pixelId]) return; // Already fetched
+
+    setLoadingMetaEvents(pixelId);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-conversion-events", {
+        body: { pixelId },
+      });
+
+      if (error) throw error;
+
+      if (data?.events) {
+        setMetaConversionEvents((prev) => ({
+          ...prev,
+          [pixelId]: data.events,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching Meta conversion events:", error);
+      // Set standard fallback events
+      setMetaConversionEvents((prev) => ({
+        ...prev,
+        [pixelId]: [
+          { id: "Purchase", name: "Purchase" },
+          { id: "Lead", name: "Lead" },
+          { id: "CompleteRegistration", name: "Complete Registration" },
+          { id: "AddToCart", name: "Add to Cart" },
+          { id: "InitiateCheckout", name: "Initiate Checkout" },
+          { id: "AddPaymentInfo", name: "Add Payment Info" },
+          { id: "ViewContent", name: "View Content" },
+          { id: "Search", name: "Search" },
+          { id: "Contact", name: "Contact" },
+          { id: "Schedule", name: "Schedule" },
+          { id: "SubmitApplication", name: "Submit Application" },
+          { id: "Subscribe", name: "Subscribe" },
+        ],
+      }));
+    } finally {
+      setLoadingMetaEvents(null);
+    }
+  };
+
   // Fetch TikTok events for an advertiser
   const fetchTiktokEvents = async (advertiserId: string, pixelId?: string) => {
     if (tiktokEvents[advertiserId]) return; // Already fetched
