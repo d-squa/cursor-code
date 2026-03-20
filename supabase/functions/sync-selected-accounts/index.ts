@@ -368,6 +368,7 @@ async function syncMetaAccountsInBackground(
           accountsToInsert.push({
             user_id: userId,
             team_id: teamId, // Workspace scoping
+            platform_id: platformId, // Connection scoping
             account_id: accountData.id,
             account_name: accountData.name,
             account_status: accountData.account_status,
@@ -558,11 +559,12 @@ async function syncMetaAccountsInBackground(
     currentStep = totalAccounts + 1;
     await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'ad_accounts', 'Saving ad accounts...', processedCounts);
 
-    // Replace the team's synced Meta account set with the new selection
+    // Replace only accounts from THIS connection (not all team accounts)
     await supabase
       .from("meta_ad_accounts")
       .delete()
-      .eq("team_id", teamId);
+      .eq("team_id", teamId)
+      .eq("platform_id", platformId);
     
     const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
     
@@ -774,11 +776,12 @@ serve(async (req) => {
     if (platform.platform_type === "tiktok") {
       // Handle TikTok account syncing (synchronous - typically fewer accounts)
       
-      // SWAP DETECTION: Get existing TikTok accounts for this team
+      // SWAP DETECTION: Get existing TikTok accounts for this connection only
       const { data: existingTiktokAccounts, error: existingError } = await supabase
         .from('tiktok_ad_accounts')
         .select('account_id, account_name')
-        .eq('team_id', teamId);
+        .eq('team_id', teamId)
+        .eq('platform_id', platformId);
       
       if (existingError) {
         console.error('Error fetching existing TikTok accounts:', existingError);
@@ -827,6 +830,7 @@ serve(async (req) => {
         accountsToInsert.push({
           user_id: user.id,
           team_id: teamId, // Workspace scoping
+          platform_id: platformId, // Connection scoping
           account_id: advertiserIdStr,
           account_name: account.name,
           advertiser_id: advertiserIdStr,
@@ -837,11 +841,12 @@ serve(async (req) => {
         });
       });
 
-      // Replace the team's synced TikTok account set with the new selection
+      // Replace only accounts from THIS connection (not all team accounts)
       await supabase
         .from("tiktok_ad_accounts")
         .delete()
-        .eq("team_id", teamId);
+        .eq("team_id", teamId)
+        .eq("platform_id", platformId);
       
       const { error: insertError } = await supabase
         .from("tiktok_ad_accounts")
@@ -1242,11 +1247,12 @@ serve(async (req) => {
         manager_customer_id: platform.metadata?.manager_customer_id || null,
       }));
 
-      // Replace existing Google accounts for this team
+      // Replace only accounts from THIS connection (not all team accounts)
       await supabase
         .from("google_ad_accounts")
         .delete()
-        .eq("team_id", teamId);
+        .eq("team_id", teamId)
+        .eq("platform_id", platformId);
 
       const { error: insertError } = await supabase
         .from("google_ad_accounts")
@@ -1275,11 +1281,12 @@ serve(async (req) => {
       throw new Error("Unsupported platform type");
     }
 
-    // SWAP DETECTION: Get existing Meta accounts for this team
+    // SWAP DETECTION: Get existing Meta accounts for this connection only
     const { data: existingMetaAccounts, error: existingMetaError } = await supabase
       .from('meta_ad_accounts')
       .select('account_id, account_name')
-      .eq('team_id', teamId);
+      .eq('team_id', teamId)
+      .eq('platform_id', platformId);
     
     if (existingMetaError) {
       console.error('Error fetching existing Meta accounts:', existingMetaError);
