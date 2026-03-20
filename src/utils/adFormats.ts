@@ -265,6 +265,88 @@ export const adFormatMatrix: Record<string, Record<string, AdFormatMapping>> = {
   },
 };
 
+// ── Ad Format Translation (cross-platform duplication) ──
+
+type FormatIntent = "image" | "video" | "carousel" | "collection" | "story" | "lead" | "dynamic" | "shopping" | "app" | "search" | "display" | "messaging" | "interactive" | "other";
+
+/** Classify a single ad format string into a semantic intent */
+function classifyFormat(format: string): FormatIntent {
+  const f = format.toLowerCase();
+  if (f.includes("lead") || f.includes("instant form")) return "lead";
+  if (f.includes("shopping") || f.includes("product shopping") || f.includes("shopping tag")) return "shopping";
+  if (f.includes("dynamic") || f.includes("dpa") || f.includes("catalog") || f.includes("video shopping")) return "dynamic";
+  if (f.includes("app")) return "app";
+  if (f.includes("search") || f.includes("text ad")) return "search";
+  if (f.includes("carousel")) return "carousel";
+  if (f.includes("collection")) return "collection";
+  if (f.includes("story") || f.includes("stories") || f.includes("reel")) return "story";
+  if (f.includes("messenger") || f.includes("message") || f.includes("conversation")) return "messaging";
+  if (f.includes("ar ") || f.includes("filter") || f.includes("effect") || f.includes("hashtag") || f.includes("instant experience") || f.includes("canvas")) return "interactive";
+  if (f.includes("display") || f.includes("html5") || f.includes("uploaded image") || f.includes("responsive display")) return "display";
+  if (f.includes("video") || f.includes("in-stream") || f.includes("bumper") || f.includes("shorts") || f.includes("audio") || f.includes("commercial") || f.includes("topview") || f.includes("non-skippable") || f.includes("outstream") || f.includes("masthead") || f.includes("amplify") || f.includes("multi-format")) return "video";
+  if (f.includes("image") || f.includes("static") || f.includes("single image") || f.includes("promoted ad") || f.includes("spark")) return "image";
+  return "other";
+}
+
+/** Pick the best match from targetFormats for a given intent */
+function bestMatchForIntent(intent: FormatIntent, targetFormats: string[]): string | null {
+  // Build a priority list per intent — first match wins
+  const priorityKeywords: Record<FormatIntent, string[][]> = {
+    image: [["image"], ["single image"], ["static"], ["promoted"], ["sponsored content"]],
+    video: [["video"], ["in-stream"], ["in-feed"], ["shorts"], ["commercial"], ["topview"]],
+    carousel: [["carousel"]],
+    collection: [["collection"]],
+    story: [["story", "stories"], ["reel"], ["in-feed"]],
+    lead: [["lead"], ["instant form"], ["lead gen"]],
+    dynamic: [["dynamic"], ["dpa"], ["catalog"], ["shopping"], ["product"]],
+    shopping: [["shopping"], ["product"], ["catalog"]],
+    app: [["app"]],
+    search: [["search"], ["text ad"], ["responsive search"]],
+    display: [["display"], ["image"], ["html5"], ["uploaded"]],
+    messaging: [["message"], ["messenger"], ["conversation"]],
+    interactive: [["ar "], ["filter"], ["effect"], ["hashtag"], ["instant experience"], ["branded"]],
+    other: [],
+  };
+
+  const keywords = priorityKeywords[intent] || [];
+  for (const kwGroup of keywords) {
+    const match = targetFormats.find(tf => kwGroup.some(kw => tf.toLowerCase().includes(kw)));
+    if (match) return match;
+  }
+  return null;
+}
+
+/**
+ * Translate ad formats from a source platform to the closest equivalents on a target platform.
+ * Returns only the formats that have a reasonable match (no 1:1 guarantee).
+ */
+export function translateAdFormats(
+  selectedFormats: string[],
+  sourcePlatformId: string,
+  targetPlatformId: string
+): string[] {
+  const sourceKey = platformIdToAdFormatKey[sourcePlatformId] || sourcePlatformId;
+  const targetKey = platformIdToAdFormatKey[targetPlatformId] || targetPlatformId;
+
+  // If same platform family, keep as-is
+  if (sourceKey === targetKey) return selectedFormats;
+
+  const targetFormats = platformAdFormats[targetKey] || [];
+  if (targetFormats.length === 0) return [];
+
+  const translated = new Set<string>();
+
+  for (const fmt of selectedFormats) {
+    const intent = classifyFormat(fmt);
+    const match = bestMatchForIntent(intent, targetFormats);
+    if (match) {
+      translated.add(match);
+    }
+  }
+
+  return Array.from(translated);
+}
+
 // Get phases from selected ad formats
 export const getPhasesFromAdFormats = (
   platformName: string,
