@@ -59,21 +59,20 @@ serve(async (req) => {
 
     // Delete platform-specific data based on platform type
     if (platform.platform_type === "meta") {
-      // Delete all Meta-related data linked to this platform connection
+      // Delete Meta ad accounts linked to this specific connection
       const { data: metaAccounts } = await supabase
         .from("meta_ad_accounts")
         .select("id, account_id")
-        .eq("user_id", user.id);
+        .eq("platform_id", connectedPlatformId);
 
       if (metaAccounts && metaAccounts.length > 0) {
         const accountIds = metaAccounts.map(a => a.account_id);
 
-        // Delete Meta ad accounts
+        // Delete Meta ad accounts for this connection
         const { error: adAccountsError } = await supabase
           .from("meta_ad_accounts")
           .delete()
-          .eq("user_id", user.id)
-          .in("account_id", accountIds);
+          .eq("platform_id", connectedPlatformId);
         
         if (adAccountsError) {
           console.error("Error deleting meta_ad_accounts:", adAccountsError);
