@@ -220,11 +220,12 @@ export function PlatformConfigFields({
           <>
             <div className="space-y-2">
               <Label>Default Pixel</Label>
-              <Select value={pixel || undefined} onValueChange={(value) => onUpdate("pixel", value)}>
+              <Select value={pixel || "__none__"} onValueChange={(value) => onUpdate("pixel", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select pixel" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {pixels.map((p) => (
                     <SelectItem key={p.id} value={p.pixel_id || ""}>
                       {p.pixel_name}
