@@ -21,6 +21,11 @@ import AccountTaxonomySection from "./AccountTaxonomySection";
 import MetaAppSearch from "./MetaAppSearch";
 import ConversionLocationsSection from "./ConversionLocationsSection";
 import {
+  getGoogleAdsCampaignTypes,
+  getGoogleAdsSubtypes,
+  getGoogleAdsCampaignConfig,
+} from "@/utils/googleAdsCampaignMatrix";
+import {
   META_APP_STORES,
   META_MESSAGING_MODES,
   TIKTOK_MESSAGING_APPS,
