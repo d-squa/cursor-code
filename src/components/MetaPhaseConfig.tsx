@@ -18,8 +18,11 @@ interface AdAccountDefaults {
   metaViewWindow?: number;
   metaBillingEvent?: string;
   metaAdvantagePlusCampaign?: boolean;
+  metaAdvantagePlusAudience?: boolean;
+  metaAdvantagePlusCreative?: boolean;
   metaCatalogId?: string;
   metaProductSetId?: string;
+  metaConversionCount?: string;
   [key: string]: any;
 }
 
