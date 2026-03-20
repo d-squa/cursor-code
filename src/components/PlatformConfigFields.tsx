@@ -269,14 +269,15 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default Catalog</Label>
-              <Select value={catalog || undefined} onValueChange={(value) => {
-                onUpdate("catalog", value);
+              <Select value={catalog || "__none__"} onValueChange={(value) => {
+                onUpdate("catalog", value === "__none__" ? "" : value);
                 onUpdate("productSet", ""); // Reset product set when catalog changes
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select catalog" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {catalogs.map((c) => (
                     <SelectItem key={c.id} value={c.catalog_id || ""}>
                       {c.catalog_name}
