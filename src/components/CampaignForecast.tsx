@@ -189,6 +189,9 @@ export function CampaignForecast({
   const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
   const [budgetOptimization, setBudgetOptimization] = useState<BudgetOptimizationResult | null>(null);
   const [budgetRecommendationOpen, setBudgetRecommendationOpen] = useState(false);
+  const hasAutoPopped = useRef(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const { versions, saveVersion, loadVersions } = useForecastVersions(campaignId);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
   const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(
