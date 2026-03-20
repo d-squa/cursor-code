@@ -238,6 +238,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokApps, setTiktokApps] = useState<any[]>([]);
   const [tiktokEvents, setTiktokEvents] = useState<Record<string, Array<{ id: string; name: string }>>>({});
   const [loadingTiktokEvents, setLoadingTiktokEvents] = useState<string | null>(null);
+  const [metaConversionEvents, setMetaConversionEvents] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+  const [loadingMetaEvents, setLoadingMetaEvents] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
@@ -640,6 +642,63 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       toast.error("Failed to load account defaults");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Auto-fetch Meta conversion events for accounts that already have a pixel selected
+  useEffect(() => {
+    if (loading) return;
+    adAccounts.forEach((account) => {
+      if (account.platform === "meta") {
+        const defaults = localDefaults[account.id];
+        const pixelId = defaults?.default_pixel_id;
+        if (pixelId && !metaConversionEvents[pixelId]) {
+          fetchMetaConversionEvents(pixelId);
+        }
+      }
+    });
+  }, [loading, adAccounts, localDefaults]);
+
+  // Fetch Meta conversion events for a pixel via edge function
+  const fetchMetaConversionEvents = async (pixelId: string) => {
+    if (metaConversionEvents[pixelId]) return; // Already fetched
+
+    setLoadingMetaEvents(pixelId);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-conversion-events", {
+        body: { pixelId },
+      });
+
+      if (error) throw error;
+
+      if (data?.events) {
+        setMetaConversionEvents((prev) => ({
+          ...prev,
+          [pixelId]: data.events,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching Meta conversion events:", error);
+      // Set standard fallback events
+      setMetaConversionEvents((prev) => ({
+        ...prev,
+        [pixelId]: [
+          { id: "Purchase", name: "Purchase" },
+          { id: "Lead", name: "Lead" },
+          { id: "CompleteRegistration", name: "Complete Registration" },
+          { id: "AddToCart", name: "Add to Cart" },
+          { id: "InitiateCheckout", name: "Initiate Checkout" },
+          { id: "AddPaymentInfo", name: "Add Payment Info" },
+          { id: "ViewContent", name: "View Content" },
+          { id: "Search", name: "Search" },
+          { id: "Contact", name: "Contact" },
+          { id: "Schedule", name: "Schedule" },
+          { id: "SubmitApplication", name: "Submit Application" },
+          { id: "Subscribe", name: "Subscribe" },
+        ],
+      }));
+    } finally {
+      setLoadingMetaEvents(null);
     }
   };
 
@@ -1141,7 +1200,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           const selectedCatalog = defaults.default_catalog_id;
           const catalogProductSets = productSets.filter((ps) => ps.catalog_id === selectedCatalog);
           const selectedPixel = defaults.default_pixel_id;
-          const pixelEvents = conversionEvents.filter((e) => e.pixel_id === selectedPixel);
+          const pixelEvents = selectedPixel && metaConversionEvents[selectedPixel]
+            ? metaConversionEvents[selectedPixel]
+            : conversionEvents.filter((e) => e.pixel_id === selectedPixel);
 
           // Remove ad_account_id filter to show all available resources
           const accountPixels = pixels;
@@ -1221,7 +1282,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Default Pixel</Label>
                             <Select
                               value={defaults.default_pixel_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
+                              onValueChange={(value) => {
+                                updateDefault(account.id, "default_pixel_id", value);
+                                updateDefault(account.id, "default_conversion_event", null);
+                                if (value) fetchMetaConversionEvents(value);
+                              }}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select pixel" />
@@ -1359,17 +1424,23 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Select
                               value={defaults.default_conversion_event || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_conversion_event", value)}
-                              disabled={!defaults.default_pixel_id}
+                              disabled={!defaults.default_pixel_id || loadingMetaEvents === selectedPixel}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select conversion event" />
+                                <SelectValue placeholder={loadingMetaEvents === selectedPixel ? "Loading events..." : "Select conversion event"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {pixelEvents.map((event) => (
-                                  <SelectItem key={event.id} value={event.event_name || ""}>
-                                    {event.event_name}
+                                {pixelEvents.length === 0 ? (
+                                  <SelectItem value="none" disabled>
+                                    {loadingMetaEvents === selectedPixel ? "Loading..." : "No events available"}
                                   </SelectItem>
-                                ))}
+                                ) : (
+                                  pixelEvents.map((event: any) => (
+                                    <SelectItem key={event.id} value={event.id || event.event_name || ""}>
+                                      {event.name || event.event_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
