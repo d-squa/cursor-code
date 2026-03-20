@@ -1186,7 +1186,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           const selectedCatalog = defaults.default_catalog_id;
           const catalogProductSets = productSets.filter((ps) => ps.catalog_id === selectedCatalog);
           const selectedPixel = defaults.default_pixel_id;
-          const pixelEvents = conversionEvents.filter((e) => e.pixel_id === selectedPixel);
+          const pixelEvents = selectedPixel && metaConversionEvents[selectedPixel]
+            ? metaConversionEvents[selectedPixel]
+            : conversionEvents.filter((e) => e.pixel_id === selectedPixel);
 
           // Remove ad_account_id filter to show all available resources
           const accountPixels = pixels;
