@@ -1924,9 +1924,18 @@ export function CampaignForecast({
       toast.success("Forecasts fetched successfully!");
 
       // Analyze budget optimization across platforms
+      console.log("💡 Budget optimization check:", {
+        platformCount: platformForecasts.length,
+        platformNames: platformForecasts.map(p => p.platformName),
+      });
       if (platformForecasts.length > 1) {
         try {
           const optimizationResult = analyzeBudgetOptimization({ platforms: platformForecasts });
+          console.log("💡 Budget optimization result:", {
+            hasRecommendations: optimizationResult.hasRecommendations,
+            recommendationCount: optimizationResult.recommendations.length,
+            totalResultChange: optimizationResult.totalResultChangePercent,
+          });
           if (optimizationResult.hasRecommendations) {
             setBudgetOptimization(optimizationResult);
             setBudgetRecommendationOpen(true);
@@ -1938,6 +1947,8 @@ export function CampaignForecast({
         } catch (optError) {
           console.error("Budget optimization analysis failed:", optError);
         }
+      } else {
+        console.log("💡 Budget optimization skipped: need 2+ platforms, got", platformForecasts.length);
       }
     } catch (error) {
       toast.error("Failed to fetch forecasts");
