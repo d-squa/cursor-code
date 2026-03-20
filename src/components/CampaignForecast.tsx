@@ -1922,6 +1922,23 @@ export function CampaignForecast({
         platforms: platformForecasts,
       });
       toast.success("Forecasts fetched successfully!");
+
+      // Analyze budget optimization across platforms
+      if (platformForecasts.length > 1) {
+        try {
+          const optimizationResult = analyzeBudgetOptimization({ platforms: platformForecasts });
+          if (optimizationResult.hasRecommendations) {
+            setBudgetOptimization(optimizationResult);
+            setBudgetRecommendationOpen(true);
+            console.log("💡 Budget optimization recommendations found:", optimizationResult.recommendations.length);
+          } else {
+            setBudgetOptimization(null);
+            console.log("✅ No budget optimization improvements found");
+          }
+        } catch (optError) {
+          console.error("Budget optimization analysis failed:", optError);
+        }
+      }
     } catch (error) {
       toast.error("Failed to fetch forecasts");
       console.error(error);
