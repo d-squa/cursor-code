@@ -1281,11 +1281,12 @@ serve(async (req) => {
       throw new Error("Unsupported platform type");
     }
 
-    // SWAP DETECTION: Get existing Meta accounts for this team
+    // SWAP DETECTION: Get existing Meta accounts for this connection only
     const { data: existingMetaAccounts, error: existingMetaError } = await supabase
       .from('meta_ad_accounts')
       .select('account_id, account_name')
-      .eq('team_id', teamId);
+      .eq('team_id', teamId)
+      .eq('platform_id', platformId);
     
     if (existingMetaError) {
       console.error('Error fetching existing Meta accounts:', existingMetaError);
