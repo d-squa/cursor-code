@@ -4,9 +4,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronDown, ChevronUp, Database, Calculator, ShieldCheck, Target, Swords, Ban } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronsDownUp, Database, Calculator, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
 
@@ -83,12 +83,45 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
 
+  const expandAllPlatforms = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    actiplanForecast.platforms.forEach(p => { newState[p.platformId] = true; });
+    setExpandedPlatforms(newState);
+  }, [actiplanForecast.platforms]);
+
+  const collapseAllPlatforms = useCallback(() => {
+    setExpandedPlatforms({});
+    setExpandedMarkets({});
+  }, []);
+
+  const expandAllMarkets = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    actiplanForecast.platforms.forEach(p => {
+      p.markets.forEach(m => { newState[m.marketName] = true; });
+    });
+    setExpandedMarkets(newState);
+  }, [actiplanForecast.platforms]);
+
+  const collapseAllMarkets = useCallback(() => {
+    setExpandedMarkets({});
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Actiplan Deliverables - Top Level */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Actiplan Deliverables</CardTitle>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => { expandAllPlatforms(); expandAllMarkets(); }} className="h-7 px-2 text-xs">
+              <ChevronsUpDown className="h-3 w-3 mr-1" />
+              Expand All
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { collapseAllPlatforms(); collapseAllMarkets(); }} className="h-7 px-2 text-xs">
+              <ChevronsDownUp className="h-3 w-3 mr-1" />
+              Collapse All
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-muted/30 rounded-lg">
