@@ -2395,6 +2395,27 @@ export function CampaignForecast({
           excelBase64={excelBase64Data}
           actiplanForecasts={actiplanForecast}
         />
+
+        {/* Budget Recommendation Dialog */}
+        {budgetOptimization && (
+          <BudgetRecommendationDialog
+            open={budgetRecommendationOpen}
+            onOpenChange={setBudgetRecommendationOpen}
+            optimization={budgetOptimization}
+            onAccept={() => {
+              if (onBudgetOptimize && budgetOptimization) {
+                const optimizedPlatforms = applyBudgetOptimization(
+                  platforms as any,
+                  budgetOptimization,
+                  totalBudget
+                );
+                onBudgetOptimize(optimizedPlatforms as PlatformWithMarkets[]);
+                toast.success("Budget optimization applied! Re-fetch forecasts to see updated metrics.");
+                setBudgetOptimization(null);
+              }
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   );
