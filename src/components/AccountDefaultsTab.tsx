@@ -645,6 +645,20 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
+  // Auto-fetch Meta conversion events for accounts that already have a pixel selected
+  useEffect(() => {
+    if (loading) return;
+    adAccounts.forEach((account) => {
+      if (account.platform === "meta") {
+        const defaults = localDefaults[account.id];
+        const pixelId = defaults?.default_pixel_id;
+        if (pixelId && !metaConversionEvents[pixelId]) {
+          fetchMetaConversionEvents(pixelId);
+        }
+      }
+    });
+  }, [loading, adAccounts, localDefaults]);
+
   // Fetch Meta conversion events for a pixel via edge function
   const fetchMetaConversionEvents = async (pixelId: string) => {
     if (metaConversionEvents[pixelId]) return; // Already fetched
