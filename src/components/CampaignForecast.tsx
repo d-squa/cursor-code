@@ -170,6 +170,7 @@ export function CampaignForecast({
   tiktokAdvertiserId,
   onBack,
   onFinalize,
+  onBudgetOptimize,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
