@@ -356,13 +356,14 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default TikTok Identity</Label>
-              <Select value={instagramAccount || undefined} onValueChange={(value) => onUpdate("instagramAccount", value)}>
+              <Select value={instagramAccount || "__none__"} onValueChange={(value) => onUpdate("instagramAccount", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select TikTok identity" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {tiktokIdentities.length === 0 ? (
-                    <SelectItem value="none" disabled>No identities available</SelectItem>
+                    <SelectItem value="no-identities" disabled>No identities available</SelectItem>
                   ) : (
                     tiktokIdentities.map((i) => (
                       <SelectItem key={i.id} value={i.identity_id || ""}>
