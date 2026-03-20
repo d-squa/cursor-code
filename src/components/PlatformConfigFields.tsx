@@ -254,11 +254,12 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default Instagram Account</Label>
-              <Select value={instagramAccount || undefined} onValueChange={(value) => onUpdate("instagramAccount", value)}>
+              <Select value={instagramAccount || "__none__"} onValueChange={(value) => onUpdate("instagramAccount", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select Instagram account" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {instagramAccounts.map((ig) => (
                     <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
                       {ig.username}
