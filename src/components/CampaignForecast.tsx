@@ -1247,8 +1247,7 @@ export function CampaignForecast({
             destination = autoDetected.destination;
           }
           
-          const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
-            body: {
+          const { data: aiData, error: aiError } = await invokeAIForecastWithRetry({
               platform: isMeta ? 'Meta' : 'TikTok',
               market: marketCode,
               budget,
@@ -1263,7 +1262,6 @@ export function CampaignForecast({
               endDate,
               industry: resolvedIndustry,
               phaseName: market.phaseName,
-            }
           });
 
           if (aiError) throw aiError;
