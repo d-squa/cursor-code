@@ -368,6 +368,7 @@ async function syncMetaAccountsInBackground(
           accountsToInsert.push({
             user_id: userId,
             team_id: teamId, // Workspace scoping
+            platform_id: platformId, // Connection scoping
             account_id: accountData.id,
             account_name: accountData.name,
             account_status: accountData.account_status,
