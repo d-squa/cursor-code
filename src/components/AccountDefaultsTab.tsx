@@ -238,6 +238,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokApps, setTiktokApps] = useState<any[]>([]);
   const [tiktokEvents, setTiktokEvents] = useState<Record<string, Array<{ id: string; name: string }>>>({});
   const [loadingTiktokEvents, setLoadingTiktokEvents] = useState<string | null>(null);
+  const [metaConversionEvents, setMetaConversionEvents] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+  const [loadingMetaEvents, setLoadingMetaEvents] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
