@@ -26,6 +26,35 @@ import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
 
+// Helper: call AI forecast with retry + exponential backoff for 429 rate limits
+const invokeAIForecastWithRetry = async (
+  body: Record<string, unknown>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<{ data: any; error: any }> => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const { data, error } = await supabase.functions.invoke('ai-forecast', { body });
+    
+    // Check for rate limit (429) — supabase.functions.invoke wraps HTTP errors
+    const is429 = error?.message?.includes('429') || 
+                   error?.status === 429 ||
+                   (data && typeof data === 'object' && data.error?.includes?.('Rate limit'));
+    
+    if (is429 && attempt < maxRetries) {
+      const delay = baseDelayMs * Math.pow(2, attempt); // 2s, 4s, 8s
+      console.warn(`⏳ AI forecast rate-limited (429). Retry ${attempt + 1}/${maxRetries} in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    
+    return { data, error };
+  }
+  return { data: null, error: new Error('AI forecast failed after max retries (429 rate limit)') };
+};
+
+// Helper: small delay between sequential forecast calls to avoid bursting
+const throttleDelay = (ms = 300) => new Promise(r => setTimeout(r, ms));
+
 // Helper to normalize strategyFocus, filtering out "auto" placeholder
 const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
   if (marketFocus && marketFocus !== "auto") return marketFocus;
