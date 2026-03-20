@@ -829,6 +829,7 @@ serve(async (req) => {
         accountsToInsert.push({
           user_id: user.id,
           team_id: teamId, // Workspace scoping
+          platform_id: platformId, // Connection scoping
           account_id: advertiserIdStr,
           account_name: account.name,
           advertiser_id: advertiserIdStr,
