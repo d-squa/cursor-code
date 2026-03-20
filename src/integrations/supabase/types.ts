@@ -1817,6 +1817,50 @@ export type Database = {
           },
         ]
       }
+      forecast_versions: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          forecast_data: Json
+          id: string
+          label: string | null
+          platforms_snapshot: Json
+          total_budget: number
+          user_id: string
+          version_number: number
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          forecast_data: Json
+          id?: string
+          label?: string | null
+          platforms_snapshot: Json
+          total_budget: number
+          user_id: string
+          version_number?: number
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          forecast_data?: Json
+          id?: string
+          label?: string | null
+          platforms_snapshot?: Json
+          total_budget?: number
+          user_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_versions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_ad_accounts: {
         Row: {
           account_id: string
