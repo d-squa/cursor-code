@@ -142,6 +142,22 @@ interface PhaseSchedulerProps {
     googleTargetCpa?: number;
     googleTargetRoas?: number;
     googleMaxCpcBid?: number;
+    googleCampaignObjective?: string;
+    googleCampaignType?: string;
+    googleCampaignSubtype?: string;
+    googleLocationTargeting?: string;
+    googleSearchPartner?: boolean;
+    googleDisplayNetwork?: boolean;
+    googleCustomerAcquisition?: string;
+    googleOptimizedTargeting?: boolean;
+    googleInventoryType?: string;
+    googleAiMax?: boolean;
+    googleAiMaxOptions?: string[];
+    // Meta Advantage+ defaults
+    metaAdvantagePlusCampaign?: boolean;
+    metaAdvantagePlusAudience?: boolean;
+    metaAdvantagePlusCreative?: boolean;
+    metaConversionCount?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
