@@ -148,6 +148,7 @@ export function analyzeBudgetOptimization(
 ): BudgetOptimizationResult {
   // Step 1: Extract all phase entries
   const allEntries: PhaseEntry[] = [];
+  let skippedEntries = 0;
 
   for (const platform of actiplanForecast.platforms) {
     for (const market of platform.markets) {
@@ -165,6 +166,9 @@ export function analyzeBudgetOptimization(
               costPerResult: phase.costPerResult,
               result: phase.result,
             });
+          } else {
+            skippedEntries++;
+            console.log(`💡 Budget opt: skipped phase ${phase.phaseName} (${platform.platformName}/${market.marketName}) - CPR=${phase.costPerResult}, budget=${phase.budget}`);
           }
         }
       } else if (market.resultsByGoal && market.resultsByGoal.length > 0) {
@@ -181,11 +185,16 @@ export function analyzeBudgetOptimization(
               costPerResult: goalData.costPerResult,
               result: goalData.result,
             });
+          } else {
+            skippedEntries++;
           }
         }
       }
     }
   }
+
+  console.log(`💡 Budget opt: ${allEntries.length} valid entries, ${skippedEntries} skipped`);
+  allEntries.forEach(e => console.log(`  • ${e.platformName} / ${e.marketName} / ${e.phaseName}: goal=${e.optimizationGoal} → ${e.normalizedGoal}, CPR=$${e.costPerResult.toFixed(2)}, budget=$${e.budget.toFixed(0)}`));
 
   // Step 2: Group by normalized goal
   const goalGroups = new Map<string, PhaseEntry[]>();
