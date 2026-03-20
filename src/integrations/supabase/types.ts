@@ -1870,14 +1870,25 @@ export type Database = {
           created_at: string | null
           currency: string | null
           customer_id: string
+          default_ai_max: boolean | null
+          default_ai_max_options: Json | null
           default_bid_strategy: string | null
+          default_campaign_objective: string | null
+          default_campaign_subtype: string | null
+          default_campaign_type: string | null
           default_conversion_budget_type: string | null
+          default_customer_acquisition: string | null
+          default_display_network: boolean | null
           default_feed_label: string | null
+          default_inventory_type: string | null
           default_landing_page_url: string | null
+          default_location_targeting: string | null
           default_max_cpc_bid: number | null
           default_merchant_center_id: string | null
           default_non_conversion_budget_type: string | null
+          default_optimized_targeting: boolean | null
           default_placements: Json | null
+          default_search_partner: boolean | null
           default_target_cpa: number | null
           default_target_roas: number | null
           default_url_parameters: string | null
@@ -1900,14 +1911,25 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           customer_id: string
+          default_ai_max?: boolean | null
+          default_ai_max_options?: Json | null
           default_bid_strategy?: string | null
+          default_campaign_objective?: string | null
+          default_campaign_subtype?: string | null
+          default_campaign_type?: string | null
           default_conversion_budget_type?: string | null
+          default_customer_acquisition?: string | null
+          default_display_network?: boolean | null
           default_feed_label?: string | null
+          default_inventory_type?: string | null
           default_landing_page_url?: string | null
+          default_location_targeting?: string | null
           default_max_cpc_bid?: number | null
           default_merchant_center_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_optimized_targeting?: boolean | null
           default_placements?: Json | null
+          default_search_partner?: boolean | null
           default_target_cpa?: number | null
           default_target_roas?: number | null
           default_url_parameters?: string | null
@@ -1930,14 +1952,25 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           customer_id?: string
+          default_ai_max?: boolean | null
+          default_ai_max_options?: Json | null
           default_bid_strategy?: string | null
+          default_campaign_objective?: string | null
+          default_campaign_subtype?: string | null
+          default_campaign_type?: string | null
           default_conversion_budget_type?: string | null
+          default_customer_acquisition?: string | null
+          default_display_network?: boolean | null
           default_feed_label?: string | null
+          default_inventory_type?: string | null
           default_landing_page_url?: string | null
+          default_location_targeting?: string | null
           default_max_cpc_bid?: number | null
           default_merchant_center_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_optimized_targeting?: boolean | null
           default_placements?: Json | null
+          default_search_partner?: boolean | null
           default_target_cpa?: number | null
           default_target_roas?: number | null
           default_url_parameters?: string | null
@@ -2049,6 +2082,9 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          default_advantage_plus_audience: boolean | null
+          default_advantage_plus_campaign: boolean | null
+          default_advantage_plus_creative: boolean | null
           default_advantage_plus_placements: boolean | null
           default_age_max: number | null
           default_age_min: number | null
@@ -2107,6 +2143,9 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_advantage_plus_audience?: boolean | null
+          default_advantage_plus_campaign?: boolean | null
+          default_advantage_plus_creative?: boolean | null
           default_advantage_plus_placements?: boolean | null
           default_age_max?: number | null
           default_age_min?: number | null
@@ -2165,6 +2204,9 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_advantage_plus_audience?: boolean | null
+          default_advantage_plus_campaign?: boolean | null
+          default_advantage_plus_creative?: boolean | null
           default_advantage_plus_placements?: boolean | null
           default_age_max?: number | null
           default_age_min?: number | null

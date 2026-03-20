@@ -142,6 +142,22 @@ interface PhaseSchedulerProps {
     googleTargetCpa?: number;
     googleTargetRoas?: number;
     googleMaxCpcBid?: number;
+    googleCampaignObjective?: string;
+    googleCampaignType?: string;
+    googleCampaignSubtype?: string;
+    googleLocationTargeting?: string;
+    googleSearchPartner?: boolean;
+    googleDisplayNetwork?: boolean;
+    googleCustomerAcquisition?: string;
+    googleOptimizedTargeting?: boolean;
+    googleInventoryType?: string;
+    googleAiMax?: boolean;
+    googleAiMaxOptions?: string[];
+    // Meta Advantage+ defaults
+    metaAdvantagePlusCampaign?: boolean;
+    metaAdvantagePlusAudience?: boolean;
+    metaAdvantagePlusCreative?: boolean;
+    metaConversionCount?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -3192,6 +3208,23 @@ export function PhaseScheduler({
                           phase={phase}
                           googleCustomerId={adAccountDefaults?.googleCustomerId}
                           selectedKeywords={basicTargeting?.selectedKeywords}
+                          googleDefaults={adAccountDefaults ? {
+                            googleBidStrategy: adAccountDefaults.googleBidStrategy,
+                            googleTargetCpa: adAccountDefaults.googleTargetCpa,
+                            googleTargetRoas: adAccountDefaults.googleTargetRoas,
+                            googleMaxCpcBid: adAccountDefaults.googleMaxCpcBid,
+                            googleCampaignType: adAccountDefaults.googleCampaignType,
+                            googleCampaignSubtype: adAccountDefaults.googleCampaignSubtype,
+                            googleLocationTargeting: adAccountDefaults.googleLocationTargeting,
+                            googleSearchPartner: adAccountDefaults.googleSearchPartner,
+                            googleDisplayNetwork: adAccountDefaults.googleDisplayNetwork,
+                            googleCustomerAcquisition: adAccountDefaults.googleCustomerAcquisition,
+                            googleOptimizedTargeting: adAccountDefaults.googleOptimizedTargeting,
+                            googleInventoryType: adAccountDefaults.googleInventoryType,
+                            googleAiMax: adAccountDefaults.googleAiMax,
+                            googleAiMaxOptions: adAccountDefaults.googleAiMaxOptions,
+                            googleLandingPageUrl: adAccountDefaults.googleLandingPageUrl,
+                          } : undefined}
                           onUpdate={(field, value) => {
                             console.log("🔄 PhaseScheduler Google Ads onUpdate called:", { phaseId: phase.id, field, value });
                             updatePhaseField(phase.id, field as keyof Phase, value);

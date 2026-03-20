@@ -21,6 +21,11 @@ import AccountTaxonomySection from "./AccountTaxonomySection";
 import MetaAppSearch from "./MetaAppSearch";
 import ConversionLocationsSection from "./ConversionLocationsSection";
 import {
+  getGoogleAdsCampaignTypes,
+  getGoogleAdsSubtypes,
+  getGoogleAdsCampaignConfig,
+} from "@/utils/googleAdsCampaignMatrix";
+import {
   META_APP_STORES,
   META_MESSAGING_MODES,
   TIKTOK_MESSAGING_APPS,
@@ -54,6 +59,18 @@ interface GoogleAdAccountDefaults {
   default_utm_mode?: string | null;
   default_url_parameters?: string | null;
   default_placements?: string[] | null;
+  // New campaign configuration defaults
+  default_campaign_objective?: string | null;
+  default_campaign_type?: string | null;
+  default_campaign_subtype?: string | null;
+  default_location_targeting?: string | null;
+  default_search_partner?: boolean | null;
+  default_display_network?: boolean | null;
+  default_customer_acquisition?: string | null;
+  default_optimized_targeting?: boolean | null;
+  default_inventory_type?: string | null;
+  default_ai_max?: boolean | null;
+  default_ai_max_options?: string[] | null;
 }
 
 interface AdAccount {
@@ -127,6 +144,10 @@ interface AdAccount {
   advantage_plus_optimize_text_per_person?: boolean | null;
   advantage_plus_sitelinks?: boolean | null;
   advantage_plus_products?: boolean | null;
+  // Advantage+ Campaign-level defaults (Meta)
+  default_advantage_plus_campaign?: boolean | null;
+  default_advantage_plus_audience?: boolean | null;
+  default_advantage_plus_creative?: boolean | null;
   // UTM Parameters
   default_utm_mode?: string | null;
   default_url_parameters?: string | null;
@@ -377,7 +398,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Load Google Ads accounts for this client
       const { data: googleAccountsData, error: googleAccountsError } = await supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements, default_campaign_objective, default_campaign_type, default_campaign_subtype, default_location_targeting, default_search_partner, default_display_network, default_customer_acquisition, default_optimized_targeting, default_inventory_type, default_ai_max, default_ai_max_options")
         .eq("client_id", clientId);
 
       if (googleAccountsError) throw googleAccountsError;
@@ -412,6 +433,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_utm_mode: acc.default_utm_mode || null,
           default_url_parameters: acc.default_url_parameters || null,
           default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements : [],
+          // New campaign configuration defaults
+          default_campaign_objective: (acc as any).default_campaign_objective || null,
+          default_campaign_type: (acc as any).default_campaign_type || null,
+          default_campaign_subtype: (acc as any).default_campaign_subtype || null,
+          default_location_targeting: (acc as any).default_location_targeting || 'PRESENCE_OR_INTEREST',
+          default_search_partner: (acc as any).default_search_partner ?? false,
+          default_display_network: (acc as any).default_display_network ?? false,
+          default_customer_acquisition: (acc as any).default_customer_acquisition || 'Everyone',
+          default_optimized_targeting: (acc as any).default_optimized_targeting ?? true,
+          default_inventory_type: (acc as any).default_inventory_type || null,
+          default_ai_max: (acc as any).default_ai_max ?? false,
+          default_ai_max_options: Array.isArray((acc as any).default_ai_max_options) ? (acc as any).default_ai_max_options : [],
         };
       });
       setGoogleLocalDefaults(gDefaults);
@@ -508,6 +541,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           advantage_plus_optimize_text_per_person: acc.platform === "meta" ? (acc as any).advantage_plus_optimize_text_per_person ?? false : null,
           advantage_plus_sitelinks: acc.platform === "meta" ? (acc as any).advantage_plus_sitelinks ?? false : null,
           advantage_plus_products: acc.platform === "meta" ? (acc as any).advantage_plus_products ?? false : null,
+          // Advantage+ Campaign-level defaults (Meta)
+          default_advantage_plus_campaign: acc.platform === "meta" ? (acc as any).default_advantage_plus_campaign ?? false : null,
+          default_advantage_plus_audience: acc.platform === "meta" ? (acc as any).default_advantage_plus_audience ?? false : null,
+          default_advantage_plus_creative: acc.platform === "meta" ? (acc as any).default_advantage_plus_creative ?? false : null,
           // UTM Parameters
           default_utm_mode: (acc as any).default_utm_mode || "auto",
           default_url_parameters: (acc as any).default_url_parameters || null,
@@ -893,6 +930,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_utm_mode",
         "default_url_parameters",
         "default_placements",
+        // New campaign configuration defaults
+        "default_campaign_objective",
+        "default_campaign_type",
+        "default_campaign_subtype",
+        "default_location_targeting",
+        "default_search_partner",
+        "default_display_network",
+        "default_customer_acquisition",
+        "default_optimized_targeting",
+        "default_inventory_type",
+        "default_ai_max",
+        "default_ai_max_options",
       ];
 
       const updateData: Record<string, any> = {};
@@ -1365,6 +1414,57 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                     {option.label}
                                   </SelectItem>
                                 ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Advantage+ Shopping Campaign */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Shopping Campaign</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_campaign ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_campaign" as any, value === "true")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Manual Campaign</SelectItem>
+                                <SelectItem value="true">Advantage+ Shopping Campaign</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Advantage+ Audience */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Audience</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_audience ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_audience" as any, value === "true")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Manual Audience</SelectItem>
+                                <SelectItem value="true">Advantage+ Audience</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Advantage+ Creative */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Creative</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_creative ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_creative" as any, value === "true")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Standard Creative</SelectItem>
+                                <SelectItem value="true">Advantage+ Creative</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -2506,6 +2606,201 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         <p className="text-xs text-muted-foreground">
                           Which client markets this ad account should target
                         </p>
+                      </div>
+
+                      <Separator className="my-4" />
+
+                      {/* Campaign Configuration Defaults */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Campaign Objective */}
+                        <div className="space-y-2">
+                          <Label>Default Campaign Objective</Label>
+                          <Select
+                            value={(gDefaults as any).default_campaign_objective || undefined}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_campaign_objective" as any, value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select objective" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="SALES">Sales</SelectItem>
+                              <SelectItem value="LEADS">Leads</SelectItem>
+                              <SelectItem value="WEBSITE_TRAFFIC">Website Traffic</SelectItem>
+                              <SelectItem value="APP_PROMOTION">App Promotion</SelectItem>
+                              <SelectItem value="AWARENESS_CONSIDERATION">Awareness & Consideration</SelectItem>
+                              <SelectItem value="LOCAL_STORE">Local Store Visits</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Campaign Type */}
+                        <div className="space-y-2">
+                          <Label>Default Campaign Type</Label>
+                          <Select
+                            value={(gDefaults as any).default_campaign_type || undefined}
+                            onValueChange={(value) => {
+                              updateGoogleDefault(gAccount.id, "default_campaign_type" as any, value);
+                              updateGoogleDefault(gAccount.id, "default_campaign_subtype" as any, null);
+                              // Auto-set bid strategy from campaign type
+                              const config = getGoogleAdsCampaignConfig(value);
+                              if (config?.bidStrategies?.length && !gDefaults.default_bid_strategy) {
+                                updateGoogleDefault(gAccount.id, "default_bid_strategy", config.bidStrategies[0]);
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select campaign type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getGoogleAdsCampaignTypes().map((type) => (
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Campaign Subtype - dependent on type */}
+                        {(gDefaults as any).default_campaign_type && getGoogleAdsSubtypes((gDefaults as any).default_campaign_type).length > 0 && (
+                          <div className="space-y-2">
+                            <Label>Default Campaign Subtype</Label>
+                            <Select
+                              value={(gDefaults as any).default_campaign_subtype || undefined}
+                              onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_campaign_subtype" as any, value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select subtype" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getGoogleAdsSubtypes((gDefaults as any).default_campaign_type).map((st) => (
+                                  <SelectItem key={st} value={st}>{st}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {/* Location Targeting */}
+                        <div className="space-y-2">
+                          <Label>Default Location Targeting</Label>
+                          <Select
+                            value={(gDefaults as any).default_location_targeting || 'PRESENCE_OR_INTEREST'}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_location_targeting" as any, value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PRESENCE_OR_INTEREST">Presence or Interest (Recommended)</SelectItem>
+                              <SelectItem value="PRESENCE">Presence Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Customer Acquisition */}
+                        <div className="space-y-2">
+                          <Label>Default Customer Acquisition</Label>
+                          <Select
+                            value={(gDefaults as any).default_customer_acquisition || 'Everyone'}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_customer_acquisition" as any, value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Everyone">Everyone</SelectItem>
+                              <SelectItem value="New Customers Only">New Customers Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Inventory Type */}
+                        <div className="space-y-2">
+                          <Label>Default Inventory Type</Label>
+                          <Select
+                            value={(gDefaults as any).default_inventory_type || undefined}
+                            onValueChange={(value) => updateGoogleDefault(gAccount.id, "default_inventory_type" as any, value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select inventory type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Expanded">Expanded Inventory</SelectItem>
+                              <SelectItem value="Standard">Standard Inventory</SelectItem>
+                              <SelectItem value="Limited">Limited Inventory</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">For Video campaigns - controls where ads appear</p>
+                        </div>
+                      </div>
+
+                      {/* Network & Targeting Toggles */}
+                      <div className="space-y-3 mt-4">
+                        <Label className="text-sm font-medium">Networks & Targeting</Label>
+                        <div className="flex flex-wrap gap-4">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={(gDefaults as any).default_search_partner ?? false}
+                              onCheckedChange={(v) => updateGoogleDefault(gAccount.id, "default_search_partner" as any, v)}
+                              className="h-4 w-7"
+                            />
+                            <Label className="text-sm">Search Partners</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={(gDefaults as any).default_display_network ?? false}
+                              onCheckedChange={(v) => updateGoogleDefault(gAccount.id, "default_display_network" as any, v)}
+                              className="h-4 w-7"
+                            />
+                            <Label className="text-sm">Display Network</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={(gDefaults as any).default_optimized_targeting ?? true}
+                              onCheckedChange={(v) => updateGoogleDefault(gAccount.id, "default_optimized_targeting" as any, v)}
+                              className="h-4 w-7"
+                            />
+                            <Label className="text-sm">Optimized Targeting</Label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Features */}
+                      <div className="space-y-3 mt-4">
+                        <Label className="text-sm font-medium">AI Features</Label>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={(gDefaults as any).default_ai_max ?? false}
+                            onCheckedChange={(v) => {
+                              updateGoogleDefault(gAccount.id, "default_ai_max" as any, v);
+                              if (!v) updateGoogleDefault(gAccount.id, "default_ai_max_options" as any, []);
+                            }}
+                            className="h-4 w-7"
+                          />
+                          <Label className="text-sm">AI Maximization</Label>
+                        </div>
+                        {(gDefaults as any).default_ai_max && (
+                          <div className="flex flex-wrap gap-3 ml-6">
+                            {["Text customization", "Final URL expansion"].map((opt) => {
+                              const currentOptions = Array.isArray((gDefaults as any).default_ai_max_options) ? (gDefaults as any).default_ai_max_options : [];
+                              const isChecked = currentOptions.includes(opt);
+                              return (
+                                <div key={opt} className="flex items-center gap-1.5">
+                                  <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) => {
+                                      updateGoogleDefault(
+                                        gAccount.id,
+                                        "default_ai_max_options" as any,
+                                        checked ? [...currentOptions, opt] : currentOptions.filter((o: string) => o !== opt)
+                                      );
+                                    }}
+                                  />
+                                  <label className="text-sm">{opt}</label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       <Separator className="my-4" />
