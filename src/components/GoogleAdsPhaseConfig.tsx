@@ -21,6 +21,26 @@ interface GoogleAdsPhaseConfigProps {
   onUpdate: (field: string, value: any) => void;
   googleCustomerId?: string;
   selectedKeywords?: KeywordItem[];
+  googleDefaults?: {
+    googleBidStrategy?: string;
+    googleTargetCpa?: number;
+    googleTargetRoas?: number;
+    googleMaxCpcBid?: number;
+    googleCampaignType?: string;
+    googleCampaignSubtype?: string;
+    googleLocationTargeting?: string;
+    googleSearchPartner?: boolean;
+    googleDisplayNetwork?: boolean;
+    googleCustomerAcquisition?: string;
+    googleOptimizedTargeting?: boolean;
+    googleInventoryType?: string;
+    googleAiMax?: boolean;
+    googleAiMaxOptions?: string[];
+    googleLandingPageUrl?: string;
+    googleMerchantCenterId?: string;
+    googleFeedLabel?: string;
+    googlePlacements?: string[];
+  };
 }
 
 const STRATEGY_CONFIG: Record<KeywordStrategy, { label: string; icon: React.ReactNode; colorClass: string }> = {
