@@ -2333,12 +2333,59 @@ export function CampaignForecast({
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-4 w-4 text-amber-500" />
                   <span className="text-sm font-medium">
-                    Budget optimization available — estimated +{budgetOptimization.totalResultChangePercent.toFixed(1)}% more results
+                    Budget optimization available — {budgetOptimization.recommendations.length} goal{budgetOptimization.recommendations.length > 1 ? 's' : ''} can be improved
                   </span>
                 </div>
                 <Button size="sm" variant="outline" className="h-7 text-xs">
                   View Recommendation
                 </Button>
+              </div>
+            )}
+
+            {/* Forecast Version History */}
+            {versions.length > 1 && (
+              <div className="space-y-2">
+                <button
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowVersionHistory(!showVersionHistory)}
+                >
+                  <History className="h-3.5 w-3.5" />
+                  {versions.length} forecast version{versions.length > 1 ? 's' : ''} saved
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showVersionHistory ? 'rotate-180' : ''}`} />
+                </button>
+                {showVersionHistory && (
+                  <div className="rounded-lg border p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {versions.map((v) => (
+                      <div key={v.id} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] h-5">v{v.version_number}</Badge>
+                          <span className="text-muted-foreground">
+                            {v.label || `Forecast v${v.version_number}`}
+                          </span>
+                          <span className="text-muted-foreground">
+                            · {new Date(v.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        {v.version_number !== versions[0]?.version_number && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[10px] px-2"
+                            onClick={() => {
+                              const data = v.forecast_data as any;
+                              if (data?.forecasts) setForecasts(data.forecasts);
+                              if (data?.actiplanForecast) setActiplanForecast(data.actiplanForecast);
+                              toast.success(`Reverted to ${v.label || `Forecast v${v.version_number}`}`);
+                            }}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Revert
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>
