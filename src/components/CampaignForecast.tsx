@@ -1353,11 +1353,9 @@ export function CampaignForecast({
     const marketCodeForAI = market.name.substring(0, 2).trim().toUpperCase();
 
     try {
-      console.log(`🤖 Calling AI forecast for ${platformLabel} - ${marketCodeForAI}...`);
-      const { supabase } = await import("@/integrations/supabase/client");
+      console.log(`🤖 Calling AI forecast for ${platformLabel} - ${marketCodeForAI} (with retry)...`);
       
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
-        body: {
+      const { data: aiData, error: aiError } = await invokeAIForecastWithRetry({
           platform: platformLabel,
           market: marketCodeForAI,
           budget,
@@ -1372,7 +1370,6 @@ export function CampaignForecast({
           endDate: campaignEndDate || endDate,
           industry: resolvedIndustry,
           phaseName: market.phaseName,
-        }
       });
 
       if (aiError) throw aiError;
