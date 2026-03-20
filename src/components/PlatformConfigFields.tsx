@@ -220,11 +220,12 @@ export function PlatformConfigFields({
           <>
             <div className="space-y-2">
               <Label>Default Pixel</Label>
-              <Select value={pixel || undefined} onValueChange={(value) => onUpdate("pixel", value)}>
+              <Select value={pixel || "__none__"} onValueChange={(value) => onUpdate("pixel", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select pixel" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {pixels.map((p) => (
                     <SelectItem key={p.id} value={p.pixel_id || ""}>
                       {p.pixel_name}
@@ -236,11 +237,12 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default Page</Label>
-              <Select value={page || undefined} onValueChange={(value) => onUpdate("page", value)}>
+              <Select value={page || "__none__"} onValueChange={(value) => onUpdate("page", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select page" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {pages.map((p) => (
                     <SelectItem key={p.id} value={p.page_id || ""}>
                       {p.page_name}
@@ -252,11 +254,12 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default Instagram Account</Label>
-              <Select value={instagramAccount || undefined} onValueChange={(value) => onUpdate("instagramAccount", value)}>
+              <Select value={instagramAccount || "__none__"} onValueChange={(value) => onUpdate("instagramAccount", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select Instagram account" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {instagramAccounts.map((ig) => (
                     <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
                       {ig.username}
@@ -268,14 +271,15 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default Catalog</Label>
-              <Select value={catalog || undefined} onValueChange={(value) => {
-                onUpdate("catalog", value);
+              <Select value={catalog || "__none__"} onValueChange={(value) => {
+                onUpdate("catalog", value === "__none__" ? "" : value);
                 onUpdate("productSet", ""); // Reset product set when catalog changes
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select catalog" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {catalogs.map((c) => (
                     <SelectItem key={c.id} value={c.catalog_id || ""}>
                       {c.catalog_name}
@@ -331,13 +335,14 @@ export function PlatformConfigFields({
           <>
             <div className="space-y-2">
               <Label>Default TikTok Pixel</Label>
-              <Select value={pixel || undefined} onValueChange={(value) => onUpdate("pixel", value)}>
+              <Select value={pixel || "__none__"} onValueChange={(value) => onUpdate("pixel", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select TikTok pixel" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {tiktokPixels.length === 0 ? (
-                    <SelectItem value="none" disabled>No pixels available</SelectItem>
+                    <SelectItem value="no-pixels" disabled>No pixels available</SelectItem>
                   ) : (
                     tiktokPixels.map((p) => (
                       <SelectItem key={p.id} value={p.pixel_id || ""}>
@@ -351,13 +356,14 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default TikTok Identity</Label>
-              <Select value={instagramAccount || undefined} onValueChange={(value) => onUpdate("instagramAccount", value)}>
+              <Select value={instagramAccount || "__none__"} onValueChange={(value) => onUpdate("instagramAccount", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select TikTok identity" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {tiktokIdentities.length === 0 ? (
-                    <SelectItem value="none" disabled>No identities available</SelectItem>
+                    <SelectItem value="no-identities" disabled>No identities available</SelectItem>
                   ) : (
                     tiktokIdentities.map((i) => (
                       <SelectItem key={i.id} value={i.identity_id || ""}>
@@ -371,16 +377,17 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default TikTok Catalog</Label>
-              <Select value={catalog || undefined} onValueChange={(value) => {
-                onUpdate("catalog", value);
+              <Select value={catalog || "__none__"} onValueChange={(value) => {
+                onUpdate("catalog", value === "__none__" ? "" : value);
                 onUpdate("productSet", ""); // Reset product set when catalog changes
               }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select TikTok catalog" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {tiktokCatalogs.length === 0 ? (
-                    <SelectItem value="none" disabled>No catalogs available</SelectItem>
+                    <SelectItem value="no-catalogs" disabled>No catalogs available</SelectItem>
                   ) : (
                     tiktokCatalogs.map((c) => (
                       <SelectItem key={c.id} value={c.catalog_id || ""}>
