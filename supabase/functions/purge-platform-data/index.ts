@@ -148,12 +148,11 @@ serve(async (req) => {
       const advertiserIds = platformData?.metadata?.advertiser_ids || [];
 
       if (advertiserIds.length > 0) {
-        // Delete TikTok ad accounts
+        // Delete TikTok ad accounts for this connection
         const { error: adAccountsError } = await supabase
           .from("tiktok_ad_accounts")
           .delete()
-          .eq("user_id", user.id)
-          .in("advertiser_id", advertiserIds);
+          .eq("platform_id", connectedPlatformId);
         
         if (adAccountsError) {
           console.error("Error deleting tiktok_ad_accounts:", adAccountsError);
