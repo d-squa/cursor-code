@@ -2104,6 +2104,10 @@ export function MediaPlanEditor() {
           ...market,
           id: `${market.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
           phases: translatedPhases,
+          // Translate ad formats to the new platform
+          adFormats: market.adFormats && market.adFormats.length > 0
+            ? translateAdFormats(market.adFormats, sourcePlatformId, newPlatformId)
+            : market.adFormats,
           // Clear source-platform-specific market-level fields
           ...(newPlatformId.toLowerCase().includes("tiktok") ? {} : {
             tiktokPixel: undefined, tiktokIdentity: undefined, tiktokCatalog: undefined,
