@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { ArrowRight, Lightbulb, Check, X, TrendingUp, TrendingDown } from "lucide-react";
 import { BudgetOptimizationResult } from "@/utils/budgetOptimization";
 
@@ -45,7 +46,7 @@ export function BudgetRecommendationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-amber-500" />
@@ -56,8 +57,53 @@ export function BudgetRecommendationDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Platform Summary */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-semibold">Platform Budget Summary</h4>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs">Platform</TableHead>
+                <TableHead className="text-xs text-right">Current Budget</TableHead>
+                <TableHead className="text-xs text-center w-8"></TableHead>
+                <TableHead className="text-xs text-right">Recommended Budget</TableHead>
+                <TableHead className="text-xs text-right">Change</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Object.entries(optimization.platformSummary).map(([platformId, summary]) => (
+                <TableRow key={platformId}>
+                  <TableCell className="text-xs font-medium">{summary.platformName}</TableCell>
+                  <TableCell className="text-xs text-right">{formatCurrency(summary.oldBudget)}</TableCell>
+                  <TableCell className="text-center">
+                    <ArrowRight className="h-3 w-3 text-muted-foreground mx-auto" />
+                  </TableCell>
+                  <TableCell className="text-xs text-right font-medium">{formatCurrency(summary.newBudget)}</TableCell>
+                  <TableCell className="text-xs text-right">
+                    <ChangeIndicator value={summary.budgetChangePercent} />
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="font-semibold border-t-2">
+                <TableCell className="text-xs">Total</TableCell>
+                <TableCell className="text-xs text-right">
+                  {formatCurrency(Object.values(optimization.platformSummary).reduce((s, p) => s + p.oldBudget, 0))}
+                </TableCell>
+                <TableCell></TableCell>
+                <TableCell className="text-xs text-right">
+                  {formatCurrency(Object.values(optimization.platformSummary).reduce((s, p) => s + p.newBudget, 0))}
+                </TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        <Separator />
+
         {/* Per-Goal Breakdown */}
-        <div className="space-y-4 mt-2">
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold">Breakdown by Optimization Goal</h4>
           {optimization.recommendations.map((rec) => (
             <div key={rec.normalizedGoal} className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">

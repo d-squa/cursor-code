@@ -149,6 +149,8 @@ export function analyzeBudgetOptimization(
   // Step 1: Extract all phase entries
   const allEntries: PhaseEntry[] = [];
   let skippedEntries = 0;
+  // Track skipped budget per platform so total is conserved
+  const skippedBudgetByPlatform = new Map<string, number>();
 
   for (const platform of actiplanForecast.platforms) {
     for (const market of platform.markets) {
@@ -168,6 +170,9 @@ export function analyzeBudgetOptimization(
             });
           } else {
             skippedEntries++;
+            // Preserve skipped budget so totals stay correct
+            const prev = skippedBudgetByPlatform.get(platform.platformId) || 0;
+            skippedBudgetByPlatform.set(platform.platformId, prev + (phase.budget || 0));
             console.log(`💡 Budget opt: skipped phase ${phase.phaseName} (${platform.platformName}/${market.marketName}) - CPR=${phase.costPerResult}, budget=${phase.budget}`);
           }
         }
@@ -187,6 +192,8 @@ export function analyzeBudgetOptimization(
             });
           } else {
             skippedEntries++;
+            const prev = skippedBudgetByPlatform.get(platform.platformId) || 0;
+            skippedBudgetByPlatform.set(platform.platformId, prev + (market.budget || 0));
           }
         }
       }
@@ -216,9 +223,26 @@ export function analyzeBudgetOptimization(
     old.results += entry.result;
     platformOldBudgets.set(entry.platformId, old);
 
-    // Initialize new budgets same as old (will be overwritten for optimized goals)
     if (!platformNewBudgets.has(entry.platformId)) {
       platformNewBudgets.set(entry.platformId, { name: entry.platformName, budget: 0, results: 0 });
+    }
+  }
+
+  // Add skipped budgets to both old and new so totals are conserved
+  for (const [platformId, skippedBudget] of skippedBudgetByPlatform) {
+    const oldEntry = platformOldBudgets.get(platformId);
+    if (oldEntry) {
+      oldEntry.budget += skippedBudget;
+    } else {
+      const platformName = actiplanForecast.platforms.find(p => p.platformId === platformId)?.platformName || platformId;
+      platformOldBudgets.set(platformId, { name: platformName, budget: skippedBudget, results: 0 });
+    }
+    const newEntry = platformNewBudgets.get(platformId);
+    if (newEntry) {
+      newEntry.budget += skippedBudget;
+    } else {
+      const platformName = actiplanForecast.platforms.find(p => p.platformId === platformId)?.platformName || platformId;
+      platformNewBudgets.set(platformId, { name: platformName, budget: skippedBudget, results: 0 });
     }
   }
 
