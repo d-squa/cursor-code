@@ -558,11 +558,12 @@ async function syncMetaAccountsInBackground(
     currentStep = totalAccounts + 1;
     await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'ad_accounts', 'Saving ad accounts...', processedCounts);
 
-    // Replace the team's synced Meta account set with the new selection
+    // Replace only accounts from THIS connection (not all team accounts)
     await supabase
       .from("meta_ad_accounts")
       .delete()
-      .eq("team_id", teamId);
+      .eq("team_id", teamId)
+      .eq("platform_id", platformId);
     
     const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
     
