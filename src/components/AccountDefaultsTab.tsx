@@ -144,6 +144,10 @@ interface AdAccount {
   advantage_plus_optimize_text_per_person?: boolean | null;
   advantage_plus_sitelinks?: boolean | null;
   advantage_plus_products?: boolean | null;
+  // Advantage+ Campaign-level defaults (Meta)
+  default_advantage_plus_campaign?: boolean | null;
+  default_advantage_plus_audience?: boolean | null;
+  default_advantage_plus_creative?: boolean | null;
   // UTM Parameters
   default_utm_mode?: string | null;
   default_url_parameters?: string | null;
