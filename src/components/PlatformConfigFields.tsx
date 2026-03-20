@@ -335,13 +335,14 @@ export function PlatformConfigFields({
           <>
             <div className="space-y-2">
               <Label>Default TikTok Pixel</Label>
-              <Select value={pixel || undefined} onValueChange={(value) => onUpdate("pixel", value)}>
+              <Select value={pixel || "__none__"} onValueChange={(value) => onUpdate("pixel", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select TikTok pixel" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {tiktokPixels.length === 0 ? (
-                    <SelectItem value="none" disabled>No pixels available</SelectItem>
+                    <SelectItem value="no-pixels" disabled>No pixels available</SelectItem>
                   ) : (
                     tiktokPixels.map((p) => (
                       <SelectItem key={p.id} value={p.pixel_id || ""}>
