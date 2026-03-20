@@ -3546,6 +3546,9 @@ export function MediaPlanEditor() {
           tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
+          onBudgetOptimize={(newPlatforms) => {
+            setPlatformsWithMarkets(newPlatforms);
+          }}
         />
       )}
 

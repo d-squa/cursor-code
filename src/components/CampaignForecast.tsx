@@ -7,7 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket, Wand2, RefreshCw } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket, Wand2, RefreshCw, Lightbulb } from "lucide-react";
+import { analyzeBudgetOptimization, applyBudgetOptimization, BudgetOptimizationResult } from "@/utils/budgetOptimization";
+import { BudgetRecommendationDialog } from "./BudgetRecommendationDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
@@ -53,6 +55,7 @@ interface CampaignForecastProps {
   tiktokAdvertiserId?: string;
   onBack: () => void;
   onFinalize: () => void;
+  onBudgetOptimize?: (newPlatforms: PlatformWithMarkets[]) => void;
 }
 
 interface ForecastMetrics {
@@ -167,6 +170,7 @@ export function CampaignForecast({
   tiktokAdvertiserId,
   onBack,
   onFinalize,
+  onBudgetOptimize,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -182,6 +186,8 @@ export function CampaignForecast({
   const [existingLoadComplete, setExistingLoadComplete] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Map<string, BenchmarkData>>(new Map());
   const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
+  const [budgetOptimization, setBudgetOptimization] = useState<BudgetOptimizationResult | null>(null);
+  const [budgetRecommendationOpen, setBudgetRecommendationOpen] = useState(false);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
   const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(
@@ -1916,6 +1922,23 @@ export function CampaignForecast({
         platforms: platformForecasts,
       });
       toast.success("Forecasts fetched successfully!");
+
+      // Analyze budget optimization across platforms
+      if (platformForecasts.length > 1) {
+        try {
+          const optimizationResult = analyzeBudgetOptimization({ platforms: platformForecasts });
+          if (optimizationResult.hasRecommendations) {
+            setBudgetOptimization(optimizationResult);
+            setBudgetRecommendationOpen(true);
+            console.log("💡 Budget optimization recommendations found:", optimizationResult.recommendations.length);
+          } else {
+            setBudgetOptimization(null);
+            console.log("✅ No budget optimization improvements found");
+          }
+        } catch (optError) {
+          console.error("Budget optimization analysis failed:", optError);
+        }
+      }
     } catch (error) {
       toast.error("Failed to fetch forecasts");
       console.error(error);
@@ -2264,6 +2287,23 @@ export function CampaignForecast({
                 selectedKeywords={selectedKeywords}
               />
             )}
+            {/* Budget Optimization Recommendation Banner */}
+            {budgetOptimization?.hasRecommendations && (
+              <div 
+                className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                onClick={() => setBudgetRecommendationOpen(true)}
+              >
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium">
+                    Budget optimization available — estimated +{budgetOptimization.totalResultChangePercent.toFixed(1)}% more results
+                  </span>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 text-xs">
+                  View Recommendation
+                </Button>
+              </div>
+            )}
           </>
         )}
 
@@ -2355,6 +2395,27 @@ export function CampaignForecast({
           excelBase64={excelBase64Data}
           actiplanForecasts={actiplanForecast}
         />
+
+        {/* Budget Recommendation Dialog */}
+        {budgetOptimization && (
+          <BudgetRecommendationDialog
+            open={budgetRecommendationOpen}
+            onOpenChange={setBudgetRecommendationOpen}
+            optimization={budgetOptimization}
+            onAccept={() => {
+              if (onBudgetOptimize && budgetOptimization) {
+                const optimizedPlatforms = applyBudgetOptimization(
+                  platforms as any,
+                  budgetOptimization,
+                  totalBudget
+                );
+                onBudgetOptimize(optimizedPlatforms as PlatformWithMarkets[]);
+                toast.success("Budget optimization applied! Re-fetch forecasts to see updated metrics.");
+                setBudgetOptimization(null);
+              }
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   );
