@@ -54,6 +54,18 @@ interface GoogleAdAccountDefaults {
   default_utm_mode?: string | null;
   default_url_parameters?: string | null;
   default_placements?: string[] | null;
+  // New campaign configuration defaults
+  default_campaign_objective?: string | null;
+  default_campaign_type?: string | null;
+  default_campaign_subtype?: string | null;
+  default_location_targeting?: string | null;
+  default_search_partner?: boolean | null;
+  default_display_network?: boolean | null;
+  default_customer_acquisition?: string | null;
+  default_optimized_targeting?: boolean | null;
+  default_inventory_type?: string | null;
+  default_ai_max?: boolean | null;
+  default_ai_max_options?: string[] | null;
 }
 
 interface AdAccount {
