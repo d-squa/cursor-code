@@ -55,6 +55,7 @@ interface CampaignForecastProps {
   tiktokAdvertiserId?: string;
   onBack: () => void;
   onFinalize: () => void;
+  onBudgetOptimize?: (newPlatforms: PlatformWithMarkets[]) => void;
 }
 
 interface ForecastMetrics {
