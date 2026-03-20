@@ -237,11 +237,12 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default Page</Label>
-              <Select value={page || undefined} onValueChange={(value) => onUpdate("page", value)}>
+              <Select value={page || "__none__"} onValueChange={(value) => onUpdate("page", value === "__none__" ? "" : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select page" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
                   {pages.map((p) => (
                     <SelectItem key={p.id} value={p.page_id || ""}>
                       {p.page_name}
