@@ -2287,6 +2287,23 @@ export function CampaignForecast({
                 selectedKeywords={selectedKeywords}
               />
             )}
+            {/* Budget Optimization Recommendation Banner */}
+            {budgetOptimization?.hasRecommendations && (
+              <div 
+                className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                onClick={() => setBudgetRecommendationOpen(true)}
+              >
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium">
+                    Budget optimization available — estimated +{budgetOptimization.totalResultChangePercent.toFixed(1)}% more results
+                  </span>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 text-xs">
+                  View Recommendation
+                </Button>
+              </div>
+            )}
           </>
         )}
 
