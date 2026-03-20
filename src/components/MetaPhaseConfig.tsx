@@ -118,7 +118,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
     }
   }, [adAccountDefaults, phase.id, canInheritDefaults]);
   
-  const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
+  const selectPlaceholder = "Select...";
 
   const objective = phase.objective || "";
   const optimizationGoal = phase.optimizationGoal || "";
