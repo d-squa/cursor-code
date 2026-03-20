@@ -2084,6 +2084,7 @@ export type Database = {
           default_whatsapp_number: string | null
           id: string
           main_markets: Json | null
+          platform_id: string | null
           synced_at: string
           team_id: string | null
           user_id: string
@@ -2141,6 +2142,7 @@ export type Database = {
           default_whatsapp_number?: string | null
           id?: string
           main_markets?: Json | null
+          platform_id?: string | null
           synced_at?: string
           team_id?: string | null
           user_id: string
@@ -2198,6 +2200,7 @@ export type Database = {
           default_whatsapp_number?: string | null
           id?: string
           main_markets?: Json | null
+          platform_id?: string | null
           synced_at?: string
           team_id?: string | null
           user_id?: string
@@ -2208,6 +2211,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_accounts_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_accounts_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms_safe"
             referencedColumns: ["id"]
           },
           {
@@ -3141,6 +3158,7 @@ export type Database = {
           default_zalo_account_id: string | null
           id: string
           main_markets: Json | null
+          platform_id: string | null
           synced_at: string
           team_id: string | null
           timezone: string | null
@@ -3190,6 +3208,7 @@ export type Database = {
           default_zalo_account_id?: string | null
           id?: string
           main_markets?: Json | null
+          platform_id?: string | null
           synced_at?: string
           team_id?: string | null
           timezone?: string | null
@@ -3239,6 +3258,7 @@ export type Database = {
           default_zalo_account_id?: string | null
           id?: string
           main_markets?: Json | null
+          platform_id?: string | null
           synced_at?: string
           team_id?: string | null
           timezone?: string | null
@@ -3250,6 +3270,20 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_ad_accounts_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiktok_ad_accounts_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms_safe"
             referencedColumns: ["id"]
           },
           {
