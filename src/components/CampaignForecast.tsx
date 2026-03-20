@@ -1297,9 +1297,10 @@ export function CampaignForecast({
             destination,
             dataSource: 'ai_predicted' as const,
           } as ForecastMetrics;
-        } catch (aiErr) {
-          console.error('AI forecast fallback failed:', aiErr);
-          toast.error('AI prediction failed, using static estimates');
+        } catch (aiErr: any) {
+          console.error(`❌ AI forecast fallback failed for ${marketCode}:`, aiErr?.message || aiErr);
+          console.log(`📋 Forecast source for ${marketCode}: STATIC ESTIMATION (all API sources failed — R&F ❌, meta-forecast ❌, AI ❌)`);
+          toast.error('All forecast sources failed, using static estimates');
         }
         
         // Fall through to mock data
