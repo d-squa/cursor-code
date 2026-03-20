@@ -1466,6 +1466,11 @@ export function CampaignForecast({
         for (const market of platform.markets) {
           const marketBudget = platformBudget * (market.budgetPercentage / 100);
           
+          // Throttle between markets to avoid AI rate limits (429)
+          if (platform.markets.indexOf(market) > 0) {
+            await throttleDelay(500);
+          }
+          
           console.log(`📊 Processing market: ${market.name}, Phases:`, market.phases?.length || 0);
           console.log('Market data:', { id: market.id, name: market.name, phases: market.phases });
           
