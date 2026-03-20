@@ -1424,17 +1424,23 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Select
                               value={defaults.default_conversion_event || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_conversion_event", value)}
-                              disabled={!defaults.default_pixel_id}
+                              disabled={!defaults.default_pixel_id || loadingMetaEvents === selectedPixel}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder="Select conversion event" />
+                                <SelectValue placeholder={loadingMetaEvents === selectedPixel ? "Loading events..." : "Select conversion event"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {pixelEvents.map((event) => (
-                                  <SelectItem key={event.id} value={event.event_name || ""}>
-                                    {event.event_name}
+                                {pixelEvents.length === 0 ? (
+                                  <SelectItem value="none" disabled>
+                                    {loadingMetaEvents === selectedPixel ? "Loading..." : "No events available"}
                                   </SelectItem>
-                                ))}
+                                ) : (
+                                  pixelEvents.map((event: any) => (
+                                    <SelectItem key={event.id} value={event.id || event.event_name || ""}>
+                                      {event.name || event.event_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
