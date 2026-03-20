@@ -352,7 +352,7 @@ export function analyzeBudgetOptimization(
       : 0;
 
     // Only add if there's an actual improvement
-    if (resultChangePercent > 0.1) {
+    if (resultChangePercent > 10) {
       recommendations.push({
         normalizedGoal,
         displayName: getGoalDisplayName(normalizedGoal),
