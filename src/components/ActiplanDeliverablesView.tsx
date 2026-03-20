@@ -83,6 +83,29 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
 
+  const expandAllPlatforms = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    actiplanForecast.platforms.forEach(p => { newState[p.platformId] = true; });
+    setExpandedPlatforms(newState);
+  }, [actiplanForecast.platforms]);
+
+  const collapseAllPlatforms = useCallback(() => {
+    setExpandedPlatforms({});
+    setExpandedMarkets({});
+  }, []);
+
+  const expandAllMarkets = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    actiplanForecast.platforms.forEach(p => {
+      p.markets.forEach(m => { newState[m.marketName] = true; });
+    });
+    setExpandedMarkets(newState);
+  }, [actiplanForecast.platforms]);
+
+  const collapseAllMarkets = useCallback(() => {
+    setExpandedMarkets({});
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Actiplan Deliverables - Top Level */}
