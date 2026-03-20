@@ -1404,7 +1404,8 @@ export function CampaignForecast({
         dataSource: 'ai_predicted' as const,
       };
     } catch (aiErr) {
-      console.error(`AI forecast failed for ${platformLabel}:`, aiErr);
+      console.error(`❌ AI forecast failed for ${platformLabel} (after retries):`, aiErr?.message || aiErr);
+      console.log(`📋 Forecast source for ${platformLabel}/${market.name}: STATIC ESTIMATION (AI failed — ${aiErr?.message || 'unknown error'})`);
       toast.error(`AI forecast failed for ${platformLabel}. Using basic estimates.`);
       
       // Minimal static fallback only if AI fails
