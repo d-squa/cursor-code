@@ -537,6 +537,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           advantage_plus_optimize_text_per_person: acc.platform === "meta" ? (acc as any).advantage_plus_optimize_text_per_person ?? false : null,
           advantage_plus_sitelinks: acc.platform === "meta" ? (acc as any).advantage_plus_sitelinks ?? false : null,
           advantage_plus_products: acc.platform === "meta" ? (acc as any).advantage_plus_products ?? false : null,
+          // Advantage+ Campaign-level defaults (Meta)
+          default_advantage_plus_campaign: acc.platform === "meta" ? (acc as any).default_advantage_plus_campaign ?? false : null,
+          default_advantage_plus_audience: acc.platform === "meta" ? (acc as any).default_advantage_plus_audience ?? false : null,
+          default_advantage_plus_creative: acc.platform === "meta" ? (acc as any).default_advantage_plus_creative ?? false : null,
           // UTM Parameters
           default_utm_mode: (acc as any).default_utm_mode || "auto",
           default_url_parameters: (acc as any).default_url_parameters || null,
