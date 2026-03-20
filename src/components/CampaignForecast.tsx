@@ -26,6 +26,35 @@ import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
 
+// Helper: call AI forecast with retry + exponential backoff for 429 rate limits
+const invokeAIForecastWithRetry = async (
+  body: Record<string, unknown>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<{ data: any; error: any }> => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const { data, error } = await supabase.functions.invoke('ai-forecast', { body });
+    
+    // Check for rate limit (429) — supabase.functions.invoke wraps HTTP errors
+    const is429 = error?.message?.includes('429') || 
+                   error?.status === 429 ||
+                   (data && typeof data === 'object' && data.error?.includes?.('Rate limit'));
+    
+    if (is429 && attempt < maxRetries) {
+      const delay = baseDelayMs * Math.pow(2, attempt); // 2s, 4s, 8s
+      console.warn(`⏳ AI forecast rate-limited (429). Retry ${attempt + 1}/${maxRetries} in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    
+    return { data, error };
+  }
+  return { data: null, error: new Error('AI forecast failed after max retries (429 rate limit)') };
+};
+
+// Helper: small delay between sequential forecast calls to avoid bursting
+const throttleDelay = (ms = 300) => new Promise(r => setTimeout(r, ms));
+
 // Helper to normalize strategyFocus, filtering out "auto" placeholder
 const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
   if (marketFocus && marketFocus !== "auto") return marketFocus;
@@ -1021,29 +1050,27 @@ export function CampaignForecast({
 
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
         
-        // Use AI forecast as primary source for TikTok
+        // Use AI forecast as primary source for TikTok (with retry for 429)
         console.log("🤖 Calling AI forecast for TikTok...");
-        const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
-          body: {
-            platform: 'TikTok',
-            market: marketCode,
-            budget,
-            strategyFocus: strategyFocusValue,
-            objective,
-            optimizationGoal,
-            destination,
-            ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
-            ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
-            gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
-            startDate: campaignStartDate || startDate,
-            endDate: campaignEndDate || endDate,
-            industry: resolvedIndustry,
-            phaseName: market.phaseName,
-          }
+        const { data: aiData, error: aiError } = await invokeAIForecastWithRetry({
+          platform: 'TikTok',
+          market: marketCode,
+          budget,
+          strategyFocus: strategyFocusValue,
+          objective,
+          optimizationGoal,
+          destination,
+          ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+          ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+          gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
+          startDate: campaignStartDate || startDate,
+          endDate: campaignEndDate || endDate,
+          industry: resolvedIndustry,
+          phaseName: market.phaseName,
         });
 
         if (aiError) {
-          console.error("AI forecast failed for TikTok:", aiError);
+          console.error("❌ AI forecast failed for TikTok (after retries):", aiError);
           throw aiError;
         }
 
@@ -1172,6 +1199,7 @@ export function CampaignForecast({
           
           const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
 
+          console.log(`📋 Forecast source for ${marketCode}: Meta reach estimates (meta-forecast API). Labeled as 'estimated' because R&F API failed and this uses simplified reach model.`);
           return {
             audienceSize: (fallbackData as any).reach * 10,
             reach: fbReach,
@@ -1220,8 +1248,7 @@ export function CampaignForecast({
             destination = autoDetected.destination;
           }
           
-          const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
-            body: {
+          const { data: aiData, error: aiError } = await invokeAIForecastWithRetry({
               platform: isMeta ? 'Meta' : 'TikTok',
               market: marketCode,
               budget,
@@ -1236,7 +1263,6 @@ export function CampaignForecast({
               endDate,
               industry: resolvedIndustry,
               phaseName: market.phaseName,
-            }
           });
 
           if (aiError) throw aiError;
@@ -1271,9 +1297,10 @@ export function CampaignForecast({
             destination,
             dataSource: 'ai_predicted' as const,
           } as ForecastMetrics;
-        } catch (aiErr) {
-          console.error('AI forecast fallback failed:', aiErr);
-          toast.error('AI prediction failed, using static estimates');
+        } catch (aiErr: any) {
+          console.error(`❌ AI forecast fallback failed for ${marketCode}:`, aiErr?.message || aiErr);
+          console.log(`📋 Forecast source for ${marketCode}: STATIC ESTIMATION (all API sources failed — R&F ❌, meta-forecast ❌, AI ❌)`);
+          toast.error('All forecast sources failed, using static estimates');
         }
         
         // Fall through to mock data
@@ -1328,11 +1355,9 @@ export function CampaignForecast({
     const marketCodeForAI = market.name.substring(0, 2).trim().toUpperCase();
 
     try {
-      console.log(`🤖 Calling AI forecast for ${platformLabel} - ${marketCodeForAI}...`);
-      const { supabase } = await import("@/integrations/supabase/client");
+      console.log(`🤖 Calling AI forecast for ${platformLabel} - ${marketCodeForAI} (with retry)...`);
       
-      const { data: aiData, error: aiError } = await supabase.functions.invoke('ai-forecast', {
-        body: {
+      const { data: aiData, error: aiError } = await invokeAIForecastWithRetry({
           platform: platformLabel,
           market: marketCodeForAI,
           budget,
@@ -1347,7 +1372,6 @@ export function CampaignForecast({
           endDate: campaignEndDate || endDate,
           industry: resolvedIndustry,
           phaseName: market.phaseName,
-        }
       });
 
       if (aiError) throw aiError;
@@ -1380,7 +1404,8 @@ export function CampaignForecast({
         dataSource: 'ai_predicted' as const,
       };
     } catch (aiErr) {
-      console.error(`AI forecast failed for ${platformLabel}:`, aiErr);
+      console.error(`❌ AI forecast failed for ${platformLabel} (after retries):`, aiErr?.message || aiErr);
+      console.log(`📋 Forecast source for ${platformLabel}/${market.name}: STATIC ESTIMATION (AI failed — ${aiErr?.message || 'unknown error'})`);
       toast.error(`AI forecast failed for ${platformLabel}. Using basic estimates.`);
       
       // Minimal static fallback only if AI fails
@@ -1442,6 +1467,11 @@ export function CampaignForecast({
 
         for (const market of platform.markets) {
           const marketBudget = platformBudget * (market.budgetPercentage / 100);
+          
+          // Throttle between markets to avoid AI rate limits (429)
+          if (platform.markets.indexOf(market) > 0) {
+            await throttleDelay(500);
+          }
           
           console.log(`📊 Processing market: ${market.name}, Phases:`, market.phases?.length || 0);
           console.log('Market data:', { id: market.id, name: market.name, phases: market.phases });
