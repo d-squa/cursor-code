@@ -58,7 +58,7 @@ function formatVol(vol?: number) {
   return String(vol);
 }
 
-export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, selectedKeywords }: GoogleAdsPhaseConfigProps) {
+export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, selectedKeywords, googleDefaults }: GoogleAdsPhaseConfigProps) {
   const campaignTypes = getGoogleAdsCampaignTypes();
   const selectedType = phase.googleCampaignType || "";
   const subtypes = useMemo(() => selectedType ? getGoogleAdsSubtypes(selectedType) : [], [selectedType]);
