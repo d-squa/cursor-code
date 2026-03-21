@@ -76,6 +76,22 @@ export default function CreativeMatching() {
     }
   }, [progress?.campaignId, loadExistingAssignments, matchingState.savedAssignments?.length]);
 
+  // When entering the mesh step, always reload fresh structures from DB
+  // This ensures ad set splits and other structural changes are reflected
+  useEffect(() => {
+    if (currentStep === 'mesh' && progress?.campaignId && matchingState.assets.length > 0) {
+      const refreshStructures = async () => {
+        const freshStructures = await loadCampaignStructures(progress.campaignId);
+        if (freshStructures && freshStructures.length > 0) {
+          runMatching(freshStructures);
+        }
+      };
+      refreshStructures();
+    }
+    // Only trigger when entering the mesh step, not on every state change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, progress?.campaignId]);
+
   // Campaign data for ad accounts and page configs
   const [campaignData, setCampaignData] = useState<{
     adAccounts: AdAccountInfo[];
