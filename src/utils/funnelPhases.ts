@@ -161,6 +161,8 @@ function getAutoDetectStrategyId(
   const formatString = adFormats.join(" ").toLowerCase();
   const detectedFocus = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
 
+  console.log('[Auto-Detect Strategy]', { platform: normalizedPlatform, adFormats, formatString, hasPixel, hasCatalog, detectedFocus });
+
   // ── Google Ads ──
   if (normalizedPlatform === "google") {
     if (formatString.includes("app")) return "google-app-growth-base";

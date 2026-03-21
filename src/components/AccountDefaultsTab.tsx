@@ -1281,17 +1281,19 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default Pixel</Label>
                             <Select
-                              value={defaults.default_pixel_id || undefined}
+                              value={defaults.default_pixel_id || "__none__"}
                               onValueChange={(value) => {
-                                updateDefault(account.id, "default_pixel_id", value);
+                                const nextValue = value === "__none__" ? null : value;
+                                updateDefault(account.id, "default_pixel_id", nextValue);
                                 updateDefault(account.id, "default_conversion_event", null);
-                                if (value) fetchMetaConversionEvents(value);
+                                if (nextValue) fetchMetaConversionEvents(nextValue);
                               }}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select pixel" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {pixels.length === 0 ? (
                                   <SelectItem value="none" disabled>
                                     No pixels available
@@ -1311,13 +1313,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default Page</Label>
                             <Select
-                              value={defaults.default_page_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_page_id", value)}
+                              value={defaults.default_page_id || "__none__"}
+                              onValueChange={(value) => updateDefault(account.id, "default_page_id", value === "__none__" ? null : value)}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select page" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {pages.length === 0 ? (
                                   <SelectItem value="none" disabled>
                                     No pages available
@@ -1337,15 +1340,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default Instagram Account</Label>
                             <Select
-                              value={defaults.default_instagram_account_id || undefined}
+                              value={defaults.default_instagram_account_id || "__none__"}
                               onValueChange={(value) =>
-                                updateDefault(account.id, "default_instagram_account_id", value)
+                                updateDefault(account.id, "default_instagram_account_id", value === "__none__" ? null : value)
                               }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select Instagram account" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {instagramAccounts.length === 0 ? (
                                   <SelectItem value="none" disabled>
                                     No Instagram accounts available
@@ -1365,9 +1369,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default Catalog</Label>
                             <Select
-                              value={defaults.default_catalog_id || undefined}
+                              value={defaults.default_catalog_id || "__none__"}
                               onValueChange={(value) => {
-                                updateDefault(account.id, "default_catalog_id", value);
+                                const nextValue = value === "__none__" ? null : value;
+                                updateDefault(account.id, "default_catalog_id", nextValue);
                                 updateDefault(account.id, "default_product_set_id", null);
                               }}
                             >
@@ -1375,6 +1380,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select catalog" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {catalogs.length === 0 ? (
                                   <SelectItem value="none" disabled>
                                     No catalogs available
@@ -2022,13 +2028,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             })()}
                             <Select
                               key={`pixel-${account.id}-${defaults.default_pixel_id || "empty"}`}
-                              value={defaults.default_pixel_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
+                              value={defaults.default_pixel_id || "__none__"}
+                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value === "__none__" ? null : value)}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select TikTok pixel" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {(() => {
                                   const accountPixels = tiktokPixels.filter(
                                     (p) => p.advertiser_id === account.advertiser_id,
@@ -2074,13 +2081,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             })()}
                             <Select
                               key={`identity-${account.id}-${defaults.default_identity_id || "empty"}`}
-                              value={defaults.default_identity_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_identity_id", value)}
+                              value={defaults.default_identity_id || "__none__"}
+                              onValueChange={(value) => updateDefault(account.id, "default_identity_id", value === "__none__" ? null : value)}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select TikTok identity" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {(() => {
                                   const accountIdentities = tiktokIdentities.filter(
                                     (i) => i.advertiser_id === account.advertiser_id,
@@ -2130,13 +2138,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             })()}
                             <Select
                               key={`catalog-${account.id}-${defaults.default_catalog_id || "empty"}`}
-                              value={defaults.default_catalog_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_catalog_id", value)}
+                              value={defaults.default_catalog_id || "__none__"}
+                              onValueChange={(value) => {
+                                const nextValue = value === "__none__" ? null : value;
+                                updateDefault(account.id, "default_catalog_id", nextValue);
+                                if (!nextValue) updateDefault(account.id, "default_product_set_id", null);
+                              }}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select TikTok catalog" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="__none__">None</SelectItem>
                                 {(() => {
                                   const accountCatalogs = tiktokCatalogs.filter(
                                     (c) => c.advertiser_id === account.advertiser_id,
