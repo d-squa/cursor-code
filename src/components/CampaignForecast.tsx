@@ -464,18 +464,25 @@ export function CampaignForecast({
         const { supabase } = await import("@/integrations/supabase/client");
         const { data: campaign } = await supabase
           .from('campaigns')
-          .select('forecast_data')
+          .select('forecast_data, updated_at')
           .eq('id', campaignId)
           .single();
 
         const forecastData = campaign?.forecast_data as any;
-        if (forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
+        const generatedAt = forecastData?.generatedAt ? new Date(forecastData.generatedAt).getTime() : 0;
+        const campaignUpdatedAt = campaign?.updated_at ? new Date(campaign.updated_at).getTime() : 0;
+        const isStaleForecast = !generatedAt || (campaignUpdatedAt > 0 && generatedAt < campaignUpdatedAt);
+
+        if (!isStaleForecast && forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
           setForecasts(forecastData.forecasts);
           if (forecastData.actiplanForecast) {
             setActiplanForecast(forecastData.actiplanForecast);
           }
           setHasExistingForecast(true);
           console.log("Loaded existing forecast data");
+        } else if (forecastData?.forecasts) {
+          setHasExistingForecast(false);
+          console.log("Skipping stale forecast data; campaign structure was updated after forecast generation");
         }
       } catch (error) {
         console.error("Error loading existing forecast:", error);
@@ -524,6 +531,7 @@ export function CampaignForecast({
         await (supabase as any).from('campaigns')
           .update({ 
             forecast_data: {
+              generatedAt: new Date().toISOString(),
               forecasts,
               actiplanForecast,
               totalMetrics: totalMetrics ? {
@@ -1959,6 +1967,7 @@ export function CampaignForecast({
 
       // Save forecast version
       const forecastPayload = {
+        generatedAt: new Date().toISOString(),
         forecasts: newForecasts,
         actiplanForecast: {
           totalBudget: actiplanTotalBudget,
