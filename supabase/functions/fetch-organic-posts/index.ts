@@ -204,7 +204,7 @@ async function handleMetaPosts(
 
     const fetchPosts = async (token: string) => {
       const res = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${token}`,
+        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media{image{width,height,src}},subattachments}&limit=${limit}&access_token=${token}`,
         { method: "GET" }
       );
       return await readJsonSafe(res);
