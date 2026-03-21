@@ -189,10 +189,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     
     // If in review step, automatically re-run matching with new assets
     if (state.currentStep === 'review' && effectiveCampaignId) {
-      let structures = state.structures;
-      if (structures.length === 0) {
-        structures = await loadCampaignStructures(effectiveCampaignId) || [];
-      }
+      const structures = await loadCampaignStructures(effectiveCampaignId) || [];
       runMatching(structures);
       toast.success('Re-meshing with new creatives...');
     }
