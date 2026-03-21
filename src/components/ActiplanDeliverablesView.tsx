@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { useState, useCallback } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
-import { buildSearchStrategyCampaignName, getSearchStrategyGroups } from "@/utils/searchStrategyCampaigns";
+import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 
 interface ActiplanDeliverablesViewProps {
   selectedKeywords?: KeywordItem[];
@@ -422,31 +422,35 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   competition: { label: "Competition", icon: <Swords className="h-3 w-3" /> },
                                 };
 
+                                const isSearch = isSearchPhaseLike({ platformId: platform.platformId, phase: { name: phase.phaseName } as Record<string, unknown> });
+
                                 const strategyCampaigns = phase.strategyCampaigns?.length
                                   ? phase.strategyCampaigns
-                                  : getSearchStrategyGroups({
-                                      keywords: selectedKeywords,
-                                      platformId: platform.platformId,
-                                      market: { marketName: market.marketName, marketCode: market.marketCode },
-                                    }).map((group) => ({
-                                      strategy: group.strategy,
-                                      campaignName: buildSearchStrategyCampaignName(phase.phaseName, group.label),
-                                      budget: phase.budget * group.budgetShare,
-                                      budgetPercentage: group.budgetPercentage,
-                                      searchVolume: group.totalVolume,
-                                      keywordsCount: group.positives.length,
-                                      negativeKeywordsCount: group.negatives.length,
-                                      impressions: 0,
-                                      reach: 0,
-                                      result: 0,
-                                      costPerResult: 0,
-                                      resultRate: 0,
-                                      kpi: phase.kpi,
-                                      startDate: phase.startDate,
-                                      endDate: phase.endDate,
-                                      ctr: null,
-                                      roas: null,
-                                    }));
+                                  : isSearch
+                                    ? getSearchStrategyGroups({
+                                        keywords: selectedKeywords,
+                                        platformId: platform.platformId,
+                                        market: { marketName: market.marketName, marketCode: market.marketCode },
+                                      }).map((group) => ({
+                                        strategy: group.strategy,
+                                        campaignName: buildSearchStrategyCampaignName(phase.phaseName, group.label),
+                                        budget: phase.budget * group.budgetShare,
+                                        budgetPercentage: group.budgetPercentage,
+                                        searchVolume: group.totalVolume,
+                                        keywordsCount: group.positives.length,
+                                        negativeKeywordsCount: group.negatives.length,
+                                        impressions: 0,
+                                        reach: 0,
+                                        result: 0,
+                                        costPerResult: 0,
+                                        resultRate: 0,
+                                        kpi: phase.kpi,
+                                        startDate: phase.startDate,
+                                        endDate: phase.endDate,
+                                        ctr: null,
+                                        roas: null,
+                                      }))
+                                    : [];
 
                                 if (!strategyCampaigns.length) return null;
 
