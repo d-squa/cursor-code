@@ -196,7 +196,7 @@ async function handleMetaPosts(
     const fetchFeed = async (token: string) => {
       console.log(`[fetch-organic-posts] Fetching Meta feed for page ${pageId}`);
       const res = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${token}`,
+        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media{image{width,height,src}},subattachments}&limit=${limit}&access_token=${token}`,
         { method: "GET" }
       );
       return await readJsonSafe(res);
