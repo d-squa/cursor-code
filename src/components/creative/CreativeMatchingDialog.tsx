@@ -265,11 +265,8 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
 
-    // Load structures and pass them directly to runMatching to avoid race condition
-    let structures = state.structures;
-    if (structures.length === 0) {
-      structures = await loadCampaignStructures(campaignIdToUse) || [];
-    }
+    // Always reload structures from DB to pick up any changes (e.g. ad set splits applied after initial load)
+    const structures = await loadCampaignStructures(campaignIdToUse) || [];
     runMatching(structures);
   };
 
