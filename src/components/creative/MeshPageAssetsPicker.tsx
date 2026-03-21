@@ -12,6 +12,8 @@ type OrganicPost = {
   createdTime?: string;
   permalink?: string;
   isSparkEligible?: boolean;
+  width?: number;
+  height?: number;
 };
 
 type PageConfig = {
