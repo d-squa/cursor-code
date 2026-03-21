@@ -70,6 +70,7 @@ interface Campaign {
   total_budget: number;
   start_date: string;
   end_date: string;
+  updated_at?: string;
 }
 
 type StatusType =
