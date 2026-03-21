@@ -810,7 +810,7 @@ async function fetchMetaPageTokenFromAccounts(
 async function fetchMetaPostById(accessToken: string, postId: string): Promise<OrganicPost | null> {
   try {
     const response = await fetch(
-      `https://graph.facebook.com/v22.0/${postId}?fields=id,message,full_picture,created_time,permalink_url,from{id,name},attachments{media_type,media,subattachments}&access_token=${accessToken}`,
+      `https://graph.facebook.com/v22.0/${postId}?fields=id,message,full_picture,created_time,permalink_url,from{id,name},attachments{media_type,media{image{width,height,src}},subattachments}&access_token=${accessToken}`,
       { method: "GET" }
     );
 
