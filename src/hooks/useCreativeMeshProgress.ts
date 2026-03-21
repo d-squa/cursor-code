@@ -175,10 +175,24 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
 
     try {
       // Store progress in campaign's generic_config or a dedicated field
+      const { data: existingCampaign, error: fetchError } = await supabase
+        .from('campaigns')
+        .select('generic_config')
+        .eq('id', progress.campaignId)
+        .single();
+
+      if (fetchError) {
+        console.error('Failed to fetch existing mesh progress config:', fetchError);
+        return;
+      }
+
+      const existingConfig = (existingCampaign?.generic_config as Record<string, any> | null) || {};
+
       const { error } = await supabase
         .from('campaigns')
         .update({
           generic_config: {
+            ...existingConfig,
             meshProgress: {
               currentStep: progress.currentStep,
               platform: progress.platform,
