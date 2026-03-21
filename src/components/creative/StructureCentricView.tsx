@@ -1165,10 +1165,15 @@ function AssignedAssetsPanel({
                                                                   {progressItem ? (
                                                                     <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
                                                                   ) : isAccepted ? (
-                                                                    <Badge className="bg-emerald-500 shrink-0 text-[10px]">
-                                                                      <Check className="h-2.5 w-2.5 mr-0.5" />
-                                                                      OK
-                                                                    </Badge>
+                                                                     <Button
+                                                                       size="sm"
+                                                                       variant="outline"
+                                                                       onClick={() => onRejectAsset(asset.id, structure.id)}
+                                                                       className="shrink-0 h-6 px-2 text-[10px] border-emerald-500/50 text-emerald-600 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
+                                                                     >
+                                                                       <X className="h-2.5 w-2.5 mr-0.5" />
+                                                                       Unmatch
+                                                                     </Button>
                                                                   ) : (
                                                                     <div className="flex gap-1 shrink-0">
                                                                       <Button 
