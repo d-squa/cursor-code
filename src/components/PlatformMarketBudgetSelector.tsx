@@ -973,7 +973,7 @@ export function PlatformMarketBudgetSelector({
           return nextPhase;
         });
 
-        const translatedMarket: Market = {
+        const translatedMarket: any = {
           ...market,
           adAccountId: "",
           accountName: "",
