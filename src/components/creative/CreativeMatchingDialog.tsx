@@ -175,10 +175,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     
     // If in review step, automatically re-run matching with new assets
     if (state.currentStep === 'review' && effectiveCampaignId) {
-      let structures = state.structures;
-      if (structures.length === 0) {
-        structures = await loadCampaignStructures(effectiveCampaignId) || [];
-      }
+      const structures = await loadCampaignStructures(effectiveCampaignId) || [];
       runMatching(structures);
       toast.success('Re-meshing with new creatives...');
     }
@@ -192,10 +189,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     
     // If in review step, automatically re-run matching with new assets
     if (state.currentStep === 'review' && effectiveCampaignId) {
-      let structures = state.structures;
-      if (structures.length === 0) {
-        structures = await loadCampaignStructures(effectiveCampaignId) || [];
-      }
+      const structures = await loadCampaignStructures(effectiveCampaignId) || [];
       runMatching(structures);
       toast.success('Re-meshing with new creatives...');
     }
@@ -265,11 +259,8 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
 
-    // Load structures and pass them directly to runMatching to avoid race condition
-    let structures = state.structures;
-    if (structures.length === 0) {
-      structures = await loadCampaignStructures(campaignIdToUse) || [];
-    }
+    // Always reload structures from DB to pick up any changes (e.g. ad set splits applied after initial load)
+    const structures = await loadCampaignStructures(campaignIdToUse) || [];
     runMatching(structures);
   };
 
@@ -735,11 +726,10 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                                   const selected = availableCreatives.filter(c => selectedCreativeIds.has(c.id));
                                   if (selected.length === 0) return;
                                   addLibraryCreatives(selected);
-                                  // Re-run matching with new assets added
-                                  let structures = state.structures;
-                                  if (structures.length === 0 && effectiveCampaignId) {
-                                    structures = await loadCampaignStructures(effectiveCampaignId) || [];
-                                  }
+                                   // Always reload structures fresh from DB
+                                   const structures = effectiveCampaignId 
+                                     ? (await loadCampaignStructures(effectiveCampaignId) || [])
+                                     : state.structures;
                                   runMatching(structures);
                                   setSelectedCreativeIds(new Set());
                                   toast.success(`Added ${selected.length} creatives and re-meshing`);
