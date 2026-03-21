@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { useState, useCallback } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
+import { buildSearchStrategyCampaignName, getSearchStrategyGroups } from "@/utils/searchStrategyCampaigns";
 
 interface ActiplanDeliverablesViewProps {
   selectedKeywords?: KeywordItem[];
@@ -34,6 +35,7 @@ interface ActiplanDeliverablesViewProps {
       dataSource?: 'live_api' | 'estimated' | 'ai_predicted'; // Data source indicator
       markets: Array<{
         marketName: string;
+        marketCode?: string;
         budget: number;
         audienceSize: number;
         impressions: number;
@@ -60,6 +62,25 @@ interface ActiplanDeliverablesViewProps {
              costPerResult: number;
              resultRate: number;
              isBenchmarkBased?: boolean;
+             strategyCampaigns?: Array<{
+               strategy: "brand" | "generic" | "competition";
+               campaignName: string;
+               budget: number;
+               budgetPercentage: number;
+               searchVolume: number;
+               keywordsCount: number;
+               negativeKeywordsCount: number;
+               impressions: number;
+               reach: number;
+               result: number;
+               costPerResult: number;
+               resultRate: number;
+               kpi: string;
+               startDate: string;
+               endDate: string;
+               ctr?: number | null;
+               roas?: number | null;
+             }>;
              ctr?: number | null;
              roas?: number | null;
              adSets?: Array<{
@@ -394,63 +415,101 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   <TableCell className="text-muted-foreground">${adSet.costPerResult.toFixed(3)}</TableCell>
                                 </TableRow>
                               ))}
-                              {/* Keyword strategy sub-rows for Search phases - filtered by market */}
-                               {selectedKeywords && selectedKeywords.length > 0 && 
-                               phase.phaseName.toLowerCase().includes('search') && (() => {
+                              {(() => {
                                 const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode }> = {
                                   brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" /> },
                                   generic: { label: "Generic", icon: <Target className="h-3 w-3" /> },
                                   competition: { label: "Competition", icon: <Swords className="h-3 w-3" /> },
                                 };
-                                // Filter keywords by platform AND market
-                                const platformLower = platform.platformId.toLowerCase();
-                                const kwPlatform = platformLower.includes('google') ? 'google' : platformLower.includes('tiktok') ? 'tiktok' : null;
-                                const platformKeywords = kwPlatform ? selectedKeywords.filter(k => k.platform === kwPlatform) : selectedKeywords;
-                                // Filter by market name (country code)
-                                const marketCode = (market.marketName || '').substring(0, 2).toUpperCase();
-                                const marketKeywords = platformKeywords.filter(k => !k.market || k.market === marketCode);
-                                const strategies = (['brand', 'generic', 'competition'] as const)
-                                  .map(s => ({
-                                    strategy: s,
-                                    positives: marketKeywords.filter(k => k.strategy === s && !k.isNegative),
-                                    negatives: marketKeywords.filter(k => k.strategy === s && k.isNegative),
-                                  }))
-                                  .filter(s => s.positives.length > 0 || s.negatives.length > 0);
-                                if (strategies.length === 0) return null;
-                                return strategies.map(({ strategy, positives, negatives }) => {
-                                  const meta = STRATEGY_META[strategy];
-                                  const totalVol = positives.reduce((s, k) => s + (k.avgMonthlySearches || 0), 0);
-                                  const avgCpc = positives.length > 0
-                                    ? positives.reduce((s, k) => s + ((k.cpcLow || 0) + (k.cpcHigh || 0)) / 2, 0) / positives.length
-                                    : 0;
-                                  const estimatedClicks = avgCpc > 0 ? Math.round(totalVol * 0.03) : 0;
-                                  const ctr = totalVol > 0 && estimatedClicks > 0 ? ((estimatedClicks / totalVol) * 100).toFixed(2) : "—";
-                                  const fmtVol = totalVol >= 1_000_000 ? `${(totalVol / 1_000_000).toFixed(1)}M` : totalVol >= 1_000 ? `${(totalVol / 1_000).toFixed(1)}K` : String(totalVol);
+
+                                const strategyCampaigns = phase.strategyCampaigns?.length
+                                  ? phase.strategyCampaigns
+                                  : getSearchStrategyGroups({
+                                      keywords: selectedKeywords,
+                                      platformId: platform.platformId,
+                                      market: { marketName: market.marketName, marketCode: market.marketCode },
+                                    }).map((group) => ({
+                                      strategy: group.strategy,
+                                      campaignName: buildSearchStrategyCampaignName(phase.phaseName, group.label),
+                                      budget: phase.budget * group.budgetShare,
+                                      budgetPercentage: group.budgetPercentage,
+                                      searchVolume: group.totalVolume,
+                                      keywordsCount: group.positives.length,
+                                      negativeKeywordsCount: group.negatives.length,
+                                      impressions: 0,
+                                      reach: 0,
+                                      result: 0,
+                                      costPerResult: 0,
+                                      resultRate: 0,
+                                      kpi: phase.kpi,
+                                      startDate: phase.startDate,
+                                      endDate: phase.endDate,
+                                    }));
+
+                                if (!strategyCampaigns.length) return null;
+
+                                return strategyCampaigns.map((strategyCampaign) => {
+                                  const meta = STRATEGY_META[strategyCampaign.strategy] || {
+                                    label: strategyCampaign.strategy,
+                                    icon: <Target className="h-3 w-3" />,
+                                  };
+                                  const fmtVol = strategyCampaign.searchVolume >= 1_000_000
+                                    ? `${(strategyCampaign.searchVolume / 1_000_000).toFixed(1)}M`
+                                    : strategyCampaign.searchVolume >= 1_000
+                                      ? `${(strategyCampaign.searchVolume / 1_000).toFixed(1)}K`
+                                      : String(strategyCampaign.searchVolume || 0);
+
                                   return (
-                                    <TableRow key={`${idx}-kw-${strategy}`} className="bg-muted/20">
+                                    <TableRow key={`${idx}-kw-${strategyCampaign.strategy}`} className="bg-muted/20">
                                       <TableCell className="pl-8 text-muted-foreground">
                                         <div className="flex items-center gap-1.5">
                                           {meta.icon}
-                                          <span className="text-xs font-medium">{market.marketName} &gt; {meta.label}</span>
-                                          <Badge variant="outline" className="text-[10px] ml-1">{positives.length} kw</Badge>
-                                          {negatives.length > 0 && (
+                                          <span className="text-xs font-medium">{strategyCampaign.campaignName}</span>
+                                          <Badge variant="outline" className="text-[10px] ml-1">
+                                            {strategyCampaign.keywordsCount} kw
+                                          </Badge>
+                                          {strategyCampaign.negativeKeywordsCount > 0 && (
                                             <span className="flex items-center gap-0.5 text-destructive text-[10px]">
-                                              <Ban className="h-2.5 w-2.5" />{negatives.length}
+                                              <Ban className="h-2.5 w-2.5" />{strategyCampaign.negativeKeywordsCount}
                                             </span>
                                           )}
                                         </div>
                                       </TableCell>
-                                      <TableCell className="text-muted-foreground text-xs">{totalVol > 0 ? `${fmtVol} vol/mo` : "—"}</TableCell>
-                                      <TableCell className="text-muted-foreground text-xs">{avgCpc > 0 ? `$${avgCpc.toFixed(2)} CPC` : "—"}</TableCell>
-                                      <TableCell className="text-muted-foreground text-xs">{estimatedClicks > 0 ? `${estimatedClicks} clicks` : "—"}</TableCell>
-                                      <TableCell className="text-muted-foreground text-xs">{ctr !== "—" ? `${ctr}% CTR` : "—"}</TableCell>
-                                      <TableCell className="text-muted-foreground">-</TableCell>
-                                      <TableCell className="text-muted-foreground">-</TableCell>
-                                      <TableCell className="text-muted-foreground">-</TableCell>
+                                      <TableCell>{strategyCampaign.kpi}</TableCell>
+                                      <TableCell>{format(new Date(strategyCampaign.startDate), 'MMM d, yyyy')}</TableCell>
+                                      <TableCell>{format(new Date(strategyCampaign.endDate), 'MMM d, yyyy')}</TableCell>
+                                      <TableCell>
+                                        ${formatNumber(strategyCampaign.budget)}
+                                        <span className="text-xs text-muted-foreground"> ({strategyCampaign.budgetPercentage.toFixed(0)}%)</span>
+                                      </TableCell>
+                                      <TableCell>
+                                        {strategyCampaign.result > 0 ? formatNumber(strategyCampaign.result) : `${fmtVol} vol/mo`}
+                                      </TableCell>
+                                      <TableCell>
+                                        {strategyCampaign.result > 0 && strategyCampaign.costPerResult > 0
+                                          ? `$${strategyCampaign.costPerResult.toFixed(3)}`
+                                          : "—"}
+                                      </TableCell>
+                                      <TableCell>
+                                        {strategyCampaign.roas != null ? (
+                                          <span className="text-xs font-medium">{strategyCampaign.roas.toFixed(2)}x ROAS</span>
+                                        ) : strategyCampaign.ctr != null ? (
+                                          <span className="text-xs font-medium">{strategyCampaign.ctr.toFixed(2)}% CTR</span>
+                                        ) : strategyCampaign.resultRate > 0 ? (
+                                          <span className="text-xs font-medium">{strategyCampaign.resultRate.toFixed(2)}%</span>
+                                        ) : (
+                                          <span className="text-xs text-muted-foreground">—</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant="outline" className="text-[10px]">
+                                          Campaign
+                                        </Badge>
+                                      </TableCell>
                                     </TableRow>
                                   );
                                 });
-                               })()}
+                              })()}
                             </>
                           ))}
                         </TableBody>

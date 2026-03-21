@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types/creativeMatching';
 import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode, getDefaultAdSetParams, extractTaxonomyValues, generateTaxonomyString, TaxonomyContext, TaxonomyParam } from '@/utils/taxonomyUtils';
 import { validateCreativeForAds, findCompatibleFormats, PLATFORM_AD_SPECS } from '@/utils/platformAdSpecs';
+import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from '@/utils/searchStrategyCampaigns';
 
 // Helper to generate taxonomy-based creative name
 function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
@@ -112,6 +113,7 @@ export interface CampaignStructure {
   tiktokIdentityId?: string;
   // Google Ads campaign type (Search, Display, Video, Performance Max, etc.)
   googleCampaignType?: string;
+  keywordStrategy?: 'brand' | 'generic' | 'competition';
 }
 
 export interface UIMatchingResult {
@@ -226,6 +228,9 @@ export function useCreativeMatching(campaignId?: string) {
       // Extract targeting config from generic_config for inherited ad set splits
       const genericConfig = (campaign as any)?.generic_config || {};
       const basicTargeting = genericConfig?.targetingPreset || genericConfig?.basicTargeting || {};
+      const selectedKeywords = Array.isArray(basicTargeting?.selectedKeywords)
+        ? basicTargeting.selectedKeywords
+        : (Array.isArray(genericConfig?.selectedKeywords) ? genericConfig.selectedKeywords : []);
       
       // Fetch taxonomy templates for all platforms
       const taxonomyTemplates: Record<string, TaxonomyParam[]> = {};
@@ -381,6 +386,16 @@ export function useCreativeMatching(campaignId?: string) {
               ? phase?.targeting?.languages 
               : phase?.languages;
 
+            const strategyGroups = isSearchPhaseLike({ platformId: platformKey, phase })
+              ? getSearchStrategyGroups({
+                  keywords: selectedKeywords,
+                  platformId: platformKey,
+                  market: { id: market?.id, name: market?.name },
+                })
+              : [];
+
+            const structureVariants = strategyGroups.length > 0 ? strategyGroups : [null];
+
             const language =
               (Array.isArray(phaseLanguages) && phaseLanguages[0]) ||
               (Array.isArray(market?.languages) && market.languages[0]) ||
@@ -422,58 +437,65 @@ export function useCreativeMatching(campaignId?: string) {
             if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none') {
               // Create a structure for EACH ad set configuration
               for (const adSet of effectiveAdSets) {
-                // Build taxonomy context for this adset
-                const taxonomyContext: TaxonomyContext = {
-                  platform: platformKey,
-                  country: market?.name,
-                  market: market?.name,
-                  funnelStage: phase?.funnelStage,
-                  optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
-                  optimizationLocation: phase?.optimizationLocation,
-                  budgetType: phase?.budgetType,
-                  ageMin: adSet.ageMin ?? phase?.ageMin ?? market?.ageMin,
-                  ageMax: adSet.ageMax ?? phase?.ageMax ?? market?.ageMax,
-                  gender: adSet.gender || phase?.gender || market?.gender,
-                  devices: adSet.devices || phase?.targeting?.devices,
-                  placementType: phase?.advantagePlusPlacements ? 'automatic' : 'manual',
-                  publisherPlatforms: adSet.placements || placementConstraints,
-                  languages: adSet.languages || phaseLanguages || market?.languages,
-                  targetingType: extractTargetingType(adSet.audiences),
-                  phaseBudget: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
-                };
-                
-                const taxonomyResult = generateAdSetTaxonomyName(platformKey, taxonomyContext);
-                
-                const adSetStructure: CampaignStructure = {
-                  id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}-${adSet.id}`,
-                  ...baseStructureData,
-                  adSetId: adSet.id,
-                  adSetName: taxonomyResult.name,
-                  taxonomyElements: taxonomyResult.elements,
-                  placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
-                  formatConstraints,
-                  language: adSet.languages?.[0] || phaseLanguages?.[0] || language,
-                  // Track if this is a language split - language becomes a hard constraint
-                  languageIsSplitDimension: effectiveSplitDimension === 'language',
-                  optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
-                  phases: phase?.name ? [phase.name] : undefined,
-                  // Ad set split dimensions - track which dimension is being split for blocking logic
-                  splitDimension: effectiveSplitDimension,
-                  deviceConstraints: adSet.devices,
-                  genderConstraint: adSet.gender || (effectiveSplitDimension === 'gender' ? adSet.dimensionValue : undefined),
-                  ageConstraints: (adSet.ageMin !== undefined && adSet.ageMax !== undefined)
-                    ? { min: adSet.ageMin, max: adSet.ageMax }
-                    : (effectiveSplitDimension === 'age' && typeof adSet.dimensionValue === 'object')
-                      ? adSet.dimensionValue
-                      : undefined,
-                  audienceTypeConstraint: extractAudienceType(adSet.audiences, effectiveSplitDimension, adSet.dimensionValue),
-                  audiences: adSet.audiences,
-                  budgetAmount: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
-                  budgetType: phase?.budgetType,
-                  // TikTok identity from phase > market config (field name can be tiktokIdentityId or tiktokIdentity)
-                  tiktokIdentityId: phase?.tiktokIdentityId || phase?.tiktokIdentity || market?.tiktokIdentityId || market?.tiktokIdentity,
-                };
-                structures.push(adSetStructure);
+                for (const strategyGroup of structureVariants) {
+                  // Build taxonomy context for this adset
+                  const taxonomyContext: TaxonomyContext = {
+                    platform: platformKey,
+                    country: market?.name,
+                    market: market?.name,
+                    funnelStage: phase?.funnelStage,
+                    optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
+                    optimizationLocation: phase?.optimizationLocation,
+                    budgetType: phase?.budgetType,
+                    ageMin: adSet.ageMin ?? phase?.ageMin ?? market?.ageMin,
+                    ageMax: adSet.ageMax ?? phase?.ageMax ?? market?.ageMax,
+                    gender: adSet.gender || phase?.gender || market?.gender,
+                    devices: adSet.devices || phase?.targeting?.devices,
+                    placementType: phase?.advantagePlusPlacements ? 'automatic' : 'manual',
+                    publisherPlatforms: adSet.placements || placementConstraints,
+                    languages: adSet.languages || phaseLanguages || market?.languages,
+                    targetingType: extractTargetingType(adSet.audiences),
+                    phaseBudget: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
+                  };
+                  
+                  const taxonomyResult = generateAdSetTaxonomyName(platformKey, taxonomyContext);
+                  const strategyLabel = strategyGroup?.label;
+                  const phaseLabel = strategyLabel ? buildSearchStrategyCampaignName(phase?.name ?? 'Search', strategyLabel) : phase?.name;
+                  
+                  const adSetStructure: CampaignStructure = {
+                    id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}${strategyGroup ? `-${strategyGroup.strategy}` : ''}-${adSet.id}`,
+                    ...baseStructureData,
+                    adSetId: adSet.id,
+                    adSetName: strategyLabel ? `${taxonomyResult.name} · ${strategyLabel}` : taxonomyResult.name,
+                    taxonomyElements: strategyLabel
+                      ? { ...taxonomyResult.elements, Strategy: strategyLabel }
+                      : taxonomyResult.elements,
+                    placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
+                    formatConstraints,
+                    language: adSet.languages?.[0] || phaseLanguages?.[0] || language,
+                    // Track if this is a language split - language becomes a hard constraint
+                    languageIsSplitDimension: effectiveSplitDimension === 'language',
+                    optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
+                    phases: phaseLabel ? [phaseLabel] : undefined,
+                    keywordStrategy: strategyGroup?.strategy,
+                    // Ad set split dimensions - track which dimension is being split for blocking logic
+                    splitDimension: effectiveSplitDimension,
+                    deviceConstraints: adSet.devices,
+                    genderConstraint: adSet.gender || (effectiveSplitDimension === 'gender' ? adSet.dimensionValue : undefined),
+                    ageConstraints: (adSet.ageMin !== undefined && adSet.ageMax !== undefined)
+                      ? { min: adSet.ageMin, max: adSet.ageMax }
+                      : (effectiveSplitDimension === 'age' && typeof adSet.dimensionValue === 'object')
+                        ? adSet.dimensionValue
+                        : undefined,
+                    audienceTypeConstraint: extractAudienceType(adSet.audiences, effectiveSplitDimension, adSet.dimensionValue),
+                    audiences: adSet.audiences,
+                    budgetAmount: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
+                    budgetType: phase?.budgetType,
+                    // TikTok identity from phase > market config (field name can be tiktokIdentityId or tiktokIdentity)
+                    tiktokIdentityId: phase?.tiktokIdentityId || phase?.tiktokIdentity || market?.tiktokIdentityId || market?.tiktokIdentity,
+                  };
+                  structures.push(adSetStructure);
+                }
               }
             } else {
               // Build taxonomy context for phase-level adset
@@ -498,32 +520,40 @@ export function useCreativeMatching(campaignId?: string) {
               const taxonomyResult = generateAdSetTaxonomyName(platformKey, taxonomyContext);
               
               // No splits - create single structure from phase
-              structures.push({
-                id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}`,
-                ...baseStructureData,
-                adSetId: market?.id,
-                adSetName: taxonomyResult.name,
-                taxonomyElements: taxonomyResult.elements,
-                placementConstraints,
-                formatConstraints,
-                language,
-                optimizationGoal: phase?.optimizationGoal,
-                phases: phase?.name ? [phase.name] : undefined,
-                // Phase-level targeting
-                deviceConstraints: phase?.targeting?.devices,
-                genderConstraint: phase?.gender || market?.gender,
-                ageConstraints: (phase?.ageMin !== undefined && phase?.ageMax !== undefined)
-                  ? { min: phase.ageMin, max: phase.ageMax }
-                  : (market?.ageMin !== undefined && market?.ageMax !== undefined)
-                    ? { min: market.ageMin, max: market.ageMax }
-                    : undefined,
-                audienceTypeConstraint: extractAudienceType(phase?.audiences, 'none', undefined),
-                audiences: phase?.audiences,
-                budgetAmount: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
-                budgetType: phase?.budgetType,
-                // TikTok identity from phase > market config (field name can be tiktokIdentityId or tiktokIdentity)
-                tiktokIdentityId: phase?.tiktokIdentityId || phase?.tiktokIdentity || market?.tiktokIdentityId || market?.tiktokIdentity,
-              });
+              for (const strategyGroup of structureVariants) {
+                const strategyLabel = strategyGroup?.label;
+                const phaseLabel = strategyLabel ? buildSearchStrategyCampaignName(phase?.name ?? 'Search', strategyLabel) : phase?.name;
+
+                structures.push({
+                  id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}${strategyGroup ? `-${strategyGroup.strategy}` : ''}`,
+                  ...baseStructureData,
+                  adSetId: market?.id,
+                  adSetName: strategyLabel ? `${taxonomyResult.name} · ${strategyLabel}` : taxonomyResult.name,
+                  taxonomyElements: strategyLabel
+                    ? { ...taxonomyResult.elements, Strategy: strategyLabel }
+                    : taxonomyResult.elements,
+                  placementConstraints,
+                  formatConstraints,
+                  language,
+                  optimizationGoal: phase?.optimizationGoal,
+                  phases: phaseLabel ? [phaseLabel] : undefined,
+                  keywordStrategy: strategyGroup?.strategy,
+                  // Phase-level targeting
+                  deviceConstraints: phase?.targeting?.devices,
+                  genderConstraint: phase?.gender || market?.gender,
+                  ageConstraints: (phase?.ageMin !== undefined && phase?.ageMax !== undefined)
+                    ? { min: phase.ageMin, max: phase.ageMax }
+                    : (market?.ageMin !== undefined && market?.ageMax !== undefined)
+                      ? { min: market.ageMin, max: market.ageMax }
+                      : undefined,
+                  audienceTypeConstraint: extractAudienceType(phase?.audiences, 'none', undefined),
+                  audiences: phase?.audiences,
+                  budgetAmount: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
+                  budgetType: phase?.budgetType,
+                  // TikTok identity from phase > market config (field name can be tiktokIdentityId or tiktokIdentity)
+                  tiktokIdentityId: phase?.tiktokIdentityId || phase?.tiktokIdentity || market?.tiktokIdentityId || market?.tiktokIdentity,
+                });
+              }
             }
           }
         }
