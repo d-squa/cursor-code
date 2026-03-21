@@ -1119,6 +1119,37 @@ export default function LaunchStatus() {
         </Badge>
       </div>
 
+      {/* Stale shell detection - campaign updated after last validation */}
+      {(() => {
+        const campaignUpdatedAt = campaign?.updated_at ? new Date(campaign.updated_at).getTime() : 0;
+        const latestStatusCreatedAt = statuses.length > 0 
+          ? Math.max(...statuses.map(s => new Date(s.created_at).getTime()))
+          : 0;
+        const isStale = campaignUpdatedAt > 0 && latestStatusCreatedAt > 0 && campaignUpdatedAt > latestStatusCreatedAt;
+        const hasNoStatuses = statuses.length === 0 && !loading;
+        
+        if (isStale || hasNoStatuses) {
+          return (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3 flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="text-sm">
+                  {hasNoStatuses 
+                    ? "Campaign shell hasn't been generated yet. Validate to build the campaign structure."
+                    : "Campaign structure has been updated since the last validation. Re-validate to refresh the campaign shell."
+                  }
+                </span>
+              </div>
+              <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={handleValidate} disabled={validating}>
+                {validating ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
+                {hasNoStatuses ? "Validate" : "Re-validate"}
+              </Button>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* Progress Card */}
       <Card className="mb-6">
         <CardContent className="pt-6">
