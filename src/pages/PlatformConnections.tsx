@@ -137,17 +137,17 @@ export default function PlatformConnections() {
   const adAccountLimits = useAdAccountLimits(activeWorkspaceId);
   const adAccountLimitsRefetchRef = useRef(adAccountLimits.refetch);
   adAccountLimitsRefetchRef.current = adAccountLimits.refetch;
-  
+
   // Get subscription info for billing cycle reset date
   const { subscriptionEnd, loading: subscriptionLoading } = useSubscription();
-  
+
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeModalProps, setUpgradeModalProps] = useState<{
-    limitType: 'account_limit' | 'swap_limit' | 'no_multiple_accounts';
-    platform: 'meta' | 'tiktok';
+    limitType: "account_limit" | "swap_limit" | "no_multiple_accounts";
+    platform: "meta" | "tiktok";
     currentCount?: number;
     swapsUsed?: number;
-  }>({ limitType: 'account_limit', platform: 'meta' });
+  }>({ limitType: "account_limit", platform: "meta" });
 
   // Platform sync progress tracking (works for both TikTok and Meta)
   const { progress: platformSyncProgress } = usePlatformSyncProgress(syncProgressPlatformId);
@@ -293,7 +293,7 @@ export default function PlatformConnections() {
   // Define fetchConnectedPlatforms before the effects that use it
   const fetchConnectedPlatforms = useCallback(async () => {
     if (!activeWorkspaceId) return;
-    
+
     try {
       // Build queries with workspace filtering
       const platformsQuery = supabase
@@ -301,14 +301,14 @@ export default function PlatformConnections() {
         .select("*")
         .eq("is_active", true)
         .order("created_at", { ascending: false });
-      
+
       // Filter ad accounts by team_id (workspace)
       const metaQuery = supabase
         .from("meta_ad_accounts")
         .select("id, account_id, account_name, account_status, client_id, team_id, clients(id, name)")
         .eq("team_id", activeWorkspaceId)
         .order("account_name");
-      
+
       const tiktokQuery = supabase
         .from("tiktok_ad_accounts")
         .select("id, account_id, account_name, advertiser_id, account_status, client_id, team_id, clients(id, name)")
@@ -317,10 +317,12 @@ export default function PlatformConnections() {
 
       const googleQuery = supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, account_status, client_id, currency, timezone, team_id, clients(id, name)")
+        .select(
+          "id, account_id, account_name, customer_id, account_status, client_id, currency, timezone, team_id, clients(id, name)",
+        )
         .eq("team_id", activeWorkspaceId)
         .order("account_name");
-      
+
       const [platformsRes, metaAccountsRes, tiktokAccountsRes, googleAccountsRes] = await Promise.all([
         platformsQuery,
         metaQuery,
@@ -363,7 +365,7 @@ export default function PlatformConnections() {
 
       setTikTokAdAccounts(enrichedTiktokAccounts);
       setGoogleAdAccounts((googleAccountsRes.data || []) as GoogleAdAccount[]);
-      
+
       // Refresh ad account limits after data is fetched - use ref to avoid dep loop
       adAccountLimitsRefetchRef.current();
     } catch (error: any) {
@@ -373,7 +375,7 @@ export default function PlatformConnections() {
       setLoading(false);
     }
   }, [activeWorkspaceId]);
-  
+
   // Keep the ref in sync
   fetchConnectedPlatformsRef.current = fetchConnectedPlatforms;
 
@@ -389,28 +391,32 @@ export default function PlatformConnections() {
     }
   }, [user, activeWorkspaceId, fetchConnectedPlatforms]);
 
-
-  const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string, skipLimitCheck = false) => {
+  const handleConnectPlatform = async (
+    platformType: string,
+    useManagedLogin = false,
+    platformId?: string,
+    skipLimitCheck = false,
+  ) => {
     // Check limits before allowing new platform connections (not reconnects)
-    if (!platformId && !skipLimitCheck && (platformType === 'meta' || platformType === 'tiktok')) {
-      const platform = platformType as 'meta' | 'tiktok';
+    if (!platformId && !skipLimitCheck && (platformType === "meta" || platformType === "tiktok")) {
+      const platform = platformType as "meta" | "tiktok";
       const limits = adAccountLimits[platform];
-      
+
       // Check if user can have multiple accounts
       if (!adAccountLimits.canHaveMultipleAccounts && limits.currentCount > 0) {
         setUpgradeModalProps({
-          limitType: 'no_multiple_accounts',
+          limitType: "no_multiple_accounts",
           platform,
           currentCount: limits.currentCount,
         });
         setUpgradeModalOpen(true);
         return;
       }
-      
+
       // Check if at account limit
       if (limits.currentCount >= limits.maxAllowed) {
         setUpgradeModalProps({
-          limitType: 'account_limit',
+          limitType: "account_limit",
           platform,
           currentCount: limits.currentCount,
         });
@@ -649,7 +655,7 @@ export default function PlatformConnections() {
       } else {
         // Synchronous sync completed (TikTok or small account sets)
         toast.success("Selected ad accounts synced successfully!");
-        
+
         // fetchConnectedPlatforms now handles limit refresh
         setAccountSelectorOpen(false);
         setAdAccountOptions([]);
@@ -687,9 +693,16 @@ export default function PlatformConnections() {
       const isTikTok = selectedAdAccountForLinking.startsWith("tiktok_");
       const isGoogle = selectedAdAccountForLinking.startsWith("google_");
       const table = isTikTok ? "tiktok_ad_accounts" : isGoogle ? "google_ad_accounts" : "meta_ad_accounts";
-      const cleanId = isTikTok ? selectedAdAccountForLinking.replace("tiktok_", "") : isGoogle ? selectedAdAccountForLinking.replace("google_", "") : selectedAdAccountForLinking;
+      const cleanId = isTikTok
+        ? selectedAdAccountForLinking.replace("tiktok_", "")
+        : isGoogle
+          ? selectedAdAccountForLinking.replace("google_", "")
+          : selectedAdAccountForLinking;
 
-      const { error } = await supabase.from(table as any).update({ client_id: clientId }).eq("id", cleanId);
+      const { error } = await supabase
+        .from(table as any)
+        .update({ client_id: clientId })
+        .eq("id", cleanId);
 
       if (error) throw error;
 
@@ -721,8 +734,16 @@ export default function PlatformConnections() {
 
   const handleUnlinkAccount = async (accountId: string, platform: "meta" | "tiktok" | "google" = "meta") => {
     try {
-      const table = platform === "tiktok" ? "tiktok_ad_accounts" : platform === "google" ? "google_ad_accounts" : "meta_ad_accounts";
-      const { error } = await supabase.from(table).update({ client_id: null } as any).eq("id", accountId);
+      const table =
+        platform === "tiktok"
+          ? "tiktok_ad_accounts"
+          : platform === "google"
+            ? "google_ad_accounts"
+            : "meta_ad_accounts";
+      const { error } = await supabase
+        .from(table)
+        .update({ client_id: null } as any)
+        .eq("id", accountId);
 
       if (error) throw error;
 
@@ -738,8 +759,16 @@ export default function PlatformConnections() {
     if (!confirm("Are you sure you want to delete this ad account? This action cannot be undone.")) return;
 
     try {
-      const table = platform === "tiktok" ? "tiktok_ad_accounts" : platform === "google" ? "google_ad_accounts" : "meta_ad_accounts";
-      const { error } = await supabase.from(table as any).delete().eq("id", accountId);
+      const table =
+        platform === "tiktok"
+          ? "tiktok_ad_accounts"
+          : platform === "google"
+            ? "google_ad_accounts"
+            : "meta_ad_accounts";
+      const { error } = await supabase
+        .from(table as any)
+        .delete()
+        .eq("id", accountId);
 
       if (error) throw error;
 
@@ -797,13 +826,14 @@ export default function PlatformConnections() {
           console.log("OAuth callback - platformType:", platformType);
           console.log("OAuth callback - platformId:", platformId);
 
-          const callbackFunction = platformType === "tiktok" 
-            ? "tiktok-oauth-callback" 
-            : platformType === "google" 
-              ? "google-ads-oauth-callback" 
-              : platformType === "snapchat"
-                ? "snapchat-oauth-callback"
-                : "meta-oauth-callback";
+          const callbackFunction =
+            platformType === "tiktok"
+              ? "tiktok-oauth-callback"
+              : platformType === "google"
+                ? "google-ads-oauth-callback"
+                : platformType === "snapchat"
+                  ? "snapchat-oauth-callback"
+                  : "meta-oauth-callback";
 
           console.log("OAuth callback - calling function:", callbackFunction);
 
@@ -836,7 +866,9 @@ export default function PlatformConnections() {
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
-            toast.success(`${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : platformType === "snapchat" ? "Snapchat" : "Platform"} connected successfully!`);
+            toast.success(
+              `${platformType === "tiktok" ? "TikTok" : platformType === "google" ? "Google Ads" : platformType === "snapchat" ? "Snapchat" : "Platform"} connected successfully!`,
+            );
           }
 
           // Open account selector if accounts are returned (Meta flow)
@@ -955,7 +987,7 @@ export default function PlatformConnections() {
   };
 
   const handleSyncGoogleAccountAssets = async (account: any, skipClientCheck = false) => {
-    const googleAccount = googleAdAccounts.find(a => a.id === account.id);
+    const googleAccount = googleAdAccounts.find((a) => a.id === account.id);
     if (!googleAccount) return;
 
     if (!googleAccount.client_id && !skipClientCheck && canManageClients) {
@@ -1033,14 +1065,18 @@ export default function PlatformConnections() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Securely connect your ad accounts to simulate your campaigns — nothing will be published without your approval and unlinking your ad accounts will fully purge its data from ActiPlan.
-            <br />🔒 Secure OAuth via [Meta/Google/etc.]<br />
-🔐 We never store login credentials<br />
-🛑 No posting permissions without explicit action<br />
-🔁 Disconnect &amp; Purge anytime
+            Securely connect your ad accounts to simulate your campaigns. Nothing will be published without your
+            approval and disconnecting your ad accounts will fully purge its data from ActiPlan instantly.
+            <br />
+            🔒 Secure OAuth via [Meta/Google/etc.]
+            <br />
+            🔐 We never store login credentials
+            <br />
+            🛑 No posting permissions without explicit action
+            <br />
+            🔁 Disconnect &amp; Purge anytime
           </AlertDescription>
         </Alert>
-
 
         {/* Platform Authentication */}
         <Card>
@@ -1052,16 +1088,20 @@ export default function PlatformConnections() {
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <Badge variant="outline" className="gap-1">
-                  Meta: {platforms.filter(p => p.platform_type === 'meta').length} connection{platforms.filter(p => p.platform_type === 'meta').length !== 1 ? 's' : ''}
+                  Meta: {platforms.filter((p) => p.platform_type === "meta").length} connection
+                  {platforms.filter((p) => p.platform_type === "meta").length !== 1 ? "s" : ""}
                 </Badge>
                 <Badge variant="outline" className="gap-1">
-                  TikTok: {platforms.filter(p => p.platform_type === 'tiktok').length} connection{platforms.filter(p => p.platform_type === 'tiktok').length !== 1 ? 's' : ''}
+                  TikTok: {platforms.filter((p) => p.platform_type === "tiktok").length} connection
+                  {platforms.filter((p) => p.platform_type === "tiktok").length !== 1 ? "s" : ""}
                 </Badge>
                 <Badge variant="outline" className="gap-1">
-                  Google: {platforms.filter(p => p.platform_type === 'google').length} connection{platforms.filter(p => p.platform_type === 'google').length !== 1 ? 's' : ''}
+                  Google: {platforms.filter((p) => p.platform_type === "google").length} connection
+                  {platforms.filter((p) => p.platform_type === "google").length !== 1 ? "s" : ""}
                 </Badge>
                 <Badge variant="outline" className="gap-1">
-                  Snapchat: {platforms.filter(p => p.platform_type === 'snapchat').length} connection{platforms.filter(p => p.platform_type === 'snapchat').length !== 1 ? 's' : ''}
+                  Snapchat: {platforms.filter((p) => p.platform_type === "snapchat").length} connection
+                  {platforms.filter((p) => p.platform_type === "snapchat").length !== 1 ? "s" : ""}
                 </Badge>
               </div>
             </div>
@@ -1098,12 +1138,24 @@ export default function PlatformConnections() {
                 {platforms.map((platform) => {
                   const businessName = platform.metadata?.businesses?.[0]?.name;
                   const advertiserIds = platform.metadata?.advertiser_ids;
-                   const isTikTok = platform.platform_type === "tiktok";
-                   const isGoogle = platform.platform_type === "google";
-                   const isSnapchat = platform.platform_type === "snapchat";
-                   const Icon = isSnapchat ? Video : isGoogle ? Search : isTikTok ? Video : Facebook;
-                   const iconColor = isSnapchat ? "text-yellow-500" : isGoogle ? "text-yellow-600" : isTikTok ? "text-black dark:text-white" : "text-blue-600";
-                   const bgColor = isSnapchat ? "bg-yellow-50 dark:bg-yellow-900/10" : isTikTok ? "bg-black/5 dark:bg-white/5" : isGoogle ? "bg-yellow-50 dark:bg-yellow-900/10" : "";
+                  const isTikTok = platform.platform_type === "tiktok";
+                  const isGoogle = platform.platform_type === "google";
+                  const isSnapchat = platform.platform_type === "snapchat";
+                  const Icon = isSnapchat ? Video : isGoogle ? Search : isTikTok ? Video : Facebook;
+                  const iconColor = isSnapchat
+                    ? "text-yellow-500"
+                    : isGoogle
+                      ? "text-yellow-600"
+                      : isTikTok
+                        ? "text-black dark:text-white"
+                        : "text-blue-600";
+                  const bgColor = isSnapchat
+                    ? "bg-yellow-50 dark:bg-yellow-900/10"
+                    : isTikTok
+                      ? "bg-black/5 dark:bg-white/5"
+                      : isGoogle
+                        ? "bg-yellow-50 dark:bg-yellow-900/10"
+                        : "";
 
                   return (
                     <div
@@ -1122,7 +1174,8 @@ export default function PlatformConnections() {
                           )}
                           {isGoogle && platform.metadata?.accounts && (
                             <p className="text-sm text-muted-foreground">
-                              {platform.metadata.accounts.length} customer account{platform.metadata.accounts.length !== 1 ? "s" : ""}
+                              {platform.metadata.accounts.length} customer account
+                              {platform.metadata.accounts.length !== 1 ? "s" : ""}
                             </p>
                           )}
                           <p className="text-xs text-muted-foreground">
@@ -1159,12 +1212,12 @@ export default function PlatformConnections() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             disabled={adAccountLimits.meta.currentCount > 0}
                             onClick={() => {
                               if (adAccountLimits.meta.currentCount > 0) {
-                                setUpgradeModalProps({ limitType: 'no_multiple_accounts', platform: 'meta' });
+                                setUpgradeModalProps({ limitType: "no_multiple_accounts", platform: "meta" });
                                 setUpgradeModalOpen(true);
                               } else {
                                 handleConnectPlatform("meta", false);
@@ -1198,12 +1251,12 @@ export default function PlatformConnections() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button 
+                          <Button
                             variant="outline"
                             disabled={adAccountLimits.tiktok.currentCount > 0}
                             onClick={() => {
                               if (adAccountLimits.tiktok.currentCount > 0) {
-                                setUpgradeModalProps({ limitType: 'no_multiple_accounts', platform: 'tiktok' });
+                                setUpgradeModalProps({ limitType: "no_multiple_accounts", platform: "tiktok" });
                                 setUpgradeModalOpen(true);
                               } else {
                                 handleConnectPlatform("tiktok", false);
@@ -1230,16 +1283,16 @@ export default function PlatformConnections() {
                   >
                     <Search className="h-4 w-4 mr-2" />
                     Connect Google Ads Account
-                   </Button>
-                   {/* Snapchat Connect Button */}
-                   <Button
-                     onClick={() => handleConnectPlatform("snapchat", false)}
-                     variant="outline"
-                     className="border-border"
-                   >
-                     <Video className="h-4 w-4 mr-2" />
-                     Connect Snapchat Account
-                   </Button>
+                  </Button>
+                  {/* Snapchat Connect Button */}
+                  <Button
+                    onClick={() => handleConnectPlatform("snapchat", false)}
+                    variant="outline"
+                    className="border-border"
+                  >
+                    <Video className="h-4 w-4 mr-2" />
+                    Connect Snapchat Account
+                  </Button>
                 </div>
               </div>
             )}
@@ -1256,7 +1309,8 @@ export default function PlatformConnections() {
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <Badge variant="outline" className="gap-1">
-                  Meta Accounts: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
+                  Meta Accounts: {adAccountLimits.meta.currentCount}/
+                  {adAccountLimits.meta.maxAllowed === Infinity ? "∞" : adAccountLimits.meta.maxAllowed}
                 </Badge>
                 <SwapCounterBadge
                   label="Meta Swaps"
@@ -1265,7 +1319,8 @@ export default function PlatformConnections() {
                   subscriptionEnd={subscriptionEnd}
                 />
                 <Badge variant="outline" className="gap-1">
-                  TikTok Accounts: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
+                  TikTok Accounts: {adAccountLimits.tiktok.currentCount}/
+                  {adAccountLimits.tiktok.maxAllowed === Infinity ? "∞" : adAccountLimits.tiktok.maxAllowed}
                 </Badge>
                 <SwapCounterBadge
                   label="TikTok Swaps"
@@ -1321,14 +1376,14 @@ export default function PlatformConnections() {
               platform="google"
               icon={<Search className="h-5 w-5 text-yellow-600" />}
               title="Google Ad Accounts"
-              accounts={googleAdAccounts.map(acc => ({
+              accounts={googleAdAccounts.map((acc) => ({
                 ...acc,
                 advertiser_id: acc.customer_id,
               }))}
               emptyMessage="No Google Ads accounts synced yet. Connect a Google Ads platform to get started."
               syncingAssets={syncingAssets}
               canManageClients={canManageClients}
-              onSyncAccount={(account) => handleSyncGoogleAccountAssets(account)} 
+              onSyncAccount={(account) => handleSyncGoogleAccountAssets(account)}
               onLinkAccount={(accountId) => {
                 setSelectedAdAccountForLinking("google_" + accountId);
                 setClientSelectorOpen(true);
@@ -1345,14 +1400,12 @@ export default function PlatformConnections() {
           onSelect={handleSaveAdAccounts}
           loading={selectingAccount}
           platformType={platforms.find((p) => p.id === currentPlatformId)?.platform_type || "meta"}
-          existingAccountIds={
-            (() => {
-              const pt = platforms.find((p) => p.id === currentPlatformId)?.platform_type;
-              if (pt === "tiktok") return tiktokAdAccounts.map((acc) => acc.advertiser_id);
-              if (pt === "google") return googleAdAccounts.map((acc) => acc.customer_id);
-              return metaAdAccounts.map((acc) => acc.account_id);
-            })()
-          }
+          existingAccountIds={(() => {
+            const pt = platforms.find((p) => p.id === currentPlatformId)?.platform_type;
+            if (pt === "tiktok") return tiktokAdAccounts.map((acc) => acc.advertiser_id);
+            if (pt === "google") return googleAdAccounts.map((acc) => acc.customer_id);
+            return metaAdAccounts.map((acc) => acc.account_id);
+          })()}
           teamId={activeWorkspaceId}
         />
 
