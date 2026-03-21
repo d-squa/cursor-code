@@ -272,6 +272,9 @@ export default function CreativeMatching() {
           creative_type: isOrganic ? 'existing_post' : undefined,
           // Pass source network for matching algorithm (FB vs IG organic posts)
           sourceNetwork: anyAsset.sourceNetwork,
+          // Pass dimensions for format validation
+          width: typeof anyAsset.width === 'number' ? anyAsset.width : undefined,
+          height: typeof anyAsset.height === 'number' ? anyAsset.height : undefined,
         });
       }
     }

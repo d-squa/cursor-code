@@ -24,6 +24,9 @@ export interface SelectedAsset {
   pageName?: string;
   message?: string;
   permalink?: string;
+  // Media dimensions when available from platform API
+  width?: number;
+  height?: number;
 }
 
 export interface MeshProgress {

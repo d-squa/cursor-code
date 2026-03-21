@@ -12,6 +12,8 @@ type OrganicPost = {
   createdTime?: string;
   permalink?: string;
   isSparkEligible?: boolean;
+  width?: number;
+  height?: number;
 };
 
 type PageConfig = {
@@ -78,6 +80,9 @@ export function MeshPageAssetsPicker({
         postId: post.postId,
         // Pass source network for matching algorithm
         sourceNetwork,
+        // Pass dimensions for format validation
+        width: post.width,
+        height: post.height,
       } as any);
     }
   };

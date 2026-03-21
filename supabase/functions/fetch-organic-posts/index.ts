@@ -31,6 +31,9 @@ interface OrganicPost {
   isSparkEligible?: boolean;
   /** For Meta posts: 'facebook' or 'instagram' based on post source */
   sourceNetwork?: 'facebook' | 'instagram';
+  /** Media dimensions when available from the platform API */
+  width?: number;
+  height?: number;
 }
 
 async function readJsonSafe(response: Response, context?: string): Promise<any> {
@@ -193,7 +196,7 @@ async function handleMetaPosts(
     const fetchFeed = async (token: string) => {
       console.log(`[fetch-organic-posts] Fetching Meta feed for page ${pageId}`);
       const res = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${token}`,
+        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media{image{width,height,src}},subattachments}&limit=${limit}&access_token=${token}`,
         { method: "GET" }
       );
       return await readJsonSafe(res);
@@ -201,7 +204,7 @@ async function handleMetaPosts(
 
     const fetchPosts = async (token: string) => {
       const res = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${token}`,
+        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media{image{width,height,src}},subattachments}&limit=${limit}&access_token=${token}`,
         { method: "GET" }
       );
       return await readJsonSafe(res);
@@ -608,7 +611,7 @@ async function fetchInstagramPosts(
       
       console.log(`[fetch-organic-posts] Fetching Instagram media for account ${igAccountId}`);
       
-      const mediaUrl = `https://graph.facebook.com/v22.0/${igAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&limit=${limit}&access_token=${token}`;
+      const mediaUrl = `https://graph.facebook.com/v22.0/${igAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink,media_product_type&limit=${limit}&access_token=${token}`;
       
       const response = await fetch(mediaUrl, { method: "GET" });
       const data = await readJsonSafe(response, `Instagram media for ${igAccountId}`);
@@ -807,7 +810,7 @@ async function fetchMetaPageTokenFromAccounts(
 async function fetchMetaPostById(accessToken: string, postId: string): Promise<OrganicPost | null> {
   try {
     const response = await fetch(
-      `https://graph.facebook.com/v22.0/${postId}?fields=id,message,full_picture,created_time,permalink_url,from{id,name},attachments{media_type,media,subattachments}&access_token=${accessToken}`,
+      `https://graph.facebook.com/v22.0/${postId}?fields=id,message,full_picture,created_time,permalink_url,from{id,name},attachments{media_type,media{image{width,height,src}},subattachments}&access_token=${accessToken}`,
       { method: "GET" }
     );
 
@@ -863,6 +866,8 @@ async function fetchTikTokPostById(accessToken: string, advertiserId: string, it
 
 function transformMetaPost(post: any, pageId?: string): OrganicPost {
   let mediaType: 'image' | 'video' | 'carousel' = 'image';
+  let width: number | undefined;
+  let height: number | undefined;
   
   if (post.attachments?.data?.[0]) {
     const attachment = post.attachments.data[0];
@@ -871,10 +876,15 @@ function transformMetaPost(post: any, pageId?: string): OrganicPost {
     } else if (attachment.subattachments?.data?.length > 1) {
       mediaType = 'carousel';
     }
+    // Extract dimensions from attachment media image data
+    const imageData = attachment.media?.image;
+    if (imageData) {
+      if (typeof imageData.width === 'number') width = imageData.width;
+      if (typeof imageData.height === 'number') height = imageData.height;
+    }
   }
 
   // Detect source network from permalink or post structure
-  // Instagram posts have instagram.com in the permalink or have instagram-specific fields
   let sourceNetwork: 'facebook' | 'instagram' = 'facebook';
   const permalink = post.permalink_url || '';
   if (permalink.includes('instagram.com') || post.instagram_media_id) {
@@ -892,5 +902,7 @@ function transformMetaPost(post: any, pageId?: string): OrganicPost {
     createdTime: post.created_time,
     permalink: post.permalink_url,
     sourceNetwork,
+    width,
+    height,
   };
 }
