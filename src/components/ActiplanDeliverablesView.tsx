@@ -444,6 +444,8 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                       kpi: phase.kpi,
                                       startDate: phase.startDate,
                                       endDate: phase.endDate,
+                                      ctr: null,
+                                      roas: null,
                                     }));
 
                                 if (!strategyCampaigns.length) return null;

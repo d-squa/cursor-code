@@ -1728,7 +1728,7 @@ export function CampaignForecast({
                 }
               }
 
-              const strategyGroups = isSearchPhaseLike({ platformId: platform.id, phase })
+              const strategyGroups = isSearchPhaseLike({ platformId: platform.id, phase: phase as unknown as Record<string, unknown> })
                 ? getSearchStrategyGroups({
                     keywords: selectedKeywords,
                     platformId: platform.id,
