@@ -2,6 +2,7 @@ import { getObjectiveFromPhaseName } from './phaseObjectiveMapping';
 import { getAudienceStrategyConfig } from './audienceStrategyMapping';
 import { getStrategyById, generatePhasesFromStrategy, getStrategyGroupsForPlatform } from './strategyMatrix';
 import type { StrategyDefinition } from './strategyMatrix';
+import { determineStrategyFocus } from './strategyFocusMapping';
 
 // Funnel phase mapping based on Strategy Focus (legacy support)
 export interface PhaseTemplate {
@@ -158,6 +159,7 @@ function getAutoDetectStrategyId(
   const p = platform.toLowerCase();
   const normalizedPlatform = p.includes("tiktok") ? "tiktok" : p.includes("google") ? "google" : "meta";
   const formatString = adFormats.join(" ").toLowerCase();
+  const detectedFocus = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
 
   // ── Google Ads ──
   if (normalizedPlatform === "google") {
@@ -175,38 +177,38 @@ function getAutoDetectStrategyId(
   if (normalizedPlatform === "tiktok") {
     // Keywords present → must include Search phase (same logic as Google)
     if (hasKeywords) return "tiktok-search-keywords-base";
-    if (formatString.includes("lead") || formatString.includes("instant form")) {
+    if (detectedFocus === "leads") {
       return "tiktok-lead-engine-base";
     }
-    if (formatString.includes("app")) {
+    if (detectedFocus === "app-installs") {
       return "tiktok-app-growth-base";
     }
-    if (formatString.includes("video views") || formatString.includes("brand awareness") || formatString.includes("reach")) {
+    if (detectedFocus === "brand-awareness") {
       return "tiktok-awareness-base";
     }
     return "tiktok-revenue-accelerator-base";
   }
 
   // Meta strategies
-  if (formatString.includes("lead") || formatString.includes("instant form")) {
+  if (detectedFocus === "leads") {
     return "meta-qualified-lead-base";
   }
-  if (formatString.includes("app")) {
+  if (detectedFocus === "app-installs") {
     return "meta-app-growth-base";
   }
-  if (formatString.includes("video views") || formatString.includes("brand awareness") || formatString.includes("reach")) {
+  if (detectedFocus === "brand-awareness") {
     return "meta-awareness-visibility-base";
   }
-  if (formatString.includes("dynamic") || formatString.includes("catalog") || formatString.includes("shopping") || hasCatalog) {
+  if (detectedFocus === "purchase") {
     return "meta-revenue-acceleration-base";
   }
   if (formatString.includes("message") || formatString.includes("conversation") || formatString.includes("whatsapp")) {
     return "meta-conversation-base";
   }
-  if (hasPixel) {
+  if (detectedFocus === "conversions" && hasPixel) {
     return "meta-performance-domination-base";
   }
-  return "meta-revenue-acceleration-base";
+  return hasPixel ? "meta-performance-domination-base" : "meta-revenue-acceleration-base";
 }
 
 /**
