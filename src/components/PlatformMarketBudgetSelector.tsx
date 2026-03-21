@@ -16,6 +16,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import React, { useState, useEffect } from "react";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
+import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
+import { translateAdFormats } from "@/utils/adFormats";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -39,6 +41,8 @@ const AVAILABLE_PLATFORMS = [
   { id: "snapchat", name: "Snapchat" },
   { id: "pinterest", name: "Pinterest" },
 ];
+
+const NONE_OPTION = "__none__";
 
 export function PlatformMarketBudgetSelector({ 
   platforms, 
@@ -892,10 +896,156 @@ export function PlatformMarketBudgetSelector({
   const updatePlatformSelection = (index: number, platformId: string) => {
     const selectedPlatform = AVAILABLE_PLATFORMS.find(p => p.id === platformId);
     if (selectedPlatform) {
+      const translateMarketToPlatform = (market: Market, sourcePlatformId: string, targetPlatformId: string): Market => {
+        const translatedMarketAdFormats = market.adFormats?.length
+          ? translateAdFormats(market.adFormats, sourcePlatformId, targetPlatformId)
+          : [];
+
+        const translatedPhases = (market.phases || []).map((phase: any) => {
+          const sourcePhaseAdFormats = phase.targeting?.adFormats ?? market.adFormats ?? [];
+          const translatedPhaseAdFormats = sourcePhaseAdFormats.length
+            ? translateAdFormats(sourcePhaseAdFormats, sourcePlatformId, targetPlatformId)
+            : sourcePhaseAdFormats;
+
+          let nextPhase: any = {
+            ...phase,
+            targeting: phase.targeting
+              ? { ...phase.targeting, adFormats: translatedPhaseAdFormats }
+              : phase.targeting,
+          };
+
+          if (phase.objective && phase.optimizationGoal) {
+            const translated = translateObjective(
+              phase.objective,
+              phase.optimizationGoal,
+              sourcePlatformId,
+              targetPlatformId,
+              {
+                tiktokPlacementType: phase.tiktokPlacementType,
+                tiktokPlacements: phase.tiktokPlacements,
+                tiktokCampaignType: phase.tiktokCampaignType,
+                adFormats: translatedPhaseAdFormats,
+              }
+            );
+
+            nextPhase.objective = translated.objective;
+            nextPhase.optimizationGoal = translated.optimizationGoal;
+
+            if (targetPlatformId.toLowerCase().includes("google") && translated.translated) {
+              nextPhase.googleCampaignType = translateGoogleCampaignType(translated.objective) || phase.googleCampaignType;
+            }
+          }
+
+          if (!targetPlatformId.toLowerCase().includes("tiktok")) {
+            delete nextPhase.tiktokOptimizationLocation;
+            delete nextPhase.tiktokBidStrategy;
+            delete nextPhase.tiktokBidAmount;
+            delete nextPhase.tiktokPlacementType;
+            delete nextPhase.tiktokPlacements;
+            delete nextPhase.tiktokBillingEvent;
+            delete nextPhase.tiktokCampaignType;
+            delete nextPhase.tiktokSmartPlusEnabled;
+          }
+
+          if (!targetPlatformId.toLowerCase().includes("meta")) {
+            delete nextPhase.metaBidStrategy;
+            delete nextPhase.metaBidAmount;
+            delete nextPhase.metaBillingEvent;
+            delete nextPhase.metaAdvantagePlusCampaign;
+            delete nextPhase.metaOptimizationLocation;
+          }
+
+          if (!targetPlatformId.toLowerCase().includes("google")) {
+            delete nextPhase.googleCampaignType;
+            delete nextPhase.googleCampaignSubtype;
+            delete nextPhase.googleBidStrategy;
+            delete nextPhase.googleTargetCpa;
+            delete nextPhase.googleTargetRoas;
+          }
+
+          if (!targetPlatformId.toLowerCase().includes("snap")) {
+            delete nextPhase.snapchatBidStrategy;
+            delete nextPhase.snapchatBidAmount;
+            delete nextPhase.snapchatPlacementType;
+            delete nextPhase.snapchatPlacements;
+          }
+
+          return nextPhase;
+        });
+
+        const translatedMarket: Market = {
+          ...market,
+          adAccountId: "",
+          accountName: "",
+          adFormats: translatedMarketAdFormats,
+          phases: translatedPhases,
+        };
+
+        if (targetPlatformId.toLowerCase().includes("meta")) {
+          translatedMarket.publisherPlatforms = ["facebook"];
+        } else if (targetPlatformId.toLowerCase().includes("tiktok")) {
+          translatedMarket.publisherPlatforms = ["tiktok"];
+        } else if (targetPlatformId.toLowerCase().includes("google")) {
+          translatedMarket.publisherPlatforms = ["google"];
+        }
+
+        if (!targetPlatformId.toLowerCase().includes("meta")) {
+          translatedMarket.pixel = "";
+          translatedMarket.page = "";
+          translatedMarket.pageId = "";
+          translatedMarket.instagramActorId = "";
+          translatedMarket.catalog = "";
+          translatedMarket.productSet = "";
+          translatedMarket.conversionEvent = "";
+          translatedMarket.metaBidStrategy = undefined;
+          translatedMarket.metaBidAmount = undefined;
+          translatedMarket.metaBillingEvent = undefined;
+          translatedMarket.metaClickWindow = undefined;
+          translatedMarket.metaViewWindow = undefined;
+        }
+
+        if (!targetPlatformId.toLowerCase().includes("tiktok")) {
+          translatedMarket.tiktokPixel = "";
+          translatedMarket.tiktokIdentity = "";
+          translatedMarket.tiktokCatalog = "";
+          translatedMarket.tiktokProductSet = "";
+          translatedMarket.tiktokOptimizationEvent = undefined;
+          translatedMarket.tiktokOptimizationLocation = "";
+          translatedMarket.tiktokBidStrategy = undefined;
+          translatedMarket.tiktokBidAmount = undefined;
+          translatedMarket.tiktokPlacements = undefined;
+          translatedMarket.tiktokPlacementType = undefined;
+          translatedMarket.tiktokBillingEvent = undefined;
+        }
+
+        if (!targetPlatformId.toLowerCase().includes("google")) {
+          translatedMarket.googleMerchantCenterId = "";
+          translatedMarket.googleFeedLabel = "";
+          translatedMarket.googleCampaignType = undefined;
+          translatedMarket.googleCampaignSubtype = undefined;
+          translatedMarket.googleBidStrategy = undefined;
+          translatedMarket.googleTargetCpa = undefined;
+          translatedMarket.googleTargetRoas = undefined;
+        }
+
+        return translatedMarket;
+      };
+
       setPlatforms(
         platforms.map((p, i) => 
           i === index 
-            ? { ...p, id: selectedPlatform.id, name: selectedPlatform.name }
+            ? {
+                ...p,
+                id: selectedPlatform.id,
+                name: selectedPlatform.name,
+                markets: p.markets.map((market) =>
+                  translateMarketToPlatform(
+                    market,
+                    p.id || (p as any).duplicateSourcePlatformId || selectedPlatform.id,
+                    selectedPlatform.id,
+                  ),
+                ),
+              }
             : p
         )
       );
@@ -913,7 +1063,8 @@ export function PlatformMarketBudgetSelector({
         ...m,
         id: `${m.id}-dup-${Date.now()}`
       }))
-    };
+    } as PlatformWithMarkets;
+    (newPlatform as any).duplicateSourcePlatformId = platformToDup.id;
     setPlatforms([...platforms, newPlatform]);
   };
 
@@ -1795,13 +1946,20 @@ export function PlatformMarketBudgetSelector({
                                         Pixel
                                       </Label>
                                   <Select
-                                    value={market.pixel || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'pixel', value)}
+                                    value={market.pixel || NONE_OPTION}
+                                    onValueChange={(value) => {
+                                      const nextValue = value === NONE_OPTION ? "" : value;
+                                      updateMarketField(platformIndex, market.id, 'pixel', nextValue);
+                                      if (!nextValue) {
+                                        updateMarketField(platformIndex, market.id, 'conversionEvent', "");
+                                      }
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingPixels ? "Loading..." : "Select Pixel"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingPixels ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1826,17 +1984,18 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">Facebook Page</Label>
                                   <Select
-                                    value={market.page || market.pageId || ""}
+                                    value={market.page || market.pageId || NONE_OPTION}
                                     onValueChange={(value) => {
-                                      const page = pages.find(p => p.id === value);
-                                      updateMarketField(platformIndex, market.id, 'pageId', value);
-                                      updateMarketField(platformIndex, market.id, 'page', value);
+                                      const nextValue = value === NONE_OPTION ? "" : value;
+                                      updateMarketField(platformIndex, market.id, 'pageId', nextValue);
+                                      updateMarketField(platformIndex, market.id, 'page', nextValue);
                                     }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingPages ? "Loading..." : "Select Facebook Page"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingPages ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1859,8 +2018,8 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">Instagram Account</Label>
                                   <Select
-                                    value={market.instagramActorId || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'instagramActorId', value)}
+                                    value={market.instagramActorId || NONE_OPTION}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'instagramActorId', value === NONE_OPTION ? "" : value)}
                                     disabled={isLoadingAccounts || instagramAccounts.length === 0}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
@@ -1873,6 +2032,7 @@ export function PlatformMarketBudgetSelector({
                                       } />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {instagramAccounts.length === 0 ? (
                                         <div className="p-2 text-xs text-muted-foreground text-center">
                                           <p>No Instagram accounts found.</p>
@@ -1897,9 +2057,10 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">Catalog</Label>
                                   <Select
-                                    value={market.catalog || ""}
+                                    value={market.catalog || NONE_OPTION}
                                     onValueChange={(value) => {
-                                      updateMarketField(platformIndex, market.id, 'catalog', value);
+                                      const nextValue = value === NONE_OPTION ? "" : value;
+                                      updateMarketField(platformIndex, market.id, 'catalog', nextValue);
                                       // Reset product set when catalog changes
                                       updateMarketField(platformIndex, market.id, 'productSet', "");
                                     }}
@@ -1908,6 +2069,7 @@ export function PlatformMarketBudgetSelector({
                                       <SelectValue placeholder={loadingCatalogs ? "Loading..." : "Select Catalog"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingCatalogs ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1930,13 +2092,14 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">Product Set</Label>
                                   <Select
-                                    value={market.productSet || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'productSet', value)}
+                                    value={market.productSet || NONE_OPTION}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'productSet', value === NONE_OPTION ? "" : value)}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder="Select Product Set" />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingProductSets ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1968,13 +2131,14 @@ export function PlatformMarketBudgetSelector({
                                       Conversion Event <span className="text-destructive">*</span>
                                     </Label>
                                     <Select
-                                      value={market.conversionEvent || ""}
-                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'conversionEvent', value)}
+                                      value={market.conversionEvent || NONE_OPTION}
+                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'conversionEvent', value === NONE_OPTION ? "" : value)}
                                     >
                                       <SelectTrigger className="h-7 text-xs">
                                         <SelectValue placeholder={loadingConversionEvents ? "Loading..." : "Select Event"} />
                                       </SelectTrigger>
                                       <SelectContent className="z-50 bg-background">
+                                        <SelectItem value={NONE_OPTION}>None</SelectItem>
                                         {loadingConversionEvents ? (
                                           <div className="flex items-center justify-center p-4">
                                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -2324,13 +2488,14 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">TikTok Pixel</Label>
                                   <Select
-                                    value={market.tiktokPixel || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokPixel', value)}
+                                    value={market.tiktokPixel || NONE_OPTION}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokPixel', value === NONE_OPTION ? "" : value)}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingTiktokPixels ? "Loading..." : "Select Pixel"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingTiktokPixels ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -2355,13 +2520,14 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">TikTok Account (Identity)</Label>
                                   <Select
-                                    value={market.tiktokIdentity || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokIdentity', value)}
+                                    value={market.tiktokIdentity || NONE_OPTION}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokIdentity', value === NONE_OPTION ? "" : value)}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingTiktokIdentities ? "Loading..." : "Select TikTok Account"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingTiktokIdentities ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -2386,13 +2552,20 @@ export function PlatformMarketBudgetSelector({
                                 <div className="space-y-1">
                                   <Label className="text-xs">Catalog</Label>
                                   <Select
-                                    value={market.tiktokCatalog || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokCatalog', value)}
+                                    value={market.tiktokCatalog || NONE_OPTION}
+                                    onValueChange={(value) => {
+                                      const nextValue = value === NONE_OPTION ? "" : value;
+                                      updateMarketField(platformIndex, market.id, 'tiktokCatalog', nextValue);
+                                      if (!nextValue) {
+                                        updateMarketField(platformIndex, market.id, 'tiktokProductSet', "");
+                                      }
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingTiktokCatalogs ? "Loading..." : "Select Catalog"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
+                                      <SelectItem value={NONE_OPTION}>None</SelectItem>
                                       {loadingTiktokCatalogs ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -2419,13 +2592,14 @@ export function PlatformMarketBudgetSelector({
                                   <div className="space-y-1">
                                     <Label className="text-xs">Product Set</Label>
                                     <Select
-                                      value={market.tiktokProductSet || ""}
-                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokProductSet', value)}
+                                      value={market.tiktokProductSet || NONE_OPTION}
+                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokProductSet', value === NONE_OPTION ? "" : value)}
                                     >
                                       <SelectTrigger className="h-7 text-xs">
                                         <SelectValue placeholder={loadingTiktokProductSets ? "Loading..." : "Select Product Set"} />
                                       </SelectTrigger>
                                       <SelectContent className="z-50 bg-background">
+                                        <SelectItem value={NONE_OPTION}>None</SelectItem>
                                         {loadingTiktokProductSets ? (
                                           <div className="flex items-center justify-center p-4">
                                             <Loader2 className="h-4 w-4 animate-spin" />
