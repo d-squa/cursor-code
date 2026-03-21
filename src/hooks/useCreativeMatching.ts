@@ -223,9 +223,9 @@ export function useCreativeMatching(campaignId?: string) {
       const marketSplitsRaw = (campaign as any)?.market_splits;
       const marketSplits: Record<string, any> = marketSplitsRaw && typeof marketSplitsRaw === 'object' ? marketSplitsRaw : {};
       
-      // Extract basicTargeting from generic_config for inherited ad set splits
-      const genericConfig = (campaign as any)?.generic_config;
-      const basicTargeting = genericConfig?.basicTargeting || {};
+      // Extract targeting config from generic_config for inherited ad set splits
+      const genericConfig = (campaign as any)?.generic_config || {};
+      const basicTargeting = genericConfig?.targetingPreset || genericConfig?.basicTargeting || {};
       
       // Fetch taxonomy templates for all platforms
       const taxonomyTemplates: Record<string, TaxonomyParam[]> = {};
