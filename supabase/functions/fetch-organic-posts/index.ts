@@ -611,7 +611,7 @@ async function fetchInstagramPosts(
       
       console.log(`[fetch-organic-posts] Fetching Instagram media for account ${igAccountId}`);
       
-      const mediaUrl = `https://graph.facebook.com/v22.0/${igAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&limit=${limit}&access_token=${token}`;
+      const mediaUrl = `https://graph.facebook.com/v22.0/${igAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink,media_product_type&limit=${limit}&access_token=${token}`;
       
       const response = await fetch(mediaUrl, { method: "GET" });
       const data = await readJsonSafe(response, `Instagram media for ${igAccountId}`);
