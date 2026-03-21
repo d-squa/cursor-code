@@ -49,6 +49,9 @@ interface OrganicPost {
   isSparkEligible?: boolean;
   /** For Meta posts: 'facebook' or 'instagram' based on post source */
   sourceNetwork?: 'facebook' | 'instagram';
+  /** Media dimensions when available */
+  width?: number;
+  height?: number;
 }
 
 interface PageConfig {
