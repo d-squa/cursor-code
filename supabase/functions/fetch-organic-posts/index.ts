@@ -31,6 +31,9 @@ interface OrganicPost {
   isSparkEligible?: boolean;
   /** For Meta posts: 'facebook' or 'instagram' based on post source */
   sourceNetwork?: 'facebook' | 'instagram';
+  /** Media dimensions when available from the platform API */
+  width?: number;
+  height?: number;
 }
 
 async function readJsonSafe(response: Response, context?: string): Promise<any> {
