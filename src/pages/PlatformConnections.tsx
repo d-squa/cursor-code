@@ -1033,8 +1033,11 @@ export default function PlatformConnections() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Connecting your platforms allows the system to access your ad accounts, pages, and Instagram accounts for
-            accurate forecasting and campaign management.
+            Securely connect your ad accounts to simulate your campaigns — nothing will be published without your approval and unlinking your ad accounts will fully purge its data from ActiPlan.
+            <br>🔒 Secure OAuth via [Meta/Google/etc.]<br>
+🔐 We never store login credentials<br>
+🛑 No posting permissions without explicit action<br>
+🔁 Disconnect & Purge anytime<br>
           </AlertDescription>
         </Alert>
 
