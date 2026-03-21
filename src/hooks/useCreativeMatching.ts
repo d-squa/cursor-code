@@ -1581,7 +1581,8 @@ export function useCreativeMatching(campaignId?: string) {
     if (!user) return;
 
     try {
-      const { data: assignments, error } = await supabase
+      const [{ data: assignments, error }, { data: campaign, error: campaignError }] = await Promise.all([
+        supabase
         .from('creative_assignments')
         .select(`
           id,
@@ -1591,6 +1592,7 @@ export function useCreativeMatching(campaignId?: string) {
           phase_name,
           ad_set_name,
           ad_set_id,
+          assigned_at,
           creatives (
             id,
             name,
@@ -1598,14 +1600,37 @@ export function useCreativeMatching(campaignId?: string) {
             media_urls
           )
         `)
-        .eq('campaign_id', targetCampaignId);
+        .eq('campaign_id', targetCampaignId),
+        supabase
+          .from('campaigns')
+          .select('updated_at')
+          .eq('id', targetCampaignId)
+          .single(),
+      ]);
 
       if (error) {
         console.error('Error loading existing assignments:', error);
         return;
       }
 
+      if (campaignError) {
+        console.error('Error loading campaign timestamp for assignments:', campaignError);
+        return;
+      }
+
       if (assignments && assignments.length > 0) {
+        const campaignUpdatedAt = campaign?.updated_at ? new Date(campaign.updated_at).getTime() : 0;
+        const latestAssignmentAt = Math.max(
+          ...assignments.map((a: any) => new Date(a.assigned_at).getTime()).filter((value: number) => Number.isFinite(value)),
+          0,
+        );
+
+        if (campaignUpdatedAt > 0 && latestAssignmentAt > 0 && campaignUpdatedAt > latestAssignmentAt) {
+          setState(prev => ({ ...prev, savedAssignments: undefined }));
+          console.log(`Skipping stale creative assignments for campaign ${targetCampaignId} because the ActiPlan was edited after matching`);
+          return;
+        }
+
         const savedAssignments = assignments.map((a: any) => {
           const creative = a.creatives;
           const isVideo = creative?.creative_type === 'video' || 
