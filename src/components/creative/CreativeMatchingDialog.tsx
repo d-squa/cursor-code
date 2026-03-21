@@ -726,11 +726,10 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                                   const selected = availableCreatives.filter(c => selectedCreativeIds.has(c.id));
                                   if (selected.length === 0) return;
                                   addLibraryCreatives(selected);
-                                  // Re-run matching with new assets added
-                                  let structures = state.structures;
-                                  if (structures.length === 0 && effectiveCampaignId) {
-                                    structures = await loadCampaignStructures(effectiveCampaignId) || [];
-                                  }
+                                   // Always reload structures fresh from DB
+                                   const structures = effectiveCampaignId 
+                                     ? (await loadCampaignStructures(effectiveCampaignId) || [])
+                                     : state.structures;
                                   runMatching(structures);
                                   setSelectedCreativeIds(new Set());
                                   toast.success(`Added ${selected.length} creatives and re-meshing`);
