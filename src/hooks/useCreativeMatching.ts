@@ -223,9 +223,9 @@ export function useCreativeMatching(campaignId?: string) {
       const marketSplitsRaw = (campaign as any)?.market_splits;
       const marketSplits: Record<string, any> = marketSplitsRaw && typeof marketSplitsRaw === 'object' ? marketSplitsRaw : {};
       
-      // Extract basicTargeting from generic_config for inherited ad set splits
-      const genericConfig = (campaign as any)?.generic_config;
-      const basicTargeting = genericConfig?.basicTargeting || {};
+      // Extract targeting config from generic_config for inherited ad set splits
+      const genericConfig = (campaign as any)?.generic_config || {};
+      const basicTargeting = genericConfig?.targetingPreset || genericConfig?.basicTargeting || {};
       
       // Fetch taxonomy templates for all platforms
       const taxonomyTemplates: Record<string, TaxonomyParam[]> = {};
@@ -388,35 +388,35 @@ export function useCreativeMatching(campaignId?: string) {
               market?.language ||
               undefined;
 
-            // Check if phase has ad set splits - first check phase's own, then inherit from basicTargeting
-            let effectiveAdSets: any[] = Array.isArray(phase?.adSets) ? phase.adSets : [];
-            let effectiveSplitDimension = phase?.adSetSplitDimension || 'none';
+            // Check if phase has ad set splits - align with Launch validation logic
+            const phaseAdSets = Array.isArray(phase?.adSets) ? phase.adSets : undefined;
+            const marketAdSets = Array.isArray(market?.adSets) ? market.adSets : undefined;
 
-            // If phase has no adSets, check if we should inherit from basicTargeting
+            const perPlatformConfig = basicTargeting?.defaultAdSetSplitDimensionPerPlatform;
+            const hasPerPlatformConfig = perPlatformConfig && Object.keys(perPlatformConfig).length > 0;
+            const platformDefaultDimension = hasPerPlatformConfig
+              ? perPlatformConfig[platformKey]
+              : basicTargeting?.defaultAdSetSplitDimension;
+
+            const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform;
+            const hasPerPlatformAdSets = perPlatformAdSets && Object.keys(perPlatformAdSets).length > 0;
+            const platformDefaultAdSets = hasPerPlatformAdSets
+              ? perPlatformAdSets[platformKey]
+              : basicTargeting?.defaultAdSets;
+
+            let effectiveAdSets: any[] = phaseAdSets || marketAdSets || [];
+            let effectiveSplitDimension = phase?.adSetSplitDimension || market?.adSetSplitDimension || 'none';
+
             if (effectiveAdSets.length === 0 && !phase?.overrideTargeting) {
-              const perPlatformConfig = basicTargeting?.defaultAdSetSplitDimensionPerPlatform;
-              const hasPerPlatformConfig = perPlatformConfig && Object.keys(perPlatformConfig).length > 0;
-              
-              // Get the platform's default dimension
-              const platformDefaultDimension = hasPerPlatformConfig 
-                ? perPlatformConfig[platformKey] 
-                : basicTargeting?.defaultAdSetSplitDimension;
-              
-              // Only inherit if there's a valid dimension
-              if (platformDefaultDimension && platformDefaultDimension !== 'none') {
-                // Get the platform's default ad sets
-                const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform;
-                const hasPerPlatformAdSets = perPlatformAdSets && Object.keys(perPlatformAdSets).length > 0;
-                const platformDefaultAdSets = hasPerPlatformAdSets
-                  ? perPlatformAdSets[platformKey]
-                  : basicTargeting?.defaultAdSets;
-                
-                if (platformDefaultAdSets && platformDefaultAdSets.length > 0) {
-                  effectiveAdSets = platformDefaultAdSets;
-                  effectiveSplitDimension = platformDefaultDimension;
-                  console.log(`Phase ${phase?.name} inheriting ${platformDefaultAdSets.length} ad sets from basicTargeting for ${platformKey}`);
-                }
+              if (platformDefaultDimension && platformDefaultDimension !== 'none' && Array.isArray(platformDefaultAdSets) && platformDefaultAdSets.length > 0) {
+                effectiveAdSets = platformDefaultAdSets;
+                effectiveSplitDimension = platformDefaultDimension;
+                console.log(`Phase ${phase?.name} inheriting ${platformDefaultAdSets.length} ad sets from targeting config for ${platformKey}`);
               }
+            }
+
+            if (effectiveAdSets.length > 0 && effectiveSplitDimension === 'none') {
+              effectiveSplitDimension = platformDefaultDimension || 'custom';
             }
 
             if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none') {
