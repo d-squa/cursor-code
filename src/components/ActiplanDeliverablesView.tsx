@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { useState, useCallback } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
-import { buildSearchStrategyCampaignName, getSearchStrategyGroups } from "@/utils/searchStrategyCampaigns";
+import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 
 interface ActiplanDeliverablesViewProps {
   selectedKeywords?: KeywordItem[];
