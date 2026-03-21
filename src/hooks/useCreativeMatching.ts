@@ -1055,7 +1055,13 @@ export function useCreativeMatching(campaignId?: string) {
       const existing = newRejected.get(assetId) || new Set();
       existing.add(structureId);
       newRejected.set(assetId, existing);
-      return { ...prev, rejectedMatches: newRejected };
+
+      // Also remove from accepted matches if it was accepted
+      const compositeKey = `${assetId}:${structureId}`;
+      const newAccepted = new Map(prev.acceptedMatches);
+      newAccepted.delete(compositeKey);
+
+      return { ...prev, rejectedMatches: newRejected, acceptedMatches: newAccepted };
     });
   }, []);
 
