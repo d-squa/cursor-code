@@ -25,6 +25,7 @@ import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId,
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
+import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
@@ -128,12 +129,32 @@ interface PhaseForecast {
   resultRate: number;
   isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
   adSets?: AdSetForecast[];
+  strategyCampaigns?: Array<{
+    strategy: "brand" | "generic" | "competition";
+    campaignName: string;
+    budget: number;
+    budgetPercentage: number;
+    searchVolume: number;
+    keywordsCount: number;
+    negativeKeywordsCount: number;
+    impressions: number;
+    reach: number;
+    result: number;
+    costPerResult: number;
+    resultRate: number;
+    kpi: string;
+    startDate: string;
+    endDate: string;
+    ctr?: number | null;
+    roas?: number | null;
+  }>;
   ctr?: number | null; // Calculated CTR for click/visit-based goals
   roas?: number | null; // Calculated ROAS for revenue-based goals
 }
 
 interface MarketForecast {
   marketName: string;
+  marketCode?: string;
   budget: number;
   audienceSize: number;
   impressions: number;
@@ -1707,6 +1728,45 @@ export function CampaignForecast({
                 }
               }
 
+              const strategyGroups = isSearchPhaseLike({ platformId: platform.id, phase: phase as unknown as Record<string, unknown> })
+                ? getSearchStrategyGroups({
+                    keywords: selectedKeywords,
+                    platformId: platform.id,
+                    market: { id: market.id, name: market.name },
+                  })
+                : [];
+
+              const strategyCampaigns = strategyGroups.length > 0
+                ? strategyGroups.map((group) => {
+                    const strategyBudget = campaignBudget * group.budgetShare;
+                    const strategyImpressions = Math.round(phaseImpressions * group.budgetShare);
+                    const strategyReach = Math.round(phaseReach * group.budgetShare);
+                    const strategyResult = Math.round(result * group.budgetShare);
+                    const strategyCostPerResult = strategyResult > 0 ? strategyBudget / strategyResult : 0;
+                    const strategyResultRate = strategyImpressions > 0 ? (strategyResult / strategyImpressions) * 100 : 0;
+
+                    return {
+                      strategy: group.strategy,
+                      campaignName: buildSearchStrategyCampaignName(phase.name, group.label),
+                      budget: strategyBudget,
+                      budgetPercentage: group.budgetPercentage,
+                      searchVolume: group.totalVolume,
+                      keywordsCount: group.positives.length,
+                      negativeKeywordsCount: group.negatives.length,
+                      impressions: strategyImpressions,
+                      reach: strategyReach,
+                      result: strategyResult,
+                      costPerResult: parseFloat(strategyCostPerResult.toFixed(2)),
+                      resultRate: parseFloat(strategyResultRate.toFixed(2)),
+                      kpi: goalMetrics?.kpi || optimizationGoal,
+                      startDate: phase.startDate,
+                      endDate: phase.endDate,
+                      ctr: phaseCTR,
+                      roas: phaseROAS,
+                    };
+                  })
+                : undefined;
+
               // Store phase forecast
               phaseForecasts.push({
                 phaseName: phase.name,
@@ -1720,6 +1780,7 @@ export function CampaignForecast({
                 resultRate: parseFloat(resultRate.toFixed(2)),
                 isBenchmarkBased,
                 adSets: adSetForecasts,
+                strategyCampaigns,
                 ctr: phaseCTR,
                 roas: phaseROAS,
               });
@@ -1773,6 +1834,7 @@ export function CampaignForecast({
 
             marketForecastsArray.push({
               marketName: market.name,
+              marketCode: market.id || market.name,
               budget: marketBudget,
               audienceSize: marketMetrics.audienceSize,
               impressions: marketMetrics.impressions,

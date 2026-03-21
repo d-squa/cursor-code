@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
+import { buildSearchStrategyCampaigns } from "../_shared/search-strategy-campaigns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -491,6 +492,12 @@ const handler = async (req: Request): Promise<Response> => {
             pf.phaseName === entityPhaseName || pf.name === entityPhaseName
           );
           
+          const genericConfig = (campaign as any).generic_config || {};
+          const targetingPreset = genericConfig.targetingPreset || genericConfig.basicTargeting || {};
+          const selectedKeywords = Array.isArray(targetingPreset.selectedKeywords)
+            ? targetingPreset.selectedKeywords
+            : (Array.isArray(genericConfig.selectedKeywords) ? genericConfig.selectedKeywords : []);
+
           // Get metrics from phase forecast, or fall back to market level
           const plannedImpressions = phaseForecast?.impressions || 
             (marketForecast?.impressions ? Math.round(marketForecast.impressions * (phaseBudgetPct / 100)) : null);
@@ -501,27 +508,54 @@ const handler = async (req: Request): Promise<Response> => {
               Math.round(marketForecast.impressions * (phaseBudgetPct / 100) * (phaseForecast.resultRate / 100)) : null);
           const plannedConversions = phaseForecast?.conversions || phaseForecast?.result || null;
           
-          // Add campaign entity to list
-          result.entities.push({
-            platform: platformName,
-            market: entityMarketName,
-            phase: entityPhaseName,
-            entityType: 'campaign',
-            entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName}`,
-            plannedBudget: phaseBudget,
-            plannedImpressions,
-            plannedReach,
-            plannedClicks,
-            plannedConversions,
+          const strategyCampaigns = buildSearchStrategyCampaigns({
+            keywords: selectedKeywords,
+            platformId,
+            market,
+            phaseName: entityPhaseName,
+            phaseBudget,
+            phaseImpressions: plannedImpressions,
+            phaseReach: plannedReach,
+            phaseResult: phaseForecast?.result ?? plannedConversions,
           });
+
+          const campaignUnits = strategyCampaigns.length > 0
+            ? strategyCampaigns.map((strategyCampaign) => ({
+                name: strategyCampaign.campaignName,
+                budget: strategyCampaign.budget,
+                impressions: strategyCampaign.impressions ?? plannedImpressions,
+                reach: strategyCampaign.reach ?? plannedReach,
+                clicks: strategyCampaign.result ?? plannedClicks,
+                conversions: strategyCampaign.result ?? plannedConversions,
+              }))
+            : [{
+                name: entityPhaseName,
+                budget: phaseBudget,
+                impressions: plannedImpressions,
+                reach: plannedReach,
+                clicks: plannedClicks,
+                conversions: plannedConversions,
+              }];
+
+          for (const unit of campaignUnits) {
+            result.entities.push({
+              platform: platformName,
+              market: entityMarketName,
+              phase: entityPhaseName,
+              entityType: 'campaign',
+              entityName: `${campaign.name} - ${entityMarketName} - ${unit.name}`,
+              plannedBudget: unit.budget,
+              plannedImpressions: unit.impressions,
+              plannedReach: unit.reach,
+              plannedClicks: unit.clicks,
+              plannedConversions: unit.conversions,
+            });
+          }
           
           // Determine ad set splits for this phase.
           // Priority: phase.adSets -> market.adSets -> campaign generic defaults (per platform) -> none.
           const phaseAdSets = (phase as any).adSets as any[] | undefined;
           const marketAdSets = (market as any).adSets as any[] | undefined;
-
-          const genericConfig = (campaign as any).generic_config || {};
-          const targetingPreset = genericConfig.targetingPreset || genericConfig.basicTargeting || {};
           const defaultAdSetsPerPlatform =
             targetingPreset.defaultAdSetsPerPlatform || genericConfig.defaultAdSetsPerPlatform || {};
           const defaultPlatformAdSets = defaultAdSetsPerPlatform?.[platformId] as any[] | undefined;
@@ -536,44 +570,48 @@ const handler = async (req: Request): Promise<Response> => {
           if (hasAdSetSplits) {
             // Create an entity for each ad set split
             console.log(`Phase ${entityPhaseName} has ${effectiveAdSets!.length} ad set splits`);
-            for (const adSet of effectiveAdSets!) {
-              const adSetBudgetPct = adSet.budgetPercentage || (100 / effectiveAdSets!.length);
-              const adSetBudget = (phaseBudget * adSetBudgetPct) / 100;
-              const adSetName = adSet.name || `Ad Set ${adSet.id?.substring(0, 6) || 'Unknown'}`;
+            for (const unit of campaignUnits) {
+              for (const adSet of effectiveAdSets!) {
+                const adSetBudgetPct = adSet.budgetPercentage || (100 / effectiveAdSets!.length);
+                const adSetBudget = (unit.budget * adSetBudgetPct) / 100;
+                const adSetName = adSet.name || `Ad Set ${adSet.id?.substring(0, 6) || 'Unknown'}`;
 
-              // Calculate proportional metrics for this ad set
-              const adSetImpressions = plannedImpressions ? Math.round(plannedImpressions * (adSetBudgetPct / 100)) : null;
-              const adSetReach = plannedReach ? Math.round(plannedReach * (adSetBudgetPct / 100)) : null;
-              const adSetClicks = plannedClicks ? Math.round(plannedClicks * (adSetBudgetPct / 100)) : null;
-              const adSetConversions = plannedConversions ? Math.round(plannedConversions * (adSetBudgetPct / 100)) : null;
+                // Calculate proportional metrics for this ad set
+                const adSetImpressions = unit.impressions ? Math.round(unit.impressions * (adSetBudgetPct / 100)) : null;
+                const adSetReach = unit.reach ? Math.round(unit.reach * (adSetBudgetPct / 100)) : null;
+                const adSetClicks = unit.clicks ? Math.round(unit.clicks * (adSetBudgetPct / 100)) : null;
+                const adSetConversions = unit.conversions ? Math.round(unit.conversions * (adSetBudgetPct / 100)) : null;
 
+                result.entities.push({
+                  platform: platformName,
+                  market: entityMarketName,
+                  phase: entityPhaseName,
+                  entityType: 'adset',
+                  entityName: `${campaign.name} - ${entityMarketName} - ${unit.name} - ${adSetName}`,
+                  plannedBudget: adSetBudget,
+                  plannedImpressions: adSetImpressions,
+                  plannedReach: adSetReach,
+                  plannedClicks: adSetClicks,
+                  plannedConversions: adSetConversions,
+                });
+              }
+            }
+          } else {
+            // No ad set splits - create a single generic ad set entity
+            for (const unit of campaignUnits) {
               result.entities.push({
                 platform: platformName,
                 market: entityMarketName,
                 phase: entityPhaseName,
                 entityType: 'adset',
-                entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName} - ${adSetName}`,
-                plannedBudget: adSetBudget,
-                plannedImpressions: adSetImpressions,
-                plannedReach: adSetReach,
-                plannedClicks: adSetClicks,
-                plannedConversions: adSetConversions,
+                entityName: `${campaign.name} - ${entityMarketName} - ${unit.name} - Ad Set`,
+                plannedBudget: unit.budget,
+                plannedImpressions: unit.impressions,
+                plannedReach: unit.reach,
+                plannedClicks: unit.clicks,
+                plannedConversions: unit.conversions,
               });
             }
-          } else {
-            // No ad set splits - create a single generic ad set entity
-            result.entities.push({
-              platform: platformName,
-              market: entityMarketName,
-              phase: entityPhaseName,
-              entityType: 'adset',
-              entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName} - Ad Set`,
-              plannedBudget: phaseBudget,
-              plannedImpressions,
-              plannedReach,
-              plannedClicks,
-              plannedConversions,
-            });
           }
         }
       }
