@@ -866,6 +866,8 @@ async function fetchTikTokPostById(accessToken: string, advertiserId: string, it
 
 function transformMetaPost(post: any, pageId?: string): OrganicPost {
   let mediaType: 'image' | 'video' | 'carousel' = 'image';
+  let width: number | undefined;
+  let height: number | undefined;
   
   if (post.attachments?.data?.[0]) {
     const attachment = post.attachments.data[0];
@@ -874,10 +876,15 @@ function transformMetaPost(post: any, pageId?: string): OrganicPost {
     } else if (attachment.subattachments?.data?.length > 1) {
       mediaType = 'carousel';
     }
+    // Extract dimensions from attachment media image data
+    const imageData = attachment.media?.image;
+    if (imageData) {
+      if (typeof imageData.width === 'number') width = imageData.width;
+      if (typeof imageData.height === 'number') height = imageData.height;
+    }
   }
 
   // Detect source network from permalink or post structure
-  // Instagram posts have instagram.com in the permalink or have instagram-specific fields
   let sourceNetwork: 'facebook' | 'instagram' = 'facebook';
   const permalink = post.permalink_url || '';
   if (permalink.includes('instagram.com') || post.instagram_media_id) {
@@ -895,5 +902,7 @@ function transformMetaPost(post: any, pageId?: string): OrganicPost {
     createdTime: post.created_time,
     permalink: post.permalink_url,
     sourceNetwork,
+    width,
+    height,
   };
 }
