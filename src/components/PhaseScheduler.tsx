@@ -755,57 +755,67 @@ export function PhaseScheduler({
 
   // Normalize legacy Meta-style objective/goal values so Google Ads dropdowns hydrate correctly.
   // Only runs once on initial load (legacy data hydration) to prevent cascading re-renders.
+  // Uses phasesRef to avoid re-firing on every phases change.
   useEffect(() => {
     const isGoogle =
       platformId?.toLowerCase() === "google" ||
       platformId?.toLowerCase() === "google_ads" ||
       platformName.toLowerCase().includes("google");
 
-    if (!isGoogle || phases.length === 0) return;
+    if (!isGoogle) return;
 
     // Only normalize once on initial load (legacy data hydration)
     if (hasNormalizedGoogleRef.current) return;
 
-    const googleMappings = getObjectivesForPlatform("google");
-    const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
+    // Defer to next tick so phasesRef has the latest hydrated phases
+    const timer = setTimeout(() => {
+      const currentPhases = phasesRef.current;
+      if (currentPhases.length === 0) return;
 
-    let changed = false;
+      const googleMappings = getObjectivesForPlatform("google");
+      const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
 
-    const updated = phases.map((p) => {
-      const fallback = getObjectiveFromPhaseName(p.name || "Conversion", strategyFocus, "google");
+      let changed = false;
 
-      const objectiveNeedsFix = !p.objective || !validGoogleObjectives.has(p.objective);
-      const objective = objectiveNeedsFix ? fallback.objective : p.objective;
+      const updated = currentPhases.map((p) => {
+        const fallback = getObjectiveFromPhaseName(p.name || "Conversion", strategyFocus, "google");
 
-      const validGoalValues = new Set(
-        getOptimizationGoalsForObjective("google", objective).map((g) => g.value)
-      );
+        const objectiveNeedsFix = !p.objective || !validGoogleObjectives.has(p.objective);
+        const objective = objectiveNeedsFix ? fallback.objective : p.objective;
 
-      const optimizationGoalNeedsFix =
-        !p.optimizationGoal || !validGoalValues.has(p.optimizationGoal);
+        const validGoalValues = new Set(
+          getOptimizationGoalsForObjective("google", objective).map((g) => g.value)
+        );
 
-      const fallbackGoal = validGoalValues.has(fallback.optimizationGoal)
-        ? fallback.optimizationGoal
-        : (getDefaultOptimizationGoal("google", objective) || undefined);
+        const optimizationGoalNeedsFix =
+          !p.optimizationGoal || !validGoalValues.has(p.optimizationGoal);
 
-      const optimizationGoal = optimizationGoalNeedsFix
-        ? fallbackGoal
-        : p.optimizationGoal;
+        const fallbackGoal = validGoalValues.has(fallback.optimizationGoal)
+          ? fallback.optimizationGoal
+          : (getDefaultOptimizationGoal("google", objective) || undefined);
 
-      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
-        changed = true;
-        return { ...p, objective, optimizationGoal };
+        const optimizationGoal = optimizationGoalNeedsFix
+          ? fallbackGoal
+          : p.optimizationGoal;
+
+        if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
+          changed = true;
+          return { ...p, objective, optimizationGoal };
+        }
+
+        return p;
+      });
+
+      hasNormalizedGoogleRef.current = true;
+
+      if (changed) {
+        phasesRef.current = updated;
+        onPhasesChangeRef.current(updated);
       }
+    }, 0);
 
-      return p;
-    });
-
-    hasNormalizedGoogleRef.current = true;
-
-    if (changed) {
-      onPhasesChangeRef.current(updated);
-    }
-  }, [phases, platformId, platformName, strategyFocus]);
+    return () => clearTimeout(timer);
+  }, [platformId, platformName, strategyFocus]);
 
   // Destination defaults effect — uses a fingerprint to avoid re-running when phases change
   // from unrelated updates (e.g. budget type, name edits). Only processes phases whose
