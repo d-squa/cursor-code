@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 
@@ -2806,7 +2807,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             status: "PAUSED",
             start_time: startDate.toISOString(),
             end_time: endDate.toISOString(),
-            targeting: adSetTargeting,
+            targeting: {
+              ...adSetTargeting,
+            },
           };
 
           // Add attribution settings
@@ -2816,10 +2819,13 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           ];
 
           // ============= ADVANTAGE+ AUDIENCE & CREATIVE SUPPORT =============
-          // Meta now REQUIRES the targeting_automation.advantage_audience flag on every ad set
+          // Meta now requires the advantage_audience flag inside targeting.targeting_automation
           const advantagePlusAudience = phase.metaAdvantagePlusAudience === true || isAdvantagePlusCampaign;
-          adSetPayload.targeting_automation = { advantage_audience: advantagePlusAudience ? 1 : 0 };
-          console.log(`🎯 Advantage+ Audience ${advantagePlusAudience ? 'enabled' : 'disabled'} - setting targeting_automation.advantage_audience=${advantagePlusAudience ? 1 : 0}`);
+          adSetPayload.targeting.targeting_automation = {
+            ...(adSetPayload.targeting?.targeting_automation || {}),
+            advantage_audience: advantagePlusAudience ? 1 : 0,
+          };
+          console.log(`🎯 Advantage+ Audience ${advantagePlusAudience ? 'enabled' : 'disabled'} - setting targeting.targeting_automation.advantage_audience=${advantagePlusAudience ? 1 : 0}`);
 
           // Advantage+ Creative is set at ad level, but we log the intent here
           const advantagePlusCreative = phase.metaAdvantagePlusCreative === true;
@@ -3502,6 +3508,36 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
     const cleanCustomerId = String(googleCustomerId).replace(/-/g, "");
     console.log(`📤 Processing Google Ads market ${market.name} with customer ID: ${cleanCustomerId}`);
 
+    let effectivePlatform = platform;
+    try {
+      const platformCandidates = await getGooglePlatformCandidatesForCustomer(
+        supabase,
+        campaign.user_id,
+        cleanCustomerId,
+      );
+
+      if (platformCandidates.length > 0) {
+        const resolvedPlatform = platformCandidates[0];
+        const resolvedAccessToken = await getAccessTokenWithRefresh(
+          supabase,
+          resolvedPlatform.id,
+          resolvedPlatform.access_token,
+          "google",
+        );
+
+        if (resolvedAccessToken) {
+          effectivePlatform = { ...resolvedPlatform, access_token: resolvedAccessToken };
+          console.log(`🔐 Using Google connection ${resolvedPlatform.id} for customer ${cleanCustomerId}`);
+        } else {
+          console.warn(`⚠️ Resolved Google connection ${resolvedPlatform.id} has no usable token, falling back to default platform ${platform.id}`);
+        }
+      } else {
+        console.warn(`⚠️ No account-specific Google connection found for customer ${cleanCustomerId}, using default platform ${platform.id}`);
+      }
+    } catch (resolverError: any) {
+      console.warn(`⚠️ Failed to resolve account-specific Google connection for ${cleanCustomerId}: ${resolverError.message}`);
+    }
+
     // Resolve per-account manager_customer_id from google_ad_accounts table
     // This is critical for client accounts accessed via a Manager (MCC) account
     let effectiveManagerId = managerAccountId;
@@ -3743,7 +3779,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           } else {
             campaignResult = await googleAdapter.createCampaign({
               accountId: cleanCustomerId,
-              accessToken: platform.access_token,
+              accessToken: effectivePlatform.access_token,
               campaignName: finalCampaignName,
               objective: phase.googleObjective || campaign.objective || "CONVERSIONS",
               budget: strategyDailyBudget,
@@ -3778,7 +3814,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
           // ============= CAMPAIGN-LEVEL TARGETING =============
           const campaignHeaders = {
-            Authorization: `Bearer ${platform.access_token}`,
+            Authorization: `Bearer ${effectivePlatform.access_token}`,
             "developer-token": developerToken,
             "Content-Type": "application/json",
             ...(effectiveManagerId ? { "login-customer-id": effectiveManagerId.replace(/-/g, "") } : {}),
@@ -3954,7 +3990,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
             const adGroupResult = await googleAdapter.createAdGroup({
               accountId: cleanCustomerId,
-              accessToken: platform.access_token,
+              accessToken: effectivePlatform.access_token,
               campaignId: campaignResult.campaignId,
               adGroupName: finalAdGroupName,
               targeting: adGroupTargetingPayload,
@@ -4035,7 +4071,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                 try {
                   const adResult = await googleAdapter.createCreative({
                     accountId: cleanCustomerId,
-                    accessToken: platform.access_token,
+                    accessToken: effectivePlatform.access_token,
                     adGroupId: adGroupResult.adGroupId,
                     creativeName: creative.name,
                     creativeType: "responsive_search_ad",
