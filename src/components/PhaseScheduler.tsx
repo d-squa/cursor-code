@@ -1240,6 +1240,7 @@ export function PhaseScheduler({
       name: `${phaseToDuplicate.name} (Copy)`,
     };
     onPhasesChange([...phases, newPhase]);
+    onManualPhaseEdit?.();
   };
 
   const updatePhaseName = (phaseId: string, name: string) => {
