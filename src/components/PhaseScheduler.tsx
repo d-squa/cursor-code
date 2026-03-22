@@ -1222,10 +1222,12 @@ export function PhaseScheduler({
       ...defaultPublisherConfig,
     };
     onPhasesChange([...phases, newPhase]);
+    onManualPhaseEdit?.();
   };
 
   const removePhase = (phaseId: string) => {
     onPhasesChange(phases.filter(p => p.id !== phaseId));
+    onManualPhaseEdit?.();
   };
 
   const duplicatePhase = (phaseId: string) => {
