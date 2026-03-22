@@ -25,7 +25,7 @@ import { getAllBenchmarks, BenchmarkData, lookupBenchmark, getPlatformKeyFromId,
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
-import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
+import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
@@ -1693,9 +1693,16 @@ export function CampaignForecast({
                 }
               }
               
+              const effectiveSearchKeywords = getEffectiveSearchKeywords({
+                keywords: selectedKeywords,
+                platformId: platform.id,
+                market: market as unknown as Record<string, unknown>,
+                phase: phase as unknown as Record<string, unknown>,
+              });
+
               // Search phases with keyword strategies have campaign-level splits, not ad set splits
               const isSearchPhase = isSearchPhaseLike({ platformId: platform.id, phase: phase as unknown as Record<string, unknown> });
-              const hasSearchKeywords = isSearchPhase && selectedKeywords?.length > 0;
+              const hasSearchKeywords = isSearchPhase && effectiveSearchKeywords.length > 0;
 
               if (effectiveAdSets && effectiveAdSets.length > 0 && !hasSearchKeywords) {
                 console.log(`    → Phase ${phase.name} has ${effectiveAdSets.length} ad set splits`);
@@ -1734,7 +1741,7 @@ export function CampaignForecast({
 
               const strategyGroups = isSearchPhaseLike({ platformId: platform.id, phase: phase as unknown as Record<string, unknown> })
                 ? getSearchStrategyGroups({
-                    keywords: selectedKeywords,
+                    keywords: effectiveSearchKeywords,
                     platformId: platform.id,
                     market: { id: market.id, name: market.name },
                   })
