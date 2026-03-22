@@ -3226,6 +3226,23 @@ export function MediaPlanEditor() {
                                             onSkipNextSync={() => {
                                               skipPhaseSyncRef.current = true;
                                             }}
+                                            onManualPhaseEdit={() => {
+                                              setPlatformsWithMarkets((prev) =>
+                                                prev.map((p) =>
+                                                  p.id === platform.id
+                                                    ? {
+                                                        ...p,
+                                                        markets: p.markets.map((m) =>
+                                                          m.id === market.id ? { ...m, strategy: "manual" as const } : m,
+                                                        ),
+                                                      }
+                                                    : p,
+                                                ),
+                                              );
+                                              if (genericConfig.strategy === "auto-detect") {
+                                                setGenericConfig((prev) => ({ ...prev, strategy: "manual" }));
+                                              }
+                                            }}
                                             startDate={startDate}
                                             endDate={endDate}
                                             platformName={platform.name}
