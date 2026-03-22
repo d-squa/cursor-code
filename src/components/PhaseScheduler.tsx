@@ -797,21 +797,31 @@ export function PhaseScheduler({
     }
   }, [phases, platformId, platformName, strategyFocus]);
 
+  // Destination defaults effect — uses a fingerprint to avoid re-running when phases change
+  // from unrelated updates (e.g. budget type, name edits). Only processes phases whose
+  // objective hasn't been handled yet (tracked by appliedDestinationDefaultsRef).
+  const destinationDefaultsFingerprint = useMemo(() => {
+    // Only re-run when a phase has an objective we haven't processed yet
+    return phases
+      .filter(p => p.objective && appliedDestinationDefaultsRef.current.get(p.id) !== p.objective)
+      .map(p => `${p.id}:${p.objective}`)
+      .join('|');
+  }, [phases]);
+
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
+    if (!destinationDefaultsFingerprint) return; // All phases already processed
     
+    const currentPhases = phasesRef.current;
     const isTikTok = platformName.toLowerCase().includes('tiktok');
     const isMeta = platformName.toLowerCase().includes('meta');
     const isGoogle = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads' || platformName.toLowerCase().includes('google');
     const platformType = isTikTok ? "tiktok" : isMeta ? "meta" : "google";
     
     let hasUpdates = false;
-    const updatedPhases = phases.map(phase => {
+    const updatedPhases = currentPhases.map(phase => {
       // Skip phases without objectives
       if (!phase.objective) return phase;
-      
-      // Create a unique key for this phase + objective combination
-      const phaseKey = `${phase.id}:${phase.objective}`;
       
       // Skip if we've already processed this phase with this objective
       if (appliedDestinationDefaultsRef.current.get(phase.id) === phase.objective) return phase;
