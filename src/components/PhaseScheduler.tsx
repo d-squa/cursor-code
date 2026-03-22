@@ -608,194 +608,214 @@ export function PhaseScheduler({
   const hasNormalizedGoogleRef = useRef(false);
 
   // Normalize legacy TikTok objective/goal values so the dropdowns can hydrate saved campaigns.
+  // Uses phasesRef to avoid re-firing on every phases change — only triggers on platform identity change.
   useEffect(() => {
     const isTikTok =
       platformId?.toLowerCase() === "tiktok" || platformName.toLowerCase().includes("tiktok");
 
-    if (!isTikTok || phases.length === 0) return;
+    if (!isTikTok) return;
     
     // Only normalize once on initial load (legacy data hydration)
     if (hasNormalizedTikTokRef.current) return;
 
-    const tikTokMappings = getObjectivesForPlatform("tiktok");
-    const validTikTokObjectives = new Set(tikTokMappings.map((o) => o.value));
-    const validTikTokGoals = new Set(tikTokMappings.flatMap((o) => o.optimizationGoals.map((g) => g.value)));
+    // Defer to next tick so phasesRef has the latest hydrated phases
+    const timer = setTimeout(() => {
+      const currentPhases = phasesRef.current;
+      if (currentPhases.length === 0) return;
 
-    const toCanonical = (input: string) =>
-      input
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
+      const tikTokMappings = getObjectivesForPlatform("tiktok");
+      const validTikTokObjectives = new Set(tikTokMappings.map((o) => o.value));
+      const validTikTokGoals = new Set(tikTokMappings.flatMap((o) => o.optimizationGoals.map((g) => g.value)));
 
-    const normalizeObjective = (objective?: string) => {
-      if (!objective) return objective;
+      const toCanonical = (input: string) =>
+        input
+          .toUpperCase()
+          .replace(/[^A-Z0-9]+/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
 
-      const upper = objective.toUpperCase();
+      const normalizeObjective = (objective?: string) => {
+        if (!objective) return objective;
 
-      // Map Meta-style objectives to TikTok equivalents
-      const metaToTikTokObjective: Record<string, string> = {
-        "OUTCOME_AWARENESS": "REACH",
-        "OUTCOME_TRAFFIC": "TRAFFIC",
-        "OUTCOME_ENGAGEMENT": "COMMUNITY_INTERACTION",
-        "OUTCOME_LEADS": "LEAD_GENERATION",
-        "OUTCOME_SALES": "CONVERSIONS",
-        "OUTCOME_APP_PROMOTION": "APP_PROMOTION",
-      };
-      
-      if (metaToTikTokObjective[upper]) {
-        return metaToTikTokObjective[upper];
-      }
+        const upper = objective.toUpperCase();
 
-      // Common legacy labels
-      if (["SALES", "CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERSIONS";
-
-      const candidate = toCanonical(objective);
-      if (validTikTokObjectives.has(candidate)) return candidate;
-
-      // Handle labels like "Conversions / Sales" or "Product Sales (Catalog)"
-      if (candidate.startsWith("CONVERSIONS")) return "CONVERSIONS";
-      if (candidate.startsWith("PRODUCT_SALES")) return "PRODUCT_SALES";
-
-      return objective;
-    };
-
-    const normalizeGoal = (goal?: string) => {
-      if (!goal) return goal;
-      const upper = goal.toUpperCase();
-
-      // Map Meta-style optimization goals to TikTok equivalents
-      const metaToTikTokGoal: Record<string, string> = {
-        "REACH": "REACH",
-        "LINK_CLICKS": "CLICK",
-        "LANDING_PAGE_VIEWS": "LANDING_PAGE_VIEW",
-        "OFFSITE_CONVERSIONS": "CONVERT",
-        "APP_INSTALLS": "APP_INSTALL",
-        "APP_EVENTS": "APP_EVENT",
-        "LEAD_GENERATION": "FORM",
-        "THRUPLAY": "VIDEO_VIEW",
-        "POST_ENGAGEMENT": "PROFILE_VISIT",
-        "CONVERSATIONS": "MESSAGING",
-        "VALUE": "VALUE",
-      };
-      
-      if (metaToTikTokGoal[upper]) {
-        return metaToTikTokGoal[upper];
-      }
-
-      // Common legacy labels
-      if (["CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERT";
-      if (["CONVERSATION"].includes(upper)) return "MESSAGING";
-
-      const candidate = toCanonical(goal);
-      if (validTikTokGoals.has(candidate)) return candidate;
-
-      // Handle pluralization
-      if (candidate === "LANDING_PAGE_VIEWS") return "LANDING_PAGE_VIEW";
-
-      return goal;
-    };
-
-    let changed = false;
-
-    const updated = phases.map((p) => {
-      const objective = normalizeObjective(p.objective);
-      const optimizationGoal = normalizeGoal(p.optimizationGoal);
-      
-      // Auto-detect Search campaign type from phase name (only on first load, not if user explicitly toggled)
-      let tiktokCampaignType = p.tiktokCampaignType;
-      if (platformId?.toLowerCase() === 'tiktok' && !p.tiktokCampaignType && p.name?.toLowerCase().includes('search')) {
-        tiktokCampaignType = 'Search';
-      }
-      
-      // For search phases, ensure the objective is search-compatible
-      // PRODUCT_SALES is not valid for search — remap to CONVERSIONS
-      let finalObjective = objective;
-      if (tiktokCampaignType === 'Search' && finalObjective) {
-        const searchCfg = getTikTokSearchModeConfig(finalObjective);
-        if (!searchCfg) {
-          // Objective not supported for search — remap to CONVERSIONS (most common search objective)
-          finalObjective = 'CONVERSIONS';
+        // Map Meta-style objectives to TikTok equivalents
+        const metaToTikTokObjective: Record<string, string> = {
+          "OUTCOME_AWARENESS": "REACH",
+          "OUTCOME_TRAFFIC": "TRAFFIC",
+          "OUTCOME_ENGAGEMENT": "COMMUNITY_INTERACTION",
+          "OUTCOME_LEADS": "LEAD_GENERATION",
+          "OUTCOME_SALES": "CONVERSIONS",
+          "OUTCOME_APP_PROMOTION": "APP_PROMOTION",
+        };
+        
+        if (metaToTikTokObjective[upper]) {
+          return metaToTikTokObjective[upper];
         }
-      }
-      
-      // If search mode is active, auto-correct optimization goal
-      let finalGoal = optimizationGoal;
-      if (tiktokCampaignType === 'Search' && finalObjective) {
-        const searchCfg = getTikTokSearchModeConfig(finalObjective);
-        if (searchCfg && finalGoal && !searchCfg.allowedGoals.includes(finalGoal)) {
-          finalGoal = searchCfg.allowedGoals[0] || finalGoal;
+
+        // Common legacy labels
+        if (["SALES", "CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERSIONS";
+
+        const candidate = toCanonical(objective);
+        if (validTikTokObjectives.has(candidate)) return candidate;
+
+        // Handle labels like "Conversions / Sales" or "Product Sales (Catalog)"
+        if (candidate.startsWith("CONVERSIONS")) return "CONVERSIONS";
+        if (candidate.startsWith("PRODUCT_SALES")) return "PRODUCT_SALES";
+
+        return objective;
+      };
+
+      const normalizeGoal = (goal?: string) => {
+        if (!goal) return goal;
+        const upper = goal.toUpperCase();
+
+        // Map Meta-style optimization goals to TikTok equivalents
+        const metaToTikTokGoal: Record<string, string> = {
+          "REACH": "REACH",
+          "LINK_CLICKS": "CLICK",
+          "LANDING_PAGE_VIEWS": "LANDING_PAGE_VIEW",
+          "OFFSITE_CONVERSIONS": "CONVERT",
+          "APP_INSTALLS": "APP_INSTALL",
+          "APP_EVENTS": "APP_EVENT",
+          "LEAD_GENERATION": "FORM",
+          "THRUPLAY": "VIDEO_VIEW",
+          "POST_ENGAGEMENT": "PROFILE_VISIT",
+          "CONVERSATIONS": "MESSAGING",
+          "VALUE": "VALUE",
+        };
+        
+        if (metaToTikTokGoal[upper]) {
+          return metaToTikTokGoal[upper];
         }
+
+        // Common legacy labels
+        if (["CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERT";
+        if (["CONVERSATION"].includes(upper)) return "MESSAGING";
+
+        const candidate = toCanonical(goal);
+        if (validTikTokGoals.has(candidate)) return candidate;
+
+        // Handle pluralization
+        if (candidate === "LANDING_PAGE_VIEWS") return "LANDING_PAGE_VIEW";
+
+        return goal;
+      };
+
+      let changed = false;
+
+      const updated = currentPhases.map((p) => {
+        const objective = normalizeObjective(p.objective);
+        const optimizationGoal = normalizeGoal(p.optimizationGoal);
+        
+        // Auto-detect Search campaign type from phase name (only on first load, not if user explicitly toggled)
+        let tiktokCampaignType = p.tiktokCampaignType;
+        if (platformId?.toLowerCase() === 'tiktok' && !p.tiktokCampaignType && p.name?.toLowerCase().includes('search')) {
+          tiktokCampaignType = 'Search';
+        }
+        
+        // For search phases, ensure the objective is search-compatible
+        // PRODUCT_SALES is not valid for search — remap to CONVERSIONS
+        let finalObjective = objective;
+        if (tiktokCampaignType === 'Search' && finalObjective) {
+          const searchCfg = getTikTokSearchModeConfig(finalObjective);
+          if (!searchCfg) {
+            // Objective not supported for search — remap to CONVERSIONS (most common search objective)
+            finalObjective = 'CONVERSIONS';
+          }
+        }
+        
+        // If search mode is active, auto-correct optimization goal
+        let finalGoal = optimizationGoal;
+        if (tiktokCampaignType === 'Search' && finalObjective) {
+          const searchCfg = getTikTokSearchModeConfig(finalObjective);
+          if (searchCfg && finalGoal && !searchCfg.allowedGoals.includes(finalGoal)) {
+            finalGoal = searchCfg.allowedGoals[0] || finalGoal;
+          }
+        }
+
+        if (finalObjective !== p.objective || finalGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
+          changed = true;
+          return { ...p, objective: finalObjective, optimizationGoal: finalGoal, tiktokCampaignType };
+        }
+
+        return p;
+      });
+
+      hasNormalizedTikTokRef.current = true;
+      
+      if (changed) {
+        phasesRef.current = updated;
+        onPhasesChangeRef.current(updated);
       }
+    }, 0);
 
-      if (finalObjective !== p.objective || finalGoal !== p.optimizationGoal || tiktokCampaignType !== p.tiktokCampaignType) {
-        changed = true;
-        return { ...p, objective: finalObjective, optimizationGoal: finalGoal, tiktokCampaignType };
-      }
-
-      return p;
-    });
-
-    hasNormalizedTikTokRef.current = true;
-    
-    if (changed) {
-      onPhasesChangeRef.current(updated);
-    }
-  }, [phases, platformId, platformName]);
+    return () => clearTimeout(timer);
+  }, [platformId, platformName]);
 
   // Normalize legacy Meta-style objective/goal values so Google Ads dropdowns hydrate correctly.
   // Only runs once on initial load (legacy data hydration) to prevent cascading re-renders.
+  // Uses phasesRef to avoid re-firing on every phases change.
   useEffect(() => {
     const isGoogle =
       platformId?.toLowerCase() === "google" ||
       platformId?.toLowerCase() === "google_ads" ||
       platformName.toLowerCase().includes("google");
 
-    if (!isGoogle || phases.length === 0) return;
+    if (!isGoogle) return;
 
     // Only normalize once on initial load (legacy data hydration)
     if (hasNormalizedGoogleRef.current) return;
 
-    const googleMappings = getObjectivesForPlatform("google");
-    const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
+    // Defer to next tick so phasesRef has the latest hydrated phases
+    const timer = setTimeout(() => {
+      const currentPhases = phasesRef.current;
+      if (currentPhases.length === 0) return;
 
-    let changed = false;
+      const googleMappings = getObjectivesForPlatform("google");
+      const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
 
-    const updated = phases.map((p) => {
-      const fallback = getObjectiveFromPhaseName(p.name || "Conversion", strategyFocus, "google");
+      let changed = false;
 
-      const objectiveNeedsFix = !p.objective || !validGoogleObjectives.has(p.objective);
-      const objective = objectiveNeedsFix ? fallback.objective : p.objective;
+      const updated = currentPhases.map((p) => {
+        const fallback = getObjectiveFromPhaseName(p.name || "Conversion", strategyFocus, "google");
 
-      const validGoalValues = new Set(
-        getOptimizationGoalsForObjective("google", objective).map((g) => g.value)
-      );
+        const objectiveNeedsFix = !p.objective || !validGoogleObjectives.has(p.objective);
+        const objective = objectiveNeedsFix ? fallback.objective : p.objective;
 
-      const optimizationGoalNeedsFix =
-        !p.optimizationGoal || !validGoalValues.has(p.optimizationGoal);
+        const validGoalValues = new Set(
+          getOptimizationGoalsForObjective("google", objective).map((g) => g.value)
+        );
 
-      const fallbackGoal = validGoalValues.has(fallback.optimizationGoal)
-        ? fallback.optimizationGoal
-        : (getDefaultOptimizationGoal("google", objective) || undefined);
+        const optimizationGoalNeedsFix =
+          !p.optimizationGoal || !validGoalValues.has(p.optimizationGoal);
 
-      const optimizationGoal = optimizationGoalNeedsFix
-        ? fallbackGoal
-        : p.optimizationGoal;
+        const fallbackGoal = validGoalValues.has(fallback.optimizationGoal)
+          ? fallback.optimizationGoal
+          : (getDefaultOptimizationGoal("google", objective) || undefined);
 
-      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
-        changed = true;
-        return { ...p, objective, optimizationGoal };
+        const optimizationGoal = optimizationGoalNeedsFix
+          ? fallbackGoal
+          : p.optimizationGoal;
+
+        if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
+          changed = true;
+          return { ...p, objective, optimizationGoal };
+        }
+
+        return p;
+      });
+
+      hasNormalizedGoogleRef.current = true;
+
+      if (changed) {
+        phasesRef.current = updated;
+        onPhasesChangeRef.current(updated);
       }
+    }, 0);
 
-      return p;
-    });
-
-    hasNormalizedGoogleRef.current = true;
-
-    if (changed) {
-      onPhasesChangeRef.current(updated);
-    }
-  }, [phases, platformId, platformName, strategyFocus]);
+    return () => clearTimeout(timer);
+  }, [platformId, platformName, strategyFocus]);
 
   // Destination defaults effect — uses a fingerprint to avoid re-running when phases change
   // from unrelated updates (e.g. budget type, name edits). Only processes phases whose

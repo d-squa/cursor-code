@@ -759,13 +759,28 @@ export function MediaPlanEditor() {
   }, [genericConfig.phases, genericConfig.strategy]);
 
   // Auto-generate phases for markets using auto-detect strategy
-  // Runs regardless of step to ensure phases are populated when markets are first loaded
+  // Uses a fingerprint to avoid re-running on every platformsWithMarkets change (e.g. budget type edits)
+  const autoDetectFingerprint = useMemo(() => {
+    // Only recompute when strategy-relevant properties change, NOT on every phase/budget change
+    return platformsWithMarkets.map((p) =>
+      p.markets.map((m) => {
+        const strategy = m.strategy || genericConfig.strategy || "auto-detect";
+        if (strategy !== "auto-detect") return `${m.id}:skip`;
+        const hasPhases = m.phases && m.phases.length > 0;
+        return `${m.id}:${strategy}:${m.strategyFocus || ''}:${hasPhases}:${!!m.pixel}:${!!m.catalog}:${((m as any).adFormats || []).join('+')}`;
+      }).join('|')
+    ).join('||');
+  }, [platformsWithMarkets, genericConfig.strategy]);
+
   useEffect(() => {
     // Don't run if no dates set
     if (!startDate || !endDate) return;
 
+    // Use ref for latest platformsWithMarkets to avoid stale closure
+    const currentPlatforms = platformsWithMarkets;
+
     // Check if any auto-detect market needs phases
-    const needsUpdate = platformsWithMarkets.some((platform) =>
+    const needsUpdate = currentPlatforms.some((platform) =>
       platform.markets.some((market) => {
         const strategy = market.strategy || genericConfig.strategy || "auto-detect";
         return strategy === "auto-detect" && (!market.phases || market.phases.length === 0);
@@ -776,9 +791,9 @@ export function MediaPlanEditor() {
 
     // 1) Set global strategy focus when in auto-detect
     if (genericConfig.strategy === "auto-detect") {
-      const hasPixel = platformsWithMarkets.some((p) => p.markets.some((m) => m.pixel));
-      const hasCatalog = platformsWithMarkets.some((p) => p.markets.some((m) => m.catalog));
-      const marketAdFormats = platformsWithMarkets.flatMap((p) => p.markets.flatMap((m) => (m as any).adFormats || []));
+      const hasPixel = currentPlatforms.some((p) => p.markets.some((m) => m.pixel));
+      const hasCatalog = currentPlatforms.some((p) => p.markets.some((m) => m.catalog));
+      const marketAdFormats = currentPlatforms.flatMap((p) => p.markets.flatMap((m) => (m as any).adFormats || []));
       const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
       const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions";
       if (genericConfig.strategyFocus !== detected) {
@@ -788,7 +803,7 @@ export function MediaPlanEditor() {
 
     // 2) Set per-market strategyFocus and phases in auto-detect
     let changed = false;
-    const updated = platformsWithMarkets.map((platform) => ({
+    const updated = currentPlatforms.map((platform) => ({
       ...platform,
       markets: platform.markets.map((market) => {
         const strategy = market.strategy || genericConfig.strategy || "auto-detect";
@@ -820,38 +835,48 @@ export function MediaPlanEditor() {
 
     if (changed) setPlatformsWithMarkets(updated);
   }, [
-    platformsWithMarkets,
-    genericConfig.strategy,
+    autoDetectFingerprint,
     genericConfig.strategyFocus,
     genericConfig.targeting?.adFormats,
     startDate,
     endDate,
   ]);
 
-  // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
-  // Only sync from the first market that uses global strategy
-  useEffect(() => {
-    // Find first market using global strategy
+  // Compute a stable fingerprint of market phase names to avoid re-running reverse sync unnecessarily
+  const marketPhasesFingerprint = useMemo(() => {
     for (const platform of platformsWithMarkets) {
       for (const market of platform.markets) {
         const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
         if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
-          // Check if genericConfig.phases needs updating
-          const marketPhaseNames = market.phases.map((p) => p.name).join(",");
-          const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
-
-          if (marketPhaseNames !== genericPhaseNames || !genericConfig.phases || genericConfig.phases.length === 0) {
-            console.log("🔄 Syncing market phases back to genericConfig.phases");
-            setGenericConfig((prev) => ({
-              ...prev,
-              phases: market.phases,
-            }));
-          }
-          return; // Only sync from first matching market
+          return market.phases.map((p) => p.name).join(",");
         }
       }
     }
-  }, [platformsWithMarkets]);
+    return "";
+  }, [platformsWithMarkets, genericConfig.strategy]);
+
+  // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
+  useEffect(() => {
+    if (!marketPhasesFingerprint) return;
+    
+    const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
+    if (marketPhasesFingerprint === genericPhaseNames) return;
+
+    // Find the actual phases to sync
+    for (const platform of platformsWithMarkets) {
+      for (const market of platform.markets) {
+        const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+        if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
+          console.log("🔄 Syncing market phases back to genericConfig.phases");
+          setGenericConfig((prev) => ({
+            ...prev,
+            phases: market.phases,
+          }));
+          return;
+        }
+      }
+    }
+  }, [marketPhasesFingerprint]);
 
   const hydrateFromCampaign = (c: any) => {
     try {
