@@ -1694,9 +1694,10 @@ export function CampaignForecast({
               }
               
               // Search phases with keyword strategies have campaign-level splits, not ad set splits
-              const isSearchWithStrategies = strategyGroups.length > 0;
+              const isSearchPhase = isSearchPhaseLike({ platformId: platform.id, phase: phase as unknown as Record<string, unknown> });
+              const hasSearchKeywords = isSearchPhase && selectedKeywords?.length > 0;
 
-              if (effectiveAdSets && effectiveAdSets.length > 0 && !isSearchWithStrategies) {
+              if (effectiveAdSets && effectiveAdSets.length > 0 && !hasSearchKeywords) {
                 console.log(`    → Phase ${phase.name} has ${effectiveAdSets.length} ad set splits`);
                 adSetForecasts = effectiveAdSets.map((adSet: any) => {
                   const adSetBudgetPct = adSet.budgetPercentage || (100 / effectiveAdSets!.length);
