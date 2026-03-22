@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types/creativeMatching';
 import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode, getDefaultAdSetParams, extractTaxonomyValues, generateTaxonomyString, TaxonomyContext, TaxonomyParam } from '@/utils/taxonomyUtils';
 import { validateCreativeForAds, findCompatibleFormats, PLATFORM_AD_SPECS } from '@/utils/platformAdSpecs';
-import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from '@/utils/searchStrategyCampaigns';
+import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from '@/utils/searchStrategyCampaigns';
 
 // Helper to generate taxonomy-based creative name
 function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
@@ -386,9 +386,16 @@ export function useCreativeMatching(campaignId?: string) {
               ? phase?.targeting?.languages 
               : phase?.languages;
 
+            const effectiveSearchKeywords = getEffectiveSearchKeywords({
+              keywords: selectedKeywords,
+              platformId: platformKey,
+              market,
+              phase,
+            });
+
             const strategyGroups = isSearchPhaseLike({ platformId: platformKey, phase })
               ? getSearchStrategyGroups({
-                  keywords: selectedKeywords,
+                  keywords: effectiveSearchKeywords,
                   platformId: platformKey,
                   market: { id: market?.id, name: market?.name },
                 })
