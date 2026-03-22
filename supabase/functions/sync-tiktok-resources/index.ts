@@ -91,8 +91,18 @@ serve(async (req) => {
       }
     );
 
-    const pixelsData = await pixelsResponse.json();
-    console.log('Pixels response:', pixelsData);
+    let pixelsData: any = {};
+    if (pixelsResponse.ok) {
+      const ct = pixelsResponse.headers.get('content-type');
+      if (ct?.includes('application/json')) {
+        pixelsData = await pixelsResponse.json();
+        console.log('Pixels response:', pixelsData);
+      } else {
+        console.log(`Pixels response not JSON (${pixelsResponse.status})`);
+      }
+    } else {
+      console.log(`Pixels fetch returned ${pixelsResponse.status}`);
+    }
 
     if (pixelsData.code === 0 && pixelsData.data?.pixels) {
       const pixels = pixelsData.data.pixels;
