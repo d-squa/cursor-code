@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { useState, useCallback } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
-import { buildSearchStrategyCampaignName, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
+import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 
 interface ActiplanDeliverablesViewProps {
   selectedKeywords?: KeywordItem[];
@@ -400,7 +400,24 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                 </TableCell>
                               </TableRow>
                               {/* Display Ad Set splits if present — but NOT for search phases (they use strategy campaigns instead) */}
-                              {phase.adSets && phase.adSets.length > 0 && !isSearchPhaseLike({ platformId: platform.platformId, phase: { name: phase.phaseName } as Record<string, unknown> }) && phase.adSets.map((adSet, adSetIdx) => (
+                              {(() => {
+                                const phaseConfig = {
+                                  name: phase.phaseName,
+                                  strategyCampaigns: phase.strategyCampaigns,
+                                } as Record<string, unknown>;
+                                const effectiveSearchKeywords = getEffectiveSearchKeywords({
+                                  keywords: selectedKeywords,
+                                  platformId: platform.platformId,
+                                  market: { marketName: market.marketName, marketCode: market.marketCode },
+                                  phase: phaseConfig,
+                                });
+                                const isSearchWithKeywords = isSearchPhaseLike({ platformId: platform.platformId, phase: phaseConfig }) && effectiveSearchKeywords.length > 0;
+
+                                if (!phase.adSets || phase.adSets.length === 0 || isSearchWithKeywords) {
+                                  return null;
+                                }
+
+                                return phase.adSets.map((adSet, adSetIdx) => (
                                 <TableRow key={`${idx}-adset-${adSetIdx}`} className="bg-muted/30">
                                   <TableCell className="pl-8 text-muted-foreground">
                                     ↳ {adSet.adSetName}
@@ -414,7 +431,8 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   <TableCell className="text-muted-foreground">{formatNumber(adSet.result)}</TableCell>
                                   <TableCell className="text-muted-foreground">${adSet.costPerResult.toFixed(3)}</TableCell>
                                 </TableRow>
-                              ))}
+                                ));
+                              })()}
                               {(() => {
                                 const STRATEGY_META: Record<string, { label: string; icon: React.ReactNode }> = {
                                   brand: { label: "Brand", icon: <ShieldCheck className="h-3 w-3" /> },
@@ -422,13 +440,23 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   competition: { label: "Competition", icon: <Swords className="h-3 w-3" /> },
                                 };
 
-                                const isSearch = isSearchPhaseLike({ platformId: platform.platformId, phase: { name: phase.phaseName } as Record<string, unknown> });
+                                const phaseConfig = {
+                                  name: phase.phaseName,
+                                  strategyCampaigns: phase.strategyCampaigns,
+                                } as Record<string, unknown>;
+                                const effectiveSearchKeywords = getEffectiveSearchKeywords({
+                                  keywords: selectedKeywords,
+                                  platformId: platform.platformId,
+                                  market: { marketName: market.marketName, marketCode: market.marketCode },
+                                  phase: phaseConfig,
+                                });
+                                const isSearch = isSearchPhaseLike({ platformId: platform.platformId, phase: phaseConfig });
 
                                 const strategyCampaigns = phase.strategyCampaigns?.length
                                   ? phase.strategyCampaigns
                                   : isSearch
                                     ? getSearchStrategyGroups({
-                                        keywords: selectedKeywords,
+                                        keywords: effectiveSearchKeywords,
                                         platformId: platform.platformId,
                                         market: { marketName: market.marketName, marketCode: market.marketCode },
                                       }).map((group) => ({

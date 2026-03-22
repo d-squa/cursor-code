@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
-import { buildSearchStrategyCampaigns } from "../_shared/search-strategy-campaigns.ts";
+import { buildSearchStrategyCampaigns, getEffectiveSearchKeywords, isSearchPhaseLike } from "../_shared/search-strategy-campaigns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -508,16 +508,25 @@ const handler = async (req: Request): Promise<Response> => {
               Math.round(marketForecast.impressions * (phaseBudgetPct / 100) * (phaseForecast.resultRate / 100)) : null);
           const plannedConversions = phaseForecast?.conversions || phaseForecast?.result || null;
           
-          const strategyCampaigns = buildSearchStrategyCampaigns({
+          const effectiveSearchKeywords = getEffectiveSearchKeywords({
             keywords: selectedKeywords,
             platformId,
             market,
-            phaseName: entityPhaseName,
-            phaseBudget,
-            phaseImpressions: plannedImpressions,
-            phaseReach: plannedReach,
-            phaseResult: phaseForecast?.result ?? plannedConversions,
+            phase,
           });
+
+          const strategyCampaigns = isSearchPhaseLike({ platformId, phase })
+            ? buildSearchStrategyCampaigns({
+                keywords: effectiveSearchKeywords,
+                platformId,
+                market,
+                phaseName: entityPhaseName,
+                phaseBudget,
+                phaseImpressions: plannedImpressions,
+                phaseReach: plannedReach,
+                phaseResult: phaseForecast?.result ?? plannedConversions,
+              })
+            : [];
 
           const campaignUnits = strategyCampaigns.length > 0
             ? strategyCampaigns.map((strategyCampaign) => ({
@@ -565,7 +574,7 @@ const handler = async (req: Request): Promise<Response> => {
             (marketAdSets && marketAdSets.length > 0 ? marketAdSets : undefined) ||
             (defaultPlatformAdSets && defaultPlatformAdSets.length > 0 ? defaultPlatformAdSets : undefined);
 
-          const hasAdSetSplits = !!effectiveAdSets;
+          const hasAdSetSplits = !!effectiveAdSets && strategyCampaigns.length === 0;
 
           if (hasAdSetSplits) {
             // Create an entity for each ad set split

@@ -39,6 +39,9 @@ const normalizePlatform = (platformId?: string | null): "google" | "tiktok" | nu
   return null;
 };
 
+const extractKeywordArray = <TKeyword extends SearchKeywordLike>(value: unknown): TKeyword[] =>
+  Array.isArray(value) ? (value as TKeyword[]) : [];
+
 const getMarketIdentifiers = (market?: unknown): Set<string> => {
   const identifiers = new Set<string>();
 
@@ -85,12 +88,61 @@ export const isSearchPhaseLike = ({
   phase?: Record<string, unknown> | null;
 }) => {
   const normalizedPlatform = normalizePlatform(platformId);
+  const googleCampaignType = String(
+    phase?.googleCampaignType || phase?.campaignType || "",
+  ).toLowerCase();
+  const tiktokCampaignType = String(phase?.tiktokCampaignType || "").toLowerCase();
+  const hasTikTokSearchToggle = phase?.tiktokSearchEnabled === true || phase?.searchEnabled === true;
 
-  if (normalizedPlatform === "google") return phase?.googleCampaignType === "Search";
-  if (normalizedPlatform === "tiktok") return phase?.tiktokCampaignType === "Search";
+  if (normalizedPlatform === "google") {
+    return googleCampaignType === "search" || googleCampaignType.includes("search");
+  }
+
+  if (normalizedPlatform === "tiktok") {
+    return hasTikTokSearchToggle || tiktokCampaignType === "search" || tiktokCampaignType.includes("search");
+  }
 
   return String(phase?.name || "").toLowerCase().includes("search");
 };
+
+export function getEffectiveSearchKeywords<TKeyword extends SearchKeywordLike>({
+  keywords,
+  platformId,
+  market,
+  phase,
+}: {
+  keywords?: TKeyword[];
+  platformId?: string | null;
+  market?: Record<string, unknown> | null;
+  phase?: Record<string, unknown> | null;
+}): TKeyword[] {
+  const normalizedPlatform = normalizePlatform(platformId);
+
+  const filterKeywords = (items: TKeyword[]) =>
+    items.filter((keyword) => {
+      const keywordPlatform = normalizePlatform(keyword.platform);
+      const platformMatches = !normalizedPlatform || !keyword.platform || keywordPlatform === normalizedPlatform;
+      return platformMatches && matchesMarket(keyword.market, market);
+    });
+
+  const phaseKeywords = filterKeywords([
+    ...extractKeywordArray<TKeyword>(phase?.keywords),
+    ...extractKeywordArray<TKeyword>(phase?.searchKeywords),
+    ...extractKeywordArray<TKeyword>(phase?.selectedKeywords),
+  ]);
+
+  if (phaseKeywords.length > 0) return phaseKeywords;
+
+  const marketKeywords = filterKeywords([
+    ...extractKeywordArray<TKeyword>(market?.keywords),
+    ...extractKeywordArray<TKeyword>(market?.searchKeywords),
+    ...extractKeywordArray<TKeyword>(market?.selectedKeywords),
+  ]);
+
+  if (marketKeywords.length > 0) return marketKeywords;
+
+  return filterKeywords(keywords || []);
+}
 
 export const buildSearchStrategyCampaignName = (phaseName: string, strategyLabel: string) =>
   `${phaseName} - ${strategyLabel}`;
