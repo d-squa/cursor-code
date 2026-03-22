@@ -244,8 +244,18 @@ serve(async (req) => {
         }
       );
 
-      const catalogsData = await catalogsResponse.json();
-      console.log('Catalogs response:', catalogsData);
+      let catalogsData: any = {};
+      if (catalogsResponse.ok) {
+        const contentType = catalogsResponse.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          catalogsData = await catalogsResponse.json();
+          console.log('Catalogs response:', catalogsData);
+        } else {
+          console.log(`Catalogs response is not JSON (${catalogsResponse.status}): ${await catalogsResponse.text()}`);
+        }
+      } else {
+        console.log(`Catalogs fetch returned ${catalogsResponse.status}: ${await catalogsResponse.text()}`);
+      }
 
       if (catalogsData.code === 0 && catalogsData.data?.list) {
         const catalogs = catalogsData.data.list;

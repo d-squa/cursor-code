@@ -2816,18 +2816,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           ];
 
           // ============= ADVANTAGE+ AUDIENCE & CREATIVE SUPPORT =============
-          // Add targeting_automation for Advantage+ Audience
-          const advantagePlusAudience = phase.metaAdvantagePlusAudience === true;
-          if (advantagePlusAudience) {
-            adSetPayload.targeting_automation = { advantage_audience: 1 };
-            console.log(`🎯 Advantage+ Audience enabled - setting targeting_automation.advantage_audience=1`);
-          }
-
-          // For Advantage+ Shopping campaigns, enforce Advantage+ Audience
-          if (isAdvantagePlusCampaign) {
-            adSetPayload.targeting_automation = { advantage_audience: 1 };
-            console.log(`🎯 ASC campaign - forcing Advantage+ Audience`);
-          }
+          // Meta now REQUIRES the targeting_automation.advantage_audience flag on every ad set
+          const advantagePlusAudience = phase.metaAdvantagePlusAudience === true || isAdvantagePlusCampaign;
+          adSetPayload.targeting_automation = { advantage_audience: advantagePlusAudience ? 1 : 0 };
+          console.log(`🎯 Advantage+ Audience ${advantagePlusAudience ? 'enabled' : 'disabled'} - setting targeting_automation.advantage_audience=${advantagePlusAudience ? 1 : 0}`);
 
           // Advantage+ Creative is set at ad level, but we log the intent here
           const advantagePlusCreative = phase.metaAdvantagePlusCreative === true;
