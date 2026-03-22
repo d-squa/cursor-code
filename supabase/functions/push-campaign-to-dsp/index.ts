@@ -3660,7 +3660,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             budgetType: "daily",
             totalBudget: campaign.total_budget,
             platformBudget: phaseBudget,
-            phaseBudget: strategyDailyBudget,
+            phaseBudget: phaseBudget,
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
           };
