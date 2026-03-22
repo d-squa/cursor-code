@@ -64,6 +64,8 @@ interface PhaseSchedulerProps {
   onPhasesChange: (phases: Phase[]) => void;
   /** Signals parent to skip the next generic→market phase sync (prevents circular clobber). */
   onSkipNextSync?: () => void;
+  /** Signals parent that the user manually added/removed/duplicated a phase (prevents auto-detect override). */
+  onManualPhaseEdit?: () => void;
   startDate: string;
   endDate: string;
   platformId?: string;
@@ -192,7 +194,8 @@ interface DraggingState {
 export function PhaseScheduler({ 
   phases, 
   onPhasesChange,
-  onSkipNextSync, 
+  onSkipNextSync,
+  onManualPhaseEdit,
   startDate, 
   endDate, 
   platformId = "meta", 
@@ -1219,10 +1222,12 @@ export function PhaseScheduler({
       ...defaultPublisherConfig,
     };
     onPhasesChange([...phases, newPhase]);
+    onManualPhaseEdit?.();
   };
 
   const removePhase = (phaseId: string) => {
     onPhasesChange(phases.filter(p => p.id !== phaseId));
+    onManualPhaseEdit?.();
   };
 
   const duplicatePhase = (phaseId: string) => {
@@ -1235,6 +1240,7 @@ export function PhaseScheduler({
       name: `${phaseToDuplicate.name} (Copy)`,
     };
     onPhasesChange([...phases, newPhase]);
+    onManualPhaseEdit?.();
   };
 
   const updatePhaseName = (phaseId: string, name: string) => {
