@@ -854,24 +854,40 @@ export function MediaPlanEditor() {
           const marketPhaseNames = market.phases.map((p) => p.name).join(",");
           const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
 
-          if (marketPhaseNames !== genericPhaseNames || !genericConfig.phases || genericConfig.phases.length === 0) {
-            console.log("🔄 Syncing market phases back to genericConfig.phases");
-            setGenericConfig((prev) => ({
-              ...prev,
-              phases: market.phases,
-            }));
-          }
-          return; // Only sync from first matching market
+  // Compute a stable fingerprint of market phase names to avoid re-running reverse sync unnecessarily
+  const marketPhasesFingerprint = useMemo(() => {
+    for (const platform of platformsWithMarkets) {
+      for (const market of platform.markets) {
+        const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+        if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
+          return market.phases.map((p) => p.name).join(",");
         }
       }
     }
-  }, [platformsWithMarkets]);
+    return "";
+  }, [platformsWithMarkets, genericConfig.strategy]);
 
-  const hydrateFromCampaign = (c: any) => {
-    try {
-      setCampaignName(c.name || "");
-      setBoNumber(c.bo_number || "");
-      setTotalBudget(String(c.total_budget ?? ""));
+  useEffect(() => {
+    if (!marketPhasesFingerprint) return;
+    
+    const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
+    if (marketPhasesFingerprint === genericPhaseNames) return;
+
+    // Find the actual phases to sync
+    for (const platform of platformsWithMarkets) {
+      for (const market of platform.markets) {
+        const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+        if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
+          console.log("🔄 Syncing market phases back to genericConfig.phases");
+          setGenericConfig((prev) => ({
+            ...prev,
+            phases: market.phases,
+          }));
+          return;
+        }
+      }
+    }
+  }, [marketPhasesFingerprint]);
       setStartDate(c.start_date || "");
       setEndDate(c.end_date || "");
 
