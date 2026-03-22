@@ -4769,9 +4769,34 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
           if (searchEnabled || isSearchPhase) {
             const marketCode = (market.name || "").substring(0, 2).toUpperCase();
-            const rawKeywords = phase.keywords || 
-              (campaign.generic_config?.basicTargeting?.selectedKeywords || [])
+            const allSelectedKeywords = campaign.generic_config?.basicTargeting?.selectedKeywords || [];
+            console.log(`🔍 All selectedKeywords count: ${allSelectedKeywords.length}, marketCode: ${marketCode}`);
+            if (allSelectedKeywords.length > 0) {
+              console.log(`🔍 Sample keyword:`, JSON.stringify(allSelectedKeywords[0]));
+            }
+            
+            // Try phase keywords first, then market-filtered, then all tiktok keywords as fallback
+            let rawKeywords = phase.keywords;
+            if (!rawKeywords || (Array.isArray(rawKeywords) && rawKeywords.length === 0)) {
+              // Try market-filtered keywords
+              rawKeywords = allSelectedKeywords
                 .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
+              console.log(`🔍 Market-filtered TikTok keywords (${marketCode}): ${rawKeywords.length}`);
+              
+              // Fallback: if no market-filtered keywords, use ALL tiktok keywords
+              if (rawKeywords.length === 0) {
+                rawKeywords = allSelectedKeywords
+                  .filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+                console.log(`🔍 Fallback to ALL TikTok keywords (no market filter): ${rawKeywords.length}`);
+              }
+              
+              // Final fallback: use ANY keywords regardless of platform
+              if (rawKeywords.length === 0) {
+                rawKeywords = allSelectedKeywords
+                  .filter((k: any) => !k.isNegative);
+                console.log(`🔍 Final fallback to ALL keywords (any platform): ${rawKeywords.length}`);
+              }
+            }
             
             if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
               for (const kw of rawKeywords) {
@@ -4782,6 +4807,11 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
               }
             }
             console.log(`📝 ${tiktokSearchKeywords.length} search keywords for market ${marketCode} to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
+            
+            // If still no keywords but search is enabled, disable search to prevent API error
+            if (tiktokSearchKeywords.length === 0) {
+              console.warn(`⚠️ Search enabled but NO keywords found — disabling search_result_enabled to prevent API rejection`);
+            }
           }
 
           const resolvedTiktokConversionEvent =

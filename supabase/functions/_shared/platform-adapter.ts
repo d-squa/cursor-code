@@ -787,32 +787,29 @@ class TikTokAdapter implements PlatformAdapter {
       if (params.appId) body.app_id = params.appId;
       if (params.eventCount) body.event_count = params.eventCount; // "every_conversion" or "once"
 
-      // TikTok Search Ads toggle
-      if (params.searchEnabled) {
+      // TikTok Search Ads toggle — only enable if keywords are actually present
+      if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
         body.search_result_enabled = true;
         console.log(`✅ TikTok Search Ads ENABLED for this ad group`);
 
-        // Add search keywords if provided
-        if (params.searchKeywords && params.searchKeywords.length > 0) {
-          const tiktokMatchTypeMap: Record<string, string> = {
-            "BROAD": "BROAD_WORD",
-            "EXACT": "PRECISE_WORD",
-            "PHRASE": "PHRASE_WORD",
-            "BROAD_WORD": "BROAD_WORD",
-            "PRECISE_WORD": "PRECISE_WORD",
-            "PHRASE_WORD": "PHRASE_WORD",
+        const tiktokMatchTypeMap: Record<string, string> = {
+          "BROAD": "BROAD_WORD",
+          "EXACT": "PRECISE_WORD",
+          "PHRASE": "PHRASE_WORD",
+          "BROAD_WORD": "BROAD_WORD",
+          "PRECISE_WORD": "PRECISE_WORD",
+          "PHRASE_WORD": "PHRASE_WORD",
+        };
+        body.search_keywords = params.searchKeywords.map((kw: any) => {
+          const rawMatch = (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD";
+          return {
+            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
+            match_type: tiktokMatchTypeMap[rawMatch] || "BROAD_WORD",
           };
-          body.search_keywords = params.searchKeywords.map((kw: any) => {
-            const rawMatch = (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD";
-            return {
-              keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
-              match_type: tiktokMatchTypeMap[rawMatch] || "BROAD_WORD",
-            };
-          });
-          console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
-        } else {
-          console.log(`⚠️ Search Ads enabled but no keywords provided — TikTok will auto-generate keywords`);
-        }
+        });
+        console.log(`✅ Added ${body.search_keywords.length} search keywords to TikTok ad group`);
+      } else if (params.searchEnabled) {
+        console.warn(`⚠️ Search Ads enabled but no keywords provided — skipping search_result_enabled to prevent API error`);
       }
 
       if (params.smartPlusEnabled) body.is_smart_performance_campaign = true;
