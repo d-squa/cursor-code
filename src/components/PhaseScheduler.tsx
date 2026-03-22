@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -605,6 +605,7 @@ export function PhaseScheduler({
    // Guard ref to prevent normalization loops — tracks whether initial normalization has run
   const lastNormalizedPhasesRef = useRef<string>('');
   const hasNormalizedTikTokRef = useRef(false);
+  const hasNormalizedGoogleRef = useRef(false);
 
   // Normalize legacy TikTok objective/goal values so the dropdowns can hydrate saved campaigns.
   useEffect(() => {
@@ -743,6 +744,7 @@ export function PhaseScheduler({
   }, [phases, platformId, platformName]);
 
   // Normalize legacy Meta-style objective/goal values so Google Ads dropdowns hydrate correctly.
+  // Only runs once on initial load (legacy data hydration) to prevent cascading re-renders.
   useEffect(() => {
     const isGoogle =
       platformId?.toLowerCase() === "google" ||
@@ -750,6 +752,9 @@ export function PhaseScheduler({
       platformName.toLowerCase().includes("google");
 
     if (!isGoogle || phases.length === 0) return;
+
+    // Only normalize once on initial load (legacy data hydration)
+    if (hasNormalizedGoogleRef.current) return;
 
     const googleMappings = getObjectivesForPlatform("google");
     const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
@@ -785,26 +790,38 @@ export function PhaseScheduler({
       return p;
     });
 
+    hasNormalizedGoogleRef.current = true;
+
     if (changed) {
       onPhasesChangeRef.current(updated);
     }
   }, [phases, platformId, platformName, strategyFocus]);
 
+  // Destination defaults effect — uses a fingerprint to avoid re-running when phases change
+  // from unrelated updates (e.g. budget type, name edits). Only processes phases whose
+  // objective hasn't been handled yet (tracked by appliedDestinationDefaultsRef).
+  const destinationDefaultsFingerprint = useMemo(() => {
+    // Only re-run when a phase has an objective we haven't processed yet
+    return phases
+      .filter(p => p.objective && appliedDestinationDefaultsRef.current.get(p.id) !== p.objective)
+      .map(p => `${p.id}:${p.objective}`)
+      .join('|');
+  }, [phases]);
+
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
+    if (!destinationDefaultsFingerprint) return; // All phases already processed
     
+    const currentPhases = phasesRef.current;
     const isTikTok = platformName.toLowerCase().includes('tiktok');
     const isMeta = platformName.toLowerCase().includes('meta');
     const isGoogle = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads' || platformName.toLowerCase().includes('google');
     const platformType = isTikTok ? "tiktok" : isMeta ? "meta" : "google";
     
     let hasUpdates = false;
-    const updatedPhases = phases.map(phase => {
+    const updatedPhases = currentPhases.map(phase => {
       // Skip phases without objectives
       if (!phase.objective) return phase;
-      
-      // Create a unique key for this phase + objective combination
-      const phaseKey = `${phase.id}:${phase.objective}`;
       
       // Skip if we've already processed this phase with this objective
       if (appliedDestinationDefaultsRef.current.get(phase.id) === phase.objective) return phase;
@@ -924,10 +941,10 @@ export function PhaseScheduler({
     });
     
     if (hasUpdates) {
-      // Use ref to avoid dependency on onPhasesChange
+      phasesRef.current = updatedPhases;
       onPhasesChangeRef.current(updatedPhases);
     }
-  }, [phases, adAccountDefaults, platformName]);
+  }, [destinationDefaultsFingerprint, adAccountDefaults, platformName, platformId]);
 
   // Auto-populate Meta placement defaults from adAccountDefaults.
   // Important: defaults can change AFTER phases are created (e.g. user selects ad account).
