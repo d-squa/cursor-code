@@ -434,7 +434,11 @@ export function useCreativeMatching(campaignId?: string) {
               effectiveSplitDimension = platformDefaultDimension || 'custom';
             }
 
-            if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none') {
+            // Search phases with active keyword strategies get their own campaign-level splits,
+            // so exclude them from ad set splitting to avoid cross-product explosion
+            const isSearchWithStrategies = strategyGroups.length > 0;
+
+            if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none' && !isSearchWithStrategies) {
               // Create a structure for EACH ad set configuration
               for (const adSet of effectiveAdSets) {
                 for (const strategyGroup of structureVariants) {
