@@ -941,10 +941,10 @@ export function PhaseScheduler({
     });
     
     if (hasUpdates) {
-      // Use ref to avoid dependency on onPhasesChange
+      phasesRef.current = updatedPhases;
       onPhasesChangeRef.current(updatedPhases);
     }
-  }, [phases, adAccountDefaults, platformName]);
+  }, [destinationDefaultsFingerprint, adAccountDefaults, platformName, platformId]);
 
   // Auto-populate Meta placement defaults from adAccountDefaults.
   // Important: defaults can change AFTER phases are created (e.g. user selects ad account).
