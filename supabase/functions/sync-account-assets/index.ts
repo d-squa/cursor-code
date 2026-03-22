@@ -689,7 +689,7 @@ async function syncGoogleAdsAssets(
       `;
 
       const conversionResponse = await fetch(
-        `https://googleads.googleapis.com/v18/customers/${cleanAccountId}/googleAds:searchStream`,
+        `https://googleads.googleapis.com/v23/customers/${cleanAccountId}/googleAds:searchStream`,
         {
           method: "POST",
           headers: {
@@ -768,7 +768,7 @@ async function syncGoogleAdsAssets(
       `;
 
       const audienceResponse = await fetch(
-        `https://googleads.googleapis.com/v18/customers/${cleanAccountId}/googleAds:searchStream`,
+        `https://googleads.googleapis.com/v23/customers/${cleanAccountId}/googleAds:searchStream`,
         {
           method: "POST",
           headers: {

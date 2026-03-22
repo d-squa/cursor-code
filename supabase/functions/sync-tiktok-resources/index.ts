@@ -91,8 +91,18 @@ serve(async (req) => {
       }
     );
 
-    const pixelsData = await pixelsResponse.json();
-    console.log('Pixels response:', pixelsData);
+    let pixelsData: any = {};
+    if (pixelsResponse.ok) {
+      const ct = pixelsResponse.headers.get('content-type');
+      if (ct?.includes('application/json')) {
+        pixelsData = await pixelsResponse.json();
+        console.log('Pixels response:', pixelsData);
+      } else {
+        console.log(`Pixels response not JSON (${pixelsResponse.status})`);
+      }
+    } else {
+      console.log(`Pixels fetch returned ${pixelsResponse.status}`);
+    }
 
     if (pixelsData.code === 0 && pixelsData.data?.pixels) {
       const pixels = pixelsData.data.pixels;
@@ -244,8 +254,18 @@ serve(async (req) => {
         }
       );
 
-      const catalogsData = await catalogsResponse.json();
-      console.log('Catalogs response:', catalogsData);
+      let catalogsData: any = {};
+      if (catalogsResponse.ok) {
+        const contentType = catalogsResponse.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          catalogsData = await catalogsResponse.json();
+          console.log('Catalogs response:', catalogsData);
+        } else {
+          console.log(`Catalogs response is not JSON (${catalogsResponse.status}): ${await catalogsResponse.text()}`);
+        }
+      } else {
+        console.log(`Catalogs fetch returned ${catalogsResponse.status}: ${await catalogsResponse.text()}`);
+      }
 
       if (catalogsData.code === 0 && catalogsData.data?.list) {
         const catalogs = catalogsData.data.list;
@@ -286,8 +306,18 @@ serve(async (req) => {
         }
       );
 
-      const productSetsData = await productSetsResponse.json();
-      console.log(`Product sets response for catalog ${catalogId}:`, productSetsData);
+      let productSetsData: any = {};
+      if (productSetsResponse.ok) {
+        const ct = productSetsResponse.headers.get('content-type');
+        if (ct?.includes('application/json')) {
+          productSetsData = await productSetsResponse.json();
+          console.log(`Product sets response for catalog ${catalogId}:`, productSetsData);
+        } else {
+          console.log(`Product sets response not JSON for catalog ${catalogId}`);
+        }
+      } else {
+        console.log(`Product sets fetch returned ${productSetsResponse.status} for catalog ${catalogId}`);
+      }
 
       if (productSetsData.code === 0 && productSetsData.data?.list) {
         const productSets = productSetsData.data.list;
