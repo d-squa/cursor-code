@@ -3502,6 +3502,28 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
     const cleanCustomerId = String(googleCustomerId).replace(/-/g, "");
     console.log(`📤 Processing Google Ads market ${market.name} with customer ID: ${cleanCustomerId}`);
 
+    // Resolve per-account manager_customer_id from google_ad_accounts table
+    // This is critical for client accounts accessed via a Manager (MCC) account
+    let effectiveManagerId = managerAccountId;
+    try {
+      const { data: googleAccount } = await supabase
+        .from("google_ad_accounts")
+        .select("manager_customer_id")
+        .or(`customer_id.eq.${cleanCustomerId},customer_id.eq.${googleCustomerId}`)
+        .maybeSingle();
+      if (googleAccount?.manager_customer_id) {
+        effectiveManagerId = googleAccount.manager_customer_id;
+        console.log(`📋 Using per-account manager_customer_id: ${effectiveManagerId}`);
+      } else if (managerAccountId) {
+        console.log(`📋 Using global GOOGLE_ADS_MANAGER_ACCOUNT_ID: ${managerAccountId}`);
+      } else {
+        console.log(`📋 No manager account ID found - using customer's own ID`);
+        effectiveManagerId = cleanCustomerId;
+      }
+    } catch (mgrErr: any) {
+      console.warn(`⚠️ Failed to resolve manager_customer_id: ${mgrErr.message}, using global fallback`);
+    }
+
     // Resolve market countries for geo targeting
     const marketCountries: string[] = Array.isArray(market.countries) && market.countries.length > 0
       ? market.countries
