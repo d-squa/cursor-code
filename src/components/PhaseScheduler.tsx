@@ -64,6 +64,8 @@ interface PhaseSchedulerProps {
   onPhasesChange: (phases: Phase[]) => void;
   /** Signals parent to skip the next generic→market phase sync (prevents circular clobber). */
   onSkipNextSync?: () => void;
+  /** Signals parent that the user manually added/removed/duplicated a phase (prevents auto-detect override). */
+  onManualPhaseEdit?: () => void;
   startDate: string;
   endDate: string;
   platformId?: string;
