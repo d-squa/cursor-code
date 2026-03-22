@@ -2800,6 +2800,24 @@ export function MediaPlanEditor() {
                         onSkipNextSync={() => {
                           skipPhaseSyncRef.current = true;
                         }}
+                        onManualPhaseEdit={() => {
+                          // Switch market strategy from auto-detect to manual to prevent auto-regeneration from overriding user customizations
+                          setPlatformsWithMarkets((prev) =>
+                            prev.map((p) =>
+                              p.id === singlePlatform?.id
+                                ? {
+                                    ...p,
+                                    markets: p.markets.map((m) =>
+                                      m.id === singleMarket.id ? { ...m, strategy: "manual" as const } : m,
+                                    ),
+                                  }
+                                : p,
+                            ),
+                          );
+                          if (genericConfig.strategy === "auto-detect") {
+                            setGenericConfig((prev) => ({ ...prev, strategy: "manual" }));
+                          }
+                        }}
                         startDate={startDate}
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
