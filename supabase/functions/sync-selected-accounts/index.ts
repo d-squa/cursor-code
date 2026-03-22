@@ -1256,10 +1256,10 @@ serve(async (req) => {
 
       const { error: insertError } = await supabase
         .from("google_ad_accounts")
-        .insert(googleAccountsToInsert);
+        .upsert(googleAccountsToInsert, { onConflict: 'user_id,customer_id' });
 
       if (insertError) {
-        console.error("Google Ads insert error:", insertError);
+        console.error("Google Ads upsert error:", insertError);
         throw new Error("Failed to save selected Google Ads accounts");
       }
 
