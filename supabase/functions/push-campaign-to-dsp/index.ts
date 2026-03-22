@@ -3781,7 +3781,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             Authorization: `Bearer ${platform.access_token}`,
             "developer-token": developerToken,
             "Content-Type": "application/json",
-            ...(managerAccountId ? { "login-customer-id": managerAccountId.replace(/-/g, "") } : {}),
+            ...(effectiveManagerId ? { "login-customer-id": effectiveManagerId.replace(/-/g, "") } : {}),
           };
 
           // Apply geo targeting at campaign level
