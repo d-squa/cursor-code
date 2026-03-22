@@ -3910,7 +3910,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
             const adGroupTargetingPayload: any = {
               developerToken,
-              loginCustomerId: managerAccountId?.replace(/-/g, ""),
+              loginCustomerId: effectiveManagerId?.replace(/-/g, ""),
               ...(adGroupType ? { adGroupType } : {}),
               keywords: strategyKeywords.length > 0 ? strategyKeywords : undefined,
               // Pass demographics for ad group criteria
