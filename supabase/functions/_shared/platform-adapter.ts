@@ -789,7 +789,7 @@ class TikTokAdapter implements PlatformAdapter {
 
       // TikTok Search Ads toggle
       if (params.searchEnabled) {
-        body.search_result_enabled = "ENABLED";
+        body.search_result_enabled = true;
         console.log(`✅ TikTok Search Ads ENABLED for this ad group`);
 
         // Add search keywords if provided
