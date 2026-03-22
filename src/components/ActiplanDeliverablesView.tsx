@@ -399,8 +399,8 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                   </TooltipProvider>
                                 </TableCell>
                               </TableRow>
-                              {/* Display Ad Set splits if present */}
-                              {phase.adSets && phase.adSets.length > 0 && phase.adSets.map((adSet, adSetIdx) => (
+                              {/* Display Ad Set splits if present — but NOT for search phases (they use strategy campaigns instead) */}
+                              {phase.adSets && phase.adSets.length > 0 && !isSearchPhaseLike({ platformId: platform.platformId, phase: { name: phase.phaseName } as Record<string, unknown> }) && phase.adSets.map((adSet, adSetIdx) => (
                                 <TableRow key={`${idx}-adset-${adSetIdx}`} className="bg-muted/30">
                                   <TableCell className="pl-8 text-muted-foreground">
                                     ↳ {adSet.adSetName}
