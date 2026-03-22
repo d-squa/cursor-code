@@ -306,8 +306,18 @@ serve(async (req) => {
         }
       );
 
-      const productSetsData = await productSetsResponse.json();
-      console.log(`Product sets response for catalog ${catalogId}:`, productSetsData);
+      let productSetsData: any = {};
+      if (productSetsResponse.ok) {
+        const ct = productSetsResponse.headers.get('content-type');
+        if (ct?.includes('application/json')) {
+          productSetsData = await productSetsResponse.json();
+          console.log(`Product sets response for catalog ${catalogId}:`, productSetsData);
+        } else {
+          console.log(`Product sets response not JSON for catalog ${catalogId}`);
+        }
+      } else {
+        console.log(`Product sets fetch returned ${productSetsResponse.status} for catalog ${catalogId}`);
+      }
 
       if (productSetsData.code === 0 && productSetsData.data?.list) {
         const productSets = productSetsData.data.list;
