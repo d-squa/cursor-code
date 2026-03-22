@@ -566,10 +566,10 @@ async function syncMetaAccountsInBackground(
       .eq("team_id", teamId)
       .eq("platform_id", platformId);
     
-    const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
+    const { error: insertError } = await supabase.from("meta_ad_accounts").upsert(accountsToInsert, { onConflict: 'user_id,account_id' });
     
     if (insertError) {
-      console.error("[SYNC-META] Insert error:", insertError);
+      console.error("[SYNC-META] Upsert error:", insertError);
       throw new Error("Failed to save selected accounts");
     }
 
