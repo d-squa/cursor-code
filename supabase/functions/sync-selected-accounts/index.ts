@@ -850,10 +850,10 @@ serve(async (req) => {
       
       const { error: insertError } = await supabase
         .from("tiktok_ad_accounts")
-        .insert(accountsToInsert);
+        .upsert(accountsToInsert, { onConflict: 'user_id,advertiser_id' });
       
       if (insertError) {
-        console.error("TikTok insert error:", insertError);
+        console.error("TikTok upsert error:", insertError);
         throw new Error("Failed to save selected TikTok accounts");
       }
 
