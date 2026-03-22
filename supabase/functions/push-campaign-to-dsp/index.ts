@@ -4045,7 +4045,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                     landingPageUrl,
                     ...(({
                       developerToken,
-                      loginCustomerId: managerAccountId?.replace(/-/g, ""),
+                      loginCustomerId: effectiveManagerId?.replace(/-/g, ""),
                     }) as any),
                   });
 
