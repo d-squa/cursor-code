@@ -3622,7 +3622,31 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
         const dailyBudget = phaseBudget / durationDays;
 
         // Get campaign type from phase config (Search, Display, Performance Max, Video, etc.)
-        const campaignType = phase.googleCampaignType || "Search";
+        // If googleCampaignType is not explicitly set, derive it from the phase objective
+        const objectiveToTypeMap: Record<string, string> = {
+          "CONVERSION_SEARCH": "Search",
+          "AWARENESS_DISPLAY": "Display",
+          "CONSIDERATION_PMAX": "Performance Max",
+          "AWARENESS_VIDEO_EFFICIENT_REACH": "Video",
+          "CONSIDERATION_DEMAND_GEN": "Demand Gen",
+          "CONVERSION_SHOPPING": "Shopping",
+          "CONSIDERATION_APP_INSTALLS": "App Promotion",
+          // Additional objective mappings
+          "AWARENESS_VIDEO": "Video",
+          "CONSIDERATION_VIDEO": "Video",
+          "CONVERSIONS": "Search",
+          "LEADS": "Search",
+          "SALES": "Shopping",
+          "WEBSITE_TRAFFIC": "Search",
+          "APP_INSTALLS": "App Promotion",
+        };
+        const derivedFromObjective = phase.objective ? objectiveToTypeMap[phase.objective] : undefined;
+        const campaignType = phase.googleCampaignType || derivedFromObjective || "Search";
+        if (!phase.googleCampaignType && derivedFromObjective) {
+          console.log(`🔄 Derived googleCampaignType "${campaignType}" from objective "${phase.objective}" for phase "${phase.name}"`);
+        } else if (!phase.googleCampaignType && !derivedFromObjective) {
+          console.warn(`⚠️ No googleCampaignType set and could not derive from objective "${phase.objective}" — defaulting to Search`);
+        }
         const channelTypeMap: Record<string, string> = {
           "Search": "SEARCH",
           "Display": "DISPLAY",
