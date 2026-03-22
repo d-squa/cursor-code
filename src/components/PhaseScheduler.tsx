@@ -744,6 +744,7 @@ export function PhaseScheduler({
   }, [phases, platformId, platformName]);
 
   // Normalize legacy Meta-style objective/goal values so Google Ads dropdowns hydrate correctly.
+  // Only runs once on initial load (legacy data hydration) to prevent cascading re-renders.
   useEffect(() => {
     const isGoogle =
       platformId?.toLowerCase() === "google" ||
@@ -751,6 +752,9 @@ export function PhaseScheduler({
       platformName.toLowerCase().includes("google");
 
     if (!isGoogle || phases.length === 0) return;
+
+    // Only normalize once on initial load (legacy data hydration)
+    if (hasNormalizedGoogleRef.current) return;
 
     const googleMappings = getObjectivesForPlatform("google");
     const validGoogleObjectives = new Set(googleMappings.map((o) => o.value));
@@ -785,6 +789,8 @@ export function PhaseScheduler({
 
       return p;
     });
+
+    hasNormalizedGoogleRef.current = true;
 
     if (changed) {
       onPhasesChangeRef.current(updated);
