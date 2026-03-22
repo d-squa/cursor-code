@@ -194,7 +194,8 @@ interface DraggingState {
 export function PhaseScheduler({ 
   phases, 
   onPhasesChange,
-  onSkipNextSync, 
+  onSkipNextSync,
+  onManualPhaseEdit,
   startDate, 
   endDate, 
   platformId = "meta", 
