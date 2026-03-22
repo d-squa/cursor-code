@@ -2231,6 +2231,8 @@ export function MediaPlanEditor() {
 
     const { platformId, marketId } = selectedMarketForBudget;
 
+    skipPhaseSyncRef.current = true;
+
     setPlatformsWithMarkets((prev) =>
       prev.map((p) =>
         p.id === platformId
@@ -2822,6 +2824,24 @@ export function MediaPlanEditor() {
                             ),
                           );
                         }}
+                        onManualPhasesChange={(phases) => {
+                          skipPhaseSyncRef.current = true;
+                          setPlatformsWithMarkets((prev) =>
+                            prev.map((p) =>
+                              p.id === singlePlatform?.id
+                                ? {
+                                    ...p,
+                                    markets: p.markets.map((m) =>
+                                      m.id === singleMarket.id ? { ...m, phases, strategy: "manual" as const } : m,
+                                    ),
+                                  }
+                                : p,
+                            ),
+                          );
+                          if (genericConfig.strategy === "auto-detect") {
+                            setGenericConfig((prev) => ({ ...prev, strategy: "manual" }));
+                          }
+                        }}
                         onSkipNextSync={() => {
                           skipPhaseSyncRef.current = true;
                         }}
@@ -2907,6 +2927,7 @@ export function MediaPlanEditor() {
                           googleMaxCpcBid: (singleMarket as any).googleMaxCpcBid,
                         }}
                         onApplyBudgetTypeToAll={(type) => {
+                          skipPhaseSyncRef.current = true;
                           setPlatformsWithMarkets((prev) =>
                             prev.map((p) =>
                               p.id === singlePlatform?.id
@@ -3248,6 +3269,26 @@ export function MediaPlanEditor() {
                                                 ),
                                               );
                                             }}
+                                            onManualPhasesChange={(phases) => {
+                                              skipPhaseSyncRef.current = true;
+                                              setPlatformsWithMarkets((prev) =>
+                                                prev.map((p) =>
+                                                  p.id === platform.id
+                                                    ? {
+                                                        ...p,
+                                                        markets: p.markets.map((m) =>
+                                                          m.id === market.id
+                                                            ? { ...m, phases, strategy: "manual" as const }
+                                                            : m,
+                                                        ),
+                                                      }
+                                                    : p,
+                                                ),
+                                              );
+                                              if (genericConfig.strategy === "auto-detect") {
+                                                setGenericConfig((prev) => ({ ...prev, strategy: "manual" }));
+                                              }
+                                            }}
                                             onSkipNextSync={() => {
                                               skipPhaseSyncRef.current = true;
                                             }}
@@ -3343,6 +3384,7 @@ export function MediaPlanEditor() {
                                               os: (market as any).os || (genericConfig.targeting as any)?.os,
                                             }}
                                             onApplyBudgetTypeToAll={(type) => {
+                                              skipPhaseSyncRef.current = true;
                                               setPlatformsWithMarkets((prev) =>
                                                 prev.map((p) =>
                                                   p.id === platform.id
@@ -3661,6 +3703,7 @@ export function MediaPlanEditor() {
         platform={bulkPlatform}
         onSave={(updatedMarkets) => {
           if (!bulkPlatform) return;
+          skipPhaseSyncRef.current = true;
           setPlatformsWithMarkets((prev) =>
             prev.map((p) => (p.id === bulkPlatform.id ? { ...p, markets: updatedMarkets } : p)),
           );
