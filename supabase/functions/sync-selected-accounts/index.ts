@@ -566,10 +566,10 @@ async function syncMetaAccountsInBackground(
       .eq("team_id", teamId)
       .eq("platform_id", platformId);
     
-    const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
+    const { error: insertError } = await supabase.from("meta_ad_accounts").upsert(accountsToInsert, { onConflict: 'user_id,account_id' });
     
     if (insertError) {
-      console.error("[SYNC-META] Insert error:", insertError);
+      console.error("[SYNC-META] Upsert error:", insertError);
       throw new Error("Failed to save selected accounts");
     }
 
@@ -850,10 +850,10 @@ serve(async (req) => {
       
       const { error: insertError } = await supabase
         .from("tiktok_ad_accounts")
-        .insert(accountsToInsert);
+        .upsert(accountsToInsert, { onConflict: 'user_id,advertiser_id' });
       
       if (insertError) {
-        console.error("TikTok insert error:", insertError);
+        console.error("TikTok upsert error:", insertError);
         throw new Error("Failed to save selected TikTok accounts");
       }
 
@@ -1256,10 +1256,10 @@ serve(async (req) => {
 
       const { error: insertError } = await supabase
         .from("google_ad_accounts")
-        .insert(googleAccountsToInsert);
+        .upsert(googleAccountsToInsert, { onConflict: 'user_id,customer_id' });
 
       if (insertError) {
-        console.error("Google Ads insert error:", insertError);
+        console.error("Google Ads upsert error:", insertError);
         throw new Error("Failed to save selected Google Ads accounts");
       }
 
