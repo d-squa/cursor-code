@@ -842,18 +842,6 @@ export function MediaPlanEditor() {
     endDate,
   ]);
 
-  // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
-  // Only sync from the first market that uses global strategy
-  useEffect(() => {
-    // Find first market using global strategy
-    for (const platform of platformsWithMarkets) {
-      for (const market of platform.markets) {
-        const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
-        if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
-          // Check if genericConfig.phases needs updating
-          const marketPhaseNames = market.phases.map((p) => p.name).join(",");
-          const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
-
   // Compute a stable fingerprint of market phase names to avoid re-running reverse sync unnecessarily
   const marketPhasesFingerprint = useMemo(() => {
     for (const platform of platformsWithMarkets) {
@@ -867,6 +855,7 @@ export function MediaPlanEditor() {
     return "";
   }, [platformsWithMarkets, genericConfig.strategy]);
 
+  // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
   useEffect(() => {
     if (!marketPhasesFingerprint) return;
     
@@ -888,6 +877,12 @@ export function MediaPlanEditor() {
       }
     }
   }, [marketPhasesFingerprint]);
+
+  const hydrateFromCampaign = (c: any) => {
+    try {
+      setCampaignName(c.name || "");
+      setBoNumber(c.bo_number || "");
+      setTotalBudget(String(c.total_budget ?? ""));
       setStartDate(c.start_date || "");
       setEndDate(c.end_date || "");
 
