@@ -62,6 +62,8 @@ import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 interface PhaseSchedulerProps {
   phases: Phase[];
   onPhasesChange: (phases: Phase[]) => void;
+  /** Commits a manual structural edit (add/remove/duplicate) in one parent update to avoid transient auto-regeneration loops. */
+  onManualPhasesChange?: (phases: Phase[]) => void;
   /** Signals parent to skip the next generic→market phase sync (prevents circular clobber). */
   onSkipNextSync?: () => void;
   /** Signals parent that the user manually added/removed/duplicated a phase (prevents auto-detect override). */
@@ -194,6 +196,7 @@ interface DraggingState {
 export function PhaseScheduler({ 
   phases, 
   onPhasesChange,
+  onManualPhasesChange,
   onSkipNextSync,
   onManualPhaseEdit,
   startDate, 
@@ -595,12 +598,23 @@ export function PhaseScheduler({
 
   // Track if we've already applied defaults for each phase (by phase ID + objective) to prevent re-triggering
   const appliedDestinationDefaultsRef = useRef<Map<string, string>>(new Map());
+  const adAccountDefaultsFingerprint = useMemo(() => JSON.stringify(adAccountDefaults ?? null), [adAccountDefaults]);
   
   // Auto-populate destination fields from defaults when phases have objectives that require destinations
   // This handles the case where phases are auto-generated with objectives already set (e.g., auto-generate strategy)
   // IMPORTANT: Use a stable ref to avoid triggering this effect when onPhasesChange identity changes
   const onPhasesChangeRef = useRef(onPhasesChange);
   onPhasesChangeRef.current = onPhasesChange;
+
+  const commitManualPhaseStructureChange = useCallback((updatedPhases: Phase[]) => {
+    if (onManualPhasesChange) {
+      onManualPhasesChange(updatedPhases);
+      return;
+    }
+
+    onPhasesChange(updatedPhases);
+    onManualPhaseEdit?.();
+  }, [onManualPhaseEdit, onManualPhasesChange, onPhasesChange]);
 
    // Guard ref to prevent normalization loops — tracks whether initial normalization has run
   const lastNormalizedPhasesRef = useRef<string>('');
@@ -964,7 +978,7 @@ export function PhaseScheduler({
       phasesRef.current = updatedPhases;
       onPhasesChangeRef.current(updatedPhases);
     }
-  }, [destinationDefaultsFingerprint, adAccountDefaults, platformName, platformId]);
+  }, [destinationDefaultsFingerprint, adAccountDefaultsFingerprint, platformName, platformId]);
 
   // Auto-populate Meta placement defaults from adAccountDefaults.
   // Important: defaults can change AFTER phases are created (e.g. user selects ad account).
@@ -1066,7 +1080,7 @@ export function PhaseScheduler({
       phasesRef.current = updatedPhases;
       onPhasesChangeRef.current(updatedPhases);
     }
-  }, [adAccountDefaults, platformName]);
+  }, [adAccountDefaultsFingerprint, platformName]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     const normalizedPlatformId = (platformId || "").toLowerCase();
@@ -1258,13 +1272,11 @@ export function PhaseScheduler({
       budgetPercentage: 0,
       ...defaultPublisherConfig,
     };
-    onPhasesChange([...phases, newPhase]);
-    onManualPhaseEdit?.();
+    commitManualPhaseStructureChange([...phases, newPhase]);
   };
 
   const removePhase = (phaseId: string) => {
-    onPhasesChange(phases.filter(p => p.id !== phaseId));
-    onManualPhaseEdit?.();
+    commitManualPhaseStructureChange(phases.filter(p => p.id !== phaseId));
   };
 
   const duplicatePhase = (phaseId: string) => {
@@ -1276,8 +1288,7 @@ export function PhaseScheduler({
       id: `phase-${Date.now()}`,
       name: `${phaseToDuplicate.name} (Copy)`,
     };
-    onPhasesChange([...phases, newPhase]);
-    onManualPhaseEdit?.();
+    commitManualPhaseStructureChange([...phases, newPhase]);
   };
 
   const updatePhaseName = (phaseId: string, name: string) => {
