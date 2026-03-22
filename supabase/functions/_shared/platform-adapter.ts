@@ -954,26 +954,7 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
       }
 
-      // TikTok Search Ads - add search_result_enabled and search_keywords
-      if (params.searchEnabled && params.searchKeywords && params.searchKeywords.length > 0) {
-        body.search_result_enabled = true;
-        const tiktokMatchTypeMap2: Record<string, string> = {
-          "BROAD": "BROAD_WORD",
-          "EXACT": "PRECISE_WORD",
-          "PHRASE": "PHRASE_WORD",
-          "BROAD_WORD": "BROAD_WORD",
-          "PRECISE_WORD": "PRECISE_WORD",
-          "PHRASE_WORD": "PHRASE_WORD",
-        };
-        body.search_keywords = params.searchKeywords.map((kw: any) => {
-          const rawMatch = (typeof kw === "object" && kw.matchType) ? kw.matchType.toUpperCase() : "BROAD";
-          return {
-            keyword: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw),
-            match_type: tiktokMatchTypeMap2[rawMatch] || "BROAD_WORD",
-          };
-        });
-        console.log(`🔍 TikTok Search Ads enabled: ${params.searchKeywords.length} keywords added`);
-      }
+      // (Search Ads keywords already set above in the main searchEnabled block)
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
       console.log("TikTok API Full Request:", {
