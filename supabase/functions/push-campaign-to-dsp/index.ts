@@ -3753,7 +3753,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               status: "PAUSED",
               metadata: {
                 developerToken,
-                loginCustomerId: managerAccountId?.replace(/-/g, ""),
+                loginCustomerId: effectiveManagerId?.replace(/-/g, ""),
                 advertisingChannelType,
                 biddingStrategy: mappedBidStrategy,
                 bidAmount,
