@@ -3685,7 +3685,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           "CONSIDERATION_VIDEO": "Video",
           "CONVERSIONS": "Search",
           "LEADS": "Search",
-          "SALES": "Shopping",
+          "SALES": (phase.googleProductFeed || phase.googleMerchantCenterId || market.googleMerchantCenterId) ? "Shopping" : "Search",
           "WEBSITE_TRAFFIC": "Search",
           "APP_INSTALLS": "App Promotion",
         };
