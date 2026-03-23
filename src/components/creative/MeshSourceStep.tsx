@@ -83,6 +83,70 @@ function getGoogleAllowedMedia(campaignTypes: string[]): { image: boolean; video
   return { image: allowImage, video: allowVideo, youtube: allowYoutube, textOnly, restrictions };
 }
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif']);
+const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm', 'avi', 'mpeg', 'mpg', 'm4v']);
+
+function getFileExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() || '';
+}
+
+function getRelativeFilePath(file: File): string {
+  return (file as any).webkitRelativePath || file.name;
+}
+
+function getUploadMediaType(file: File): 'image' | 'video' | null {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+
+  const extension = getFileExtension(file.name);
+  if (IMAGE_EXTENSIONS.has(extension)) return 'image';
+  if (VIDEO_EXTENSIONS.has(extension)) return 'video';
+
+  return null;
+}
+
+function loadImageDimensions(file: File): Promise<{ width?: number; height?: number }> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: img.width, height: img.height });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({});
+    };
+
+    img.src = objectUrl;
+  });
+}
+
+function loadVideoDimensions(file: File): Promise<{ width?: number; height?: number }> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    const objectUrl = URL.createObjectURL(file);
+
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: video.videoWidth, height: video.videoHeight });
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({});
+    };
+
+    video.src = objectUrl;
+  });
+}
+
+async function getUploadDimensions(file: File, mediaType: 'image' | 'video') {
+  return mediaType === 'video' ? loadVideoDimensions(file) : loadImageDimensions(file);
+}
+
 interface MeshSourceStepProps {
   platform: 'meta' | 'tiktok' | 'google';
   campaignId: string;
@@ -203,16 +267,20 @@ export function MeshSourceStep({
 
     let skipped = 0;
     for (const file of files) {
-      const isVideo = file.type.startsWith('video/');
+      const mediaType = getUploadMediaType(file);
+      if (!mediaType) {
+        skipped++;
+        continue;
+      }
       
       // Validate against Google campaign type restrictions
       if (googleMedia) {
-        if (isVideo && !googleMedia.video) {
+        if (mediaType === 'video' && !googleMedia.video) {
           toast.error(`Video files not allowed: ${googleCampaignTypes.join(', ')} campaigns don't support video creatives`);
           skipped++;
           continue;
         }
-        if (!isVideo && !googleMedia.image) {
+        if (mediaType === 'image' && !googleMedia.image) {
           toast.error(`Image files not allowed: ${googleCampaignTypes.join(', ')} campaigns don't support image creatives`);
           skipped++;
           continue;
@@ -220,15 +288,20 @@ export function MeshSourceStep({
       }
 
       const previewUrl = URL.createObjectURL(file);
+      const relativePath = getRelativeFilePath(file);
+      const { width, height } = await getUploadDimensions(file, mediaType);
       
       const asset: SelectedAsset = {
-        id: `upload-${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: `upload-${relativePath}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         source: 'upload',
         platform,
-        assetType: isVideo ? 'video' : 'image',
+        assetType: mediaType,
         thumbnailUrl: previewUrl,
         name: file.name,
         file,
+        relativePath,
+        width,
+        height,
       };
       
       onAddAsset(asset);
@@ -237,20 +310,18 @@ export function MeshSourceStep({
     const added = files.length - skipped;
     if (added > 0) toast.success(`Added ${added} files`);
     if (e.target) e.target.value = '';
-  }, [platform, onAddAsset]);
+  }, [googleCampaignTypes, googleMedia, onAddAsset, platform]);
 
   // Handle folder selection
   const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    let files = Array.from(e.target.files || []).filter(f => 
-      f.type.startsWith('image/') || f.type.startsWith('video/')
-    );
+    let files = Array.from(e.target.files || []).filter((file) => getUploadMediaType(file) !== null);
     
     // Filter by Google campaign type restrictions
     if (googleMedia) {
       files = files.filter(f => {
-        const isVideo = f.type.startsWith('video/');
-        if (isVideo && !googleMedia.video) return false;
-        if (!isVideo && !googleMedia.image) return false;
+        const mediaType = getUploadMediaType(f);
+        if (mediaType === 'video' && !googleMedia.video) return false;
+        if (mediaType === 'image' && !googleMedia.image) return false;
         return true;
       });
     }
@@ -262,17 +333,24 @@ export function MeshSourceStep({
     }
 
     for (const file of files) {
-      const isVideo = file.type.startsWith('video/');
+      const mediaType = getUploadMediaType(file);
+      if (!mediaType) continue;
+
       const previewUrl = URL.createObjectURL(file);
+      const relativePath = getRelativeFilePath(file);
+      const { width, height } = await getUploadDimensions(file, mediaType);
       
       const asset: SelectedAsset = {
-        id: `upload-${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: `upload-${relativePath}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         source: 'upload',
         platform,
-        assetType: isVideo ? 'video' : 'image',
+        assetType: mediaType,
         thumbnailUrl: previewUrl,
         name: file.name,
         file,
+        relativePath,
+        width,
+        height,
       };
       
       onAddAsset(asset);
@@ -280,7 +358,7 @@ export function MeshSourceStep({
     
     toast.success(`Added ${files.length} files from folder`);
     if (e.target) e.target.value = '';
-  }, [platform, onAddAsset, googleMedia, googleCampaignTypes]);
+  }, [googleCampaignTypes, googleMedia, onAddAsset, platform]);
 
   // Handle YouTube video link
   const handleAddYoutubeVideo = useCallback(() => {
@@ -343,12 +421,11 @@ export function MeshSourceStep({
     platformAssets.map(a => ({
       id: a.id,
       name: a.name || a.id,
-      filePath: a.name,
-      folderPath: a.name ? a.name.split('/').slice(0, -1).join('/') : '/',
+      filePath: a.relativePath || a.name,
+      folderPath: a.relativePath ? a.relativePath.split('/').slice(0, -1).join('/') : '/',
       assetType: a.assetType,
       width: a.width,
       height: a.height,
-      aspectRatio: a.width && a.height ? `${a.width}:${a.height}` : undefined,
     })),
     [platformAssets]
   );
