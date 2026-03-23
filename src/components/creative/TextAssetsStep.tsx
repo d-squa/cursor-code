@@ -44,6 +44,8 @@ interface TextAssetsStepProps {
    * When omitted/empty, we load all assignments for the campaign.
    */
   savedAssignments?: SavedAssignment[];
+  /** Approved processing groups from the Creative Processing Options dialog */
+  processingOptions?: ProcessingOptions;
   onComplete: () => void;
   /** Called when user wants to save and select more creatives (goes back to step 1) */
   onSaveAndSelectMore?: () => void;
