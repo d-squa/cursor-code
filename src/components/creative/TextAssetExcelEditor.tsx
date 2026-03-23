@@ -1937,7 +1937,7 @@ export function TextAssetExcelEditor({
                                 >
                                   <Select
                                     value={value}
-                                    onValueChange={(v) => onRowChange(row.id, { [col.key]: v })}
+                                    onValueChange={(v) => handleRowChangeWithGroupSync(row.id, { [col.key]: v })}
                                     disabled={isOrganic}
                                   >
                                     <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
