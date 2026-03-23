@@ -1464,18 +1464,34 @@ export function TextAssetExcelEditor({
                     const errors = validateTextAssetRow(row);
                     const hasErrors = errors.length > 0;
                     const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                    const groupId = row.processingGroupId;
+                    const groupType = row.processingGroupType;
+                    const isCarouselGrouped = groupType === 'carousel';
+                    const isACGrouped = groupType === 'asset_customization';
+                    const isGrouped = !!(groupId && groupType);
                     
                     return (
                       <div
                         key={item.key}
                         className={cn(
-                          "flex border-b",
+                          "flex border-b relative",
                           hasErrors && "bg-destructive/5",
                           isOrganic && "bg-green-50/50 dark:bg-green-950/20",
+                          isCarouselGrouped && "bg-blue-50/40 dark:bg-blue-950/15",
+                          isACGrouped && "bg-purple-50/40 dark:bg-purple-950/15",
                           "hover:bg-accent/10"
                         )}
                         style={{ height: 40 }}
                       >
+                        {/* Colored left border for processing groups */}
+                        {isGrouped && (
+                          <div className={cn(
+                            "absolute left-0 top-0 bottom-0 w-[3px]",
+                            isCarouselGrouped && "bg-blue-500",
+                            isACGrouped && "bg-purple-500"
+                          )} />
+                        )}
+                        
                         {/* Select checkbox */}
                         <div
                           className="px-2 py-1.5 flex items-center justify-center border-r shrink-0 cursor-pointer"
@@ -1492,20 +1508,50 @@ export function TextAssetExcelEditor({
                           />
                         </div>
                         
-                        {/* Ad Type */}
+                        {/* Ad Type - shows group badge when grouped */}
                         <div
-                          className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
+                          className="px-2 py-1.5 flex items-center justify-center gap-1 border-r shrink-0"
                           style={{ width: HIERARCHY_COLUMNS[1].width }}
                         >
-                          <Badge 
-                            variant={isOrganic ? 'default' : 'secondary'}
-                            className={cn(
-                              "text-[10px] px-1.5",
-                              isOrganic ? "bg-green-600 hover:bg-green-600" : ""
-                            )}
-                          >
-                            {isOrganic ? 'Organic' : 'Dark'}
-                          </Badge>
+                          {isGrouped ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge 
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[9px] px-1 gap-0.5 cursor-pointer",
+                                      isCarouselGrouped && "border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400",
+                                      isACGrouped && "border-purple-400 text-purple-600 dark:border-purple-600 dark:text-purple-400"
+                                    )}
+                                    onClick={() => handleUngroupRow(row.id)}
+                                  >
+                                    {isCarouselGrouped ? (
+                                      <Layers className="h-3 w-3" />
+                                    ) : (
+                                      <SquareStack className="h-3 w-3" />
+                                    )}
+                                    <Unlink className="h-2.5 w-2.5" />
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="text-xs">
+                                  <p className="font-medium">{isCarouselGrouped ? 'Carousel Group' : 'Asset Customization Group'}</p>
+                                  <p className="text-muted-foreground">Click to ungroup this creative</p>
+                                  {isACGrouped && <p className="text-muted-foreground mt-1">Text edits sync to all group members</p>}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <Badge 
+                              variant={isOrganic ? 'default' : 'secondary'}
+                              className={cn(
+                                "text-[10px] px-1.5",
+                                isOrganic ? "bg-green-600 hover:bg-green-600" : ""
+                              )}
+                            >
+                              {isOrganic ? 'Organic' : 'Dark'}
+                            </Badge>
+                          )}
                         </div>
                         
                         {/* Platform */}
@@ -1592,6 +1638,15 @@ export function TextAssetExcelEditor({
                                       <span>({row.aspectRatio})</span>
                                     )}
                                   </div>
+                                  {isGrouped && (
+                                    <Badge variant="outline" className={cn(
+                                      "text-[9px] mt-1",
+                                      isCarouselGrouped && "border-blue-400 text-blue-600",
+                                      isACGrouped && "border-purple-400 text-purple-600"
+                                    )}>
+                                      {isCarouselGrouped ? 'Carousel Group' : 'Asset Customization'}
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
                             </HoverCardContent>
