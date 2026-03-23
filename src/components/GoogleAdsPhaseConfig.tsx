@@ -529,7 +529,36 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
             </div>
           )}
 
-          {/* App Platform (App Promotion only) */}
+          {/* Brand Guidelines (Performance Max only) */}
+          {selectedType === "Performance Max" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id={`gads-brand-guidelines-${phase.id}`}
+                  checked={phase.googleBrandGuidelines ?? false}
+                  onCheckedChange={(v) => {
+                    onUpdate("googleBrandGuidelines", v);
+                    if (!v) onUpdate("googleBusinessName", "");
+                  }}
+                  className="h-4 w-7"
+                />
+                <Label htmlFor={`gads-brand-guidelines-${phase.id}`} className="text-xs">Brand Guidelines</Label>
+              </div>
+              {phase.googleBrandGuidelines && (
+                <div className="ml-6 space-y-2">
+                  <Label className="text-xs">Business Name <span className="text-destructive">*</span></Label>
+                  <Input
+                    className="h-8 text-xs"
+                    value={phase.googleBusinessName || ""}
+                    onChange={(e) => onUpdate("googleBusinessName", e.target.value)}
+                    placeholder="Your business name"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Required when Brand Guidelines is enabled. A logo asset must also be linked in your Google Ads account.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {config.features.appPlatform && (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
