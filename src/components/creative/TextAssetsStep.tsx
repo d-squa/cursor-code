@@ -510,7 +510,22 @@ export function TextAssetsStep({
           console.log('TextAssetsStep: Applied processing groups to rows');
         }
         
-        setRows(transformedRows);
+        const dedupedRowsMap = new Map<string, CreativeTextAssetRowWithTikTok>();
+        for (const row of transformedRows) {
+          const existing = dedupedRowsMap.get(row.creativeId);
+
+          if (!existing) {
+            dedupedRowsMap.set(row.creativeId, row);
+            continue;
+          }
+
+          const shouldReplace = !existing.processingGroupId && !!row.processingGroupId;
+          if (shouldReplace) {
+            dedupedRowsMap.set(row.creativeId, row);
+          }
+        }
+
+        setRows(Array.from(dedupedRowsMap.values()));
       } catch (error) {
         console.error('Error loading assignments:', error);
         toast.error('Failed to load creative assignments');

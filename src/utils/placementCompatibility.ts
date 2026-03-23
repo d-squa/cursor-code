@@ -215,13 +215,11 @@ export function validateCarouselCreatives(
     result.errors.push(`Found ${storyCards.length} story card(s) and ${feedCards.length} feed card(s)`);
   }
 
-  // Check if same aspect ratio is required (platform-specific recommendation)
-  if (reqs.sameAspectRatio && aspectRatios.length > 1) {
-    const uniqueRatios = new Set(aspectRatios.filter(Boolean));
-    if (uniqueRatios.size > 1 && storyCards.length === 0 || feedCards.length === 0) {
-      // Only warn if not already blocked by the story/feed mix rule
-      result.warnings.push(`${platform} recommends all carousel cards have the same aspect ratio`);
-    }
+  const uniqueRatios = new Set(aspectRatios.filter((ratio): ratio is string => Boolean(ratio)));
+  if (uniqueRatios.size > 1) {
+    result.isValid = false;
+    result.errors.push('All carousel cards must use the same aspect ratio.');
+    result.errors.push(`Found mixed ratios: ${Array.from(uniqueRatios).join(', ')}`);
   }
 
   // Determine compatible placements for the carousel based on aspect ratios

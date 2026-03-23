@@ -325,7 +325,19 @@ export function TextAssetExcelEditor({
   const canCreateCarousel = useMemo(() => {
     if (selectedRows.length < 2) return false;
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
-    return adSets.size === 1;
+    if (adSets.size !== 1) return false;
+
+    const validation = validateCarouselCreatives(
+      selectedRows.map(row => ({
+        width: row.width,
+        height: row.height,
+        aspectRatio: row.aspectRatio,
+        mediaType: row.mediaType,
+      })),
+      selectedRows[0]?.platform || 'meta'
+    );
+
+    return validation.isValid;
   }, [selectedRows]);
 
   const canCreateAssetCustomization = useMemo(() => {
@@ -1853,7 +1865,8 @@ export function TextAssetExcelEditor({
                         return (
                           <div
                             key={item.key}
-                            className={cn("flex border-b", getLevelBg(item.level!))}
+                            className={cn("flex border-b cursor-pointer hover:bg-accent/50", getLevelBg(item.level!))}
+                            onClick={() => toggleGroup(item.groupKey!)}
                             style={{ height: 40 }}
                           >
                             {/* Paste to group button in scrollable area */}
@@ -1909,8 +1922,12 @@ export function TextAssetExcelEditor({
                                   return (
                                     <div key={col.key} className="px-1 py-1 border-r shrink-0" style={{ width: col.width }}>
                                       {col.key === 'placements' && (
-                                        <div className="h-7 flex items-center px-2 text-xs text-purple-600 dark:text-purple-400 font-medium italic">
-                                          Shared text ↓
+                                      <div
+                                        className="h-7 inline-flex items-center gap-1 px-2 text-xs text-purple-600 dark:text-purple-400 font-medium italic rounded cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-900/30"
+                                        onClick={() => toggleGroup(item.groupKey!)}
+                                      >
+                                          {isCollapsedPG ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                          Shared text
                                         </div>
                                       )}
                                     </div>
@@ -1972,12 +1989,14 @@ export function TextAssetExcelEditor({
                         
                         // Carousel parent: summary row
                         return (
-                          <div
+                            <div
                             key={item.key}
-                            className="flex border-b bg-blue-50/60 dark:bg-blue-950/30"
+                              className="flex border-b bg-blue-50/60 dark:bg-blue-950/30 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-900/40"
+                              onClick={() => toggleGroup(item.groupKey!)}
                             style={{ height: 44 }}
                           >
                             <div className="flex-1 flex items-center px-4 gap-2">
+                                {isCollapsedPG ? <ChevronRight className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> : <ChevronDown className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />}
                               <span className="text-xs text-blue-600 dark:text-blue-400 italic">
                                 {isCollapsedPG ? 'Expand to edit individual card text' : 'Edit text for each card below'}
                               </span>
