@@ -81,17 +81,32 @@ export function CreativeProcessingOptionsDialog({
   );
 
   // Run detection
-  const detection = useMemo(
-    () =>
-      runCreativeDetection(assets, {
-        enableCarousel: enableCarousel && carouselCompatible,
-        enableAssetCustomization: enableAssetCustomization && acCompatible,
-        platform,
-        objective,
-        googleCampaignType,
-      }),
-    [assets, enableCarousel, enableAssetCustomization, platform, objective, googleCampaignType, carouselCompatible, acCompatible]
-  );
+  const detection = useMemo(() => {
+    console.log(`[ProcessingDialog] Running detection on ${assets.length} assets, platform=${platform}`);
+    console.log(`[ProcessingDialog] Assets:`, assets.map(a => ({
+      name: a.name,
+      filePath: a.filePath,
+      folderPath: a.folderPath,
+      type: a.assetType,
+      w: a.width,
+      h: a.height,
+    })));
+
+    const result = runCreativeDetection(assets, {
+      enableCarousel: enableCarousel && carouselCompatible,
+      enableAssetCustomization: enableAssetCustomization && acCompatible,
+      platform,
+      objective,
+      googleCampaignType,
+    });
+
+    console.log(`[ProcessingDialog] Detection results: ${result.carouselGroups.length} carousels, ${result.assetCustomizations.length} asset customizations`);
+    if (result.carouselGroups.length > 0) {
+      result.carouselGroups.forEach(g => console.log(`[ProcessingDialog] Carousel: "${g.id}" — ${g.assets.length} assets in "${g.folderPath}"`));
+    }
+
+    return result;
+  }, [assets, enableCarousel, enableAssetCustomization, platform, objective, googleCampaignType, carouselCompatible, acCompatible]);
 
   const allGroups: DetectedGroup[] = [
     ...detection.carouselGroups,
