@@ -1471,9 +1471,11 @@ export function TextAssetExcelEditor({
         <span className="mx-2">|</span>
         <span className="font-medium">Carousel:</span> Select 2+ creatives in same ad set → Create Carousel
         <span className="mx-2">|</span>
+        <span className="font-medium">Asset Customization:</span> Select 2+ creatives with different ratios → Create Asset Customization
+        <span className="mx-2">|</span>
         <span className="font-medium">Groups:</span>
-        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-blue-500 inline-block" /> Carousel</span>
-        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-purple-500 inline-block" /> Asset Customization (shared text)</span>
+        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-blue-500 inline-block" /> Carousel (expand for per-card text)</span>
+        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-purple-500 inline-block" /> Asset Customization (shared text from parent)</span>
         <span className="mx-2">|</span>
         <span className="text-amber-600 font-medium">Organic posts: read-only except Destination URL</span>
       </div>
