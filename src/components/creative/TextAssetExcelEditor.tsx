@@ -540,11 +540,18 @@ export function TextAssetExcelEditor({
 
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
+    carousel.cardIds.forEach((id) => {
+      onRowChange(id, {
+        processingGroupId: carousel.id,
+        processingGroupType: 'carousel',
+      } as any);
+    });
+
     setShowCarouselCreator(false);
     clearSelection();
 
     toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
-  }, [clearSelection]);
+  }, [clearSelection, onRowChange]);
 
   // Get visible columns based on row's media type
   const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
