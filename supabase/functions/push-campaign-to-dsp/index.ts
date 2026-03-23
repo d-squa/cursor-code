@@ -3786,6 +3786,10 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             phaseBudget: phaseBudget,
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
+            // Search campaign params
+            keywordStrategy: strategyName || undefined,
+            matchType: strategyKeywords.length > 0 ? (strategyKeywords[0].matchType || "BROAD") : undefined,
+            campaignType: campaignType || advertisingChannelType,
           };
 
           const googleCampaignTaxonomyName = cleanCustomerId
