@@ -3871,6 +3871,8 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                 biddingStrategy: mappedBidStrategy,
                 bidAmount,
                 campaignSubtype: phase.googleCampaignSubtype,
+                merchantCenterId: phase.googleMerchantCenterId || market.googleMerchantCenterId,
+                feedLabel: phase.googleFeedLabel || market.googleFeedLabel,
               },
             });
 
