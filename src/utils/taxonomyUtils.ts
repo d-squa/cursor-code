@@ -812,6 +812,12 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google')
     { id: 'endDate', key: 'END', label: 'End Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → End Date in DDMM format (e.g., 1812 = December 18th).' },
     { id: 'boNumber', key: 'BO', label: 'BO Number', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → BO Number field. Business Order or Purchase Order reference number.' },
     { id: 'teamName', key: 'TEAM', label: 'Team', type: 'text', system: true, required: true, description: 'Auto-filled from Settings → Manage Your Team. The assigned team responsible for this campaign.' },
+    // Search campaign parameters - optional, auto-enabled for Google Ads and TikTok
+    ...(platform === 'google' || platform === 'tiktok' ? [
+      { id: 'keywordStrategy', key: 'KWST', label: 'Keyword Strategy', type: 'options' as TaxonomyParamType, options: ['BRAND', 'GENER', 'COMPE'], system: true, required: false, description: 'Auto-filled for Search campaigns. BRAND=Brand, GENER=Generic, COMPE=Competition.' },
+      { id: 'matchType', key: 'MT', label: 'Match Type', type: 'options' as TaxonomyParamType, options: ['BRD', 'PHR', 'EXT'], system: true, required: false, description: 'Auto-filled for Search campaigns. BRD=Broad, PHR=Phrase, EXT=Exact match type.' },
+      { id: 'campaignType', key: 'CTYP', label: 'Campaign Type', type: 'options' as TaxonomyParamType, options: platform === 'google' ? ['SRC', 'DSP', 'PMAX', 'VID', 'DGEN', 'SHOP', 'APP'] : ['SRC', 'VID', 'APP'], system: true, required: false, description: 'Auto-filled from Phase Config → Campaign Type. SRC=Search, DSP=Display, PMAX=Performance Max, VID=Video, DGEN=Demand Gen.' },
+    ] : []),
   ];
 }
 
