@@ -4910,50 +4910,47 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
           // Build search keywords for TikTok Search Ads
-          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform AND market) if phase.keywords is empty
+          // If we have strategy splitting, use the current strategy's keywords
+          // Otherwise fall back to the old behavior of pulling all keywords
           const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
           if (searchEnabled || isSearchPhase) {
-            const marketCode = (market.name || "").substring(0, 2).toUpperCase();
-            const allSelectedKeywords = campaign.generic_config?.basicTargeting?.selectedKeywords || [];
-            console.log(`🔍 All selectedKeywords count: ${allSelectedKeywords.length}, marketCode: ${marketCode}`);
-            if (allSelectedKeywords.length > 0) {
-              console.log(`🔍 Sample keyword:`, JSON.stringify(allSelectedKeywords[0]));
-            }
-            
-            // Try phase keywords first, then market-filtered, then all tiktok keywords as fallback
-            let rawKeywords = phase.keywords;
-            if (!rawKeywords || (Array.isArray(rawKeywords) && rawKeywords.length === 0)) {
-              // Try market-filtered keywords
-              rawKeywords = allSelectedKeywords
-                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
-              console.log(`🔍 Market-filtered TikTok keywords (${marketCode}): ${rawKeywords.length}`);
-              
-              // Fallback: if no market-filtered keywords, use ALL tiktok keywords
-              if (rawKeywords.length === 0) {
-                rawKeywords = allSelectedKeywords
-                  .filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
-                console.log(`🔍 Fallback to ALL TikTok keywords (no market filter): ${rawKeywords.length}`);
-              }
-              
-              // Final fallback: use ANY keywords regardless of platform
-              if (rawKeywords.length === 0) {
-                rawKeywords = allSelectedKeywords
-                  .filter((k: any) => !k.isNegative);
-                console.log(`🔍 Final fallback to ALL keywords (any platform): ${rawKeywords.length}`);
-              }
-            }
-            
-            if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
-              for (const kw of rawKeywords) {
+            if (strategyName && strategyKeywords.length > 0) {
+              // Use keywords from the current strategy split
+              for (const kw of strategyKeywords) {
                 tiktokSearchKeywords.push({
-                  text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
-                  matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+                  text: kw.text,
+                  matchType: kw.matchType || "BROAD",
                 });
               }
+              console.log(`📝 ${tiktokSearchKeywords.length} search keywords for strategy "${strategyName}" in TikTok ad group`);
+            } else if (!strategyName) {
+              // No strategy splitting — use all keywords (legacy behavior)
+              const marketCode = (market.name || "").substring(0, 2).toUpperCase();
+              const allSelectedKeywords = campaign.generic_config?.basicTargeting?.selectedKeywords || [];
+              
+              let rawKeywords = phase.keywords;
+              if (!rawKeywords || (Array.isArray(rawKeywords) && rawKeywords.length === 0)) {
+                rawKeywords = allSelectedKeywords
+                  .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
+                if (rawKeywords.length === 0) {
+                  rawKeywords = allSelectedKeywords.filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+                }
+                if (rawKeywords.length === 0) {
+                  rawKeywords = allSelectedKeywords.filter((k: any) => !k.isNegative);
+                }
+              }
+              
+              if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
+                for (const kw of rawKeywords) {
+                  tiktokSearchKeywords.push({
+                    text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
+                    matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+                  });
+                }
+              }
+              console.log(`📝 ${tiktokSearchKeywords.length} search keywords for TikTok ad group (no strategy split)`);
             }
-            console.log(`📝 ${tiktokSearchKeywords.length} search keywords for market ${marketCode} to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
             
-            // If still no keywords but search is enabled, disable search to prevent API error
             if (tiktokSearchKeywords.length === 0) {
               console.warn(`⚠️ Search enabled but NO keywords found — disabling search_result_enabled to prevent API rejection`);
             }
