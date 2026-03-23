@@ -1873,6 +1873,8 @@ export type Database = {
           default_ai_max: boolean | null
           default_ai_max_options: Json | null
           default_bid_strategy: string | null
+          default_brand_guidelines: boolean | null
+          default_business_name: string | null
           default_campaign_objective: string | null
           default_campaign_subtype: string | null
           default_campaign_type: string | null
@@ -1914,6 +1916,8 @@ export type Database = {
           default_ai_max?: boolean | null
           default_ai_max_options?: Json | null
           default_bid_strategy?: string | null
+          default_brand_guidelines?: boolean | null
+          default_business_name?: string | null
           default_campaign_objective?: string | null
           default_campaign_subtype?: string | null
           default_campaign_type?: string | null
@@ -1955,6 +1959,8 @@ export type Database = {
           default_ai_max?: boolean | null
           default_ai_max_options?: Json | null
           default_bid_strategy?: string | null
+          default_brand_guidelines?: boolean | null
+          default_business_name?: string | null
           default_campaign_objective?: string | null
           default_campaign_subtype?: string | null
           default_campaign_type?: string | null
