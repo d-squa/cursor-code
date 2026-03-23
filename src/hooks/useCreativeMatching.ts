@@ -403,12 +403,13 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
 
             const structureVariants = strategyGroups.length > 0 ? strategyGroups : [null];
 
-            const language =
+            const language = normalizeLanguageCode(
               (Array.isArray(phaseLanguages) && phaseLanguages[0]) ||
               (Array.isArray(market?.languages) && market.languages[0]) ||
               (Array.isArray(phase?.languages) && phase.languages[0]) ||
               market?.language ||
-              undefined;
+              undefined
+            );
 
             // Check if phase has ad set splits - align with Launch validation logic
             const phaseAdSets = Array.isArray(phase?.adSets) ? phase.adSets : undefined;
@@ -483,7 +484,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                       : taxonomyResult.elements,
                     placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
                     formatConstraints,
-                    language: adSet.languages?.[0] || phaseLanguages?.[0] || language,
+                    language: normalizeLanguageCode(adSet.languages?.[0] || phaseLanguages?.[0] || language),
                     // Track if this is a language split - language becomes a hard constraint
                     languageIsSplitDimension: effectiveSplitDimension === 'language',
                     optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
@@ -1858,7 +1859,11 @@ function inferConstraintsFromPath(path: string): HardConstraints {
 
 function checkHardConstraints(assetConstraints: HardConstraints, structure: CampaignStructure): boolean {
   if (assetConstraints.market && structure.market && assetConstraints.market.toUpperCase() !== structure.market.toUpperCase()) return false;
-  if (assetConstraints.language && structure.language && assetConstraints.language.toLowerCase() !== structure.language.toLowerCase()) return false;
+  if (
+    assetConstraints.language &&
+    structure.language &&
+    normalizeLanguageCode(assetConstraints.language) !== normalizeLanguageCode(structure.language)
+  ) return false;
   if (assetConstraints.variant && structure.variant && assetConstraints.variant !== structure.variant) return false;
   return true;
 }
@@ -2570,8 +2575,12 @@ function matchAssetToStructure(
   // If language is the split dimension, it becomes a HARD constraint - must match exactly
   // Otherwise it's a soft constraint that adds score
   if (structure.language) {
-    const structureLang = structure.language.toLowerCase();
+    const structureLang = normalizeLanguageCode(structure.language)?.toLowerCase();
     const assetLang = signals.language?.toLowerCase();
+
+    if (!structureLang) {
+      // Ignore unparseable language labels on the structure.
+    } else
     
     if (structure.languageIsSplitDimension || structure.splitDimension === 'language') {
       // Language is a split dimension - BLOCKING
