@@ -1774,6 +1774,23 @@ function getFolderPath(filePath?: string): string | null {
   return normalized.slice(0, lastSlash) || '/';
 }
 
+function normalizeLanguageCode(value?: string | null): string | undefined {
+  if (!value) return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  const map: Record<string, string> = {
+    english: 'en', eng: 'en', en: 'en',
+    arabic: 'ar', arab: 'ar', ara: 'ar', arb: 'ar', ar: 'ar',
+    french: 'fr', fra: 'fr', fre: 'fr', fr: 'fr',
+    german: 'de', deu: 'de', ger: 'de', de: 'de',
+    spanish: 'es', spa: 'es', es: 'es',
+    portuguese: 'pt', por: 'pt', pt: 'pt',
+    italian: 'it', ita: 'it', it: 'it',
+  };
+
+  return map[normalized] || (normalized.length >= 2 ? normalized.slice(0, 2) : undefined);
+}
+
 // Extract audience type from audiences array or split dimension
 function extractAudienceType(
   audiences: Array<{ id: string; name: string; type: string }> | undefined,
@@ -1830,7 +1847,10 @@ function inferConstraintsFromPath(path: string): HardConstraints {
   for (const part of parts) {
     const upper = part.toUpperCase();
     if (marketCodes.includes(upper)) constraints.market = upper;
-    if (/^(EN|ES|DE|FR|IT|JA|KO|PT|ZH|NL|PL|SV|NO|DA|FI)$/i.test(part)) constraints.language = part.toLowerCase();
+    const language = normalizeLanguageCode(part);
+    if (language && /^(en|ar|es|fr|de|it|ja|ko|pt|zh|nl|pl|sv|no|da|fi|he|ru|tr|hi)$/i.test(language)) {
+      constraints.language = language;
+    }
     if (/^(A|B|C|CONTROL|TEST|VARIANT)/i.test(part)) constraints.variant = part;
   }
   return constraints;
