@@ -71,6 +71,8 @@ interface GoogleAdAccountDefaults {
   default_inventory_type?: string | null;
   default_ai_max?: boolean | null;
   default_ai_max_options?: string[] | null;
+  default_brand_guidelines?: boolean | null;
+  default_business_name?: string | null;
 }
 
 interface AdAccount {
@@ -400,7 +402,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Load Google Ads accounts for this client
       const { data: googleAccountsData, error: googleAccountsError } = await supabase
         .from("google_ad_accounts")
-        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements, default_campaign_objective, default_campaign_type, default_campaign_subtype, default_location_targeting, default_search_partner, default_display_network, default_customer_acquisition, default_optimized_targeting, default_inventory_type, default_ai_max, default_ai_max_options")
+        .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements, default_campaign_objective, default_campaign_type, default_campaign_subtype, default_location_targeting, default_search_partner, default_display_network, default_customer_acquisition, default_optimized_targeting, default_inventory_type, default_ai_max, default_ai_max_options, default_brand_guidelines, default_business_name")
         .eq("client_id", clientId);
 
       if (googleAccountsError) throw googleAccountsError;
@@ -447,6 +449,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_inventory_type: (acc as any).default_inventory_type || null,
           default_ai_max: (acc as any).default_ai_max ?? false,
           default_ai_max_options: Array.isArray((acc as any).default_ai_max_options) ? (acc as any).default_ai_max_options : [],
+          default_brand_guidelines: (acc as any).default_brand_guidelines ?? false,
+          default_business_name: (acc as any).default_business_name || null,
         };
       });
       setGoogleLocalDefaults(gDefaults);
@@ -1001,6 +1005,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_inventory_type",
         "default_ai_max",
         "default_ai_max_options",
+        "default_brand_guidelines",
+        "default_business_name",
       ];
 
       const updateData: Record<string, any> = {};
@@ -2883,6 +2889,35 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Brand Guidelines (PMax) */}
+                      <div className="space-y-3 mt-4">
+                        <Label className="text-sm font-medium">Brand Guidelines (Performance Max)</Label>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={(gDefaults as any).default_brand_guidelines ?? false}
+                            onCheckedChange={(v) => {
+                              updateGoogleDefault(gAccount.id, "default_brand_guidelines" as any, v);
+                              if (!v) updateGoogleDefault(gAccount.id, "default_business_name" as any, null);
+                            }}
+                            className="h-4 w-7"
+                          />
+                          <Label className="text-sm">Brand Guidelines</Label>
+                        </div>
+                        {(gDefaults as any).default_brand_guidelines && (
+                          <div className="ml-6 space-y-2">
+                            <Label className="text-sm">Business Name</Label>
+                            <Input
+                              placeholder="Your business name"
+                              value={(gDefaults as any).default_business_name || ""}
+                              onChange={(e) => updateGoogleDefault(gAccount.id, "default_business_name" as any, e.target.value || null)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Required for PMax campaigns with Brand Guidelines. A logo asset must also be linked in your Google Ads account.
+                            </p>
                           </div>
                         )}
                       </div>
