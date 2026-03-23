@@ -32,13 +32,6 @@ export interface DetectableAsset {
   aspectRatio?: string;
 }
 
-/** Compute aspect ratio string from dimensions */
-function computeAspectRatio(w: number, h: number): string {
-  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
-  const d = gcd(w, h);
-  return `${w / d}:${h / d}`;
-}
-
 /** Simplify aspect ratio to common names */
 function simplifyAspectRatio(w: number, h: number): string {
   const ratio = w / h;
@@ -50,44 +43,92 @@ function simplifyAspectRatio(w: number, h: number): string {
   if (Math.abs(ratio - 3 / 4) < 0.05) return '3:4';
   if (Math.abs(ratio - 2 / 3) < 0.05) return '2:3';
   if (Math.abs(ratio - 3 / 2) < 0.05) return '3:2';
-  return computeAspectRatio(w, h);
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const d = gcd(w, h);
+  return `${w / d}:${h / d}`;
 }
 
-/** Extract the base name by stripping sequence numbers, aspect ratio tags, and extensions */
+/**
+ * Extract a "series key" and sequence number from a filename.
+ * Returns null if no sequence pattern is found.
+ *
+ * Supported patterns (case-insensitive):
+ *   - Explicit labels: "FRAME 1", "Card_2", "Slide-03", "Frame03"
+ *   - Mid-name sequences with aspect ratio after: "base_1_4x5_RGB" / "base_2_4x5_RGB"
+ *   - Trailing numbers: "creative_01", "creative-3"
+ */
+function extractSeriesInfo(fileName: string): { seriesKey: string; sequence: number } | null {
+  const cleaned = fileName.replace(/\.[^/.]+$/, ''); // remove extension
+
+  // 1) Explicit label patterns: "FRAME 1", "Card_2", "Slide-03"
+  //    Capture everything before the label as the series key
+  const labelMatch = cleaned.match(
+    /^(.+?)[\s_-]*(card|slide|frame|img|image|pic|photo)\s*[-_#]?(\d{1,3})\b(.*)/i
+  );
+  if (labelMatch) {
+    const prefix = labelMatch[1].trim();
+    const label = labelMatch[2].toLowerCase();
+    const seq = Number(labelMatch[3]);
+    const suffix = labelMatch[4].trim();
+    // Series key = prefix + label word + suffix (everything except the number)
+    const seriesKey = `${prefix}|${label}|${suffix}`.toLowerCase()
+      .replace(/[-_\s]+/g, '_').replace(/^_|_$/g, '');
+    return { seriesKey, sequence: seq };
+  }
+
+  // 2) Mid-name sequence: "base_1_4x5_RGB" vs "base_2_4x5_RGB"
+  //    Pattern: (base)_(digit)_(aspect-ratio-or-dimension-tag)_(suffix)
+  const midMatch = cleaned.match(
+    /^(.+?)[-_](\d{1,3})[-_]((?:\d{1,2}x\d{1,2}|1x1|4x5|9x16|16x9|1_1|4_5|9_16|16_9|square|portrait|landscape|vertical|horizontal).*)$/i
+  );
+  if (midMatch) {
+    const prefix = midMatch[1].trim();
+    const seq = Number(midMatch[2]);
+    const suffix = midMatch[3].trim();
+    const seriesKey = `${prefix}|mid|${suffix}`.toLowerCase()
+      .replace(/[-_\s]+/g, '_').replace(/^_|_$/g, '');
+    return { seriesKey, sequence: seq };
+  }
+
+  // 3) Trailing number: "creative_01", "creative-3", "img#5"
+  const trailMatch = cleaned.match(/^(.+?)[-_#](\d{1,3})$/);
+  if (trailMatch) {
+    const prefix = trailMatch[1].trim();
+    const seq = Number(trailMatch[2]);
+    // Exclude pure numeric prefixes like dates/IDs (e.g. "000047560004_1")
+    // Only use trailing match if the prefix contains at least one letter
+    if (/[a-zA-Z]/.test(prefix)) {
+      const seriesKey = `${prefix}|trail`.toLowerCase()
+        .replace(/[-_\s]+/g, '_').replace(/^_|_$/g, '');
+      return { seriesKey, sequence: seq };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract the base name for asset customization grouping.
+ * Strips sequence numbers, aspect ratio tags, dimension tags, and extensions.
+ */
 function extractBaseName(fileName: string): string {
   return fileName
     .replace(/\.[^/.]+$/, '') // remove extension
     .replace(/[-_]?\d{2,4}x\d{2,4}/gi, '') // remove dimension tags like 1080x1080
     .replace(/[-_]?(1x1|1_1|4x5|4_5|9x16|9_16|16x9|16_9|square|portrait|landscape|vertical|horizontal)/gi, '') // aspect ratio labels
-    .replace(/[-_]?(card|slide|frame)?[-_]?\d{1,3}$/i, '') // trailing sequence numbers
-    .replace(/[-_]+$/, '') // trailing separators
+    .replace(/[-_]?(card|slide|frame|img|image|pic|photo)?\s*[-_#]?\d{1,3}$/i, '') // trailing sequence numbers (with spaces)
+    .replace(/[-_\s]+$/g, '') // trailing separators and spaces
     .trim()
     .toLowerCase();
 }
 
 /** Extract folder path from file name/path */
-function getFolderPath(filePath?: string, fileName?: string): string {
+function getFolderPath(filePath?: string): string {
   if (filePath) {
     const parts = filePath.split('/');
     return parts.length > 1 ? parts.slice(0, -1).join('/') : '/';
   }
   return '/';
-}
-
-function extractSequenceNumber(fileName: string): number | null {
-  const cleaned = fileName.replace(/\.[^/.]+$/, '');
-
-  const explicitLabelMatch = cleaned.match(/(?:card|slide|frame|img|image|pic|photo)\s*[-_#]?(\d{1,3})/i);
-  if (explicitLabelMatch) {
-    return Number(explicitLabelMatch[1]);
-  }
-
-  const trailingMatch = cleaned.match(/[-_#](\d{1,3})(?:\D*)$/);
-  if (trailingMatch) {
-    return Number(trailingMatch[1]);
-  }
-
-  return null;
 }
 
 function toStableIdPart(value: string): string {
@@ -98,64 +139,51 @@ function toStableIdPart(value: string): string {
     .slice(0, 80) || 'group';
 }
 
-/** Detect sequence indicators in file names */
-function hasSequenceIndicator(fileName: string): boolean {
-  const cleaned = fileName.replace(/\.[^/.]+$/, '');
-  // Patterns: card_1, slide-2, frame03, _01, -1, #1
-  return /[-_]?(card|slide|frame|img|image|pic|photo)?[-_#]?\d{1,3}$/i.test(cleaned)
-    || /\b(card|slide|frame)\s*\d/i.test(cleaned);
-}
-
 /**
  * Detect carousel groups from a set of assets.
- * Groups assets from the same folder with the same dimensions that appear to be a sequence.
+ * Groups assets from the same folder with the same dimensions that form a sequence.
  */
 export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouselGroup[] {
-  // Group by folder + exact dimensions + shared series key
-  const groups = new Map<string, { folder: string; dimKey: string; baseName: string; assets: DetectableAsset[] }>();
+  // Group by folder + exact dimensions + series key
+  const groups = new Map<string, { folder: string; dimKey: string; seriesKey: string; items: { asset: DetectableAsset; sequence: number }[] }>();
 
   for (const asset of assets) {
-    if (asset.assetType !== 'image') continue; // Carousels are typically image-based
-    if (!asset.width || !asset.height) continue; // Skip unknown dimensions to avoid false positives
+    if (asset.assetType !== 'image') continue;
+    if (!asset.width || !asset.height) continue;
 
-    const folder = getFolderPath(asset.filePath, asset.name);
+    const seriesInfo = extractSeriesInfo(asset.name);
+    if (!seriesInfo) continue;
+
+    const folder = getFolderPath(asset.filePath);
     const dimKey = `${asset.width}x${asset.height}`;
-    const baseName = extractBaseName(asset.name);
+    const key = `${folder}||${dimKey}||${seriesInfo.seriesKey}`;
 
-    if (!baseName || !hasSequenceIndicator(asset.name)) continue;
-
-    const key = `${folder}||${dimKey}||${baseName}`;
-    
     if (!groups.has(key)) {
-      groups.set(key, { folder, dimKey, baseName, assets: [] });
+      groups.set(key, { folder, dimKey, seriesKey: seriesInfo.seriesKey, items: [] });
     }
-    groups.get(key)!.assets.push(asset);
+    groups.get(key)!.items.push({ asset, sequence: seriesInfo.sequence });
   }
 
   const results: DetectedCarouselGroup[] = [];
 
-  for (const { folder, dimKey, baseName, assets: groupAssets } of groups.values()) {
-    if (groupAssets.length < 2) continue;
+  for (const { folder, dimKey, seriesKey, items } of groups.values()) {
+    if (items.length < 2) continue;
 
-    const sequencedAssets = groupAssets
-      .map((asset) => ({ asset, sequence: extractSequenceNumber(asset.name) }))
-      .filter((item): item is { asset: DetectableAsset; sequence: number } => item.sequence !== null);
-
-    const uniqueSequences = new Set(sequencedAssets.map((item) => item.sequence));
+    const uniqueSequences = new Set(items.map(i => i.sequence));
     if (uniqueSequences.size < 2) continue;
 
-    const orderedAssets = sequencedAssets
+    const orderedAssets = items
       .sort((a, b) => a.sequence - b.sequence || a.asset.name.localeCompare(b.asset.name))
-      .map((item) => item.asset);
+      .map(i => i.asset);
 
-      results.push({
-        id: `carousel-${toStableIdPart(folder)}-${toStableIdPart(dimKey)}-${toStableIdPart(baseName)}`,
-        type: 'carousel',
-        folderPath: folder,
-        assets: orderedAssets,
-        reason: `${orderedAssets.length} images with sequence numbering in "${folder || '/'}" folder (${dimKey})`,
-        sharedDimensions: dimKey,
-      });
+    results.push({
+      id: `carousel-${toStableIdPart(folder)}-${toStableIdPart(dimKey)}-${toStableIdPart(seriesKey)}`,
+      type: 'carousel',
+      folderPath: folder,
+      assets: orderedAssets,
+      reason: `${orderedAssets.length} images with sequence numbering in "${folder || '/'}" folder (${dimKey})`,
+      sharedDimensions: dimKey,
+    });
   }
 
   return results;
@@ -166,17 +194,16 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
  * Groups assets that share the same base name but exist in different aspect ratios.
  */
 export function detectAssetCustomization(assets: DetectableAsset[]): DetectedAssetCustomization[] {
-  // Group by folder + base name to avoid cross-folder false positives
   const groups = new Map<string, { baseName: string; assets: DetectableAsset[] }>();
 
   for (const asset of assets) {
     if (!asset.width || !asset.height) continue;
-    const folder = getFolderPath(asset.filePath, asset.name);
+    const folder = getFolderPath(asset.filePath);
     const base = extractBaseName(asset.name);
     if (!base) continue;
 
     const key = `${folder}||${base}`;
-    
+
     if (!groups.has(key)) groups.set(key, { baseName: base, assets: [] });
     groups.get(key)!.assets.push(asset);
   }
@@ -186,9 +213,7 @@ export function detectAssetCustomization(assets: DetectableAsset[]): DetectedAss
   for (const { baseName, assets: groupAssets } of groups.values()) {
     if (groupAssets.length < 2) continue;
 
-    // Check they have different aspect ratios
     const ratios = new Set(groupAssets.map(a => simplifyAspectRatio(a.width!, a.height!)));
-
     if (ratios.size < 2) continue; // Same aspect ratio — not asset customization
 
     const ratioList = [...ratios].sort();
@@ -208,38 +233,24 @@ export function detectAssetCustomization(assets: DetectableAsset[]): DetectedAss
 /** Check if the campaign objective supports carousel format */
 export function isCarouselCompatible(platform: string, objective?: string, googleCampaignType?: string): boolean {
   const p = platform.toLowerCase();
-
-  // Google: only Demand Gen and Performance Max support carousel-like formats
   if (p === 'google') {
     const ct = googleCampaignType?.toLowerCase() || '';
     return ct.includes('demand gen') || ct.includes('performance max');
   }
-
-  // Meta: most objectives support carousel
   if (p === 'meta') return true;
-
-  // TikTok: carousel ads supported for Traffic, App Install, Conversion objectives
   if (p === 'tiktok') return true;
-
   return true;
 }
 
 /** Check if the campaign objective supports asset customization (multi-placement) */
 export function isAssetCustomizationCompatible(platform: string, objective?: string, googleCampaignType?: string): boolean {
   const p = platform.toLowerCase();
-
-  // Google: Performance Max and Demand Gen support asset groups with multiple formats
   if (p === 'google') {
     const ct = googleCampaignType?.toLowerCase() || '';
     return ct.includes('performance max') || ct.includes('demand gen') || ct.includes('display');
   }
-
-  // Meta: supports asset customization via placement asset customization
   if (p === 'meta') return true;
-
-  // TikTok: limited support
   if (p === 'tiktok') return false;
-
   return false;
 }
 
@@ -264,12 +275,16 @@ export function runCreativeDetection(
   const carouselCompatible = isCarouselCompatible(options.platform, options.objective, options.googleCampaignType);
   const assetCustomizationCompatible = isAssetCustomizationCompatible(options.platform, options.objective, options.googleCampaignType);
 
+  // Exclude assets already claimed by carousel groups from asset customization
   const carouselGroups = (options.enableCarousel && carouselCompatible)
     ? detectCarouselGroups(assets)
     : [];
 
+  const carouselAssetIds = new Set(carouselGroups.flatMap(g => g.assets.map(a => a.id)));
+  const remainingAssets = assets.filter(a => !carouselAssetIds.has(a.id));
+
   const assetCustomizations = (options.enableAssetCustomization && assetCustomizationCompatible)
-    ? detectAssetCustomization(assets)
+    ? detectAssetCustomization(remainingAssets)
     : [];
 
   return {
