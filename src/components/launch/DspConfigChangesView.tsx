@@ -328,7 +328,7 @@ export function DspConfigChangesView({
           </div>
         </div>
 
-        <ScrollArea className="h-[420px]">
+        <ScrollArea className={totalDisplayed === 0 && !syncing ? "h-auto" : "h-[420px]"}>
           <div className="space-y-2 pr-3">
             {Object.entries(grouped).map(([platform, entities]) => (
               <Collapsible

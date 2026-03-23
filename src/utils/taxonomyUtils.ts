@@ -74,6 +74,10 @@ export interface TaxonomyContext {
   // Dates
   startDate?: string;
   endDate?: string;
+  // Search campaign params
+  keywordStrategy?: string;
+  matchType?: string;
+  campaignType?: string;
 }
 
 // Value shortening mappings - comprehensive list
