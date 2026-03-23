@@ -1089,6 +1089,14 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     const compositeKey = `${assetId}:${match.structure.id}`;
     setState(prev => {
       const newAccepted = new Map(prev.acceptedMatches);
+
+      // One creative asset can only be accepted into one structure at a time.
+      for (const key of Array.from(newAccepted.keys())) {
+        if (key.startsWith(`${assetId}:`) && key !== compositeKey) {
+          newAccepted.delete(key);
+        }
+      }
+
       newAccepted.set(compositeKey, match);
       return { ...prev, acceptedMatches: newAccepted };
     });
@@ -1518,7 +1526,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
 
         // Build saved assignments for text asset editor
         // Map upserted assignment IDs back to original structures by creative_id
-        const savedAssignments = (upsertedAssignments || []).map((a: any) => {
+        const savedAssignments = dedupeSavedAssignments((upsertedAssignments || []).map((a: any) => {
           let matchedAsset: DigestedAsset | undefined;
           let matchedStructure: CampaignStructure | undefined;
           
@@ -1562,7 +1570,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
             creativeName: matchedAsset?.fileName || 'Creative',
             mediaType: (matchedAsset?.mediaType || 'image') as 'image' | 'video',
           };
-        });
+        }));
 
         console.log('Built savedAssignments:', savedAssignments);
 
@@ -1676,7 +1684,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
           return;
         }
 
-        const savedAssignments = assignments.map((a: any) => {
+        const savedAssignments = dedupeSavedAssignments(assignments.map((a: any) => {
           const creative = a.creatives;
           const isVideo = creative?.creative_type === 'video' || 
             creative?.media_urls?.[0]?.includes('.mp4') || 
@@ -1693,7 +1701,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
             creativeName: creative?.name || 'Creative',
             mediaType: (isVideo ? 'video' : 'image') as 'image' | 'video',
           };
-        });
+        }));
 
         setState(prev => ({
           ...prev,
@@ -1734,6 +1742,18 @@ function calculateAspectRatio(w: number, h: number): string {
   const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
   const d = gcd(w, h);
   return `${w/d}:${h/d}`;
+}
+
+function dedupeSavedAssignments<T extends { creativeId: string }>(assignments: T[]): T[] {
+  const uniqueAssignments = new Map<string, T>();
+
+  for (const assignment of assignments) {
+    if (!uniqueAssignments.has(assignment.creativeId)) {
+      uniqueAssignments.set(assignment.creativeId, assignment);
+    }
+  }
+
+  return Array.from(uniqueAssignments.values());
 }
 
 // Extract audience type from audiences array or split dimension
