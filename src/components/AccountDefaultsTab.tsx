@@ -447,6 +447,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_inventory_type: (acc as any).default_inventory_type || null,
           default_ai_max: (acc as any).default_ai_max ?? false,
           default_ai_max_options: Array.isArray((acc as any).default_ai_max_options) ? (acc as any).default_ai_max_options : [],
+          default_brand_guidelines: (acc as any).default_brand_guidelines ?? false,
+          default_business_name: (acc as any).default_business_name || null,
         };
       });
       setGoogleLocalDefaults(gDefaults);
