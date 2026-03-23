@@ -162,6 +162,12 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     if (!phase.googlePlacements?.length && googleDefaults.googlePlacements?.length) {
       onUpdate("googlePlacements", googleDefaults.googlePlacements);
     }
+    if (phase.googleBrandGuidelines === undefined && googleDefaults.googleBrandGuidelines !== undefined) {
+      onUpdate("googleBrandGuidelines", googleDefaults.googleBrandGuidelines);
+    }
+    if (!phase.googleBusinessName && googleDefaults.googleBusinessName) {
+      onUpdate("googleBusinessName", googleDefaults.googleBusinessName);
+    }
   }, [phase.id, googleDefaults]);
 
   const [merchantCenters, setMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);
