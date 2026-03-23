@@ -566,7 +566,7 @@ async function syncMetaAccountsInBackground(
       .eq("team_id", teamId)
       .eq("platform_id", platformId);
     
-    const { error: insertError } = await supabase.from("meta_ad_accounts").upsert(accountsToInsert, { onConflict: 'user_id,account_id' });
+    const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
     
     if (insertError) {
       console.error("[SYNC-META] Upsert error:", insertError);
