@@ -74,6 +74,10 @@ export interface TaxonomyContext {
   // Dates
   startDate?: string;
   endDate?: string;
+  // Search campaign params
+  keywordStrategy?: string;
+  matchType?: string;
+  campaignType?: string;
 }
 
 // Value shortening mappings - comprehensive list
@@ -622,6 +626,32 @@ export function extractTaxonomyValues(
       case 'endDate':
         values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
         break;
+      case 'keywordStrategy':
+        rawValue = context.keywordStrategy;
+        values[param.id] = rawValue ? rawValue.toUpperCase().substring(0, 5) : '';
+        break;
+      case 'matchType':
+        rawValue = context.matchType;
+        if (rawValue) {
+          const mtMap: Record<string, string> = { 'BROAD': 'BRD', 'PHRASE': 'PHR', 'EXACT': 'EXT', 'BROAD_WORD': 'BWD' };
+          values[param.id] = mtMap[rawValue.toUpperCase()] || rawValue.substring(0, 3).toUpperCase();
+        } else {
+          values[param.id] = '';
+        }
+        break;
+      case 'campaignType':
+        rawValue = context.campaignType;
+        if (rawValue) {
+          const ctMap: Record<string, string> = {
+            'Search': 'SRC', 'Display': 'DSP', 'Performance Max': 'PMAX', 'Video': 'VID',
+            'Demand Gen': 'DGEN', 'Shopping': 'SHOP', 'App Promotion': 'APP',
+            'SEARCH': 'SRC', 'DISPLAY': 'DSP', 'PERFORMANCE_MAX': 'PMAX',
+          };
+          values[param.id] = ctMap[rawValue] || createShortCode(rawValue);
+        } else {
+          values[param.id] = '';
+        }
+        break;
       case 'targetingType':
         // Handle targeting type - could be a string like 'native', 'RTG', 'EXP', 'MIX', etc.
         rawValue = context.targetingType;
@@ -782,6 +812,12 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google')
     { id: 'endDate', key: 'END', label: 'End Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → End Date in DDMM format (e.g., 1812 = December 18th).' },
     { id: 'boNumber', key: 'BO', label: 'BO Number', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → BO Number field. Business Order or Purchase Order reference number.' },
     { id: 'teamName', key: 'TEAM', label: 'Team', type: 'text', system: true, required: true, description: 'Auto-filled from Settings → Manage Your Team. The assigned team responsible for this campaign.' },
+    // Search campaign parameters - optional, auto-enabled for Google Ads and TikTok
+    ...(platform === 'google' || platform === 'tiktok' ? [
+      { id: 'keywordStrategy', key: 'KWST', label: 'Keyword Strategy', type: 'options' as TaxonomyParamType, options: ['BRAND', 'GENER', 'COMPE'], system: true, required: false, description: 'Auto-filled for Search campaigns. BRAND=Brand, GENER=Generic, COMPE=Competition.' },
+      { id: 'matchType', key: 'MT', label: 'Match Type', type: 'options' as TaxonomyParamType, options: ['BRD', 'PHR', 'EXT'], system: true, required: false, description: 'Auto-filled for Search campaigns. BRD=Broad, PHR=Phrase, EXT=Exact match type.' },
+      { id: 'campaignType', key: 'CTYP', label: 'Campaign Type', type: 'options' as TaxonomyParamType, options: platform === 'google' ? ['SRC', 'DSP', 'PMAX', 'VID', 'DGEN', 'SHOP', 'APP'] : ['SRC', 'VID', 'APP'], system: true, required: false, description: 'Auto-filled from Phase Config → Campaign Type. SRC=Search, DSP=Display, PMAX=Performance Max, VID=Video, DGEN=Demand Gen.' },
+    ] : []),
   ];
 }
 
@@ -1265,6 +1301,9 @@ export function getAllAvailableParams(): TaxonomyParam[] {
     { id: 'deviceType', key: 'DEV', label: 'Device Type', type: 'options', options: ['ALL', 'MOB', 'DSK', 'TAB'], system: false },
     { id: 'billingEvent', key: 'BIL', label: 'Billing Event', type: 'options', options: ['CPM', 'CPC', 'OCPM', 'CPV'], system: false },
     { id: 'conversionEvent', key: 'EVT', label: 'Conversion Event', type: 'options', options: ['PUR', 'ATC', 'LED', 'REG', 'PGV'], system: false },
+    { id: 'keywordStrategy', key: 'KWST', label: 'Keyword Strategy', type: 'options', options: ['BRAND', 'GENER', 'COMPE'], system: false },
+    { id: 'matchType', key: 'MT', label: 'Match Type', type: 'options', options: ['BRD', 'PHR', 'EXT'], system: false },
+    { id: 'campaignType', key: 'CTYP', label: 'Campaign Type', type: 'options', options: ['SRC', 'DSP', 'PMAX', 'VID', 'DGEN', 'SHOP', 'APP'], system: false },
   ];
 }
 

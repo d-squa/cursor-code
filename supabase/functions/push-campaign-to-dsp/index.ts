@@ -3561,9 +3561,58 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
     }
 
     // Resolve market countries for geo targeting
-    const marketCountries: string[] = Array.isArray(market.countries) && market.countries.length > 0
+    // Try market.countries first, then marketCode (the key in marketsObj which is typically the ISO code),
+    // then market.name, and finally market.countryCode
+    const rawMarketCountries: string[] = Array.isArray(market.countries) && market.countries.length > 0
       ? market.countries
-      : [market.name]; // market.name is ISO country code
+      : [];
+    
+    let marketCountries: string[] = rawMarketCountries;
+    if (marketCountries.length === 0) {
+      // Try to derive from marketCode (the key in the markets object) — often the ISO code
+      const candidateSources = [marketCode, market.name, market.countryCode, market.code, market.id].filter(Boolean);
+      for (const candidate of candidateSources) {
+        const upper = String(candidate).toUpperCase().trim();
+        // Only accept 2-letter ISO codes
+        if (/^[A-Z]{2}$/.test(upper)) {
+          marketCountries = [upper];
+          console.log(`🌍 Derived country code "${upper}" from candidate "${candidate}"`);
+          break;
+        }
+      }
+      // If still empty, try to map full country names to ISO codes
+      if (marketCountries.length === 0) {
+        const countryNameToCode: Record<string, string> = {
+          "UNITED STATES": "US", "UNITED KINGDOM": "GB", "GERMANY": "DE", "FRANCE": "FR",
+          "SPAIN": "ES", "ITALY": "IT", "UNITED ARAB EMIRATES": "AE", "SAUDI ARABIA": "SA",
+          "EGYPT": "EG", "INDIA": "IN", "BRAZIL": "BR", "AUSTRALIA": "AU", "CANADA": "CA",
+          "JAPAN": "JP", "SOUTH KOREA": "KR", "MEXICO": "MX", "NETHERLANDS": "NL",
+          "SWEDEN": "SE", "NORWAY": "NO", "DENMARK": "DK", "TURKEY": "TR", "POLAND": "PL",
+          "SOUTH AFRICA": "ZA", "NIGERIA": "NG", "KENYA": "KE", "BELGIUM": "BE",
+          "SWITZERLAND": "CH", "AUSTRIA": "AT", "IRELAND": "IE", "PORTUGAL": "PT",
+          "GREECE": "GR", "CZECH REPUBLIC": "CZ", "ROMANIA": "RO", "HUNGARY": "HU",
+          "FINLAND": "FI", "RUSSIA": "RU", "UKRAINE": "UA", "PHILIPPINES": "PH",
+          "MALAYSIA": "MY", "SINGAPORE": "SG", "THAILAND": "TH", "VIETNAM": "VN",
+          "INDONESIA": "ID", "NEW ZEALAND": "NZ", "ARGENTINA": "AR", "CHILE": "CL",
+          "COLOMBIA": "CO", "PERU": "PE", "BAHRAIN": "BH", "QATAR": "QA",
+          "KUWAIT": "KW", "OMAN": "OM", "LEBANON": "LB",
+        };
+        for (const candidate of candidateSources) {
+          const mapped = countryNameToCode[String(candidate).toUpperCase().trim()];
+          if (mapped) {
+            marketCountries = [mapped];
+            console.log(`🌍 Mapped country name "${candidate}" → "${mapped}"`);
+            break;
+          }
+        }
+      }
+    }
+    
+    if (marketCountries.length === 0) {
+      console.warn(`⚠️ Could not resolve any country codes for market: ${JSON.stringify({ marketCode, name: market.name, countries: market.countries })}`);
+    } else {
+      console.log(`🌍 Google Ads geo targeting: ${marketCountries.join(", ")} (from market ${market.name})`);
+    }
 
     // Resolve languages
     const basicTargeting = campaign.generic_config?.basicTargeting || {};
@@ -3737,6 +3786,10 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             phaseBudget: phaseBudget,
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
+            // Search campaign params
+            keywordStrategy: strategyName || undefined,
+            matchType: strategyKeywords.length > 0 ? (strategyKeywords[0].matchType || "BROAD") : undefined,
+            campaignType: campaignType || advertisingChannelType,
           };
 
           const googleCampaignTaxonomyName = cleanCustomerId
@@ -4294,6 +4347,74 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           endDate: phase.endDate || campaign.end_date,
         };
 
+        // ============= TIKTOK SEARCH STRATEGY SPLITTING =============
+        // For Search phases, split keywords by strategy (Brand, Generic, Competition) into separate campaigns
+        // Similar to how Google Ads handles search keyword strategies
+        let tiktokKeywordStrategies: Record<string, Array<{ text: string; matchType?: string; strategy?: string }>> = {};
+        
+        if (isSearchPhase) {
+          const marketCode = (market.name || "").substring(0, 2).toUpperCase();
+          const allSelectedKeywords = campaign.generic_config?.basicTargeting?.selectedKeywords || [];
+          
+          // Gather all TikTok keywords for this market
+          let rawKeywords = phase.keywords;
+          if (!rawKeywords || (Array.isArray(rawKeywords) && rawKeywords.length === 0)) {
+            rawKeywords = allSelectedKeywords
+              .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
+            if (rawKeywords.length === 0) {
+              rawKeywords = allSelectedKeywords.filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+            }
+            if (rawKeywords.length === 0) {
+              rawKeywords = allSelectedKeywords.filter((k: any) => !k.isNegative);
+            }
+          }
+          
+          if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
+            for (const kw of rawKeywords) {
+              const strategy = typeof kw === "string" ? "Generic" : (kw.strategy || kw.category || "Generic");
+              if (!tiktokKeywordStrategies[strategy]) tiktokKeywordStrategies[strategy] = [];
+              tiktokKeywordStrategies[strategy].push({
+                text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
+                matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+                strategy,
+              });
+            }
+            console.log(`🔍 TikTok search keyword strategies: ${Object.keys(tiktokKeywordStrategies).join(", ")} (${rawKeywords.length} total keywords)`);
+          }
+        }
+
+        // Determine strategies to process
+        const tiktokStrategiesToProcess = Object.keys(tiktokKeywordStrategies).length > 0
+          ? Object.entries(tiktokKeywordStrategies)
+          : [["", []] as [string, Array<{ text: string; matchType?: string }>]];
+
+        // Calculate volume-weighted budget splits for search strategies
+        const tiktokStrategyCount = Math.max(1, Object.keys(tiktokKeywordStrategies).length);
+
+        for (const [strategyName, strategyKeywords] of tiktokStrategiesToProcess) {
+          // Adjust budget for strategy split
+          let strategyCampaignBudget = campaignBudget;
+          if (tiktokStrategyCount > 1 && strategyName) {
+            // Volume-weighted or equal split
+            const allKws = Object.values(tiktokKeywordStrategies).flat();
+            const totalVolume = allKws.reduce((s: number, k: any) => s + (k.avgMonthlySearches || 0), 0);
+            if (totalVolume > 0) {
+              const strategyVol = strategyKeywords.reduce((s: number, k: any) => s + (k.avgMonthlySearches || 0), 0);
+              strategyCampaignBudget = campaignBudget * (strategyVol / totalVolume);
+            } else {
+              strategyCampaignBudget = campaignBudget / tiktokStrategyCount;
+            }
+          }
+
+          const strategySuffix = strategyName ? ` - ${strategyName}` : "";
+          const campaignTaxonomyCtx = {
+            ...tiktokCampaignTaxonomyContext,
+            phaseBudget: strategyCampaignBudget,
+            keywordStrategy: strategyName || undefined,
+            matchType: strategyKeywords.length > 0 ? (strategyKeywords[0].matchType || "BROAD") : undefined,
+            campaignType: isSearchPhase ? "Search" : undefined,
+          };
+
         const tiktokCampaignTaxonomyName = advertiserId
           ? await generateTaxonomyName(
               supabase,
@@ -4301,12 +4422,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
               advertiserId,
               "tiktok",
               "campaign",
-              tiktokCampaignTaxonomyContext,
-              phase.campaignTaxonomyValues,
+              campaignTaxonomyCtx,
+              { ...(phase.campaignTaxonomyValues || {}), ...(strategyName ? { keywordStrategy: strategyName } : {}) },
             )
           : null;
 
-        const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}_${generateTimestampSuffix()}`;
+        const defaultTiktokCampaignName = isSearchPhase && strategyName
+          ? `${campaign.name} - ${market.name} > ${strategyName}_${generateTimestampSuffix()}`
+          : `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
         // Determine if Smart+ campaign
         const isSmartPlusCampaign = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled ?? false;
@@ -4317,7 +4440,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           accessToken: platform.access_token,
           campaignName: tiktokCampaignTaxonomyName || defaultTiktokCampaignName,
           objective: tiktokObjective,
-          budget: campaignBudget,
+          budget: strategyCampaignBudget,
           budgetMode: budgetType,
           startDate: startDate.toISOString().split("T")[0],
           endDate: endDate.toISOString().split("T")[0],
@@ -4342,7 +4465,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           continue;
         }
 
-        console.log("TikTok campaign created:", campaignResult.campaignId);
+        console.log("TikTok campaign created:", campaignResult.campaignId, strategyName ? `(Strategy: ${strategyName})` : "");
 
         // Store campaign in database
         await supabase.from("tiktok_campaigns").insert({
@@ -4353,7 +4476,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           campaign_name: campaignResult.metadata?.campaign_name || "",
           objective_type: tiktokObjective,
           budget_mode: budgetType,
-          budget: campaignBudget,
+          budget: strategyCampaignBudget,
           status: "PAUSED",
         });
 
@@ -4362,7 +4485,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         let tiktokPlacements: string[];
 
         if (placementType === "PLACEMENT_TYPE_NORMAL") {
-          // Use manual placements from phase or market
           const configuredPlacements = phase.tiktokPlacements || market.tiktokPlacements;
           tiktokPlacements =
             Array.isArray(configuredPlacements) && configuredPlacements.length > 0
@@ -4370,7 +4492,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
               : ["PLACEMENT_TIKTOK"];
           console.log(`📍 Using MANUAL placements: ${tiktokPlacements.join(", ")}`);
         } else {
-          // Automatic placement - TikTok will optimize
           tiktokPlacements = ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
           console.log(`📍 Using AUTOMATIC placements (all positions enabled)`);
         }
@@ -4789,50 +4910,47 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
 
           // Build search keywords for TikTok Search Ads
-          // Pull from basicTargeting.selectedKeywords (filtered to tiktok platform AND market) if phase.keywords is empty
+          // If we have strategy splitting, use the current strategy's keywords
+          // Otherwise fall back to the old behavior of pulling all keywords
           const tiktokSearchKeywords: Array<{ text: string; matchType?: string }> = [];
           if (searchEnabled || isSearchPhase) {
-            const marketCode = (market.name || "").substring(0, 2).toUpperCase();
-            const allSelectedKeywords = campaign.generic_config?.basicTargeting?.selectedKeywords || [];
-            console.log(`🔍 All selectedKeywords count: ${allSelectedKeywords.length}, marketCode: ${marketCode}`);
-            if (allSelectedKeywords.length > 0) {
-              console.log(`🔍 Sample keyword:`, JSON.stringify(allSelectedKeywords[0]));
-            }
-            
-            // Try phase keywords first, then market-filtered, then all tiktok keywords as fallback
-            let rawKeywords = phase.keywords;
-            if (!rawKeywords || (Array.isArray(rawKeywords) && rawKeywords.length === 0)) {
-              // Try market-filtered keywords
-              rawKeywords = allSelectedKeywords
-                .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
-              console.log(`🔍 Market-filtered TikTok keywords (${marketCode}): ${rawKeywords.length}`);
-              
-              // Fallback: if no market-filtered keywords, use ALL tiktok keywords
-              if (rawKeywords.length === 0) {
-                rawKeywords = allSelectedKeywords
-                  .filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
-                console.log(`🔍 Fallback to ALL TikTok keywords (no market filter): ${rawKeywords.length}`);
-              }
-              
-              // Final fallback: use ANY keywords regardless of platform
-              if (rawKeywords.length === 0) {
-                rawKeywords = allSelectedKeywords
-                  .filter((k: any) => !k.isNegative);
-                console.log(`🔍 Final fallback to ALL keywords (any platform): ${rawKeywords.length}`);
-              }
-            }
-            
-            if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
-              for (const kw of rawKeywords) {
+            if (strategyName && strategyKeywords.length > 0) {
+              // Use keywords from the current strategy split
+              for (const kw of strategyKeywords) {
                 tiktokSearchKeywords.push({
-                  text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
-                  matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+                  text: kw.text,
+                  matchType: kw.matchType || "BROAD",
                 });
               }
+              console.log(`📝 ${tiktokSearchKeywords.length} search keywords for strategy "${strategyName}" in TikTok ad group`);
+            } else if (!strategyName) {
+              // No strategy splitting — use all keywords (legacy behavior)
+              const marketCode = (market.name || "").substring(0, 2).toUpperCase();
+              const allSelectedKeywords = campaign.generic_config?.basicTargeting?.selectedKeywords || [];
+              
+              let rawKeywords = phase.keywords;
+              if (!rawKeywords || (Array.isArray(rawKeywords) && rawKeywords.length === 0)) {
+                rawKeywords = allSelectedKeywords
+                  .filter((k: any) => k.platform === 'tiktok' && !k.isNegative && (!k.market || k.market === marketCode));
+                if (rawKeywords.length === 0) {
+                  rawKeywords = allSelectedKeywords.filter((k: any) => k.platform === 'tiktok' && !k.isNegative);
+                }
+                if (rawKeywords.length === 0) {
+                  rawKeywords = allSelectedKeywords.filter((k: any) => !k.isNegative);
+                }
+              }
+              
+              if (Array.isArray(rawKeywords) && rawKeywords.length > 0) {
+                for (const kw of rawKeywords) {
+                  tiktokSearchKeywords.push({
+                    text: typeof kw === "string" ? kw : (kw.text || kw.keyword || kw.name || String(kw)),
+                    matchType: (typeof kw === "string" ? "BROAD" : (kw.matchType || kw.match_type || "BROAD")).toUpperCase(),
+                  });
+                }
+              }
+              console.log(`📝 ${tiktokSearchKeywords.length} search keywords for TikTok ad group (no strategy split)`);
             }
-            console.log(`📝 ${tiktokSearchKeywords.length} search keywords for market ${marketCode} to add to TikTok ad group (searchEnabled=${searchEnabled}, isSearchPhase=${isSearchPhase})`);
             
-            // If still no keywords but search is enabled, disable search to prevent API error
             if (tiktokSearchKeywords.length === 0) {
               console.warn(`⚠️ Search enabled but NO keywords found — disabling search_result_enabled to prevent API rejection`);
             }
@@ -5091,6 +5209,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             adsCreated: adsCreated,
           });
         } // End of ad set splits loop
+        } // End of TikTok keyword strategies loop
       } catch (error: any) {
         console.error("Error creating TikTok campaign/ad group:", error);
         errors.push({
