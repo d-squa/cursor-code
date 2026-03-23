@@ -122,6 +122,7 @@ export function MeshSourceStep({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
 
   // Filter assets by current platform
   const platformAssets = useMemo(() => 
