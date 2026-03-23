@@ -56,7 +56,26 @@ interface TextAssetsStepProps {
 type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   platformThumbnailId?: string | null;
   tiktokAdvertiserId?: string;
+  originalFilename?: string;
+  folderPath?: string;
 };
+
+function addProcessingMatchVariants(target: Set<string>, value?: string | null) {
+  if (!value) return;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return;
+
+  target.add(normalized);
+
+  const lastPathSegment = normalized.split('/').pop() || normalized;
+  target.add(lastPathSegment);
+
+  const withoutExtension = lastPathSegment.replace(/\.[^/.]+$/, '');
+  if (withoutExtension) {
+    target.add(withoutExtension);
+  }
+}
 
 export function TextAssetsStep({ 
   campaignId, 
@@ -101,6 +120,8 @@ export function TextAssetsStep({
               creatives (
                 id,
                 name,
+                  original_filename,
+                  folder_path,
                 creative_type,
                 primary_text,
                 headline,
@@ -440,6 +461,8 @@ export function TextAssetsStep({
             // Non-schema convenience fields consumed by TextAssetExcelEditor (safe to attach)
             platformThumbnailId: creative?.platform_thumbnail_id,
             tiktokAdvertiserId,
+            originalFilename: creative?.original_filename || savedAssignment?.creativeName,
+            folderPath: creative?.folder_path,
             mediaType,
             aspectRatio: creative?.aspect_ratio,
             width: creative?.width,
@@ -462,13 +485,22 @@ export function TextAssetsStep({
             // Only apply approved groups
             if (!approvedGroupIds.has(group.id)) continue;
             
-            // Build a set of asset names from the detected group
-            const groupAssetNames = new Set(group.assets.map(a => a.name.toLowerCase()));
+            const groupAssetKeys = new Set<string>();
+            group.assets.forEach((asset) => {
+              addProcessingMatchVariants(groupAssetKeys, asset.name);
+              addProcessingMatchVariants(groupAssetKeys, asset.filePath);
+            });
             
-            // Find matching rows by creative name
+            // Find matching rows by original filename first, then fall back to display name
             for (const row of transformedRows) {
-              const rowName = (row.creativeName || '').toLowerCase();
-              if (groupAssetNames.has(rowName)) {
+              const rowKeys = new Set<string>();
+              addProcessingMatchVariants(rowKeys, row.originalFilename);
+              addProcessingMatchVariants(rowKeys, row.creativeName);
+              addProcessingMatchVariants(rowKeys, row.folderPath ? `${row.folderPath}/${row.originalFilename || row.creativeName}` : undefined);
+
+              const isMatch = [...rowKeys].some(key => groupAssetKeys.has(key));
+
+              if (isMatch) {
                 row.processingGroupId = group.id;
                 row.processingGroupType = group.type === 'carousel' ? 'carousel' : 'asset_customization';
               }
@@ -489,7 +521,7 @@ export function TextAssetsStep({
     };
 
     loadAssignments();
-  }, [savedAssignments, campaignId, campaignName]);
+  }, [savedAssignments, campaignId, campaignName, processingOptions]);
 
   // Handle individual row changes
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
@@ -718,6 +750,29 @@ export function TextAssetsStep({
     }
   }, []);
 
+  const handleUngroupRow = useCallback((rowId: string) => {
+    setRows(prev => {
+      const targetRow = prev.find(row => row.id === rowId);
+      if (!targetRow?.processingGroupId) return prev;
+
+      const groupRows = prev.filter(row => row.processingGroupId === targetRow.processingGroupId);
+      const shouldClearWholeGroup = groupRows.length <= 2;
+
+      return prev.map(row => {
+        const isTarget = row.id === rowId;
+        const isSameGroup = row.processingGroupId === targetRow.processingGroupId;
+
+        if (!isTarget && !(shouldClearWholeGroup && isSameGroup)) return row;
+
+        return {
+          ...row,
+          processingGroupId: undefined,
+          processingGroupType: undefined,
+        };
+      });
+    });
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -754,9 +809,10 @@ export function TextAssetsStep({
           onRowChange={handleRowChange}
           onBulkUpdate={handleBulkUpdate}
           onImportRows={handleImportRows}
-            onSave={handleSaveOnly}
+          onSave={handleSaveOnly}
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
+          onUngroupRow={handleUngroupRow}
         />
       </div>
       
