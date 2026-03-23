@@ -362,9 +362,7 @@ export function MeshSourceStep({
   // Handle confirm from processing options dialog
   const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
     setShowProcessingOptions(false);
-    // TODO: Pass approved groups to the matching engine for carousel/AC creation
-    // For now, proceed with standard matching
-    onRunMesh();
+    onRunMesh(options);
   }, [onRunMesh]);
 
   // Determine upload description based on allowed media
