@@ -268,6 +268,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
   const handleProcessingConfirm = async (options: ProcessingOptions) => {
     setShowProcessingOptions(false);
+    setApprovedProcessingGroups(options);
     const campaignIdToUse = effectiveCampaignId;
     if (!campaignIdToUse) return;
     // Always reload structures from DB to pick up any changes
