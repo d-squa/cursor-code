@@ -1397,24 +1397,32 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.warn(`⚠️ Start date ${startDateTime} is in the past, clamping to today: ${todayStr}`);
         startDateTime = todayStr;
       }
-      const buildCampaignOperation = (channelType: string, biddingConfig: Record<string, any>) => ({
-        create: {
-          name: params.campaignName,
-          advertisingChannelType: channelType,
-          status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
-          campaignBudget: budgetResourceName,
-          startDateTime,
-          ...(endDateTime ? { endDateTime } : {}),
-          ...this.sanitizeCampaignBiddingConfig(biddingConfig),
-          containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-          ...((channelType === "PERFORMANCE_MAX" || channelType === "SHOPPING") && params.metadata?.merchantCenterId ? {
-            shoppingSetting: {
-              merchantId: String(params.metadata.merchantCenterId),
-              ...(params.metadata.feedLabel ? { feedLabel: params.metadata.feedLabel } : {}),
-            },
-          } : {}),
-        },
-      });
+      const buildCampaignOperation = (channelType: string, biddingConfig: Record<string, any>) => {
+        const hasBrandAssets = !!(params.metadata?.businessName);
+        const brandGuidelinesEnabled = channelType === "PERFORMANCE_MAX"
+          ? (params.metadata?.brandGuidelines === true && hasBrandAssets)
+          : undefined;
+
+        return {
+          create: {
+            name: params.campaignName,
+            advertisingChannelType: channelType,
+            status: params.status === "PAUSED" ? "PAUSED" : "ENABLED",
+            campaignBudget: budgetResourceName,
+            startDateTime,
+            ...(endDateTime ? { endDateTime } : {}),
+            ...this.sanitizeCampaignBiddingConfig(biddingConfig),
+            containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
+            ...(channelType === "PERFORMANCE_MAX" ? { brandGuidelinesEnabled: brandGuidelinesEnabled ?? false } : {}),
+            ...((channelType === "PERFORMANCE_MAX" || channelType === "SHOPPING") && params.metadata?.merchantCenterId ? {
+              shoppingSetting: {
+                merchantId: String(params.metadata.merchantCenterId),
+                ...(params.metadata.feedLabel ? { feedLabel: params.metadata.feedLabel } : {}),
+              },
+            } : {}),
+          },
+        };
+      };
 
       const requestedStrategyName = this.normalizeCampaignBiddingStrategy(
         requestedChannelType,

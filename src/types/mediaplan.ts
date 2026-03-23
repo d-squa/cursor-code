@@ -359,6 +359,8 @@ export interface Phase {
   googleKeywords?: string[]; // Keywords
   googleSearchThemes?: string[]; // Search themes (PMax)
   googleLocationTargeting?: string; // PRESENCE_OR_INTEREST or PRESENCE
+  googleBrandGuidelines?: boolean; // Brand Guidelines enabled (PMax)
+  googleBusinessName?: string; // Business name for Brand Guidelines (PMax)
 }
 
 export interface Campaign {
