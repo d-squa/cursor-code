@@ -759,7 +759,7 @@ export function MeshSourceStep({
                 className="w-full gap-2" 
                 size="lg"
                 disabled={!hasAssets || isProcessing}
-                onClick={onRunMesh}
+                onClick={handleRunMatchingClick}
               >
                   {isProcessing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -773,6 +773,17 @@ export function MeshSourceStep({
         </div>
       </Tabs>
       )}
+
+      {/* Creative Processing Options Dialog */}
+      <CreativeProcessingOptionsDialog
+        open={showProcessingOptions}
+        onOpenChange={setShowProcessingOptions}
+        assets={detectableAssets}
+        platform={platform}
+        googleCampaignType={googleCampaignTypes?.[0]}
+        onConfirm={handleProcessingConfirm}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 }
