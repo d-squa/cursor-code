@@ -32,6 +32,31 @@ export interface DetectableAsset {
   aspectRatio?: string;
 }
 
+const LANGUAGE_HINTS: Record<string, string> = {
+  english: 'en',
+  eng: 'en',
+  en: 'en',
+  arabic: 'ar',
+  arab: 'ar',
+  ara: 'ar',
+  arb: 'ar',
+  ar: 'ar',
+  french: 'fr',
+  fra: 'fr',
+  fre: 'fr',
+  fr: 'fr',
+  german: 'de',
+  deu: 'de',
+  ger: 'de',
+  de: 'de',
+  spanish: 'es',
+  spa: 'es',
+  es: 'es',
+  portuguese: 'pt',
+  por: 'pt',
+  pt: 'pt',
+};
+
 /** Simplify aspect ratio to common names */
 function simplifyAspectRatio(w: number, h: number): string {
   const ratio = w / h;
@@ -46,6 +71,34 @@ function simplifyAspectRatio(w: number, h: number): string {
   const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
   const d = gcd(w, h);
   return `${w / d}:${h / d}`;
+}
+
+function matchesToken(text: string, token: string): boolean {
+  return new RegExp(`(^|[\\s_\\-./\\[\\]()])${token}($|[\\s_\\-./\\[\\]()])`, 'i').test(text);
+}
+
+function extractLanguageHint(value?: string): string | null {
+  if (!value) return null;
+
+  const normalized = value.toLowerCase().replace(/\\/g, '/');
+  for (const [token, code] of Object.entries(LANGUAGE_HINTS)) {
+    if (matchesToken(normalized, token)) {
+      return code;
+    }
+  }
+
+  return null;
+}
+
+function sortCarouselAssets(a: DetectableAsset, b: DetectableAsset) {
+  const aSeq = extractSeriesInfo(a.name)?.sequence;
+  const bSeq = extractSeriesInfo(b.name)?.sequence;
+
+  if (typeof aSeq === 'number' && typeof bSeq === 'number' && aSeq !== bSeq) {
+    return aSeq - bSeq;
+  }
+
+  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 /**
@@ -160,6 +213,7 @@ function toStableIdPart(value: string): string {
 export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouselGroup[] {
   // Group by folder + exact dimensions + series key
   const groups = new Map<string, { folder: string; dimKey: string; seriesKey: string; items: { asset: DetectableAsset; sequence: number }[] }>();
+  const folderDimensionGroups = new Map<string, { folder: string; dimKey: string; language: string | null; items: DetectableAsset[] }>();
 
   console.log(`[CarouselDetection] Analyzing ${assets.length} assets for carousel patterns`);
 
@@ -184,6 +238,14 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
 
     const folder = getFolderPath(asset.filePath);
     const dimKey = `${asset.width}x${asset.height}`;
+    const language = extractLanguageHint(`${asset.filePath || ''} ${asset.name}`);
+    const folderDimensionKey = `${folder}||${dimKey}||${language || 'unknown'}`;
+
+    if (!folderDimensionGroups.has(folderDimensionKey)) {
+      folderDimensionGroups.set(folderDimensionKey, { folder, dimKey, language, items: [] });
+    }
+    folderDimensionGroups.get(folderDimensionKey)!.items.push(asset);
+
     const key = `${folder}||${dimKey}||${seriesInfo.seriesKey}`;
 
     if (!groups.has(key)) {
@@ -195,6 +257,7 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
   console.log(`[CarouselDetection] Found ${groups.size} potential groups`);
 
   const results: DetectedCarouselGroup[] = [];
+  const claimedAssetIds = new Set<string>();
 
   for (const { folder, dimKey, seriesKey, items } of groups.values()) {
     if (items.length < 2) continue;
@@ -214,6 +277,26 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
       reason: `${orderedAssets.length} images with sequence numbering in "${folder || '/'}" folder (${dimKey})`,
       sharedDimensions: dimKey,
     });
+
+    orderedAssets.forEach((asset) => claimedAssetIds.add(asset.id));
+  }
+
+  for (const { folder, dimKey, language, items } of folderDimensionGroups.values()) {
+    const unclaimedAssets = items.filter((asset) => !claimedAssetIds.has(asset.id));
+
+    if (unclaimedAssets.length < 2 || unclaimedAssets.length > 10) continue;
+
+    const orderedAssets = [...unclaimedAssets].sort(sortCarouselAssets);
+    results.push({
+      id: `carousel-fallback-${toStableIdPart(folder)}-${toStableIdPart(dimKey)}-${toStableIdPart(language || 'unknown')}`,
+      type: 'carousel',
+      folderPath: folder,
+      assets: orderedAssets,
+      reason: `${orderedAssets.length} assets in "${folder || '/'}" folder share dimensions (${dimKey})${language ? ` and language ${language.toUpperCase()}` : ''}`,
+      sharedDimensions: dimKey,
+    });
+
+    orderedAssets.forEach((asset) => claimedAssetIds.add(asset.id));
   }
 
   return results;
@@ -229,10 +312,11 @@ export function detectAssetCustomization(assets: DetectableAsset[]): DetectedAss
   for (const asset of assets) {
     if (!asset.width || !asset.height) continue;
     const folder = getFolderPath(asset.filePath);
+    const language = extractLanguageHint(`${asset.filePath || ''} ${asset.name}`) || 'unknown';
     const base = extractBaseName(asset.name);
     if (!base) continue;
 
-    const key = `${folder}||${base}`;
+    const key = `${folder}||${language}||${base}`;
 
     if (!groups.has(key)) groups.set(key, { baseName: base, assets: [] });
     groups.get(key)!.assets.push(asset);

@@ -403,12 +403,13 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
 
             const structureVariants = strategyGroups.length > 0 ? strategyGroups : [null];
 
-            const language =
+            const language = normalizeLanguageCode(
               (Array.isArray(phaseLanguages) && phaseLanguages[0]) ||
               (Array.isArray(market?.languages) && market.languages[0]) ||
               (Array.isArray(phase?.languages) && phase.languages[0]) ||
               market?.language ||
-              undefined;
+              undefined
+            );
 
             // Check if phase has ad set splits - align with Launch validation logic
             const phaseAdSets = Array.isArray(phase?.adSets) ? phase.adSets : undefined;
@@ -483,7 +484,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                       : taxonomyResult.elements,
                     placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
                     formatConstraints,
-                    language: adSet.languages?.[0] || phaseLanguages?.[0] || language,
+                    language: normalizeLanguageCode(adSet.languages?.[0] || phaseLanguages?.[0] || language),
                     // Track if this is a language split - language becomes a hard constraint
                     languageIsSplitDimension: effectiveSplitDimension === 'language',
                     optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
@@ -1774,6 +1775,23 @@ function getFolderPath(filePath?: string): string | null {
   return normalized.slice(0, lastSlash) || '/';
 }
 
+function normalizeLanguageCode(value?: string | null): string | undefined {
+  if (!value) return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  const map: Record<string, string> = {
+    english: 'en', eng: 'en', en: 'en',
+    arabic: 'ar', arab: 'ar', ara: 'ar', arb: 'ar', ar: 'ar',
+    french: 'fr', fra: 'fr', fre: 'fr', fr: 'fr',
+    german: 'de', deu: 'de', ger: 'de', de: 'de',
+    spanish: 'es', spa: 'es', es: 'es',
+    portuguese: 'pt', por: 'pt', pt: 'pt',
+    italian: 'it', ita: 'it', it: 'it',
+  };
+
+  return map[normalized] || (normalized.length >= 2 ? normalized.slice(0, 2) : undefined);
+}
+
 // Extract audience type from audiences array or split dimension
 function extractAudienceType(
   audiences: Array<{ id: string; name: string; type: string }> | undefined,
@@ -1830,7 +1848,10 @@ function inferConstraintsFromPath(path: string): HardConstraints {
   for (const part of parts) {
     const upper = part.toUpperCase();
     if (marketCodes.includes(upper)) constraints.market = upper;
-    if (/^(EN|ES|DE|FR|IT|JA|KO|PT|ZH|NL|PL|SV|NO|DA|FI)$/i.test(part)) constraints.language = part.toLowerCase();
+    const language = normalizeLanguageCode(part);
+    if (language && /^(en|ar|es|fr|de|it|ja|ko|pt|zh|nl|pl|sv|no|da|fi|he|ru|tr|hi)$/i.test(language)) {
+      constraints.language = language;
+    }
     if (/^(A|B|C|CONTROL|TEST|VARIANT)/i.test(part)) constraints.variant = part;
   }
   return constraints;
@@ -1838,7 +1859,11 @@ function inferConstraintsFromPath(path: string): HardConstraints {
 
 function checkHardConstraints(assetConstraints: HardConstraints, structure: CampaignStructure): boolean {
   if (assetConstraints.market && structure.market && assetConstraints.market.toUpperCase() !== structure.market.toUpperCase()) return false;
-  if (assetConstraints.language && structure.language && assetConstraints.language.toLowerCase() !== structure.language.toLowerCase()) return false;
+  if (
+    assetConstraints.language &&
+    structure.language &&
+    normalizeLanguageCode(assetConstraints.language) !== normalizeLanguageCode(structure.language)
+  ) return false;
   if (assetConstraints.variant && structure.variant && assetConstraints.variant !== structure.variant) return false;
   return true;
 }
@@ -2550,8 +2575,12 @@ function matchAssetToStructure(
   // If language is the split dimension, it becomes a HARD constraint - must match exactly
   // Otherwise it's a soft constraint that adds score
   if (structure.language) {
-    const structureLang = structure.language.toLowerCase();
+    const structureLang = normalizeLanguageCode(structure.language)?.toLowerCase();
     const assetLang = signals.language?.toLowerCase();
+
+    if (!structureLang) {
+      // Ignore unparseable language labels on the structure.
+    } else
     
     if (structure.languageIsSplitDimension || structure.splitDimension === 'language') {
       // Language is a split dimension - BLOCKING
