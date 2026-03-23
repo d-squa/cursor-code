@@ -19,6 +19,7 @@ import {
   runCreativeDetection,
   type DetectableAsset,
 } from '@/utils/creativeProcessingDetection';
+import { detectAdFormat } from '@/utils/adFormatDetection';
 import { 
   TaxonomyParam,
   TaxonomyContext,
