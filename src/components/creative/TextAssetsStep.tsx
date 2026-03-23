@@ -453,6 +453,31 @@ export function TextAssetsStep({
         });
 
         console.log('TextAssetsStep: Transformed rows:', transformedRows.length);
+        
+        // Apply processing group IDs from approved detected groups
+        if (processingOptions && processingOptions.detectedGroups.length > 0) {
+          const { approvedGroupIds, detectedGroups } = processingOptions;
+          
+          for (const group of detectedGroups) {
+            // Only apply approved groups
+            if (!approvedGroupIds.has(group.id)) continue;
+            
+            // Build a set of asset names from the detected group
+            const groupAssetNames = new Set(group.assets.map(a => a.name.toLowerCase()));
+            
+            // Find matching rows by creative name
+            for (const row of transformedRows) {
+              const rowName = (row.creativeName || '').toLowerCase();
+              if (groupAssetNames.has(rowName)) {
+                row.processingGroupId = group.id;
+                row.processingGroupType = group.type === 'carousel' ? 'carousel' : 'asset_customization';
+              }
+            }
+          }
+          
+          console.log('TextAssetsStep: Applied processing groups to rows');
+        }
+        
         setRows(transformedRows);
       } catch (error) {
         console.error('Error loading assignments:', error);
