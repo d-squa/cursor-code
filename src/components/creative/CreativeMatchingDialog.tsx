@@ -924,7 +924,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
               <div className="flex gap-2">
                 {state.currentStep === 'review' && <Button variant="outline" onClick={clearAll}><ArrowLeft className="h-4 w-4 mr-2" />Start Over</Button>}
                 {(state.currentStep === 'upload' || state.currentStep === 'match') && state.assets.length > 0 && (
-                  <Button onClick={handleRunMatching} disabled={state.isProcessing}>
+                  <Button onClick={handleRunMatchingClick} disabled={state.isProcessing}>
                     {state.isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}Run Matching
                   </Button>
                 )}
