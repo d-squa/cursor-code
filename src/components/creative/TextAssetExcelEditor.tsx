@@ -1741,6 +1741,9 @@ export function TextAssetExcelEditor({
                       const hasErrors = errors.length > 0;
                       const platform = row.platform.toLowerCase() as Platform;
                       const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                      const isCarouselGrouped = row.processingGroupType === 'carousel';
+                      const isACGrouped = row.processingGroupType === 'asset_customization';
+                      const isGrouped = !!(row.processingGroupId && row.processingGroupType);
                       
                       return (
                         <div
@@ -1749,6 +1752,8 @@ export function TextAssetExcelEditor({
                             "flex border-b",
                             hasErrors && "bg-destructive/5",
                             isOrganic && "bg-green-50/50 dark:bg-green-950/20",
+                            isCarouselGrouped && "bg-blue-50/40 dark:bg-blue-950/15",
+                            isACGrouped && "bg-purple-50/40 dark:bg-purple-950/15",
                             "hover:bg-accent/10"
                           )}
                           style={{ height: 40 }}
