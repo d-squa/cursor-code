@@ -200,6 +200,10 @@ export interface CreativeTextAssetRow {
   externalPageId?: string;
   organicMessage?: string;
   organicPermalink?: string;
+  
+  // Creative processing group (carousel or asset customization)
+  processingGroupId?: string;
+  processingGroupType?: 'carousel' | 'asset_customization';
 }
 
 // UTM Builder config

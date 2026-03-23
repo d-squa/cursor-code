@@ -19,7 +19,7 @@ import {
   Image, Video, AlertCircle, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
   Plus, Link2, Layout, Film, Grid, Settings2, ImageIcon, Maximize2, Minimize2, 
-  ChevronsUpDown, Trash2
+  ChevronsUpDown, Trash2, Unlink, SquareStack
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -57,6 +57,8 @@ interface TextAssetExcelEditorProps {
   onAddCreatives?: () => void;
   /** Called when an assignment should be deleted */
   onDeleteAssignment?: (assignmentId: string) => void;
+  /** Called when a row is ungrouped from a processing group */
+  onUngroupRow?: (rowId: string) => void;
 }
 
 // Grid column definition - now includes checkbox for multi-select
@@ -173,7 +175,8 @@ export function TextAssetExcelEditor({
   onSave,
   isSaving,
   onAddCreatives,
-  onDeleteAssignment
+  onDeleteAssignment,
+  onUngroupRow
 }: TextAssetExcelEditorProps) {
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
@@ -225,6 +228,64 @@ export function TextAssetExcelEditor({
     carousels.forEach((c) => c.cardIds.forEach((id) => map.set(id, c)));
     return map;
   }, [carousels]);
+
+  // Build processing group lookup: groupId → row IDs
+  const processingGroups = useMemo(() => {
+    const groups = new Map<string, { type: 'carousel' | 'asset_customization'; rowIds: string[] }>();
+    rows.forEach(row => {
+      if (row.processingGroupId && row.processingGroupType) {
+        if (!groups.has(row.processingGroupId)) {
+          groups.set(row.processingGroupId, { type: row.processingGroupType, rowIds: [] });
+        }
+        groups.get(row.processingGroupId)!.rowIds.push(row.id);
+      }
+    });
+    return groups;
+  }, [rows]);
+
+  // Handle ungrouping a row from its processing group
+  const handleUngroupRow = useCallback((rowId: string) => {
+    if (onUngroupRow) {
+      onUngroupRow(rowId);
+    } else {
+      // Fallback: clear group fields directly
+      onRowChange(rowId, { processingGroupId: undefined, processingGroupType: undefined } as any);
+    }
+    toast.success('Creative removed from group');
+  }, [onUngroupRow, onRowChange]);
+
+  // For asset customization groups: sync text changes across all members
+  const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
+    const row = rows.find(r => r.id === id);
+    if (row?.processingGroupId && row.processingGroupType === 'asset_customization') {
+      // Sync text fields to all members of the same group
+      const group = processingGroups.get(row.processingGroupId);
+      if (group && group.rowIds.length > 1) {
+        // Only sync text asset fields, not structural ones
+        const textKeys: (keyof CreativeTextAssetRow)[] = [
+          'primaryText', 'primaryText2', 'primaryText3', 'primaryText4', 'primaryText5',
+          'headline', 'headline2', 'headline3', 'headline4', 'headline5',
+          'description', 'description2', 'description3', 'description4', 'description5',
+          'caption', 'callToAction', 'destinationUrl', 'displayLink', 'brandName',
+        ];
+        const syncUpdates: Partial<CreativeTextAssetRow> = {};
+        let hasSync = false;
+        for (const key of textKeys) {
+          if (key in updates) {
+            (syncUpdates as any)[key] = (updates as any)[key];
+            hasSync = true;
+          }
+        }
+        if (hasSync) {
+          // Apply to all group members
+          onBulkUpdate(group.rowIds, syncUpdates);
+          return;
+        }
+      }
+    }
+    // Default: update single row
+    onRowChange(id, updates);
+  }, [rows, processingGroups, onBulkUpdate, onRowChange]);
 
   const openEditCarousel = useCallback((carousel: CarouselLink) => {
     setEditingCarousel(carousel);
@@ -656,7 +717,7 @@ export function TextAssetExcelEditor({
     const col = GRID_COLUMNS[colIndex];
     
     if (row && col) {
-      onRowChange(row.id, { [col.key]: editValue });
+      handleRowChangeWithGroupSync(row.id, { [col.key]: editValue });
     }
     
     setEditingCell(null);
@@ -1327,6 +1388,10 @@ export function TextAssetExcelEditor({
         <span className="mx-2">|</span>
         <span className="font-medium">Carousel:</span> Select 2+ creatives in same ad set → Create Carousel
         <span className="mx-2">|</span>
+        <span className="font-medium">Groups:</span>
+        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-blue-500 inline-block" /> Carousel</span>
+        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-purple-500 inline-block" /> Asset Customization (shared text)</span>
+        <span className="mx-2">|</span>
         <span className="text-amber-600 font-medium">Organic posts: read-only except Destination URL</span>
       </div>
 
@@ -1403,18 +1468,34 @@ export function TextAssetExcelEditor({
                     const errors = validateTextAssetRow(row);
                     const hasErrors = errors.length > 0;
                     const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                    const groupId = row.processingGroupId;
+                    const groupType = row.processingGroupType;
+                    const isCarouselGrouped = groupType === 'carousel';
+                    const isACGrouped = groupType === 'asset_customization';
+                    const isGrouped = !!(groupId && groupType);
                     
                     return (
                       <div
                         key={item.key}
                         className={cn(
-                          "flex border-b",
+                          "flex border-b relative",
                           hasErrors && "bg-destructive/5",
                           isOrganic && "bg-green-50/50 dark:bg-green-950/20",
+                          isCarouselGrouped && "bg-blue-50/40 dark:bg-blue-950/15",
+                          isACGrouped && "bg-purple-50/40 dark:bg-purple-950/15",
                           "hover:bg-accent/10"
                         )}
                         style={{ height: 40 }}
                       >
+                        {/* Colored left border for processing groups */}
+                        {isGrouped && (
+                          <div className={cn(
+                            "absolute left-0 top-0 bottom-0 w-[3px]",
+                            isCarouselGrouped && "bg-blue-500",
+                            isACGrouped && "bg-purple-500"
+                          )} />
+                        )}
+                        
                         {/* Select checkbox */}
                         <div
                           className="px-2 py-1.5 flex items-center justify-center border-r shrink-0 cursor-pointer"
@@ -1431,20 +1512,50 @@ export function TextAssetExcelEditor({
                           />
                         </div>
                         
-                        {/* Ad Type */}
+                        {/* Ad Type - shows group badge when grouped */}
                         <div
-                          className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
+                          className="px-2 py-1.5 flex items-center justify-center gap-1 border-r shrink-0"
                           style={{ width: HIERARCHY_COLUMNS[1].width }}
                         >
-                          <Badge 
-                            variant={isOrganic ? 'default' : 'secondary'}
-                            className={cn(
-                              "text-[10px] px-1.5",
-                              isOrganic ? "bg-green-600 hover:bg-green-600" : ""
-                            )}
-                          >
-                            {isOrganic ? 'Organic' : 'Dark'}
-                          </Badge>
+                          {isGrouped ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge 
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[9px] px-1 gap-0.5 cursor-pointer",
+                                      isCarouselGrouped && "border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400",
+                                      isACGrouped && "border-purple-400 text-purple-600 dark:border-purple-600 dark:text-purple-400"
+                                    )}
+                                    onClick={() => handleUngroupRow(row.id)}
+                                  >
+                                    {isCarouselGrouped ? (
+                                      <Layers className="h-3 w-3" />
+                                    ) : (
+                                      <SquareStack className="h-3 w-3" />
+                                    )}
+                                    <Unlink className="h-2.5 w-2.5" />
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="text-xs">
+                                  <p className="font-medium">{isCarouselGrouped ? 'Carousel Group' : 'Asset Customization Group'}</p>
+                                  <p className="text-muted-foreground">Click to ungroup this creative</p>
+                                  {isACGrouped && <p className="text-muted-foreground mt-1">Text edits sync to all group members</p>}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <Badge 
+                              variant={isOrganic ? 'default' : 'secondary'}
+                              className={cn(
+                                "text-[10px] px-1.5",
+                                isOrganic ? "bg-green-600 hover:bg-green-600" : ""
+                              )}
+                            >
+                              {isOrganic ? 'Organic' : 'Dark'}
+                            </Badge>
+                          )}
                         </div>
                         
                         {/* Platform */}
@@ -1531,6 +1642,15 @@ export function TextAssetExcelEditor({
                                       <span>({row.aspectRatio})</span>
                                     )}
                                   </div>
+                                  {isGrouped && (
+                                    <Badge variant="outline" className={cn(
+                                      "text-[9px] mt-1",
+                                      isCarouselGrouped && "border-blue-400 text-blue-600",
+                                      isACGrouped && "border-purple-400 text-purple-600"
+                                    )}>
+                                      {isCarouselGrouped ? 'Carousel Group' : 'Asset Customization'}
+                                    </Badge>
+                                  )}
                                 </div>
                               </div>
                             </HoverCardContent>
@@ -1625,6 +1745,9 @@ export function TextAssetExcelEditor({
                       const hasErrors = errors.length > 0;
                       const platform = row.platform.toLowerCase() as Platform;
                       const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                      const isCarouselGrouped = row.processingGroupType === 'carousel';
+                      const isACGrouped = row.processingGroupType === 'asset_customization';
+                      const isGrouped = !!(row.processingGroupId && row.processingGroupType);
                       
                       return (
                         <div
@@ -1633,6 +1756,8 @@ export function TextAssetExcelEditor({
                             "flex border-b",
                             hasErrors && "bg-destructive/5",
                             isOrganic && "bg-green-50/50 dark:bg-green-950/20",
+                            isCarouselGrouped && "bg-blue-50/40 dark:bg-blue-950/15",
+                            isACGrouped && "bg-purple-50/40 dark:bg-purple-950/15",
                             "hover:bg-accent/10"
                           )}
                           style={{ height: 40 }}
@@ -1816,7 +1941,7 @@ export function TextAssetExcelEditor({
                                 >
                                   <Select
                                     value={value}
-                                    onValueChange={(v) => onRowChange(row.id, { [col.key]: v })}
+                                    onValueChange={(v) => handleRowChangeWithGroupSync(row.id, { [col.key]: v })}
                                     disabled={isOrganic}
                                   >
                                     <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
