@@ -62,6 +62,7 @@ export function TextAssetsStep({
   campaignId, 
   campaignName, 
   savedAssignments,
+  processingOptions,
   onComplete,
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
