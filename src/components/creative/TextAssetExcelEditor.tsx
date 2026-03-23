@@ -229,6 +229,64 @@ export function TextAssetExcelEditor({
     return map;
   }, [carousels]);
 
+  // Build processing group lookup: groupId → row IDs
+  const processingGroups = useMemo(() => {
+    const groups = new Map<string, { type: 'carousel' | 'asset_customization'; rowIds: string[] }>();
+    rows.forEach(row => {
+      if (row.processingGroupId && row.processingGroupType) {
+        if (!groups.has(row.processingGroupId)) {
+          groups.set(row.processingGroupId, { type: row.processingGroupType, rowIds: [] });
+        }
+        groups.get(row.processingGroupId)!.rowIds.push(row.id);
+      }
+    });
+    return groups;
+  }, [rows]);
+
+  // Handle ungrouping a row from its processing group
+  const handleUngroupRow = useCallback((rowId: string) => {
+    if (onUngroupRow) {
+      onUngroupRow(rowId);
+    } else {
+      // Fallback: clear group fields directly
+      onRowChange(rowId, { processingGroupId: undefined, processingGroupType: undefined } as any);
+    }
+    toast.success('Creative removed from group');
+  }, [onUngroupRow, onRowChange]);
+
+  // For asset customization groups: sync text changes across all members
+  const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
+    const row = rows.find(r => r.id === id);
+    if (row?.processingGroupId && row.processingGroupType === 'asset_customization') {
+      // Sync text fields to all members of the same group
+      const group = processingGroups.get(row.processingGroupId);
+      if (group && group.rowIds.length > 1) {
+        // Only sync text asset fields, not structural ones
+        const textKeys: (keyof CreativeTextAssetRow)[] = [
+          'primaryText', 'primaryText2', 'primaryText3', 'primaryText4', 'primaryText5',
+          'headline', 'headline2', 'headline3', 'headline4', 'headline5',
+          'description', 'description2', 'description3', 'description4', 'description5',
+          'caption', 'callToAction', 'destinationUrl', 'displayLink', 'brandName',
+        ];
+        const syncUpdates: Partial<CreativeTextAssetRow> = {};
+        let hasSync = false;
+        for (const key of textKeys) {
+          if (key in updates) {
+            (syncUpdates as any)[key] = (updates as any)[key];
+            hasSync = true;
+          }
+        }
+        if (hasSync) {
+          // Apply to all group members
+          onBulkUpdate(group.rowIds, syncUpdates);
+          return;
+        }
+      }
+    }
+    // Default: update single row
+    onRowChange(id, updates);
+  }, [rows, processingGroups, onBulkUpdate, onRowChange]);
+
   const openEditCarousel = useCallback((carousel: CarouselLink) => {
     setEditingCarousel(carousel);
     setShowCarouselCreator(true);
