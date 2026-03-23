@@ -626,6 +626,32 @@ export function extractTaxonomyValues(
       case 'endDate':
         values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
         break;
+      case 'keywordStrategy':
+        rawValue = context.keywordStrategy;
+        values[param.id] = rawValue ? rawValue.toUpperCase().substring(0, 5) : '';
+        break;
+      case 'matchType':
+        rawValue = context.matchType;
+        if (rawValue) {
+          const mtMap: Record<string, string> = { 'BROAD': 'BRD', 'PHRASE': 'PHR', 'EXACT': 'EXT', 'BROAD_WORD': 'BWD' };
+          values[param.id] = mtMap[rawValue.toUpperCase()] || rawValue.substring(0, 3).toUpperCase();
+        } else {
+          values[param.id] = '';
+        }
+        break;
+      case 'campaignType':
+        rawValue = context.campaignType;
+        if (rawValue) {
+          const ctMap: Record<string, string> = {
+            'Search': 'SRC', 'Display': 'DSP', 'Performance Max': 'PMAX', 'Video': 'VID',
+            'Demand Gen': 'DGEN', 'Shopping': 'SHOP', 'App Promotion': 'APP',
+            'SEARCH': 'SRC', 'DISPLAY': 'DSP', 'PERFORMANCE_MAX': 'PMAX',
+          };
+          values[param.id] = ctMap[rawValue] || createShortCode(rawValue);
+        } else {
+          values[param.id] = '';
+        }
+        break;
       case 'targetingType':
         // Handle targeting type - could be a string like 'native', 'RTG', 'EXP', 'MIX', etc.
         rawValue = context.targetingType;
