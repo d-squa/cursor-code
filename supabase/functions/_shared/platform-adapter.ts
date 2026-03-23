@@ -1863,7 +1863,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
     campaignId: string,
     countryCodes: string[],
     locationTargetingType: string,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    channelType?: string
   ): Promise<void> {
     if (!countryCodes || countryCodes.length === 0) return;
 
