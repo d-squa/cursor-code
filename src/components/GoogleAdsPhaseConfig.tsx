@@ -40,6 +40,8 @@ interface GoogleAdsPhaseConfigProps {
     googleMerchantCenterId?: string;
     googleFeedLabel?: string;
     googlePlacements?: string[];
+    googleBrandGuidelines?: boolean;
+    googleBusinessName?: string;
   };
 }
 
