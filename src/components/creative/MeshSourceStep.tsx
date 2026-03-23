@@ -338,6 +338,35 @@ export function MeshSourceStep({
 
   const hasAssets = platformAssets.length > 0;
 
+  // Convert selected assets to DetectableAsset format for processing detection
+  const detectableAssets: DetectableAsset[] = useMemo(() => 
+    platformAssets.map(a => ({
+      id: a.id,
+      name: a.name || a.id,
+      filePath: a.name,
+      folderPath: a.name ? a.name.split('/').slice(0, -1).join('/') : '/',
+      assetType: a.assetType,
+      width: a.width,
+      height: a.height,
+      aspectRatio: a.width && a.height ? `${a.width}:${a.height}` : undefined,
+    })),
+    [platformAssets]
+  );
+
+  // Handle Run Matching button — open processing options dialog
+  const handleRunMatchingClick = useCallback(() => {
+    if (!hasAssets) return;
+    setShowProcessingOptions(true);
+  }, [hasAssets]);
+
+  // Handle confirm from processing options dialog
+  const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
+    setShowProcessingOptions(false);
+    // TODO: Pass approved groups to the matching engine for carousel/AC creation
+    // For now, proceed with standard matching
+    onRunMesh();
+  }, [onRunMesh]);
+
   // Determine upload description based on allowed media
   const uploadDescription = useMemo(() => {
     if (!googleMedia) return platform === 'google' ? 'Upload images and videos to your Google Ads asset library' : 'Upload images and videos directly for meshing';
