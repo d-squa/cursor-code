@@ -56,6 +56,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const [platformAssets, setPlatformAssets] = useState<any[]>([]);
   const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
   const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
+  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
 
   // Sync state with props when they change
   useEffect(() => {
@@ -256,15 +257,36 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     toast.success(`Added ${selected.length} platform assets for matching`);
   }, [platformAssets, selectedPlatformAssetIds, addPlatformAssets]);
 
-  const handleRunMatching = async () => {
+  // Open processing options dialog instead of directly running matching
+  const handleRunMatchingClick = () => {
     const campaignIdToUse = effectiveCampaignId;
     if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
+    setShowProcessingOptions(true);
+  };
 
-    // Always reload structures from DB to pick up any changes (e.g. ad set splits applied after initial load)
+  const handleProcessingConfirm = async (options: ProcessingOptions) => {
+    setShowProcessingOptions(false);
+    const campaignIdToUse = effectiveCampaignId;
+    if (!campaignIdToUse) return;
+    // Always reload structures from DB to pick up any changes
     const structures = await loadCampaignStructures(campaignIdToUse) || [];
     runMatching(structures);
   };
+
+  // Convert state.assets to DetectableAsset for the processing dialog
+  const detectableAssets: DetectableAsset[] = useMemo(() =>
+    state.assets.map(a => ({
+      id: a.id,
+      name: a.fileName,
+      filePath: a.filePath,
+      folderPath: a.filePath?.split('/').slice(0, -1).join('/'),
+      assetType: a.mediaType === 'video' ? 'video' as const : 'image' as const,
+      width: a.technicalAttributes.width,
+      height: a.technicalAttributes.height,
+    })),
+    [state.assets]
+  );
 
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
   const needsCampaignSelection = !effectiveCampaignId;
