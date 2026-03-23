@@ -92,7 +92,7 @@ interface MeshSourceStepProps {
   onAddAsset: (asset: SelectedAsset) => void;
   onRemoveAsset: (assetId: string) => void;
   onClearAssets: () => void;
-  onRunMesh: () => void;
+  onRunMesh: (processingOptions?: ProcessingOptions) => void;
   isProcessing?: boolean;
   googleCampaignTypes?: string[];
 }
