@@ -401,7 +401,7 @@ export function MeshSourceStep({
                 variant="outline" 
                 size="sm" 
                 className="mt-2"
-                onClick={onRunMesh}
+                onClick={() => onRunMesh()}
               >
                 Skip to Text Assets →
               </Button>
