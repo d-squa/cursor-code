@@ -254,16 +254,16 @@ export function TextAssetExcelEditor({
     toast.success('Creative removed from group');
   }, [onUngroupRow, onRowChange]);
 
-  // Create asset customization group from selected rows
+  // Create asset customization group from selected rows (defined after clearSelection)
   const handleCreateAssetCustomization = useCallback(() => {
     const groupId = `ac-manual-${Date.now()}`;
     const ids = Array.from(selectedRowIds);
     ids.forEach(id => {
       onRowChange(id, { processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
     });
-    clearSelection();
+    setSelectedRowIds(new Set());
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
-  }, [selectedRowIds, onRowChange, clearSelection]);
+  }, [selectedRowIds, onRowChange]);
 
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupId: string) => {
@@ -1730,11 +1730,16 @@ export function TextAssetExcelEditor({
                           <span className="text-xs truncate" title={row.adSet}>{row.adSet}</span>
                         </div>
                         
-                        {/* Creative Name with Thumbnail Preview */}
+                        {/* Creative Name with order badge and Thumbnail Preview */}
                         <div
                           className="px-2 py-1.5 flex items-center gap-1 border-r shrink-0"
                           style={{ width: HIERARCHY_COLUMNS[6].width }}
                         >
+                          {item.groupOrder && (
+                            <Badge variant="outline" className="text-[9px] px-1 h-4 shrink-0 border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400 font-mono">
+                              #{item.groupOrder}
+                            </Badge>
+                          )}
                           {row.mediaType === 'video' ? (
                             <Video className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           ) : (
