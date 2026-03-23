@@ -1,6 +1,6 @@
 // Auto-Mesh Dialog - AI-powered creative-to-structure matching
 // Supports using existing library creatives OR uploading new ones
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
