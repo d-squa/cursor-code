@@ -254,6 +254,27 @@ export function TextAssetExcelEditor({
     toast.success('Creative removed from group');
   }, [onUngroupRow, onRowChange]);
 
+  // Create asset customization group from selected rows
+  const handleCreateAssetCustomization = useCallback(() => {
+    const groupId = `ac-manual-${Date.now()}`;
+    const ids = Array.from(selectedRowIds);
+    ids.forEach(id => {
+      onRowChange(id, { processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
+    });
+    clearSelection();
+    toast.success(`Created Asset Customization group with ${ids.length} assets`);
+  }, [selectedRowIds, onRowChange, clearSelection]);
+
+  // Ungroup entire processing group
+  const handleUngroupEntireGroup = useCallback((groupId: string) => {
+    const group = processingGroups.get(groupId);
+    if (!group) return;
+    group.rowIds.forEach(id => {
+      onRowChange(id, { processingGroupId: undefined, processingGroupType: undefined } as any);
+    });
+    toast.success('Group dissolved');
+  }, [processingGroups, onRowChange]);
+
   // For asset customization groups: sync text changes across all members
   const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
     const row = rows.find(r => r.id === id);
@@ -305,6 +326,14 @@ export function TextAssetExcelEditor({
     if (selectedRows.length < 2) return false;
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
     return adSets.size === 1;
+  }, [selectedRows]);
+
+  const canCreateAssetCustomization = useMemo(() => {
+    if (selectedRows.length < 2) return false;
+    const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
+    if (adSets.size !== 1) return false;
+    const ratios = new Set(selectedRows.map(r => r.aspectRatio).filter(Boolean));
+    return ratios.size >= 2;
   }, [selectedRows]);
 
   // Toggle row selection with shift+click support
@@ -539,7 +568,7 @@ export function TextAssetExcelEditor({
 
   // Build flat list with group headers
   const flatList = useMemo(() => {
-    const items: { type: 'group' | 'row'; key: string; row?: CreativeTextAssetRow; groupLabel?: string; groupKey?: string; level?: number; rowIds?: string[] }[] = [];
+    const items: { type: 'group' | 'row' | 'processingGroup'; key: string; row?: CreativeTextAssetRow; groupLabel?: string; groupKey?: string; level?: number; rowIds?: string[]; processingGroupType?: 'carousel' | 'asset_customization'; processingGroupId?: string; groupOrder?: number; isInProcessingGroup?: boolean }[] = [];
     
     // Group by platform > market > phase > adset
     const grouped = new Map<string, CreativeTextAssetRow[]>();
@@ -626,8 +655,52 @@ export function TextAssetExcelEditor({
       
       if (collapsedGroups.has(adSetKey)) continue;
       
-      // Creative rows
+      // Organize rows into processing groups vs ungrouped
+      const pgMap = new Map<string, CreativeTextAssetRow[]>();
+      const ungrouped: CreativeTextAssetRow[] = [];
       for (const row of groupRows) {
+        if (row.processingGroupId && row.processingGroupType) {
+          if (!pgMap.has(row.processingGroupId)) pgMap.set(row.processingGroupId, []);
+          pgMap.get(row.processingGroupId)!.push(row);
+        } else {
+          ungrouped.push(row);
+        }
+      }
+      
+      // Processing group parents + children
+      for (const [pgId, pgRows] of pgMap) {
+        const pgType = pgRows[0].processingGroupType!;
+        const pgKey = `pg:${pgId}`;
+        items.push({
+          type: 'processingGroup',
+          key: pgKey,
+          groupLabel: pgType === 'carousel' 
+            ? `Carousel (${pgRows.length} cards)` 
+            : `Asset Customization (${pgRows.length} assets)`,
+          groupKey: pgKey,
+          level: 4,
+          rowIds: pgRows.map(r => r.id),
+          processingGroupType: pgType,
+          processingGroupId: pgId,
+          row: pgType === 'asset_customization' ? pgRows[0] : undefined,
+        });
+        
+        if (!collapsedGroups.has(pgKey)) {
+          pgRows.forEach((row, idx) => {
+            items.push({
+              type: 'row',
+              key: row.id,
+              row,
+              groupOrder: pgType === 'carousel' ? idx + 1 : undefined,
+              isInProcessingGroup: true,
+              processingGroupType: pgType,
+            });
+          });
+        }
+      }
+      
+      // Ungrouped rows
+      for (const row of ungrouped) {
         items.push({ type: 'row', key: row.id, row });
       }
     }
@@ -1291,6 +1364,16 @@ export function TextAssetExcelEditor({
                 <Layers className="h-4 w-4 mr-1" />
                 Create Carousel
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCreateAssetCustomization}
+                disabled={!canCreateAssetCustomization}
+                className="border-purple-400 text-purple-600 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-400 dark:hover:bg-purple-950/30"
+              >
+                <SquareStack className="h-4 w-4 mr-1" />
+                Create Asset Customization
+              </Button>
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
               </Button>
@@ -1457,6 +1540,63 @@ export function TextAssetExcelEditor({
                             <Badge variant="secondary" className="text-xs ml-auto mr-2">
                               {item.rowIds?.length || 0}
                             </Badge>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Processing group parent header
+                    if (item.type === 'processingGroup') {
+                      const isCollapsed = collapsedGroups.has(item.groupKey!);
+                      const isCarousel = item.processingGroupType === 'carousel';
+                      const isAC = item.processingGroupType === 'asset_customization';
+                      
+                      return (
+                        <div
+                          key={item.key}
+                          className={cn(
+                            "flex border-b cursor-pointer hover:bg-accent/50",
+                            isCarousel && "bg-blue-50/60 dark:bg-blue-950/30",
+                            isAC && "bg-purple-50/60 dark:bg-purple-950/30"
+                          )}
+                          style={{ height: 44 }}
+                        >
+                          <div 
+                            className="px-2 py-2 flex items-center justify-center shrink-0"
+                            style={{ width: HIERARCHY_COLUMNS[0].width }}
+                          />
+                          <div 
+                            className="flex items-center gap-2 py-2 pl-[72px] flex-1 min-w-0"
+                            onClick={() => toggleGroup(item.groupKey!)}
+                          >
+                            {isCollapsed ? <ChevronRight className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                            {isCarousel ? (
+                              <Layers className="h-4 w-4 text-blue-500 shrink-0" />
+                            ) : (
+                              <SquareStack className="h-4 w-4 text-purple-500 shrink-0" />
+                            )}
+                            <span className={cn("font-medium text-sm truncate", isCarousel ? "text-blue-700 dark:text-blue-300" : "text-purple-700 dark:text-purple-300")}>
+                              {item.groupLabel}
+                            </span>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs ml-auto mr-2 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUngroupEntireGroup(item.processingGroupId!);
+                                    }}
+                                  >
+                                    <Unlink className="h-3 w-3 mr-1" />
+                                    Ungroup
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Dissolve this group into individual creatives</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         </div>
                       );
@@ -1737,6 +1877,108 @@ export function TextAssetExcelEditor({
                         );
                       }
                       
+                      // Processing group parent in scrollable area
+                      if (item.type === 'processingGroup') {
+                        const isCarouselPG = item.processingGroupType === 'carousel';
+                        const isACPG = item.processingGroupType === 'asset_customization';
+                        const isCollapsedPG = collapsedGroups.has(item.groupKey!);
+                        
+                        if (isACPG && item.row) {
+                          // AC parent: show shared text fields
+                          const acRow = item.row;
+                          const acPlatform = acRow.platform.toLowerCase() as Platform;
+                          
+                          return (
+                            <div
+                              key={item.key}
+                              className="flex border-b bg-purple-50/60 dark:bg-purple-950/30"
+                              style={{ height: 44 }}
+                            >
+                              {SCROLLABLE_COLUMNS.map((col) => {
+                                if (col.key === 'delete') {
+                                  return <div key={col.key} className="px-1 py-1 border-r shrink-0" style={{ width: col.width }} />;
+                                }
+                                if (col.key === 'placements' || col.key === 'adFormat' || col.key === 'thumbnail') {
+                                  return (
+                                    <div key={col.key} className="px-1 py-1 border-r shrink-0" style={{ width: col.width }}>
+                                      {col.key === 'placements' && (
+                                        <div className="h-7 flex items-center px-2 text-xs text-purple-600 dark:text-purple-400 font-medium italic">
+                                          Shared text ↓
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                
+                                if (col.type === 'select') {
+                                  const val = (acRow as any)[col.key] || '';
+                                  return (
+                                    <div key={col.key} className="px-1 py-1 border-r shrink-0 bg-purple-50/30 dark:bg-purple-950/10" style={{ width: col.width }}>
+                                      <Select
+                                        value={val}
+                                        onValueChange={(v) => onBulkUpdate(item.rowIds || [], { [col.key]: v })}
+                                      >
+                                        <SelectTrigger className="h-7 text-xs border-purple-200 dark:border-purple-800 bg-transparent">
+                                          <SelectValue placeholder="Select..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-popover z-50">
+                                          {(PLATFORM_CTAS[acPlatform] || PLATFORM_CTAS.meta).map(cta => (
+                                            <SelectItem key={cta} value={cta} className="text-xs">
+                                              {cta.replace(/_/g, ' ')}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  );
+                                }
+                                
+                                // Text fields - editable, synced to all group members
+                                const val = (acRow as any)[col.key] || '';
+                                const fieldCfg = PLATFORM_TEXT_FIELDS[acPlatform]?.find(f => f.id === col.key);
+                                
+                                return (
+                                  <div
+                                    key={col.key}
+                                    className="px-1 py-1 border-r shrink-0 bg-purple-50/30 dark:bg-purple-950/10"
+                                    style={{ width: col.width }}
+                                    onDoubleClick={() => {
+                                      const fakeIdx = rowItems.findIndex(ri => ri.row?.id === acRow.id);
+                                      if (fakeIdx >= 0) {
+                                        const absCol = HIERARCHY_COLUMNS.length + SCROLLABLE_COLUMNS.indexOf(col);
+                                        handleCellDoubleClick(fakeIdx, absCol, acRow);
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-center">
+                                      <div className="h-7 px-2 text-xs flex items-center truncate flex-1 rounded hover:bg-purple-100/50 dark:hover:bg-purple-900/30" title={val}>
+                                        {val || <span className="text-muted-foreground italic">Empty</span>}
+                                      </div>
+                                      {fieldCfg?.maxLength && <CharCounter value={val} maxLength={fieldCfg.maxLength} />}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+                        
+                        // Carousel parent: summary row
+                        return (
+                          <div
+                            key={item.key}
+                            className="flex border-b bg-blue-50/60 dark:bg-blue-950/30"
+                            style={{ height: 44 }}
+                          >
+                            <div className="flex-1 flex items-center px-4 gap-2">
+                              <span className="text-xs text-blue-600 dark:text-blue-400 italic">
+                                {isCollapsedPG ? 'Expand to edit individual card text' : 'Edit text for each card below'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
                       // Data row
                       rowIdx++;
                       const rowIndex = rowIdx;
@@ -1748,6 +1990,7 @@ export function TextAssetExcelEditor({
                       const isCarouselGrouped = row.processingGroupType === 'carousel';
                       const isACGrouped = row.processingGroupType === 'asset_customization';
                       const isGrouped = !!(row.processingGroupId && row.processingGroupType);
+                      const isACChild = !!(item.isInProcessingGroup && item.processingGroupType === 'asset_customization');
                       
                       return (
                         <div
@@ -1933,7 +2176,8 @@ export function TextAssetExcelEditor({
                                   className={cn(
                                     "px-1 py-1 border-r shrink-0",
                                     isSelected && "bg-primary/20 outline outline-2 outline-primary",
-                                    isOrganic && "opacity-75"
+                                    isOrganic && "opacity-75",
+                                    isACChild && "bg-purple-50/20 dark:bg-purple-950/10 opacity-60"
                                   )}
                                   style={{ width: col.width }}
                                   onMouseDown={(e) => handleCellMouseDown(rowIndex, absoluteColIdx, e)}
@@ -1942,7 +2186,7 @@ export function TextAssetExcelEditor({
                                   <Select
                                     value={value}
                                     onValueChange={(v) => handleRowChangeWithGroupSync(row.id, { [col.key]: v })}
-                                    disabled={isOrganic}
+                                    disabled={isOrganic || isACChild}
                                   >
                                     <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
                                       <SelectValue placeholder="Select..." />
@@ -1959,9 +2203,11 @@ export function TextAssetExcelEditor({
                               );
                             }
                             
-                            // Text columns - read-only for organic posts EXCEPT destinationUrl (required for traffic objectives)
+                            // Text columns - read-only for organic posts and AC children (text shared from parent)
                             const isOrganicEditableColumn = col.key === 'destinationUrl';
                             const isLockedOrganic = isOrganic && !isOrganicEditableColumn;
+                            const isLockedACChild = isACChild && ['primaryText', 'headline', 'description', 'caption', 'callToAction', 'displayLink', 'brandName'].includes(col.key);
+                            const isLocked = isLockedOrganic || isLockedACChild;
                             
                             return (
                               <div
@@ -1970,15 +2216,16 @@ export function TextAssetExcelEditor({
                                   "px-1 py-1 border-r shrink-0",
                                   isSelected && "bg-primary/20 outline outline-2 outline-primary",
                                   isOrganic && !isOrganicEditableColumn && "bg-green-50/30 dark:bg-green-950/10",
-                                  isOrganic && isOrganicEditableColumn && "bg-amber-50/30 dark:bg-amber-950/10"
+                                  isOrganic && isOrganicEditableColumn && "bg-amber-50/30 dark:bg-amber-950/10",
+                                  isLockedACChild && "bg-purple-50/20 dark:bg-purple-950/10"
                                 )}
                                 style={{ width: col.width }}
-                                onMouseDown={(e) => !isLockedOrganic && handleCellMouseDown(rowIndex, absoluteColIdx, e)}
-                                onMouseEnter={() => !isLockedOrganic && handleCellMouseEnter(rowIndex, absoluteColIdx)}
-                                onDoubleClick={() => !isLockedOrganic && handleCellDoubleClick(rowIndex, absoluteColIdx, row)}
+                                onMouseDown={(e) => !isLocked && handleCellMouseDown(rowIndex, absoluteColIdx, e)}
+                                onMouseEnter={() => !isLocked && handleCellMouseEnter(rowIndex, absoluteColIdx)}
+                                onDoubleClick={() => !isLocked && handleCellDoubleClick(rowIndex, absoluteColIdx, row)}
                               >
                                 <div className="flex items-center">
-                                  {isEditing && !isLockedOrganic ? (
+                                  {isEditing && !isLocked ? (
                                     <Input
                                       ref={inputRef}
                                       value={editValue}
@@ -1991,12 +2238,15 @@ export function TextAssetExcelEditor({
                                       <div 
                                         className={cn(
                                           "h-7 px-2 text-xs flex items-center truncate flex-1 rounded",
-                                          !isLockedOrganic && "hover:bg-muted/50",
-                                          isLockedOrganic && "cursor-default italic text-muted-foreground"
+                                          !isLocked && "hover:bg-muted/50",
+                                          isLocked && "cursor-default italic text-muted-foreground"
                                         )}
-                                        title={value}
+                                        title={isLockedACChild ? '↑ Shared from parent' : value}
                                       >
-                                        {value || <span className="text-muted-foreground italic">{isLockedOrganic ? '—' : 'Empty'}</span>}
+                                        {isLockedACChild 
+                                          ? <span className="text-purple-400 dark:text-purple-600 italic text-[10px]">↑ Shared</span>
+                                          : (value || <span className="text-muted-foreground italic">{isLockedOrganic ? '—' : 'Empty'}</span>)
+                                        }
                                       </div>
                                       {fieldConfig?.maxLength && !isLockedOrganic && (
                                         <CharCounter value={value} maxLength={fieldConfig.maxLength} />
