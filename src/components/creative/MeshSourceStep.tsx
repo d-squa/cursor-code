@@ -28,6 +28,8 @@ import { toast } from 'sonner';
 import { SelectedAsset, CreativeSource } from '@/hooks/useCreativeMeshProgress';
 import { MeshPageAssetsPicker } from '@/components/creative/MeshPageAssetsPicker';
 import { MeshAdAccountAssetsPicker } from '@/components/creative/MeshAdAccountAssetsPicker';
+import { CreativeProcessingOptionsDialog, type ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
+import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
 
 // Ad account configuration passed from parent
 interface AdAccountInfo {
@@ -120,6 +122,7 @@ export function MeshSourceStep({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeLoading, setYoutubeLoading] = useState(false);
+  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
 
   // Filter assets by current platform
   const platformAssets = useMemo(() => 
@@ -334,6 +337,35 @@ export function MeshSourceStep({
   }, [youtubeUrl, platformAssets, onAddAsset]);
 
   const hasAssets = platformAssets.length > 0;
+
+  // Convert selected assets to DetectableAsset format for processing detection
+  const detectableAssets: DetectableAsset[] = useMemo(() => 
+    platformAssets.map(a => ({
+      id: a.id,
+      name: a.name || a.id,
+      filePath: a.name,
+      folderPath: a.name ? a.name.split('/').slice(0, -1).join('/') : '/',
+      assetType: a.assetType,
+      width: a.width,
+      height: a.height,
+      aspectRatio: a.width && a.height ? `${a.width}:${a.height}` : undefined,
+    })),
+    [platformAssets]
+  );
+
+  // Handle Run Matching button — open processing options dialog
+  const handleRunMatchingClick = useCallback(() => {
+    if (!hasAssets) return;
+    setShowProcessingOptions(true);
+  }, [hasAssets]);
+
+  // Handle confirm from processing options dialog
+  const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
+    setShowProcessingOptions(false);
+    // TODO: Pass approved groups to the matching engine for carousel/AC creation
+    // For now, proceed with standard matching
+    onRunMesh();
+  }, [onRunMesh]);
 
   // Determine upload description based on allowed media
   const uploadDescription = useMemo(() => {
@@ -727,7 +759,7 @@ export function MeshSourceStep({
                 className="w-full gap-2" 
                 size="lg"
                 disabled={!hasAssets || isProcessing}
-                onClick={onRunMesh}
+                onClick={handleRunMatchingClick}
               >
                   {isProcessing ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -741,6 +773,17 @@ export function MeshSourceStep({
         </div>
       </Tabs>
       )}
+
+      {/* Creative Processing Options Dialog */}
+      <CreativeProcessingOptionsDialog
+        open={showProcessingOptions}
+        onOpenChange={setShowProcessingOptions}
+        assets={detectableAssets}
+        platform={platform}
+        googleCampaignType={googleCampaignTypes?.[0]}
+        onConfirm={handleProcessingConfirm}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 }
