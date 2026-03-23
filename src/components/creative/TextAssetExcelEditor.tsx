@@ -717,7 +717,7 @@ export function TextAssetExcelEditor({
     const col = GRID_COLUMNS[colIndex];
     
     if (row && col) {
-      onRowChange(row.id, { [col.key]: editValue });
+      handleRowChangeWithGroupSync(row.id, { [col.key]: editValue });
     }
     
     setEditingCell(null);
