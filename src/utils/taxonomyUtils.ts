@@ -1301,6 +1301,9 @@ export function getAllAvailableParams(): TaxonomyParam[] {
     { id: 'deviceType', key: 'DEV', label: 'Device Type', type: 'options', options: ['ALL', 'MOB', 'DSK', 'TAB'], system: false },
     { id: 'billingEvent', key: 'BIL', label: 'Billing Event', type: 'options', options: ['CPM', 'CPC', 'OCPM', 'CPV'], system: false },
     { id: 'conversionEvent', key: 'EVT', label: 'Conversion Event', type: 'options', options: ['PUR', 'ATC', 'LED', 'REG', 'PGV'], system: false },
+    { id: 'keywordStrategy', key: 'KWST', label: 'Keyword Strategy', type: 'options', options: ['BRAND', 'GENER', 'COMPE'], system: false },
+    { id: 'matchType', key: 'MT', label: 'Match Type', type: 'options', options: ['BRD', 'PHR', 'EXT'], system: false },
+    { id: 'campaignType', key: 'CTYP', label: 'Campaign Type', type: 'options', options: ['SRC', 'DSP', 'PMAX', 'VID', 'DGEN', 'SHOP', 'APP'], system: false },
   ];
 }
 
