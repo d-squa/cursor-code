@@ -23,6 +23,19 @@ const templateCache = new Map<string, TaxonomyTemplates>();
 const dbAccountIdCache = new Map<string, string | null>();
 const inflightRequests = new Map<string, Promise<TaxonomyTemplates>>();
 
+function mergeTemplateWithDefaults(
+  template: TaxonomyParam[],
+  defaults: TaxonomyParam[]
+): TaxonomyParam[] {
+  const templateMap = new Map(template.map((param) => [param.id, param]));
+  const mergedDefaults = defaults.map((defaultParam) => ({
+    ...defaultParam,
+    ...(templateMap.get(defaultParam.id) || {}),
+  }));
+  const customOnly = template.filter((param) => !defaults.some((defaultParam) => defaultParam.id === param.id));
+  return [...mergedDefaults, ...customOnly];
+}
+
 async function resolveDbAccountId(
   adAccountId: string,
   platform: 'meta' | 'tiktok' | 'google'
@@ -90,7 +103,7 @@ async function fetchTemplates(
 
       const { data, error } = await supabase
         .from('taxonomy_templates')
-        .select('entity_type, template')
+        .select('id, entity_type, template')
         .eq('ad_account_id', dbAccountId)
         .eq('platform', platform)
         .in('entity_type', ['campaign', 'adset']);
@@ -101,9 +114,23 @@ async function fetchTemplates(
       }
 
       const result: TaxonomyTemplates = { campaign: [], adset: [] };
+      const outdatedTemplates: Array<{ id: string; template: TaxonomyParam[] }> = [];
+
       data?.forEach(row => {
         if (row.entity_type === 'campaign' || row.entity_type === 'adset') {
-          result[row.entity_type] = row.template as unknown as TaxonomyParam[];
+          const defaults = row.entity_type === 'campaign'
+            ? getDefaultCampaignParams(platform)
+            : getDefaultAdSetParams(platform);
+          const mergedTemplate = mergeTemplateWithDefaults(
+            row.template as unknown as TaxonomyParam[],
+            defaults
+          );
+
+          result[row.entity_type] = mergedTemplate;
+
+          if (row.id && JSON.stringify(mergedTemplate) !== JSON.stringify(row.template)) {
+            outdatedTemplates.push({ id: row.id, template: mergedTemplate });
+          }
         }
       });
 
@@ -137,6 +164,20 @@ async function fetchTemplates(
         } catch {
           // Silently continue
         }
+      }
+
+      if (outdatedTemplates.length > 0) {
+        await Promise.all(
+          outdatedTemplates.map(({ id, template }) =>
+            supabase
+              .from('taxonomy_templates')
+              .update({
+                template: JSON.parse(JSON.stringify(template)) as Json,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', id)
+          )
+        );
       }
 
       templateCache.set(cacheKey, result);
