@@ -70,6 +70,8 @@ export default function CreativeMatching() {
     loadExistingAssignments,
   } = useCreativeMatching(progress?.campaignId, progress?.platform);
 
+  const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
+
   // Load existing assignments when campaign is loaded (for duplicated ActiPlans)
   useEffect(() => {
     if (progress?.campaignId && !matchingState.savedAssignments?.length) {
