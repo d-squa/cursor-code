@@ -71,6 +71,8 @@ interface GoogleAdAccountDefaults {
   default_inventory_type?: string | null;
   default_ai_max?: boolean | null;
   default_ai_max_options?: string[] | null;
+  default_brand_guidelines?: boolean | null;
+  default_business_name?: string | null;
 }
 
 interface AdAccount {
