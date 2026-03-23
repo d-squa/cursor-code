@@ -2891,6 +2891,35 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         )}
                       </div>
 
+                      {/* Brand Guidelines (PMax) */}
+                      <div className="space-y-3 mt-4">
+                        <Label className="text-sm font-medium">Brand Guidelines (Performance Max)</Label>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={(gDefaults as any).default_brand_guidelines ?? false}
+                            onCheckedChange={(v) => {
+                              updateGoogleDefault(gAccount.id, "default_brand_guidelines" as any, v);
+                              if (!v) updateGoogleDefault(gAccount.id, "default_business_name" as any, null);
+                            }}
+                            className="h-4 w-7"
+                          />
+                          <Label className="text-sm">Brand Guidelines</Label>
+                        </div>
+                        {(gDefaults as any).default_brand_guidelines && (
+                          <div className="ml-6 space-y-2">
+                            <Label className="text-sm">Business Name</Label>
+                            <Input
+                              placeholder="Your business name"
+                              value={(gDefaults as any).default_business_name || ""}
+                              onChange={(e) => updateGoogleDefault(gAccount.id, "default_business_name" as any, e.target.value || null)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Required for PMax campaigns with Brand Guidelines. A logo asset must also be linked in your Google Ads account.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
                       <Separator className="my-4" />
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
