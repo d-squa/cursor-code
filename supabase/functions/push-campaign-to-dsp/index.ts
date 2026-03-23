@@ -3998,17 +3998,21 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             }
           }
 
-          // Apply network settings (Search Partners, Display Network)
-          try {
-            await googleAdapter.setCampaignNetworkSettings(
-              cleanCustomerId,
-              campaignResult.campaignId,
-              searchPartnerNetwork,
-              displayNetworkEnabled,
-              campaignHeaders,
-            );
-          } catch (netErr: any) {
-            console.error(`⚠️ Network settings error (non-fatal): ${netErr.message}`);
+          // Apply network settings (Search Partners, Display Network) — not supported for Performance Max
+          if (advertisingChannelType !== "PERFORMANCE_MAX") {
+            try {
+              await googleAdapter.setCampaignNetworkSettings(
+                cleanCustomerId,
+                campaignResult.campaignId,
+                searchPartnerNetwork,
+                displayNetworkEnabled,
+                campaignHeaders,
+              );
+            } catch (netErr: any) {
+              console.error(`⚠️ Network settings error (non-fatal): ${netErr.message}`);
+            }
+          } else {
+            console.log(`ℹ️ Skipping network settings for Performance Max campaign`);
           }
           // ============= END CAMPAIGN-LEVEL TARGETING =============
 
