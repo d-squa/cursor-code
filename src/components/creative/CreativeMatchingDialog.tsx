@@ -940,5 +940,16 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Creative Processing Options Dialog */}
+    <CreativeProcessingOptionsDialog
+      open={showProcessingOptions}
+      onOpenChange={setShowProcessingOptions}
+      assets={detectableAssets}
+      platform="meta"
+      onConfirm={handleProcessingConfirm}
+      isProcessing={state.isProcessing}
+    />
+    </>
   );
 }
