@@ -1405,7 +1405,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
           campaignBudget: budgetResourceName,
           startDateTime,
           ...(endDateTime ? { endDateTime } : {}),
-          ...biddingConfig,
+          ...this.sanitizeCampaignBiddingConfig(biddingConfig),
           containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
           ...((channelType === "PERFORMANCE_MAX" || channelType === "SHOPPING") && params.metadata?.merchantCenterId ? {
             shoppingSetting: {
@@ -1416,9 +1416,17 @@ class GoogleAdsAdapter implements PlatformAdapter {
         },
       });
 
-      const requestedBiddingStrategy = this.buildBiddingStrategy(
+      const requestedStrategyName = this.normalizeCampaignBiddingStrategy(
+        requestedChannelType,
         params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS",
+      );
+      const requestedBiddingStrategy = this.sanitizeCampaignBiddingConfig(this.buildBiddingStrategy(
+        requestedStrategyName,
         params.metadata?.bidAmount,
+      ));
+
+      console.log(
+        `📊 Google Ads bidding normalization: requested=${params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS"}, effective=${requestedStrategyName}, channel=${requestedChannelType}, fields=${Object.keys(requestedBiddingStrategy).join(",")}`,
       );
 
       const campaignUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
@@ -1447,10 +1455,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.warn("⚠️ VIDEO campaign mutate not allowed for this account, retrying with DEMAND_GEN fallback");
         finalChannelType = "DEMAND_GEN";
 
-        const requestedStrategy = params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS";
-        finalBiddingStrategy = requestedStrategy === "TARGET_CPM"
-          ? this.buildBiddingStrategy("MAXIMIZE_CLICKS", params.metadata?.bidAmount)
-          : requestedBiddingStrategy;
+        const fallbackRequestedStrategy = params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS";
+        const fallbackStrategyName = this.normalizeCampaignBiddingStrategy(
+          finalChannelType,
+          fallbackRequestedStrategy === "TARGET_CPM" ? "MAXIMIZE_CLICKS" : fallbackRequestedStrategy,
+        );
+        finalBiddingStrategy = this.sanitizeCampaignBiddingConfig(
+          this.buildBiddingStrategy(fallbackStrategyName, params.metadata?.bidAmount),
+        );
+
+        console.log(
+          `📊 Google Ads fallback bidding normalization: requested=${fallbackRequestedStrategy}, effective=${fallbackStrategyName}, channel=${finalChannelType}, fields=${Object.keys(finalBiddingStrategy).join(",")}`,
+        );
 
         campaignResp = await fetch(campaignUrl, {
           method: "POST",
@@ -1486,6 +1502,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
           budgetResourceName,
           channelType: finalChannelType,
           biddingStrategy: params.metadata?.biddingStrategy,
+          effectiveBiddingStrategy: finalChannelType === requestedChannelType ? requestedStrategyName : undefined,
           fallbackApplied: finalChannelType !== requestedChannelType,
           originalChannelType: requestedChannelType,
         },
@@ -1756,6 +1773,43 @@ class GoogleAdsAdapter implements PlatformAdapter {
       default:
         return { maximizeConversions: {} };
     }
+  }
+
+  private normalizeCampaignBiddingStrategy(channelType: string, strategy: string): string {
+    const normalizedChannelType = (channelType || "").toUpperCase();
+    const normalizedStrategy = (strategy || "MAXIMIZE_CONVERSIONS").toUpperCase();
+
+    const unsupportedByChannel: Record<string, Set<string>> = {
+      PERFORMANCE_MAX: new Set(["MAXIMIZE_CLICKS", "TARGET_CPM", "MANUAL_CPC", "TARGET_IMPRESSION_SHARE"]),
+      SHOPPING: new Set(["MAXIMIZE_CLICKS", "TARGET_CPM", "TARGET_IMPRESSION_SHARE"]),
+    };
+
+    if (unsupportedByChannel[normalizedChannelType]?.has(normalizedStrategy)) {
+      console.warn(
+        `⚠️ Unsupported Google Ads bidding strategy ${normalizedStrategy} for ${normalizedChannelType}; falling back to MAXIMIZE_CONVERSIONS`,
+      );
+      return "MAXIMIZE_CONVERSIONS";
+    }
+
+    return normalizedStrategy;
+  }
+
+  private sanitizeCampaignBiddingConfig(biddingConfig: Record<string, any>): Record<string, any> {
+    if (!biddingConfig || typeof biddingConfig !== "object") {
+      return {};
+    }
+
+    const sanitizedConfig = { ...biddingConfig };
+
+    if ("maximizeClicks" in sanitizedConfig) {
+      const maximizeClicksConfig = sanitizedConfig.maximizeClicks;
+      delete sanitizedConfig.maximizeClicks;
+      sanitizedConfig.targetSpend = maximizeClicksConfig && typeof maximizeClicksConfig === "object"
+        ? maximizeClicksConfig
+        : {};
+    }
+
+    return sanitizedConfig;
   }
 
   private async addKeywordCriteria(
