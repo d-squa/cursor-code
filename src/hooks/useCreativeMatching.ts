@@ -1183,9 +1183,16 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
       return false;
     }
 
+    const uniqueAcceptedMatches = new Map<string, { compositeKey: string; match: UICreativeMatch }>();
+    for (const [compositeKey, match] of currentState.acceptedMatches.entries()) {
+      const lastColonIdx = compositeKey.lastIndexOf(':');
+      const assetId = compositeKey.slice(0, lastColonIdx);
+      uniqueAcceptedMatches.set(assetId, { compositeKey, match });
+    }
+
     // Initialize progress for all accepted matches
     const initialProgress = new Map<string, SaveProgressItem>();
-    for (const compositeKey of currentState.acceptedMatches.keys()) {
+    for (const { compositeKey } of uniqueAcceptedMatches.values()) {
       // Parse compositeKey: last segment is structureId, everything before is assetId
       const lastColonIdx = compositeKey.lastIndexOf(':');
       const assetId = compositeKey.slice(0, lastColonIdx);
@@ -1193,7 +1200,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
       initialProgress.set(compositeKey, { compositeKey, assetId, structureId, status: 'pending' });
     }
     setState(prev => ({ ...prev, isProcessing: true, saveProgress: initialProgress }));
-    toast.info(`Saving ${currentState.acceptedMatches.size} matches…`);
+    toast.info(`Saving ${uniqueAcceptedMatches.size} matches…`);
 
     const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
     const PER_CALL_TIMEOUT_MS = 180_000; // 3 minutes
@@ -1245,7 +1252,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
         return parts.join(' • ') || 'Unknown error';
       };
 
-      for (const [compositeKey, match] of currentState.acceptedMatches) {
+      for (const { compositeKey, match } of uniqueAcceptedMatches.values()) {
       // Parse compositeKey: last segment is structureId, everything before is assetId
       const lastColonIdx = compositeKey.lastIndexOf(':');
       const assetId = compositeKey.slice(0, lastColonIdx);

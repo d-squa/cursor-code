@@ -120,10 +120,6 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
     } else if (baseNames.size === 1 && groupAssets.length >= 2) {
       isCarousel = true;
       reason = `${groupAssets.length} images sharing base name "${[...baseNames][0]}" in same dimensions (${dimKey})`;
-    } else if (groupAssets.length >= 3 && dimKey !== 'unknown') {
-      // 3+ images with same dimensions in same folder is a strong carousel signal
-      isCarousel = true;
-      reason = `${groupAssets.length} images with identical dimensions (${dimKey}) in "${folder || 'root'}" folder`;
     }
 
     if (isCarousel) {
