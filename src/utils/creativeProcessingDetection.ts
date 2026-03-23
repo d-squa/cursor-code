@@ -228,14 +228,6 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
       continue;
     }
 
-    const seriesInfo = extractSeriesInfo(asset.name);
-    if (!seriesInfo) {
-      console.log(`[CarouselDetection] No sequence pattern in "${asset.name}"`);
-      continue;
-    }
-
-    console.log(`[CarouselDetection] ✓ "${asset.name}" → series="${seriesInfo.seriesKey}", seq=${seriesInfo.sequence}, folder="${asset.filePath}"`);
-
     const folder = getFolderPath(asset.filePath);
     const dimKey = `${asset.width}x${asset.height}`;
     const language = extractLanguageHint(`${asset.filePath || ''} ${asset.name}`);
@@ -245,6 +237,14 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
       folderDimensionGroups.set(folderDimensionKey, { folder, dimKey, language, items: [] });
     }
     folderDimensionGroups.get(folderDimensionKey)!.items.push(asset);
+
+    const seriesInfo = extractSeriesInfo(asset.name);
+    if (!seriesInfo) {
+      console.log(`[CarouselDetection] No sequence pattern in "${asset.name}" — kept for folder/dimension fallback`);
+      continue;
+    }
+
+    console.log(`[CarouselDetection] ✓ "${asset.name}" → series="${seriesInfo.seriesKey}", seq=${seriesInfo.sequence}, folder="${asset.filePath}"`);
 
     const key = `${folder}||${dimKey}||${seriesInfo.seriesKey}`;
 
