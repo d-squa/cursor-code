@@ -1003,6 +1003,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_inventory_type",
         "default_ai_max",
         "default_ai_max_options",
+        "default_brand_guidelines",
+        "default_business_name",
       ];
 
       const updateData: Record<string, any> = {};
