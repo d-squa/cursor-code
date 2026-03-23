@@ -57,6 +57,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
   const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
   const [showProcessingOptions, setShowProcessingOptions] = useState(false);
+  const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
 
   // Sync state with props when they change
   useEffect(() => {
