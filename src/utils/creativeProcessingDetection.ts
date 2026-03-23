@@ -161,12 +161,25 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
   // Group by folder + exact dimensions + series key
   const groups = new Map<string, { folder: string; dimKey: string; seriesKey: string; items: { asset: DetectableAsset; sequence: number }[] }>();
 
+  console.log(`[CarouselDetection] Analyzing ${assets.length} assets for carousel patterns`);
+
   for (const asset of assets) {
-    if (asset.assetType !== 'image') continue;
-    if (!asset.width || !asset.height) continue;
+    if (asset.assetType !== 'image') {
+      console.log(`[CarouselDetection] Skipping "${asset.name}" — not an image (${asset.assetType})`);
+      continue;
+    }
+    if (!asset.width || !asset.height) {
+      console.log(`[CarouselDetection] Skipping "${asset.name}" — missing dimensions (w=${asset.width}, h=${asset.height})`);
+      continue;
+    }
 
     const seriesInfo = extractSeriesInfo(asset.name);
-    if (!seriesInfo) continue;
+    if (!seriesInfo) {
+      console.log(`[CarouselDetection] No sequence pattern in "${asset.name}"`);
+      continue;
+    }
+
+    console.log(`[CarouselDetection] ✓ "${asset.name}" → series="${seriesInfo.seriesKey}", seq=${seriesInfo.sequence}, folder="${asset.filePath}"`);
 
     const folder = getFolderPath(asset.filePath);
     const dimKey = `${asset.width}x${asset.height}`;
@@ -177,6 +190,8 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
     }
     groups.get(key)!.items.push({ asset, sequence: seriesInfo.sequence });
   }
+
+  console.log(`[CarouselDetection] Found ${groups.size} potential groups`);
 
   const results: DetectedCarouselGroup[] = [];
 
