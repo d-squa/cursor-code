@@ -3976,6 +3976,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                 marketCountries,
                 locationTargetingType,
                 campaignHeaders,
+                advertisingChannelType,
               );
             } catch (geoErr: any) {
               console.error(`⚠️ Geo targeting error (non-fatal): ${geoErr.message}`);
