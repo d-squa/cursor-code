@@ -233,7 +233,7 @@ export default function CreativeMatching() {
   }, [progress?.campaignId]);
 
   // Handle running the mesh
-  const handleRunMesh = useCallback(async () => {
+  const handleRunMesh = useCallback(async (processingOpts?: ProcessingOptions) => {
     if (!progress?.campaignId) return;
 
     // Separate uploads (need processFiles) from platform assets (use addPlatformAssets)
@@ -295,6 +295,7 @@ export default function CreativeMatching() {
     // Load structures and run matching
     const structures = await loadCampaignStructures(progress.campaignId);
     if (structures && structures.length > 0) {
+      if (processingOpts) setApprovedProcessingGroups(processingOpts);
       runMatching(structures);
       goToStep('mesh');
     } else {
@@ -518,6 +519,7 @@ export default function CreativeMatching() {
                 campaignId={progress.campaignId}
                 campaignName={progress.campaignName}
                 savedAssignments={matchingState.savedAssignments}
+                processingOptions={approvedProcessingGroups ?? undefined}
                 onComplete={handleContentComplete}
                 onSaveAndSelectMore={handleSaveAndSelectMore}
               />
