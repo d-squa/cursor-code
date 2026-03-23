@@ -14,6 +14,8 @@ import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { CreativeProcessingOptionsDialog, type ProcessingOptions } from './CreativeProcessingOptionsDialog';
+import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
 import { useCreativeMatching, UICreativeMatch, DigestedAsset, CampaignStructure } from '@/hooks/useCreativeMatching';
 import { CreativeMatchCard } from './CreativeMatchCard';
 import { StructureCentricView } from './StructureCentricView';
