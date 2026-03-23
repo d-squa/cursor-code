@@ -164,8 +164,9 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
   console.log(`[CarouselDetection] Analyzing ${assets.length} assets for carousel patterns`);
 
   for (const asset of assets) {
-    if (asset.assetType !== 'image') {
-      console.log(`[CarouselDetection] Skipping "${asset.name}" — not an image (${asset.assetType})`);
+    // Allow both images and videos for carousel (Meta/TikTok support video carousels)
+    if (asset.assetType !== 'image' && asset.assetType !== 'video') {
+      console.log(`[CarouselDetection] Skipping "${asset.name}" — unsupported type (${asset.assetType})`);
       continue;
     }
     if (!asset.width || !asset.height) {
