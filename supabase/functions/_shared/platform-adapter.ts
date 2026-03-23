@@ -1407,7 +1407,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
           ...(endDateTime ? { endDateTime } : {}),
           ...biddingConfig,
           containsEuPoliticalAdvertising: "DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING",
-          ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false } : {}),
+          ...(channelType === "PERFORMANCE_MAX" ? { urlExpansionOptOut: false, shoppingSetting: params.metadata?.merchantCenterId ? { merchantId: String(params.metadata.merchantCenterId), ...(params.metadata.feedLabel ? { feedLabel: params.metadata.feedLabel } : {}) } : undefined } : {}),
           ...(channelType === "SHOPPING" && params.metadata?.merchantCenterId ? {
             shoppingSetting: {
               merchantId: String(params.metadata.merchantCenterId),
