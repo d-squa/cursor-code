@@ -689,34 +689,45 @@ export function MeshSourceStep({
           </div>
 
           {/* Selected Assets Sidebar */}
-          <div className="w-80 border-l bg-muted/30 flex flex-col">
-            <div className="p-4 border-b bg-background">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold">Selected Assets</h3>
+          <div className="w-80 border-l bg-muted/30 flex flex-col max-h-full">
+            {/* Sticky header with Run Matching button */}
+            <div className="p-4 border-b bg-background space-y-3 shrink-0">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Selected ({platformAssets.length})</h3>
                 {hasAssets && (
-                  <Button variant="ghost" size="sm" onClick={onClearAssets}>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClearAssets}>
                     Clear All
                   </Button>
                 )}
               </div>
-              <div className="text-sm text-muted-foreground">
-                {platformAssets.length} assets ready for meshing
-              </div>
+              <Button 
+                className="w-full gap-2" 
+                size="default"
+                disabled={!hasAssets || isProcessing}
+                onClick={handleRunMatchingClick}
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+                Run Matching {hasAssets && `(${platformAssets.length})`}
+              </Button>
             </div>
             
-            <ScrollArea className="flex-1 p-4">
-              {platformAssets.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  Select assets from any source tab. You can mix and match.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {platformAssets.map(asset => (
-                    <div 
-                      key={asset.id}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-background border"
-                    >
-                      <div className="w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-3">
+                {platformAssets.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-xs">
+                    Select assets from any source tab.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {platformAssets.map(asset => (
+                      <div 
+                        key={asset.id}
+                        className="relative group rounded-md overflow-hidden bg-muted border aspect-square"
+                      >
                         {asset.thumbnailUrl ? (
                           <img 
                             src={asset.thumbnailUrl} 
@@ -732,43 +743,23 @@ export function MeshSourceStep({
                             )}
                           </div>
                         )}
+                        {asset.assetType === 'video' && (
+                          <div className="absolute bottom-0.5 left-0.5">
+                            <Video className="h-3 w-3 text-white drop-shadow-md" />
+                          </div>
+                        )}
+                        <button
+                          onClick={() => onRemoveAsset(asset.id)}
+                          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-background/80 hover:bg-destructive hover:text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {asset.name || asset.id.slice(0, 12)}
-                        </p>
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {asset.platformAssetId?.startsWith('yt:') ? 'YouTube' : asset.source.replace('_', ' ')}
-                        </Badge>
-                      </div>
-                      <button
-                        onClick={() => onRemoveAsset(asset.id)}
-                        className="p-1 hover:bg-muted rounded"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </ScrollArea>
-
-            {/* Run Mesh Button */}
-            <div className="p-4 border-t bg-background">
-              <Button 
-                className="w-full gap-2" 
-                size="lg"
-                disabled={!hasAssets || isProcessing}
-                onClick={handleRunMatchingClick}
-              >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Wand2 className="h-4 w-4" />
-                  )}
-                  Run Matching {hasAssets && `(${platformAssets.length})`}
-                </Button>
-            </div>
           </div>
         </div>
       </Tabs>
