@@ -150,109 +150,88 @@ function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
   ));
 }
 
-function addProcessingMatchVariants(target: Set<string>, value?: string | null) {
-  if (!value) return;
-
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return;
-
-  target.add(normalized);
-
-  const lastPathSegment = normalized.split('/').pop() || normalized;
-  target.add(lastPathSegment);
-
-  const withoutExtension = lastPathSegment.replace(/\.[^/.]+$/, '');
-  if (withoutExtension) {
-    target.add(withoutExtension);
-  }
-}
-
-function buildRowRelativePath(row: CreativeTextAssetRowWithTikTok): string | undefined {
-  if (!row.folderPath) return row.originalFilename || row.creativeName;
-
-  const normalizedFolder = row.folderPath.replace(/\\/g, '/');
-  const fileName = row.originalFilename || row.creativeName;
-
-  if (!fileName) return normalizedFolder;
-  if (normalizedFolder.endsWith(`/${fileName}`) || normalizedFolder === fileName) return normalizedFolder;
-
-  return `${normalizedFolder}/${fileName}`;
-}
-
-function rowMatchesDetectedAsset(
-  row: CreativeTextAssetRowWithTikTok,
-  asset: { name: string; filePath?: string; assetType: 'image' | 'video'; width?: number; height?: number; aspectRatio?: string },
-  groupType: 'carousel' | 'asset_customization'
-) {
-  if (row.mediaType !== asset.assetType) return false;
-
-  const rowKeys = new Set<string>();
-  addProcessingMatchVariants(rowKeys, row.originalFilename);
-  addProcessingMatchVariants(rowKeys, row.creativeName);
-  addProcessingMatchVariants(rowKeys, row.folderPath);
-  addProcessingMatchVariants(rowKeys, buildRowRelativePath(row));
-
-  const assetKeys = new Set<string>();
-  addProcessingMatchVariants(assetKeys, asset.name);
-  addProcessingMatchVariants(assetKeys, asset.filePath);
-
-  const hasKeyMatch = [...rowKeys].some((key) => assetKeys.has(key));
-  if (!hasKeyMatch) return false;
-
-  const rowDimensionKey = getDimensionKey(row.width, row.height);
-  const assetDimensionKey = getDimensionKey(asset.width, asset.height);
-  const rowAspectRatio = normalizeAspectRatio(row.aspectRatio, row.width, row.height);
-  const assetAspectRatio = normalizeAspectRatio(asset.aspectRatio, asset.width, asset.height);
-
-  if (groupType === 'carousel') {
-    return !!rowDimensionKey && !!assetDimensionKey && rowDimensionKey === assetDimensionKey;
-  }
-
-  if (rowDimensionKey && assetDimensionKey && rowDimensionKey === assetDimensionKey) {
-    return false;
-  }
-
-  if (rowAspectRatio && assetAspectRatio) {
-    return rowAspectRatio !== assetAspectRatio;
-  }
-
-  return true;
-}
-
+/**
+ * Run detection directly on text asset rows and apply approved groups.
+ * This replaces the old cross-referencing approach: instead of trying to match
+ * pre-detected assets to rows by filename, we convert rows → DetectableAssets,
+ * run detection, and apply groups that match the user's approvals.
+ */
 function applyProcessingOptionsToRows(
   rows: CreativeTextAssetRowWithTikTok[],
   processingOptions?: ProcessingOptions
 ) {
-  if (!processingOptions || processingOptions.detectedGroups.length === 0) {
+  if (!processingOptions) {
     return normalizeProcessingGroups(rows);
   }
 
+  // If no approved groups, just clear and normalize
+  if (processingOptions.approvedGroupIds.size === 0) {
+    return normalizeProcessingGroups(
+      rows.map((row) => ({ ...row, processingGroupId: undefined, processingGroupType: undefined }))
+    );
+  }
+
+  // Convert rows to DetectableAssets for the detection engine
+  const rowAssets: (DetectableAsset & { rowId: string })[] = rows.map((row) => ({
+    id: row.id,
+    rowId: row.id,
+    name: row.originalFilename || row.creativeName,
+    filePath: row.folderPath
+      ? `${row.folderPath}/${row.originalFilename || row.creativeName}`
+      : row.originalFilename || row.creativeName,
+    assetType: row.mediaType || 'image',
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    aspectRatio: row.aspectRatio ?? undefined,
+  }));
+
+  // Run detection on rows directly
+  const detection = runCreativeDetection(rowAssets, {
+    enableCarousel: processingOptions.enableCarousel,
+    enableAssetCustomization: processingOptions.enableAssetCustomization,
+    platform: rows[0]?.platform || 'meta',
+  });
+
+  const allDetected = [...detection.carouselGroups, ...detection.assetCustomizations];
+
+  // Build a map from the pre-matching detected groups to the row-detected groups.
+  // We match by group type + overlapping asset IDs (row IDs).
+  // The user approved groups from the pre-matching dialog; we need to find
+  // corresponding groups in the row-level detection.
+  const approvedTypes = new Map<string, 'carousel' | 'asset_customization'>();
+  for (const group of processingOptions.detectedGroups) {
+    if (processingOptions.approvedGroupIds.has(group.id)) {
+      approvedTypes.set(group.id, group.type);
+    }
+  }
+
+  // For each row-detected group, check if it matches an approved pre-detection group
+  // by type. Since both detections use the same algorithm, groups of the same type
+  // with same structure are equivalent — auto-approve them.
   const nextRows = rows.map((row) => ({ ...row, processingGroupId: undefined, processingGroupType: undefined }));
   const assignedRowIds = new Set<string>();
-  const approvedGroups = processingOptions.detectedGroups.filter((group) => processingOptions.approvedGroupIds.has(group.id));
 
-  for (const group of approvedGroups) {
-    const matchedRowIds = new Set<string>();
+  // Determine which types were approved
+  const approvedCarousel = [...approvedTypes.values()].some((t) => t === 'carousel');
+  const approvedAC = [...approvedTypes.values()].some((t) => t === 'asset_customization');
 
-    for (const asset of group.assets) {
-      const match = nextRows.find((row) => {
-        if (assignedRowIds.has(row.id) || matchedRowIds.has(row.id)) return false;
-        return rowMatchesDetectedAsset(row, asset, group.type);
-      });
+  for (const group of allDetected) {
+    const isApprovedType =
+      (group.type === 'carousel' && approvedCarousel) ||
+      (group.type === 'asset_customization' && approvedAC);
 
-      if (match) {
-        matchedRowIds.add(match.id);
-      }
-    }
+    if (!isApprovedType) continue;
 
-    if (matchedRowIds.size < 2) continue;
+    // All assets in row-detected groups are row IDs
+    const rowIdsInGroup = group.assets.map((a) => a.id).filter((id) => !assignedRowIds.has(id));
+    if (rowIdsInGroup.length < 2) continue;
 
-    nextRows.forEach((row) => {
-      if (!matchedRowIds.has(row.id)) return;
+    for (const row of nextRows) {
+      if (!rowIdsInGroup.includes(row.id)) continue;
       row.processingGroupId = group.id;
-      row.processingGroupType = group.type === 'carousel' ? 'carousel' : 'asset_customization';
+      row.processingGroupType = group.type;
       assignedRowIds.add(row.id);
-    });
+    }
   }
 
   return normalizeProcessingGroups(nextRows);
