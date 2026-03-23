@@ -1748,7 +1748,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       case "TARGET_ROAS":
         return { targetRoas: { targetRoas: bidAmount || 2.0 } };
       case "MAXIMIZE_CLICKS":
-        return { maximizeClicks: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
+        return { targetSpend: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
       case "TARGET_CPM":
         return { targetCpm: {} };
       case "MANUAL_CPC":
@@ -1825,7 +1825,9 @@ class GoogleAdsAdapter implements PlatformAdapter {
       .map(geoTargetId => ({
         create: {
           campaign: `customers/${customerId}/campaigns/${campaignId}`,
-          geoTargetConstant: `geoTargetConstants/${geoTargetId}`,
+          location: {
+            geoTargetConstant: `geoTargetConstants/${geoTargetId}`,
+          },
           negative: false,
         },
       }));
@@ -1834,11 +1836,6 @@ class GoogleAdsAdapter implements PlatformAdapter {
       console.warn(`⚠️ No valid geo targets found for countries: ${countryCodes.join(', ')}`);
       return;
     }
-
-    // Set location targeting type at campaign level
-    const locationTargetType = locationTargetingType === "PRESENCE" 
-      ? "AREA_OF_INTEREST" // Maps to "Presence" in Google Ads  
-      : "DONT_CARE"; // Maps to "Presence or Interest" (default, recommended)
 
     // First set the campaign's geo target type setting
     const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;

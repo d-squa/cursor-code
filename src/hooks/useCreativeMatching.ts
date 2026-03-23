@@ -182,7 +182,7 @@ export interface MatchingState {
   saveProgress: Map<string, SaveProgressItem>;
 }
 
-export function useCreativeMatching(campaignId?: string) {
+export function useCreativeMatching(campaignId?: string, selectedPlatform?: SupportedPlatform) {
   const { user } = useAuth();
   const [state, setState] = useState<MatchingState>({
     assets: [],
@@ -570,15 +570,19 @@ export function useCreativeMatching(campaignId?: string) {
         }
       }
 
-      setState(prev => ({ ...prev, structures, isProcessing: false }));
-      return structures;
+      const scopedStructures = selectedPlatform
+        ? structures.filter((structure) => structure.platform === selectedPlatform)
+        : structures;
+
+      setState(prev => ({ ...prev, structures: scopedStructures, isProcessing: false }));
+      return scopedStructures;
     } catch (error) {
       console.error('Error loading campaign structures:', error);
       toast.error('Failed to load campaign structure for this ActiPlan');
       setState(prev => ({ ...prev, isProcessing: false }));
       return [];
     }
-  }, [user]);
+  }, [user, selectedPlatform]);
   
   // Helper to extract targeting type from audiences
   function extractTargetingType(audiences: any[] | undefined): string | undefined {
@@ -749,7 +753,7 @@ export function useCreativeMatching(campaignId?: string) {
           mediaType,
           technicalAttributes: { width, height, aspectRatio, duration, fileSize: file.size },
           hardConstraints,
-          compatibilitySignals: {},
+          compatibilitySignals: selectedPlatform ? { platform: selectedPlatform } : {},
           digestedAt: new Date().toISOString(),
           sourceType: 'upload',
         });
@@ -765,7 +769,7 @@ export function useCreativeMatching(campaignId?: string) {
       currentStep: 'match',
     }));
     return digestedAssets;
-  }, []);
+  }, [selectedPlatform]);
 
   // Run the matching algorithm - STRUCTURE-CENTRIC approach
   // For each campaign/adset, find assets that fit based on taxonomy matching
@@ -1078,7 +1082,7 @@ export function useCreativeMatching(campaignId?: string) {
         currentStep: 'review' as const 
       };
     });
-  }, [campaignId]);
+  }, [campaignId, selectedPlatform]);
 
   // Use composite key: assetId:structureId so each asset-structure pair is independent
   const acceptMatch = useCallback((assetId: string, match: UICreativeMatch) => {

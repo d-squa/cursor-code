@@ -67,7 +67,7 @@ export default function CreativeMatching() {
     saveMatches,
     skipTextAssets,
     loadExistingAssignments,
-  } = useCreativeMatching(progress?.campaignId);
+  } = useCreativeMatching(progress?.campaignId, progress?.platform);
 
   // Load existing assignments when campaign is loaded (for duplicated ActiPlans)
   useEffect(() => {

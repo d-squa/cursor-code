@@ -38,6 +38,7 @@ import {
   validateTaxonomyString,
   getAllAvailableParams,
 } from "@/utils/taxonomyUtils";
+import { invalidateTaxonomyCache } from "@/hooks/useTaxonomyTemplates";
 
 interface TaxonomyBuilderProps {
   adAccountId: string;
@@ -54,6 +55,16 @@ const PARAM_TYPE_OPTIONS: { value: TaxonomyParamType; label: string }[] = [
   { value: 'options', label: 'Dropdown Options' },
   { value: 'text', label: 'Free Text' },
 ];
+
+function mergeTemplateWithDefaults(params: TaxonomyParam[], defaults: TaxonomyParam[]): TaxonomyParam[] {
+  const paramMap = new Map(params.map((param) => [param.id, param]));
+  const mergedDefaults = defaults.map((defaultParam) => ({
+    ...defaultParam,
+    ...(paramMap.get(defaultParam.id) || {}),
+  }));
+  const customOnly = params.filter((param) => !defaults.some((defaultParam) => defaultParam.id === param.id));
+  return [...mergedDefaults, ...customOnly];
+}
 
 export default function TaxonomyBuilder({
   adAccountId,
@@ -186,8 +197,23 @@ export default function TaxonomyBuilder({
       if (error) throw error;
 
       if (data) {
+        const mergedTemplate = mergeTemplateWithDefaults(
+          (data.template as unknown) as TaxonomyParam[],
+          getDefaultParams()
+        );
+
         setTemplateId(data.id);
-        setParams((data.template as unknown) as TaxonomyParam[]);
+        setParams(mergedTemplate);
+
+        if (JSON.stringify(mergedTemplate) !== JSON.stringify(data.template)) {
+          await supabase
+            .from('taxonomy_templates')
+            .update({
+              template: JSON.parse(JSON.stringify(mergedTemplate)) as Json,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', data.id);
+        }
       } else {
         // Generate default template
         const defaultParams = getDefaultParams();
@@ -220,11 +246,13 @@ export default function TaxonomyBuilder({
   const saveTemplate = async (paramsToSave: TaxonomyParam[], isDefault = false, overrideAdAccountId?: string) => {
     setSaving(true);
     try {
+      const mergedParams = mergeTemplateWithDefaults(paramsToSave, getDefaultParams());
+
       if (templateId) {
         const { error } = await supabase
           .from('taxonomy_templates')
           .update({
-            template: JSON.parse(JSON.stringify(paramsToSave)) as Json,
+            template: JSON.parse(JSON.stringify(mergedParams)) as Json,
             updated_at: new Date().toISOString(),
           })
           .eq('id', templateId);
@@ -240,7 +268,7 @@ export default function TaxonomyBuilder({
               ad_account_id: internalAdAccountId,
               platform,
               entity_type: entityType,
-              template: JSON.parse(JSON.stringify(paramsToSave)) as Json,
+              template: JSON.parse(JSON.stringify(mergedParams)) as Json,
               user_id: userId,
             },
           ])
@@ -250,6 +278,8 @@ export default function TaxonomyBuilder({
         if (error) throw error;
         setTemplateId(data.id);
       }
+
+      invalidateTaxonomyCache(adAccountId, platform);
 
       if (!isDefault) {
         toast.success('Taxonomy template saved');
