@@ -1320,7 +1320,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                   duration_seconds: typeof asset.technicalAttributes.duration === 'number' ? Math.round(asset.technicalAttributes.duration) : null,
                   file_size_bytes: asset.technicalAttributes.fileSize,
                   original_filename: asset.fileName,
-                  folder_path: asset.filePath,
+                  folder_path: getFolderPath(asset.filePath),
                   media_urls: (asset as any).previewUrl ? [(asset as any).previewUrl] : [],
                   thumbnail_url: (asset as any).previewUrl,
                   language: asset.hardConstraints?.language,
@@ -1374,7 +1374,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                   duration_seconds: typeof asset.technicalAttributes.duration === 'number' ? Math.round(asset.technicalAttributes.duration) : null,
                   file_size_bytes: asset.technicalAttributes.fileSize,
                   original_filename: asset.fileName,
-                  folder_path: asset.filePath,
+                  folder_path: getFolderPath(asset.filePath),
                   media_urls: (asset as any).previewUrl ? [(asset as any).previewUrl] : [],
                   thumbnail_url: (asset as any).previewUrl,
                   language: asset.hardConstraints?.language,
@@ -1447,7 +1447,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                   duration_seconds: typeof asset.technicalAttributes.duration === 'number' ? Math.round(asset.technicalAttributes.duration) : null,
                   file_size_bytes: asset.technicalAttributes.fileSize,
                   original_filename: asset.fileName,
-                  folder_path: asset.filePath,
+                  folder_path: getFolderPath(asset.filePath),
                   media_urls: [mediaUrl],
                   thumbnail_url: mediaUrl,
                   language: asset.hardConstraints?.language,
@@ -1761,6 +1761,17 @@ function dedupeSavedAssignments<T extends { creativeId: string }>(assignments: T
   }
 
   return Array.from(uniqueAssignments.values());
+}
+
+function getFolderPath(filePath?: string): string | null {
+  if (!filePath) return null;
+
+  const normalized = filePath.replace(/\\/g, '/');
+  const lastSlash = normalized.lastIndexOf('/');
+
+  if (lastSlash < 0) return '/';
+
+  return normalized.slice(0, lastSlash) || '/';
 }
 
 // Extract audience type from audiences array or split dimension

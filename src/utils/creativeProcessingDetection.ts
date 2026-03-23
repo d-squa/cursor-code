@@ -74,6 +74,30 @@ function getFolderPath(filePath?: string, fileName?: string): string {
   return '/';
 }
 
+function extractSequenceNumber(fileName: string): number | null {
+  const cleaned = fileName.replace(/\.[^/.]+$/, '');
+
+  const explicitLabelMatch = cleaned.match(/(?:card|slide|frame|img|image|pic|photo)\s*[-_#]?(\d{1,3})/i);
+  if (explicitLabelMatch) {
+    return Number(explicitLabelMatch[1]);
+  }
+
+  const trailingMatch = cleaned.match(/[-_#](\d{1,3})(?:\D*)$/);
+  if (trailingMatch) {
+    return Number(trailingMatch[1]);
+  }
+
+  return null;
+}
+
+function toStableIdPart(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'group';
+}
+
 /** Detect sequence indicators in file names */
 function hasSequenceIndicator(fileName: string): boolean {
   const cleaned = fileName.replace(/\.[^/.]+$/, '');
@@ -87,51 +111,51 @@ function hasSequenceIndicator(fileName: string): boolean {
  * Groups assets from the same folder with the same dimensions that appear to be a sequence.
  */
 export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouselGroup[] {
-  // Group by folder + dimension key
-  const groups = new Map<string, DetectableAsset[]>();
+  // Group by folder + exact dimensions + shared series key
+  const groups = new Map<string, { folder: string; dimKey: string; baseName: string; assets: DetectableAsset[] }>();
 
   for (const asset of assets) {
     if (asset.assetType !== 'image') continue; // Carousels are typically image-based
+    if (!asset.width || !asset.height) continue; // Skip unknown dimensions to avoid false positives
+
     const folder = getFolderPath(asset.filePath, asset.name);
-    const dimKey = (asset.width && asset.height) ? `${asset.width}x${asset.height}` : 'unknown';
-    const key = `${folder}||${dimKey}`;
+    const dimKey = `${asset.width}x${asset.height}`;
+    const baseName = extractBaseName(asset.name);
+
+    if (!baseName || !hasSequenceIndicator(asset.name)) continue;
+
+    const key = `${folder}||${dimKey}||${baseName}`;
     
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(asset);
+    if (!groups.has(key)) {
+      groups.set(key, { folder, dimKey, baseName, assets: [] });
+    }
+    groups.get(key)!.assets.push(asset);
   }
 
   const results: DetectedCarouselGroup[] = [];
 
-  for (const [key, groupAssets] of groups) {
-    if (groupAssets.length < 2) continue; // Need at least 2 for a carousel
+  for (const { folder, dimKey, baseName, assets: groupAssets } of groups.values()) {
+    if (groupAssets.length < 2) continue;
 
-    const [folder, dimKey] = key.split('||');
+    const sequencedAssets = groupAssets
+      .map((asset) => ({ asset, sequence: extractSequenceNumber(asset.name) }))
+      .filter((item): item is { asset: DetectableAsset; sequence: number } => item.sequence !== null);
 
-    // Check if assets have sequence indicators or share a common base name
-    const withSequence = groupAssets.filter(a => hasSequenceIndicator(a.name));
-    const baseNames = new Set(groupAssets.map(a => extractBaseName(a.name)));
+    const uniqueSequences = new Set(sequencedAssets.map((item) => item.sequence));
+    if (uniqueSequences.size < 2) continue;
 
-    let reason = '';
-    let isCarousel = false;
+    const orderedAssets = sequencedAssets
+      .sort((a, b) => a.sequence - b.sequence || a.asset.name.localeCompare(b.asset.name))
+      .map((item) => item.asset);
 
-    if (withSequence.length >= 2) {
-      isCarousel = true;
-      reason = `${withSequence.length} images with sequence numbering in "${folder || 'root'}" folder (${dimKey})`;
-    } else if (baseNames.size === 1 && groupAssets.length >= 2) {
-      isCarousel = true;
-      reason = `${groupAssets.length} images sharing base name "${[...baseNames][0]}" in same dimensions (${dimKey})`;
-    }
-
-    if (isCarousel) {
       results.push({
-        id: `carousel-${results.length}-${Date.now()}`,
+        id: `carousel-${toStableIdPart(folder)}-${toStableIdPart(dimKey)}-${toStableIdPart(baseName)}`,
         type: 'carousel',
         folderPath: folder,
-        assets: groupAssets,
-        reason,
+        assets: orderedAssets,
+        reason: `${orderedAssets.length} images with sequence numbering in "${folder || '/'}" folder (${dimKey})`,
         sharedDimensions: dimKey,
       });
-    }
   }
 
   return results;
@@ -142,33 +166,34 @@ export function detectCarouselGroups(assets: DetectableAsset[]): DetectedCarouse
  * Groups assets that share the same base name but exist in different aspect ratios.
  */
 export function detectAssetCustomization(assets: DetectableAsset[]): DetectedAssetCustomization[] {
-  // Group by base name
-  const groups = new Map<string, DetectableAsset[]>();
+  // Group by folder + base name to avoid cross-folder false positives
+  const groups = new Map<string, { baseName: string; assets: DetectableAsset[] }>();
 
   for (const asset of assets) {
     if (!asset.width || !asset.height) continue;
+    const folder = getFolderPath(asset.filePath, asset.name);
     const base = extractBaseName(asset.name);
     if (!base) continue;
+
+    const key = `${folder}||${base}`;
     
-    if (!groups.has(base)) groups.set(base, []);
-    groups.get(base)!.push(asset);
+    if (!groups.has(key)) groups.set(key, { baseName: base, assets: [] });
+    groups.get(key)!.assets.push(asset);
   }
 
   const results: DetectedAssetCustomization[] = [];
 
-  for (const [baseName, groupAssets] of groups) {
+  for (const { baseName, assets: groupAssets } of groups.values()) {
     if (groupAssets.length < 2) continue;
 
     // Check they have different aspect ratios
-    const ratios = new Set(
-      groupAssets.map(a => simplifyAspectRatio(a.width!, a.height!))
-    );
+    const ratios = new Set(groupAssets.map(a => simplifyAspectRatio(a.width!, a.height!)));
 
     if (ratios.size < 2) continue; // Same aspect ratio — not asset customization
 
-    const ratioList = [...ratios];
+    const ratioList = [...ratios].sort();
     results.push({
-      id: `ac-${results.length}-${Date.now()}`,
+      id: `ac-${toStableIdPart(baseName)}-${ratioList.map(toStableIdPart).join('-')}`,
       type: 'asset_customization',
       baseName,
       assets: groupAssets,

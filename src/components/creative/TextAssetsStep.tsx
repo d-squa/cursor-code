@@ -167,6 +167,18 @@ function addProcessingMatchVariants(target: Set<string>, value?: string | null) 
   }
 }
 
+function buildRowRelativePath(row: CreativeTextAssetRowWithTikTok): string | undefined {
+  if (!row.folderPath) return row.originalFilename || row.creativeName;
+
+  const normalizedFolder = row.folderPath.replace(/\\/g, '/');
+  const fileName = row.originalFilename || row.creativeName;
+
+  if (!fileName) return normalizedFolder;
+  if (normalizedFolder.endsWith(`/${fileName}`) || normalizedFolder === fileName) return normalizedFolder;
+
+  return `${normalizedFolder}/${fileName}`;
+}
+
 function rowMatchesDetectedAsset(
   row: CreativeTextAssetRowWithTikTok,
   asset: { name: string; filePath?: string; assetType: 'image' | 'video'; width?: number; height?: number; aspectRatio?: string },
@@ -177,10 +189,8 @@ function rowMatchesDetectedAsset(
   const rowKeys = new Set<string>();
   addProcessingMatchVariants(rowKeys, row.originalFilename);
   addProcessingMatchVariants(rowKeys, row.creativeName);
-  addProcessingMatchVariants(
-    rowKeys,
-    row.folderPath ? `${row.folderPath}/${row.originalFilename || row.creativeName}` : undefined
-  );
+  addProcessingMatchVariants(rowKeys, row.folderPath);
+  addProcessingMatchVariants(rowKeys, buildRowRelativePath(row));
 
   const assetKeys = new Set<string>();
   addProcessingMatchVariants(assetKeys, asset.name);

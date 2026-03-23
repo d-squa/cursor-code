@@ -15,6 +15,7 @@ export interface SelectedAsset {
   assetType: 'image' | 'video';
   thumbnailUrl?: string;
   name?: string;
+  relativePath?: string;
   postId?: string; // For page assets
   platformAssetId?: string; // For ad account assets
   // File object for uploads - not persisted but needed for processFiles
