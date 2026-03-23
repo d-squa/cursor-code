@@ -1,6 +1,7 @@
 // Inline text assets step for the creative matching dialog
 // Shows hierarchical editor for configuring copy, CTAs, and tracking
 
+import type { ProcessingOptions } from './CreativeProcessingOptionsDialog';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
