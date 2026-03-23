@@ -15,6 +15,7 @@ import { MeshSourceStep } from '@/components/creative/MeshSourceStep';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
+import type { ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
 
 interface AdAccountInfo {
   platform: 'meta' | 'tiktok' | 'google';
