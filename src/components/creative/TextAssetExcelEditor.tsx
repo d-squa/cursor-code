@@ -19,7 +19,7 @@ import {
   Image, Video, AlertCircle, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
   Plus, Link2, Layout, Film, Grid, Settings2, ImageIcon, Maximize2, Minimize2, 
-  ChevronsUpDown, Trash2
+  ChevronsUpDown, Trash2, Unlink, SquareStack
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
