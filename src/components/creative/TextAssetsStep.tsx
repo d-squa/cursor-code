@@ -60,6 +60,96 @@ type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   folderPath?: string;
 };
 
+function getDimensionKey(width?: number | null, height?: number | null) {
+  if (!width || !height) return null;
+  return `${width}x${height}`;
+}
+
+function normalizeAspectRatio(
+  aspectRatio?: string | null,
+  width?: number | null,
+  height?: number | null
+) {
+  if (aspectRatio?.trim()) return aspectRatio.trim().toLowerCase();
+  if (!width || !height) return null;
+
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const divisor = gcd(width, height);
+  return `${width / divisor}:${height / divisor}`;
+}
+
+function clearProcessingGroup(row: CreativeTextAssetRowWithTikTok): CreativeTextAssetRowWithTikTok {
+  return {
+    ...row,
+    processingGroupId: undefined,
+    processingGroupType: undefined,
+  };
+}
+
+function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
+  const groupedRows = new Map<string, CreativeTextAssetRowWithTikTok[]>();
+
+  rows.forEach((row) => {
+    if (!row.processingGroupId || !row.processingGroupType) return;
+    if (!groupedRows.has(row.processingGroupId)) {
+      groupedRows.set(row.processingGroupId, []);
+    }
+    groupedRows.get(row.processingGroupId)!.push(row);
+  });
+
+  const invalidGroupIds = new Set<string>();
+
+  groupedRows.forEach((groupRows, groupId) => {
+    const groupType = groupRows[0]?.processingGroupType;
+    const structureKeys = new Set(groupRows.map(
+      (row) => `${row.platform}|${row.market}|${row.phase}|${row.adSet}`
+    ));
+
+    if (!groupType || groupRows.length < 2 || structureKeys.size !== 1) {
+      invalidGroupIds.add(groupId);
+      return;
+    }
+
+    if (groupType === 'carousel') {
+      const dimensionKeys = groupRows.map((row) => getDimensionKey(row.width, row.height));
+      const uniqueDimensions = new Set(dimensionKeys.filter(Boolean));
+      const aspectRatios = new Set(
+        groupRows
+          .map((row) => normalizeAspectRatio(row.aspectRatio, row.width, row.height))
+          .filter(Boolean)
+      );
+
+      if (
+        dimensionKeys.some((key) => !key) ||
+        uniqueDimensions.size !== 1 ||
+        aspectRatios.size !== 1
+      ) {
+        invalidGroupIds.add(groupId);
+      }
+
+      return;
+    }
+
+    const aspectRatios = new Set(
+      groupRows
+        .map((row) => normalizeAspectRatio(row.aspectRatio, row.width, row.height))
+        .filter(Boolean)
+    );
+
+    if (aspectRatios.size < 2) {
+      invalidGroupIds.add(groupId);
+    }
+  });
+
+  if (invalidGroupIds.size === 0) return rows;
+
+  return rows.map((row) => (
+    row.processingGroupId && invalidGroupIds.has(row.processingGroupId)
+      ? clearProcessingGroup(row)
+      : row
+  ));
+}
+
 function addProcessingMatchVariants(target: Set<string>, value?: string | null) {
   if (!value) return;
 
@@ -75,6 +165,87 @@ function addProcessingMatchVariants(target: Set<string>, value?: string | null) 
   if (withoutExtension) {
     target.add(withoutExtension);
   }
+}
+
+function rowMatchesDetectedAsset(
+  row: CreativeTextAssetRowWithTikTok,
+  asset: { name: string; filePath?: string; assetType: 'image' | 'video'; width?: number; height?: number; aspectRatio?: string },
+  groupType: 'carousel' | 'asset_customization'
+) {
+  if (row.mediaType !== asset.assetType) return false;
+
+  const rowKeys = new Set<string>();
+  addProcessingMatchVariants(rowKeys, row.originalFilename);
+  addProcessingMatchVariants(rowKeys, row.creativeName);
+  addProcessingMatchVariants(
+    rowKeys,
+    row.folderPath ? `${row.folderPath}/${row.originalFilename || row.creativeName}` : undefined
+  );
+
+  const assetKeys = new Set<string>();
+  addProcessingMatchVariants(assetKeys, asset.name);
+  addProcessingMatchVariants(assetKeys, asset.filePath);
+
+  const hasKeyMatch = [...rowKeys].some((key) => assetKeys.has(key));
+  if (!hasKeyMatch) return false;
+
+  const rowDimensionKey = getDimensionKey(row.width, row.height);
+  const assetDimensionKey = getDimensionKey(asset.width, asset.height);
+  const rowAspectRatio = normalizeAspectRatio(row.aspectRatio, row.width, row.height);
+  const assetAspectRatio = normalizeAspectRatio(asset.aspectRatio, asset.width, asset.height);
+
+  if (groupType === 'carousel') {
+    return !!rowDimensionKey && !!assetDimensionKey && rowDimensionKey === assetDimensionKey;
+  }
+
+  if (rowDimensionKey && assetDimensionKey && rowDimensionKey === assetDimensionKey) {
+    return false;
+  }
+
+  if (rowAspectRatio && assetAspectRatio) {
+    return rowAspectRatio !== assetAspectRatio;
+  }
+
+  return true;
+}
+
+function applyProcessingOptionsToRows(
+  rows: CreativeTextAssetRowWithTikTok[],
+  processingOptions?: ProcessingOptions
+) {
+  if (!processingOptions || processingOptions.detectedGroups.length === 0) {
+    return normalizeProcessingGroups(rows);
+  }
+
+  const nextRows = rows.map((row) => ({ ...row, processingGroupId: undefined, processingGroupType: undefined }));
+  const assignedRowIds = new Set<string>();
+  const approvedGroups = processingOptions.detectedGroups.filter((group) => processingOptions.approvedGroupIds.has(group.id));
+
+  for (const group of approvedGroups) {
+    const matchedRowIds = new Set<string>();
+
+    for (const asset of group.assets) {
+      const match = nextRows.find((row) => {
+        if (assignedRowIds.has(row.id) || matchedRowIds.has(row.id)) return false;
+        return rowMatchesDetectedAsset(row, asset, group.type);
+      });
+
+      if (match) {
+        matchedRowIds.add(match.id);
+      }
+    }
+
+    if (matchedRowIds.size < 2) continue;
+
+    nextRows.forEach((row) => {
+      if (!matchedRowIds.has(row.id)) return;
+      row.processingGroupId = group.id;
+      row.processingGroupType = group.type === 'carousel' ? 'carousel' : 'asset_customization';
+      assignedRowIds.add(row.id);
+    });
+  }
+
+  return normalizeProcessingGroups(nextRows);
 }
 
 export function TextAssetsStep({ 
@@ -477,41 +648,11 @@ export function TextAssetsStep({
 
         console.log('TextAssetsStep: Transformed rows:', transformedRows.length);
         
-        // Apply processing group IDs from approved detected groups
-        if (processingOptions && processingOptions.detectedGroups.length > 0) {
-          const { approvedGroupIds, detectedGroups } = processingOptions;
-          
-          for (const group of detectedGroups) {
-            // Only apply approved groups
-            if (!approvedGroupIds.has(group.id)) continue;
-            
-            const groupAssetKeys = new Set<string>();
-            group.assets.forEach((asset) => {
-              addProcessingMatchVariants(groupAssetKeys, asset.name);
-              addProcessingMatchVariants(groupAssetKeys, asset.filePath);
-            });
-            
-            // Find matching rows by original filename first, then fall back to display name
-            for (const row of transformedRows) {
-              const rowKeys = new Set<string>();
-              addProcessingMatchVariants(rowKeys, row.originalFilename);
-              addProcessingMatchVariants(rowKeys, row.creativeName);
-              addProcessingMatchVariants(rowKeys, row.folderPath ? `${row.folderPath}/${row.originalFilename || row.creativeName}` : undefined);
-
-              const isMatch = [...rowKeys].some(key => groupAssetKeys.has(key));
-
-              if (isMatch) {
-                row.processingGroupId = group.id;
-                row.processingGroupType = group.type === 'carousel' ? 'carousel' : 'asset_customization';
-              }
-            }
-          }
-          
-          console.log('TextAssetsStep: Applied processing groups to rows');
-        }
+        const rowsWithProcessingGroups = applyProcessingOptionsToRows(transformedRows, processingOptions);
+        console.log('TextAssetsStep: Applied processing groups to rows');
         
         const dedupedRowsMap = new Map<string, CreativeTextAssetRowWithTikTok>();
-        for (const row of transformedRows) {
+        for (const row of rowsWithProcessingGroups) {
           const existing = dedupedRowsMap.get(row.creativeId);
 
           if (!existing) {
@@ -525,7 +666,7 @@ export function TextAssetsStep({
           }
         }
 
-        setRows(Array.from(dedupedRowsMap.values()));
+        setRows(normalizeProcessingGroups(Array.from(dedupedRowsMap.values())));
       } catch (error) {
         console.error('Error loading assignments:', error);
         toast.error('Failed to load creative assignments');
@@ -541,7 +682,7 @@ export function TextAssetsStep({
   // Handle individual row changes
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => prev.map(row => {
+    setRows(prev => normalizeProcessingGroups(prev.map(row => {
       if (row.id !== id) return row;
       // For organic posts, only allow destinationUrl updates
       if (row.isOrganic || row.externalPostId) {
@@ -560,13 +701,13 @@ export function TextAssetsStep({
       // Re-validate after update
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    }));
+    })));
   }, []);
 
   // Handle bulk updates
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => prev.map(row => {
+    setRows(prev => normalizeProcessingGroups(prev.map(row => {
       if (!ids.includes(row.id)) return row;
       // For organic posts, only allow destinationUrl updates
       if (row.isOrganic || row.externalPostId) {
@@ -584,7 +725,7 @@ export function TextAssetsStep({
       const updated = { ...row, ...updates };
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    }));
+    })));
   }, []);
 
   // Handle import from Excel
@@ -594,7 +735,7 @@ export function TextAssetsStep({
       const errors = validateTextAssetRow(row);
       return { ...row, validationErrors: errors, isValid: errors.length === 0 };
     });
-    setRows(validatedRows);
+    setRows(normalizeProcessingGroups(validatedRows as CreativeTextAssetRowWithTikTok[]));
   }, []);
 
   // Existing creative IDs to exclude from add dialog
@@ -682,7 +823,7 @@ export function TextAssetsStep({
       });
     
     // Add new rows while preserving existing ones with their edits
-    setRows(prev => [...prev, ...newRows]);
+    setRows(prev => normalizeProcessingGroups([...prev, ...newRows] as CreativeTextAssetRowWithTikTok[]));
     setShowAddDialog(false);
     toast.success(`Added ${newRows.length} creative(s) to the editor`);
   }, [availableCreatives, selectedNewCreatives]);
@@ -757,7 +898,9 @@ export function TextAssetsStep({
       if (error) throw error;
       
       // Remove from local state
-      setRows(prev => prev.filter(r => (r as any).assignmentId !== assignmentId));
+      setRows(prev => normalizeProcessingGroups(
+        prev.filter(r => (r as any).assignmentId !== assignmentId) as CreativeTextAssetRowWithTikTok[]
+      ));
       toast.success('Assignment deleted');
     } catch (error) {
       console.error('Error deleting assignment:', error);
@@ -773,18 +916,14 @@ export function TextAssetsStep({
       const groupRows = prev.filter(row => row.processingGroupId === targetRow.processingGroupId);
       const shouldClearWholeGroup = groupRows.length <= 2;
 
-      return prev.map(row => {
+      return normalizeProcessingGroups(prev.map(row => {
         const isTarget = row.id === rowId;
         const isSameGroup = row.processingGroupId === targetRow.processingGroupId;
 
         if (!isTarget && !(shouldClearWholeGroup && isSameGroup)) return row;
 
-        return {
-          ...row,
-          processingGroupId: undefined,
-          processingGroupType: undefined,
-        };
-      });
+        return clearProcessingGroup(row as CreativeTextAssetRowWithTikTok);
+      }) as CreativeTextAssetRowWithTikTok[]);
     });
   }, []);
 
