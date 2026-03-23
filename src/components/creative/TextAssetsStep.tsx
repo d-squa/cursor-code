@@ -15,7 +15,10 @@ import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import type { CreativeTextAssetRow, CreativeFormat, AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
-import { detectAdFormat } from '@/utils/adFormatDetection';
+import {
+  runCreativeDetection,
+  type DetectableAsset,
+} from '@/utils/creativeProcessingDetection';
 import { 
   TaxonomyParam,
   TaxonomyContext,
