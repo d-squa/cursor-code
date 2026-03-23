@@ -175,7 +175,8 @@ export function TextAssetExcelEditor({
   onSave,
   isSaving,
   onAddCreatives,
-  onDeleteAssignment
+  onDeleteAssignment,
+  onUngroupRow
 }: TextAssetExcelEditorProps) {
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
