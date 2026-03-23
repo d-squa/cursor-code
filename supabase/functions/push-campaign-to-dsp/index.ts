@@ -5209,6 +5209,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             adsCreated: adsCreated,
           });
         } // End of ad set splits loop
+        } // End of TikTok keyword strategies loop
       } catch (error: any) {
         console.error("Error creating TikTok campaign/ad group:", error);
         errors.push({
