@@ -3278,6 +3278,8 @@ export function PhaseScheduler({
                             googleAiMax: adAccountDefaults.googleAiMax,
                             googleAiMaxOptions: adAccountDefaults.googleAiMaxOptions,
                             googleLandingPageUrl: adAccountDefaults.googleLandingPageUrl,
+                            googleBrandGuidelines: adAccountDefaults.googleBrandGuidelines,
+                            googleBusinessName: adAccountDefaults.googleBusinessName,
                           } : undefined}
                           onUpdate={(field, value) => {
                             console.log("🔄 PhaseScheduler Google Ads onUpdate called:", { phaseId: phase.id, field, value });
