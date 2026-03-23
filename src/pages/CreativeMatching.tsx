@@ -15,6 +15,7 @@ import { MeshSourceStep } from '@/components/creative/MeshSourceStep';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
+import type { ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
 
 interface AdAccountInfo {
   platform: 'meta' | 'tiktok' | 'google';
@@ -68,6 +69,8 @@ export default function CreativeMatching() {
     skipTextAssets,
     loadExistingAssignments,
   } = useCreativeMatching(progress?.campaignId, progress?.platform);
+
+  const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
 
   // Load existing assignments when campaign is loaded (for duplicated ActiPlans)
   useEffect(() => {
@@ -230,7 +233,7 @@ export default function CreativeMatching() {
   }, [progress?.campaignId]);
 
   // Handle running the mesh
-  const handleRunMesh = useCallback(async () => {
+  const handleRunMesh = useCallback(async (processingOpts?: ProcessingOptions) => {
     if (!progress?.campaignId) return;
 
     // Separate uploads (need processFiles) from platform assets (use addPlatformAssets)
@@ -292,6 +295,7 @@ export default function CreativeMatching() {
     // Load structures and run matching
     const structures = await loadCampaignStructures(progress.campaignId);
     if (structures && structures.length > 0) {
+      if (processingOpts) setApprovedProcessingGroups(processingOpts);
       runMatching(structures);
       goToStep('mesh');
     } else {
@@ -515,6 +519,7 @@ export default function CreativeMatching() {
                 campaignId={progress.campaignId}
                 campaignName={progress.campaignName}
                 savedAssignments={matchingState.savedAssignments}
+                processingOptions={approvedProcessingGroups ?? undefined}
                 onComplete={handleContentComplete}
                 onSaveAndSelectMore={handleSaveAndSelectMore}
               />

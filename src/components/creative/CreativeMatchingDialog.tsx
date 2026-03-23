@@ -57,6 +57,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
   const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
   const [showProcessingOptions, setShowProcessingOptions] = useState(false);
+  const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
 
   // Sync state with props when they change
   useEffect(() => {
@@ -267,6 +268,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
   const handleProcessingConfirm = async (options: ProcessingOptions) => {
     setShowProcessingOptions(false);
+    setApprovedProcessingGroups(options);
     const campaignIdToUse = effectiveCampaignId;
     if (!campaignIdToUse) return;
     // Always reload structures from DB to pick up any changes
@@ -338,6 +340,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
             campaignId={effectiveCampaignId!}
             campaignName={selectedCampaignName}
             savedAssignments={state.savedAssignments}
+            processingOptions={approvedProcessingGroups ?? undefined}
             onComplete={() => {
               skipTextAssets();
               onOpenChange(false);

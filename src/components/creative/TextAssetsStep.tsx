@@ -1,6 +1,7 @@
 // Inline text assets step for the creative matching dialog
 // Shows hierarchical editor for configuring copy, CTAs, and tracking
 
+import type { ProcessingOptions } from './CreativeProcessingOptionsDialog';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,8 @@ interface TextAssetsStepProps {
    * When omitted/empty, we load all assignments for the campaign.
    */
   savedAssignments?: SavedAssignment[];
+  /** Approved processing groups from the Creative Processing Options dialog */
+  processingOptions?: ProcessingOptions;
   onComplete: () => void;
   /** Called when user wants to save and select more creatives (goes back to step 1) */
   onSaveAndSelectMore?: () => void;
@@ -59,6 +62,7 @@ export function TextAssetsStep({
   campaignId, 
   campaignName, 
   savedAssignments,
+  processingOptions,
   onComplete,
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
@@ -449,6 +453,31 @@ export function TextAssetsStep({
         });
 
         console.log('TextAssetsStep: Transformed rows:', transformedRows.length);
+        
+        // Apply processing group IDs from approved detected groups
+        if (processingOptions && processingOptions.detectedGroups.length > 0) {
+          const { approvedGroupIds, detectedGroups } = processingOptions;
+          
+          for (const group of detectedGroups) {
+            // Only apply approved groups
+            if (!approvedGroupIds.has(group.id)) continue;
+            
+            // Build a set of asset names from the detected group
+            const groupAssetNames = new Set(group.assets.map(a => a.name.toLowerCase()));
+            
+            // Find matching rows by creative name
+            for (const row of transformedRows) {
+              const rowName = (row.creativeName || '').toLowerCase();
+              if (groupAssetNames.has(rowName)) {
+                row.processingGroupId = group.id;
+                row.processingGroupType = group.type === 'carousel' ? 'carousel' : 'asset_customization';
+              }
+            }
+          }
+          
+          console.log('TextAssetsStep: Applied processing groups to rows');
+        }
+        
         setRows(transformedRows);
       } catch (error) {
         console.error('Error loading assignments:', error);

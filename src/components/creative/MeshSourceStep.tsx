@@ -92,7 +92,7 @@ interface MeshSourceStepProps {
   onAddAsset: (asset: SelectedAsset) => void;
   onRemoveAsset: (assetId: string) => void;
   onClearAssets: () => void;
-  onRunMesh: () => void;
+  onRunMesh: (processingOptions?: ProcessingOptions) => void;
   isProcessing?: boolean;
   googleCampaignTypes?: string[];
 }
@@ -362,9 +362,7 @@ export function MeshSourceStep({
   // Handle confirm from processing options dialog
   const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
     setShowProcessingOptions(false);
-    // TODO: Pass approved groups to the matching engine for carousel/AC creation
-    // For now, proceed with standard matching
-    onRunMesh();
+    onRunMesh(options);
   }, [onRunMesh]);
 
   // Determine upload description based on allowed media
@@ -403,7 +401,7 @@ export function MeshSourceStep({
                 variant="outline" 
                 size="sm" 
                 className="mt-2"
-                onClick={onRunMesh}
+                onClick={() => onRunMesh()}
               >
                 Skip to Text Assets →
               </Button>
