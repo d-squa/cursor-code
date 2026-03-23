@@ -269,22 +269,18 @@ export function TextAssetExcelEditor({
 
     const groupId = `ac-manual-${Date.now()}`;
     const ids = Array.from(selectedRowIds);
-    ids.forEach(id => {
-      onRowChange(id, { processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
-    });
+    onBulkUpdate(ids, { processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
     setSelectedRowIds(new Set());
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
-  }, [selectedRowIds, onRowChange, hasGroupedSelection]);
+  }, [selectedRowIds, onBulkUpdate, hasGroupedSelection]);
 
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupId: string) => {
     const group = processingGroups.get(groupId);
     if (!group) return;
-    group.rowIds.forEach(id => {
-      onRowChange(id, { processingGroupId: undefined, processingGroupType: undefined } as any);
-    });
+    onBulkUpdate(group.rowIds, { processingGroupId: undefined, processingGroupType: undefined } as any);
     toast.success('Group dissolved');
-  }, [processingGroups, onRowChange]);
+  }, [processingGroups, onBulkUpdate]);
 
   // For asset customization groups: sync text changes across all members
   const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
@@ -540,18 +536,19 @@ export function TextAssetExcelEditor({
 
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
-    carousel.cardIds.forEach((id) => {
-      onRowChange(id, {
+    onBulkUpdate(
+      carousel.cardIds,
+      {
         processingGroupId: carousel.id,
         processingGroupType: 'carousel',
-      } as any);
-    });
+      } as any
+    );
 
     setShowCarouselCreator(false);
     clearSelection();
 
     toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
-  }, [clearSelection, onRowChange]);
+  }, [clearSelection, onBulkUpdate]);
 
   // Get visible columns based on row's media type
   const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
