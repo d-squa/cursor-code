@@ -28,6 +28,8 @@ import { toast } from 'sonner';
 import { SelectedAsset, CreativeSource } from '@/hooks/useCreativeMeshProgress';
 import { MeshPageAssetsPicker } from '@/components/creative/MeshPageAssetsPicker';
 import { MeshAdAccountAssetsPicker } from '@/components/creative/MeshAdAccountAssetsPicker';
+import { CreativeProcessingOptionsDialog, type ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
+import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
 
 // Ad account configuration passed from parent
 interface AdAccountInfo {
