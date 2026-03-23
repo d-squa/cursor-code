@@ -3685,16 +3685,23 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           "CONSIDERATION_VIDEO": "Video",
           "CONVERSIONS": "Search",
           "LEADS": "Search",
-          "SALES": "Shopping",
+          "SALES": (phase.googleProductFeed || phase.googleMerchantCenterId || market.googleMerchantCenterId) ? "Shopping" : "Search",
           "WEBSITE_TRAFFIC": "Search",
           "APP_INSTALLS": "App Promotion",
         };
         const derivedFromObjective = phase.objective ? objectiveToTypeMap[phase.objective] : undefined;
-        const campaignType = phase.googleCampaignType || derivedFromObjective || "Search";
+        const requestedCampaignType = phase.googleCampaignType || derivedFromObjective || "Search";
+        const hasMerchantCenter = Boolean(phase.googleMerchantCenterId || market.googleMerchantCenterId);
+        const campaignType = requestedCampaignType === "Shopping" && !hasMerchantCenter
+          ? "Search"
+          : requestedCampaignType;
         if (!phase.googleCampaignType && derivedFromObjective) {
           console.log(`🔄 Derived googleCampaignType "${campaignType}" from objective "${phase.objective}" for phase "${phase.name}"`);
         } else if (!phase.googleCampaignType && !derivedFromObjective) {
           console.warn(`⚠️ No googleCampaignType set and could not derive from objective "${phase.objective}" — defaulting to Search`);
+        }
+        if (requestedCampaignType === "Shopping" && !hasMerchantCenter) {
+          console.warn(`⚠️ Shopping campaign requested for phase "${phase.name}" without Merchant Center ID — falling back to Search`);
         }
         const channelTypeMap: Record<string, string> = {
           "Search": "SEARCH",

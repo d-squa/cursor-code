@@ -1748,7 +1748,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       case "TARGET_ROAS":
         return { targetRoas: { targetRoas: bidAmount || 2.0 } };
       case "MAXIMIZE_CLICKS":
-        return { targetSpend: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
+        return { maximizeClicks: bidAmount ? { cpcBidCeilingMicros: String(Math.round(bidAmount * 1_000_000)) } : {} };
       case "TARGET_CPM":
         return { targetCpm: {} };
       case "MANUAL_CPC":
