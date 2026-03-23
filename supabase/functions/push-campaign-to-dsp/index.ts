@@ -3561,9 +3561,58 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
     }
 
     // Resolve market countries for geo targeting
-    const marketCountries: string[] = Array.isArray(market.countries) && market.countries.length > 0
+    // Try market.countries first, then marketCode (the key in marketsObj which is typically the ISO code),
+    // then market.name, and finally market.countryCode
+    const rawMarketCountries: string[] = Array.isArray(market.countries) && market.countries.length > 0
       ? market.countries
-      : [market.name]; // market.name is ISO country code
+      : [];
+    
+    let marketCountries: string[] = rawMarketCountries;
+    if (marketCountries.length === 0) {
+      // Try to derive from marketCode (the key in the markets object) — often the ISO code
+      const candidateSources = [marketCode, market.name, market.countryCode, market.code, market.id].filter(Boolean);
+      for (const candidate of candidateSources) {
+        const upper = String(candidate).toUpperCase().trim();
+        // Only accept 2-letter ISO codes
+        if (/^[A-Z]{2}$/.test(upper)) {
+          marketCountries = [upper];
+          console.log(`🌍 Derived country code "${upper}" from candidate "${candidate}"`);
+          break;
+        }
+      }
+      // If still empty, try to map full country names to ISO codes
+      if (marketCountries.length === 0) {
+        const countryNameToCode: Record<string, string> = {
+          "UNITED STATES": "US", "UNITED KINGDOM": "GB", "GERMANY": "DE", "FRANCE": "FR",
+          "SPAIN": "ES", "ITALY": "IT", "UNITED ARAB EMIRATES": "AE", "SAUDI ARABIA": "SA",
+          "EGYPT": "EG", "INDIA": "IN", "BRAZIL": "BR", "AUSTRALIA": "AU", "CANADA": "CA",
+          "JAPAN": "JP", "SOUTH KOREA": "KR", "MEXICO": "MX", "NETHERLANDS": "NL",
+          "SWEDEN": "SE", "NORWAY": "NO", "DENMARK": "DK", "TURKEY": "TR", "POLAND": "PL",
+          "SOUTH AFRICA": "ZA", "NIGERIA": "NG", "KENYA": "KE", "BELGIUM": "BE",
+          "SWITZERLAND": "CH", "AUSTRIA": "AT", "IRELAND": "IE", "PORTUGAL": "PT",
+          "GREECE": "GR", "CZECH REPUBLIC": "CZ", "ROMANIA": "RO", "HUNGARY": "HU",
+          "FINLAND": "FI", "RUSSIA": "RU", "UKRAINE": "UA", "PHILIPPINES": "PH",
+          "MALAYSIA": "MY", "SINGAPORE": "SG", "THAILAND": "TH", "VIETNAM": "VN",
+          "INDONESIA": "ID", "NEW ZEALAND": "NZ", "ARGENTINA": "AR", "CHILE": "CL",
+          "COLOMBIA": "CO", "PERU": "PE", "BAHRAIN": "BH", "QATAR": "QA",
+          "KUWAIT": "KW", "OMAN": "OM", "LEBANON": "LB",
+        };
+        for (const candidate of candidateSources) {
+          const mapped = countryNameToCode[String(candidate).toUpperCase().trim()];
+          if (mapped) {
+            marketCountries = [mapped];
+            console.log(`🌍 Mapped country name "${candidate}" → "${mapped}"`);
+            break;
+          }
+        }
+      }
+    }
+    
+    if (marketCountries.length === 0) {
+      console.warn(`⚠️ Could not resolve any country codes for market: ${JSON.stringify({ marketCode, name: market.name, countries: market.countries })}`);
+    } else {
+      console.log(`🌍 Google Ads geo targeting: ${marketCountries.join(", ")} (from market ${market.name})`);
+    }
 
     // Resolve languages
     const basicTargeting = campaign.generic_config?.basicTargeting || {};
