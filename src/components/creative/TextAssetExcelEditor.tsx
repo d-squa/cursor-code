@@ -190,8 +190,6 @@ export function TextAssetExcelEditor({
   // Multi-select state for carousel creation
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
-  const [editingCarousel, setEditingCarousel] = useState<CarouselLink | null>(null);
-  const [carousels, setCarousels] = useState<CarouselLink[]>([]);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
   
@@ -223,12 +221,6 @@ export function TextAssetExcelEditor({
     [rows, selectedRowIds]
   );
 
-  const carouselByCardId = useMemo(() => {
-    const map = new Map<string, CarouselLink>();
-    carousels.forEach((c) => c.cardIds.forEach((id) => map.set(id, c)));
-    return map;
-  }, [carousels]);
-
   // Build processing group lookup: groupId → row IDs
   const processingGroups = useMemo(() => {
     const groups = new Map<string, { type: 'carousel' | 'asset_customization'; rowIds: string[] }>();
@@ -254,8 +246,27 @@ export function TextAssetExcelEditor({
     toast.success('Creative removed from group');
   }, [onUngroupRow, onRowChange]);
 
+  const selectedGroupRows = useMemo(
+    () => rows.filter((row) => selectedRowIds.has(row.id)),
+    [rows, selectedRowIds]
+  );
+
+  const selectedGroupTypes = useMemo(
+    () => new Set(selectedGroupRows.map((row) => row.processingGroupType).filter(Boolean)),
+    [selectedGroupRows]
+  );
+
+  const hasGroupedSelection = selectedGroupTypes.size > 0;
+  const hasCarouselSelection = selectedGroupTypes.has('carousel');
+  const hasAssetCustomizationSelection = selectedGroupTypes.has('asset_customization');
+
   // Create asset customization group from selected rows (defined after clearSelection)
   const handleCreateAssetCustomization = useCallback(() => {
+    if (hasGroupedSelection) {
+      toast.error('Grouped creatives cannot be added to asset customization. Ungroup them first.');
+      return;
+    }
+
     const groupId = `ac-manual-${Date.now()}`;
     const ids = Array.from(selectedRowIds);
     ids.forEach(id => {
@@ -263,7 +274,7 @@ export function TextAssetExcelEditor({
     });
     setSelectedRowIds(new Set());
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
-  }, [selectedRowIds, onRowChange]);
+  }, [selectedRowIds, onRowChange, hasGroupedSelection]);
 
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupId: string) => {
@@ -308,22 +319,12 @@ export function TextAssetExcelEditor({
     onRowChange(id, updates);
   }, [rows, processingGroups, onBulkUpdate, onRowChange]);
 
-  const openEditCarousel = useCallback((carousel: CarouselLink) => {
-    setEditingCarousel(carousel);
-    setShowCarouselCreator(true);
-  }, []);
-
-  const carouselDialogRows = useMemo(() => {
-    if (!editingCarousel) return selectedRows;
-    const ordered = editingCarousel.cardIds
-      .map((id) => rows.find((r) => r.id === id))
-      .filter(Boolean) as CreativeTextAssetRow[];
-    return ordered;
-  }, [editingCarousel, rows, selectedRows]);
+  const carouselDialogRows = useMemo(() => selectedRows, [selectedRows]);
 
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
     if (selectedRows.length < 2) return false;
+    if (hasGroupedSelection) return false;
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
     if (adSets.size !== 1) return false;
 
@@ -338,15 +339,16 @@ export function TextAssetExcelEditor({
     );
 
     return validation.isValid;
-  }, [selectedRows]);
+  }, [selectedRows, hasGroupedSelection]);
 
   const canCreateAssetCustomization = useMemo(() => {
     if (selectedRows.length < 2) return false;
+    if (hasGroupedSelection) return false;
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
     if (adSets.size !== 1) return false;
     const ratios = new Set(selectedRows.map(r => r.aspectRatio).filter(Boolean));
     return ratios.size >= 2;
-  }, [selectedRows]);
+  }, [selectedRows, hasGroupedSelection]);
 
   // Toggle row selection with shift+click support
   // Organic posts are excluded from selection (they are read-only)
@@ -538,25 +540,11 @@ export function TextAssetExcelEditor({
 
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
-    const wasEditing = !!editingCarousel;
-
-    setCarousels(prev => {
-      const idx = prev.findIndex(c => c.id === carousel.id);
-      if (idx === -1) return [...prev, carousel];
-      const next = [...prev];
-      next[idx] = carousel;
-      return next;
-    });
-
     setShowCarouselCreator(false);
-    setEditingCarousel(null);
     clearSelection();
 
-    toast.success(wasEditing
-      ? `Carousel "${carousel.carouselName}" updated`
-      : `Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`
-    );
-  }, [clearSelection, editingCarousel]);
+    toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
+  }, [clearSelection]);
 
   // Get visible columns based on row's media type
   const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
@@ -1368,7 +1356,6 @@ export function TextAssetExcelEditor({
                 variant="default"
                 size="sm"
                 onClick={() => {
-                  setEditingCarousel(null);
                   setShowCarouselCreator(true);
                 }}
                 disabled={!canCreateCarousel}
@@ -1381,7 +1368,7 @@ export function TextAssetExcelEditor({
                 size="sm"
                 onClick={handleCreateAssetCustomization}
                 disabled={!canCreateAssetCustomization}
-                className="border-purple-400 text-purple-600 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-400 dark:hover:bg-purple-950/30"
+                className="border-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-accent/15"
               >
                 <SquareStack className="h-4 w-4 mr-1" />
                 Create Asset Customization
@@ -1389,6 +1376,15 @@ export function TextAssetExcelEditor({
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
               </Button>
+              {hasGroupedSelection && (
+                <Badge variant="outline" className="text-xs">
+                  {hasCarouselSelection
+                    ? 'Ungroup carousel creatives before regrouping'
+                    : hasAssetCustomizationSelection
+                      ? 'Ungroup asset customization creatives before regrouping'
+                      : 'Ungroup selected creatives before regrouping'}
+                </Badge>
+              )}
               <div className="h-5 w-px bg-border mx-1" />
             </>
           )}
@@ -2297,11 +2293,10 @@ export function TextAssetExcelEditor({
       {/* Carousel Creator Dialog */}
       <CarouselCreator
         selectedRows={carouselDialogRows}
-        existingCarousel={editingCarousel}
+        existingCarousel={null}
         onCreateCarousel={handleCreateCarousel}
         onCancel={() => {
           setShowCarouselCreator(false);
-          setEditingCarousel(null);
         }}
         open={showCarouselCreator}
       />
