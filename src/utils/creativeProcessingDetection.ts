@@ -60,10 +60,24 @@ function simplifyAspectRatio(w: number, h: number): string {
 function extractSeriesInfo(fileName: string): { seriesKey: string; sequence: number } | null {
   const cleaned = fileName.replace(/\.[^/.]+$/, ''); // remove extension
 
-  // 1) Explicit label patterns: "FRAME 1", "Card_2", "Slide-03"
-  //    Capture everything before the label as the series key
+  // 1a) Label-first patterns: "FRAME 1", "Card_2", "Slide-03", "Frame03"
+  //     The filename STARTS with the label word (no prefix)
+  const labelFirstMatch = cleaned.match(
+    /^(card|slide|frame|img|image|pic|photo)\s*[-_#]?(\d{1,3})\b(.*)/i
+  );
+  if (labelFirstMatch) {
+    const label = labelFirstMatch[1].toLowerCase();
+    const seq = Number(labelFirstMatch[2]);
+    const suffix = labelFirstMatch[3].trim();
+    const seriesKey = `|${label}|${suffix}`.toLowerCase()
+      .replace(/[-_\s]+/g, '_').replace(/^_|_$/g, '');
+    return { seriesKey, sequence: seq };
+  }
+
+  // 1b) Explicit label patterns with prefix: "Hero FRAME 1", "Ad_Card_2"
+  //     Capture everything before the label as the series key
   const labelMatch = cleaned.match(
-    /^(.+?)[\s_-]*(card|slide|frame|img|image|pic|photo)\s*[-_#]?(\d{1,3})\b(.*)/i
+    /^(.+?)[\s_-]+(card|slide|frame|img|image|pic|photo)\s*[-_#]?(\d{1,3})\b(.*)/i
   );
   if (labelMatch) {
     const prefix = labelMatch[1].trim();
