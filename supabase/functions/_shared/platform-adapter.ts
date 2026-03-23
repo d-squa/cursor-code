@@ -1863,7 +1863,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
     campaignId: string,
     countryCodes: string[],
     locationTargetingType: string,
-    headers: Record<string, string>
+    headers: Record<string, string>,
+    channelType?: string
   ): Promise<void> {
     if (!countryCodes || countryCodes.length === 0) return;
 
@@ -1899,30 +1900,34 @@ class GoogleAdsAdapter implements PlatformAdapter {
       return;
     }
 
-    // First set the campaign's geo target type setting
-    const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
-    const campaignUpdateOp = {
-      update: {
-        resourceName: `customers/${customerId}/campaigns/${campaignId}`,
-        geoTargetTypeSetting: {
-          positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
-          negativeGeoTargetType: "PRESENCE_OR_INTEREST",
+    // Performance Max does not support geo_target_type_setting updates
+    if (channelType !== "PERFORMANCE_MAX") {
+      const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
+      const campaignUpdateOp = {
+        update: {
+          resourceName: `customers/${customerId}/campaigns/${campaignId}`,
+          geoTargetTypeSetting: {
+            positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+            negativeGeoTargetType: "PRESENCE_OR_INTEREST",
+          },
         },
-      },
-      updateMask: "geoTargetTypeSetting.positiveGeoTargetType,geoTargetTypeSetting.negativeGeoTargetType",
-    };
+        updateMask: "geoTargetTypeSetting.positiveGeoTargetType,geoTargetTypeSetting.negativeGeoTargetType",
+      };
 
-    const campaignUpdateResp = await fetch(campaignUpdateUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ operations: [campaignUpdateOp] }),
-    });
+      const campaignUpdateResp = await fetch(campaignUpdateUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ operations: [campaignUpdateOp] }),
+      });
 
-    if (!campaignUpdateResp.ok) {
-      const errText = await campaignUpdateResp.text();
-      console.error(`❌ Failed to set geo target type setting:`, errText);
+      if (!campaignUpdateResp.ok) {
+        const errText = await campaignUpdateResp.text();
+        console.error(`❌ Failed to set geo target type setting:`, errText);
+      } else {
+        console.log(`✅ Campaign geo target type set to: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
+      }
     } else {
-      console.log(`✅ Campaign geo target type set to: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
+      console.log(`ℹ️ Skipping geo_target_type_setting for Performance Max campaign`);
     }
 
     // Add geo target criteria
