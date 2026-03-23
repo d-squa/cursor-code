@@ -18,6 +18,7 @@ import type { CallToAction } from '@/types/creative';
 import {
   runCreativeDetection,
   type DetectableAsset,
+  type DetectedGroup,
 } from '@/utils/creativeProcessingDetection';
 import { detectAdFormat } from '@/utils/adFormatDetection';
 import { 
@@ -88,6 +89,121 @@ function clearProcessingGroup(row: CreativeTextAssetRowWithTikTok): CreativeText
     processingGroupId: undefined,
     processingGroupType: undefined,
   };
+}
+
+function normalizeSignaturePart(value?: string | null) {
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\\/g, '/')
+    .replace(/\.[^/.]+$/, '')
+    .replace(/\s+/g, ' ');
+}
+
+function buildAssetSignature(asset: {
+  name?: string | null;
+  filePath?: string | null;
+  width?: number | null;
+  height?: number | null;
+}) {
+  return [
+    normalizeSignaturePart(asset.filePath),
+    normalizeSignaturePart(asset.name),
+    asset.width ?? '',
+    asset.height ?? '',
+  ].join('|');
+}
+
+function buildRowCandidateSignatures(row: CreativeTextAssetRowWithTikTok) {
+  const candidates = new Set<string>();
+  const names = [row.originalFilename, row.creativeName].filter(Boolean);
+  const paths = [
+    row.folderPath && row.originalFilename ? `${row.folderPath}/${row.originalFilename}` : undefined,
+    row.folderPath && row.creativeName ? `${row.folderPath}/${row.creativeName}` : undefined,
+    row.originalFilename,
+    row.creativeName,
+  ].filter(Boolean);
+
+  for (const path of paths) {
+    for (const name of names.length > 0 ? names : [undefined]) {
+      candidates.add(
+        buildAssetSignature({
+          filePath: path,
+          name,
+          width: row.width,
+          height: row.height,
+        })
+      );
+    }
+  }
+
+  if (candidates.size === 0) {
+    candidates.add(
+      buildAssetSignature({
+        name: row.originalFilename || row.creativeName,
+        width: row.width,
+        height: row.height,
+      })
+    );
+  }
+
+  return candidates;
+}
+
+function mapApprovedGroupsToRows(
+  rows: CreativeTextAssetRowWithTikTok[],
+  detectedGroups: DetectedGroup[],
+  approvedGroupIds: Set<string>
+) {
+  const approvedGroups = detectedGroups.filter((group) => approvedGroupIds.has(group.id));
+
+  if (approvedGroups.length === 0) {
+    return rows.map(clearProcessingGroup);
+  }
+
+  const rowIndexBySignature = new Map<string, string[]>();
+  rows.forEach((row) => {
+    buildRowCandidateSignatures(row).forEach((signature) => {
+      const existing = rowIndexBySignature.get(signature) || [];
+      existing.push(row.id);
+      rowIndexBySignature.set(signature, existing);
+    });
+  });
+
+  const rowAssignments = new Map<string, { groupId: string; groupType: 'carousel' | 'asset_customization' }>();
+  const assignedRows = new Set<string>();
+
+  for (const group of approvedGroups) {
+    const matchedRowIds: string[] = [];
+
+    for (const asset of group.assets) {
+      const signature = buildAssetSignature(asset);
+      const candidateIds = rowIndexBySignature.get(signature) || [];
+      const availableRowId = candidateIds.find((id) => !assignedRows.has(id));
+
+      if (availableRowId) {
+        matchedRowIds.push(availableRowId);
+      }
+    }
+
+    if (matchedRowIds.length < 2) continue;
+
+    matchedRowIds.forEach((rowId) => {
+      assignedRows.add(rowId);
+      rowAssignments.set(rowId, { groupId: group.id, groupType: group.type });
+    });
+  }
+
+  return rows.map((row) => {
+    const assignment = rowAssignments.get(row.id);
+    return assignment
+      ? {
+          ...row,
+          processingGroupId: assignment.groupId,
+          processingGroupType: assignment.groupType,
+        }
+      : clearProcessingGroup(row);
+  });
 }
 
 function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
@@ -175,6 +291,26 @@ function applyProcessingOptionsToRows(
     );
   }
 
+  const directMappedRows = mapApprovedGroupsToRows(
+    rows,
+    processingOptions.detectedGroups,
+    processingOptions.approvedGroupIds
+  );
+
+  const directMappedGroupIds = new Set(
+    directMappedRows
+      .map((row) => row.processingGroupId)
+      .filter(Boolean)
+  );
+
+  const approvedGroups = processingOptions.detectedGroups.filter((group) =>
+    processingOptions.approvedGroupIds.has(group.id)
+  );
+
+  if (directMappedGroupIds.size === approvedGroups.length) {
+    return normalizeProcessingGroups(directMappedRows);
+  }
+
   // Convert rows to DetectableAssets for the detection engine
   const rowAssets: (DetectableAsset & { rowId: string })[] = rows.map((row) => ({
     id: row.id,
@@ -198,33 +334,35 @@ function applyProcessingOptionsToRows(
 
   const allDetected = [...detection.carouselGroups, ...detection.assetCustomizations];
 
-  // Build a map from the pre-matching detected groups to the row-detected groups.
-  // We match by group type + overlapping asset IDs (row IDs).
-  // The user approved groups from the pre-matching dialog; we need to find
-  // corresponding groups in the row-level detection.
-  const approvedTypes = new Map<string, 'carousel' | 'asset_customization'>();
-  for (const group of processingOptions.detectedGroups) {
-    if (processingOptions.approvedGroupIds.has(group.id)) {
-      approvedTypes.set(group.id, group.type);
-    }
-  }
-
   // For each row-detected group, check if it matches an approved pre-detection group
-  // by type. Since both detections use the same algorithm, groups of the same type
-  // with same structure are equivalent — auto-approve them.
-  const nextRows = rows.map((row) => ({ ...row, processingGroupId: undefined, processingGroupType: undefined }));
-  const assignedRowIds = new Set<string>();
+  // using overlap with specifically approved groups; any groups not recovered here
+  // keep the direct-mapped assignment from the approval dialog.
+  const nextRows = [...directMappedRows];
+  const assignedRowIds = new Set(
+    nextRows.map((row) => row.processingGroupId ? row.id : null).filter(Boolean) as string[]
+  );
 
-  // Determine which types were approved
-  const approvedCarousel = [...approvedTypes.values()].some((t) => t === 'carousel');
-  const approvedAC = [...approvedTypes.values()].some((t) => t === 'asset_customization');
+  const approvedGroupSignatures = new Map(
+    approvedGroups.map((group) => [
+      group.id,
+      new Set(group.assets.map((asset) => buildAssetSignature(asset))),
+    ])
+  );
 
   for (const group of allDetected) {
-    const isApprovedType =
-      (group.type === 'carousel' && approvedCarousel) ||
-      (group.type === 'asset_customization' && approvedAC);
+    const matchingApprovedGroup = approvedGroups.find((approvedGroup) => {
+      if (approvedGroup.type !== group.type) return false;
 
-    if (!isApprovedType) continue;
+      const approvedSignatures = approvedGroupSignatures.get(approvedGroup.id);
+      if (!approvedSignatures) return false;
+
+      const groupSignatures = group.assets.map((asset) => buildAssetSignature(asset));
+      const overlapCount = groupSignatures.filter((signature) => approvedSignatures.has(signature)).length;
+
+      return overlapCount >= 2;
+    });
+
+    if (!matchingApprovedGroup) continue;
 
     // All assets in row-detected groups are row IDs
     const rowIdsInGroup = group.assets.map((a) => a.id).filter((id) => !assignedRowIds.has(id));
@@ -232,8 +370,8 @@ function applyProcessingOptionsToRows(
 
     for (const row of nextRows) {
       if (!rowIdsInGroup.includes(row.id)) continue;
-      row.processingGroupId = group.id;
-      row.processingGroupType = group.type;
+      row.processingGroupId = matchingApprovedGroup.id;
+      row.processingGroupType = matchingApprovedGroup.type;
       assignedRowIds.add(row.id);
     }
   }
