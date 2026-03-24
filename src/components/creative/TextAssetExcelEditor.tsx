@@ -2530,8 +2530,11 @@ export function TextAssetExcelEditor({
         </DialogContent>
       </Dialog>
 
-      {/* Detection Results Dialog */}
-      <Dialog open={showDetectionResults} onOpenChange={setShowDetectionResults}>
+       {/* Detection Results Dialog */}
+      <Dialog open={showDetectionResults} onOpenChange={(open) => {
+        setShowDetectionResults(open);
+        if (!open) setSelectedDetectedIds(new Set());
+      }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2539,36 +2542,78 @@ export function TextAssetExcelEditor({
               Detected Carousels ({detectedCarousels.length})
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
+          {detectedCarousels.length > 1 && (
+            <div className="flex items-center gap-2 pb-1">
+              <Checkbox
+                id="select-all-carousels"
+                checked={selectedDetectedIds.size === detectedCarousels.length}
+                onCheckedChange={(checked) => {
+                  setSelectedDetectedIds(checked ? new Set(detectedCarousels.map(g => g.id)) : new Set());
+                }}
+              />
+              <label htmlFor="select-all-carousels" className="text-xs text-muted-foreground cursor-pointer">
+                Select all
+              </label>
+            </div>
+          )}
+          <div className="space-y-3 py-2 max-h-[60vh] overflow-y-auto">
             {detectedCarousels.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No carousel groups detected.</p>
             ) : (
-              detectedCarousels.map(group => (
-                <div key={group.id} className="border rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-4 w-4 text-blue-500" />
-                      <span className="font-medium text-sm">{group.name}</span>
-                      <Badge variant={group.confidence === 'high' ? 'default' : 'secondary'} className="text-[10px]">
-                        {group.confidence}
-                      </Badge>
-                    </div>
-                    <Badge variant="outline" className="text-xs">{group.rowIds.length} cards • {group.aspectGroup}</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Detected by: {group.reason}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {group.rowIds.map(id => {
-                      const row = rows.find(r => r.id === id);
-                      return row ? (
-                        <Badge key={id} variant="secondary" className="text-[10px] gap-1">
-                          {row.mediaType === 'video' ? <Video className="h-2.5 w-2.5" /> : <Image className="h-2.5 w-2.5" />}
-                          {row.creativeName}
+              detectedCarousels.map(group => {
+                const isSelected = selectedDetectedIds.has(group.id);
+                return (
+                  <div
+                    key={group.id}
+                    className={cn(
+                      "border rounded-lg p-3 space-y-2 cursor-pointer transition-colors",
+                      isSelected ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "hover:bg-muted/50"
+                    )}
+                    onClick={() => {
+                      setSelectedDetectedIds(prev => {
+                        const next = new Set(prev);
+                        if (next.has(group.id)) next.delete(group.id);
+                        else next.add(group.id);
+                        return next;
+                      });
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            setSelectedDetectedIds(prev => {
+                              const next = new Set(prev);
+                              if (checked) next.add(group.id); else next.delete(group.id);
+                              return next;
+                            });
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Layers className="h-4 w-4 text-blue-500" />
+                        <span className="font-medium text-sm">{group.name}</span>
+                        <Badge variant={group.confidence === 'high' ? 'default' : 'secondary'} className="text-[10px]">
+                          {group.confidence}
                         </Badge>
-                      ) : null;
-                    })}
+                      </div>
+                      <Badge variant="outline" className="text-xs">{group.rowIds.length} cards • {group.aspectGroup}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Detected by: {group.reason}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {group.rowIds.map(id => {
+                        const row = rows.find(r => r.id === id);
+                        return row ? (
+                          <Badge key={id} variant="secondary" className="text-[10px] gap-1">
+                            {row.mediaType === 'video' ? <Video className="h-2.5 w-2.5" /> : <Image className="h-2.5 w-2.5" />}
+                            {row.creativeName}
+                          </Badge>
+                        ) : null;
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
           {detectedCarousels.length > 0 && (
@@ -2576,10 +2621,11 @@ export function TextAssetExcelEditor({
               <Button variant="outline" onClick={() => setShowDetectionResults(false)}>Cancel</Button>
               <Button
                 className="gap-1"
-                onClick={() => handleApplyDetectedCarousels(detectedCarousels.map(g => g.id))}
+                disabled={selectedDetectedIds.size === 0}
+                onClick={() => handleApplyDetectedCarousels([...selectedDetectedIds])}
               >
                 <Layers className="h-4 w-4" />
-                Apply All ({detectedCarousels.length} carousels)
+                Apply{selectedDetectedIds.size === detectedCarousels.length ? ' All' : ''} ({selectedDetectedIds.size} carousel{selectedDetectedIds.size !== 1 ? 's' : ''})
               </Button>
             </div>
           )}
