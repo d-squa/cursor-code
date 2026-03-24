@@ -77,6 +77,29 @@ export function MeshActiPlanStep({
     loadCampaigns();
   }, [user, initialCampaignId]);
 
+  // Check for existing assignments when campaign changes
+  useEffect(() => {
+    if (!localCampaignId) {
+      setAssignmentCount(0);
+      return;
+    }
+
+    const checkAssignments = async () => {
+      setCheckingAssignments(true);
+      const { count, error } = await supabase
+        .from('creative_assignments')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', localCampaignId);
+
+      if (!error && count !== null) {
+        setAssignmentCount(count);
+      }
+      setCheckingAssignments(false);
+    };
+
+    checkAssignments();
+  }, [localCampaignId]);
+
   const handleCampaignChange = (campaignId: string, campaignList = campaigns) => {
     setLocalCampaignId(campaignId);
     const campaign = campaignList.find(c => c.id === campaignId);
