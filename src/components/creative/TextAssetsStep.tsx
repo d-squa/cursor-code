@@ -159,7 +159,31 @@ export function TextAssetsStep({
             assignmentsResult = { data: unique, error: null };
           }
         } else {
-          assignmentsResult = await buildAssignmentsQuery().eq('campaign_id', campaignId).limit(1000);
+          // Fetch ALL assignments for this campaign (no limit - paginate if needed)
+          const allRows: any[] = [];
+          const pageSize = 1000;
+          let from = 0;
+          let hasMore = true;
+
+          while (hasMore) {
+            const { data, error } = await buildAssignmentsQuery()
+              .eq('campaign_id', campaignId)
+              .range(from, from + pageSize - 1);
+
+            if (error) {
+              assignmentsResult = { data: null, error };
+              hasMore = false;
+              break;
+            }
+
+            if (data) allRows.push(...data);
+            hasMore = data !== null && data.length === pageSize;
+            from += pageSize;
+          }
+
+          if (!assignmentsResult.error) {
+            assignmentsResult = { data: allRows, error: null };
+          }
         }
 
         // Campaign metadata (needed for taxonomy)

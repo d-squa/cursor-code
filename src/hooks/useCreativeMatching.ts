@@ -1628,8 +1628,8 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     if (!user) return;
 
     try {
-      const [{ data: assignments, error }, { data: campaign, error: campaignError }] = await Promise.all([
-        supabase
+      // Paginate to fetch ALL assignments (Supabase defaults to 1000 max)
+      const assignmentQuery = () => supabase
         .from('creative_assignments')
         .select(`
           id,
@@ -1647,13 +1647,30 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
             media_urls
           )
         `)
-        .eq('campaign_id', targetCampaignId),
-        supabase
-          .from('campaigns')
-          .select('updated_at')
-          .eq('id', targetCampaignId)
-          .single(),
-      ]);
+        .eq('campaign_id', targetCampaignId);
+
+      const allAssignments: any[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      let hasMore = true;
+      let fetchError: any = null;
+
+      while (hasMore) {
+        const { data, error: pageError } = await assignmentQuery().range(from, from + pageSize - 1);
+        if (pageError) { fetchError = pageError; break; }
+        if (data) allAssignments.push(...data);
+        hasMore = data !== null && data.length === pageSize;
+        from += pageSize;
+      }
+
+      const { data: campaign, error: campaignError } = await supabase
+        .from('campaigns')
+        .select('updated_at')
+        .eq('id', targetCampaignId)
+        .single();
+
+      const assignments = allAssignments;
+      const error = fetchError;
 
       if (error) {
         console.error('Error loading existing assignments:', error);

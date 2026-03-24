@@ -113,7 +113,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           defaultTikTokMarket?.adAccountId || defaultTikTokMarket?.tiktokAdvertiserId || defaultTikTokMarket?.advertiser_id || ''
         ).trim();
 
-        const { data: assignments, error } = await supabase
+        // Paginate to fetch ALL assignments
+        const buildQuery = () => supabase
           .from('creative_assignments')
           .select(`
             id,
@@ -143,7 +144,21 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           `)
           .eq('campaign_id', effectiveCampaignId);
 
-        if (error) throw error;
+        const allAssignments: any[] = [];
+        const pageSize = 1000;
+        let from = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data, error: pageError } = await buildQuery().range(from, from + pageSize - 1);
+          if (pageError) throw pageError;
+          if (data) allAssignments.push(...data);
+          hasMore = data !== null && data.length === pageSize;
+          from += pageSize;
+        }
+
+        const assignments = allAssignments;
+
 
         // Transform to CreativeTextAssetRow format
         const transformedRows: CreativeTextAssetRow[] = (assignments || []).map((assignment: any) => {
