@@ -345,8 +345,8 @@ export default function CreativeMatching() {
         filePath,
         folderPath,
         assetType: a.mediaType || 'image',
-        width: digested?.width,
-        height: digested?.height,
+        width: digested?.technicalAttributes?.width,
+        height: digested?.technicalAttributes?.height,
       };
     });
   }, [matchingState.savedAssignments, matchingState.assets]);
