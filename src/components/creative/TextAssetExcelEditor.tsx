@@ -322,6 +322,17 @@ export function TextAssetExcelEditor({
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
   }, [selectedRowIds, onBulkUpdate, selectedRows]);
 
+  // Handle AC Builder group creation
+  const handleACBuilderCreateGroup = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
+    const groupId = group.id;
+    const rowIds = group.rows.map(r => r.id);
+    onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId } as any);
+  }, [onBulkUpdate]);
+
+  const handleACBuilderUngroupRows = useCallback((rowIds: string[]) => {
+    onBulkUpdate(rowIds, { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
+  }, [onBulkUpdate]);
+
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupType: ProcessingGroupKind, groupId: string) => {
     const group = processingGroups.get(`${groupType}:${groupId}`);
