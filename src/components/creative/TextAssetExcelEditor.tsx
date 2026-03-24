@@ -281,9 +281,9 @@ export function TextAssetExcelEditor({
       onUngroupRow(rowId, groupType);
     } else {
       onRowChange(rowId, groupType === 'asset_customization'
-        ? { assetCustomizationGroupId: undefined } as any
+        ? { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any
         : groupType === 'carousel'
-          ? { carouselGroupId: undefined } as any
+          ? { carouselGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any
           : { carouselGroupId: undefined, assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
     }
     toast.success('Creative removed from group');
@@ -322,8 +322,8 @@ export function TextAssetExcelEditor({
     const group = processingGroups.get(`${groupType}:${groupId}`);
     if (!group) return;
     onBulkUpdate(group.rowIds, groupType === 'carousel'
-      ? { carouselGroupId: undefined } as any
-      : { assetCustomizationGroupId: undefined } as any);
+      ? { carouselGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any
+      : { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
     toast.success('Group dissolved');
   }, [processingGroups, onBulkUpdate]);
 
