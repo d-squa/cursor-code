@@ -28,8 +28,7 @@ import { toast } from 'sonner';
 import { SelectedAsset, CreativeSource } from '@/hooks/useCreativeMeshProgress';
 import { MeshPageAssetsPicker } from '@/components/creative/MeshPageAssetsPicker';
 import { MeshAdAccountAssetsPicker } from '@/components/creative/MeshAdAccountAssetsPicker';
-import { CreativeProcessingOptionsDialog, type ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
-import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
+import type { ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
 
 // Ad account configuration passed from parent
 interface AdAccountInfo {
@@ -186,7 +185,7 @@ export function MeshSourceStep({
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [youtubeLoading, setYoutubeLoading] = useState(false);
-  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
+  
 
   // Filter assets by current platform
   const platformAssets = useMemo(() => 
@@ -416,31 +415,12 @@ export function MeshSourceStep({
 
   const hasAssets = platformAssets.length > 0;
 
-  // Convert selected assets to DetectableAsset format for processing detection
-  const detectableAssets: DetectableAsset[] = useMemo(() => 
-    platformAssets.map(a => ({
-      id: a.id,
-      name: a.name || a.id,
-      filePath: a.relativePath || a.name,
-      folderPath: a.relativePath ? a.relativePath.split('/').slice(0, -1).join('/') : '/',
-      assetType: a.assetType,
-      width: a.width,
-      height: a.height,
-    })),
-    [platformAssets]
-  );
-
-  // Handle Run Matching button — open processing options dialog
+  // Handle Run Matching button — directly run mesh without processing options
+  // Processing options are now shown after matching, before text assets editor
   const handleRunMatchingClick = useCallback(() => {
     if (!hasAssets) return;
-    setShowProcessingOptions(true);
-  }, [hasAssets]);
-
-  // Handle confirm from processing options dialog
-  const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
-    setShowProcessingOptions(false);
-    onRunMesh(options);
-  }, [onRunMesh]);
+    onRunMesh();
+  }, [hasAssets, onRunMesh]);
 
   // Determine upload description based on allowed media
   const uploadDescription = useMemo(() => {
@@ -840,16 +820,6 @@ export function MeshSourceStep({
       </Tabs>
       )}
 
-      {/* Creative Processing Options Dialog */}
-      <CreativeProcessingOptionsDialog
-        open={showProcessingOptions}
-        onOpenChange={setShowProcessingOptions}
-        assets={detectableAssets}
-        platform={platform}
-        googleCampaignType={googleCampaignTypes?.[0]}
-        onConfirm={handleProcessingConfirm}
-        isProcessing={isProcessing}
-      />
     </div>
   );
 }
