@@ -549,6 +549,22 @@ export default function CreativeMatching() {
             </div>
           )}
         </div>
+
+        {/* Processing Options Dialog — shown after Save & Continue on matched creatives */}
+        <CreativeProcessingOptionsDialog
+          open={showProcessingOptions}
+          onOpenChange={(open) => {
+            setShowProcessingOptions(open);
+            // If user closes without confirming, still advance to content without processing
+            if (!open) {
+              goToStep('content');
+            }
+          }}
+          assets={postMatchDetectableAssets}
+          platform={progress?.platform || 'meta'}
+          googleCampaignType={campaignData.googleCampaignTypes?.[0]}
+          onConfirm={handleProcessingConfirm}
+        />
       </div>
     </FeatureGate>
   );
