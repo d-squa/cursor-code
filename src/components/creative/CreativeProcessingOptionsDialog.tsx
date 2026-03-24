@@ -157,8 +157,8 @@ export function CreativeProcessingOptionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl h-[85vh] overflow-hidden p-0 flex flex-col">
+        <DialogHeader className="shrink-0 px-6 pt-6">
           <DialogTitle className="flex items-center gap-2">
             <Wand2 className="h-5 w-5 text-primary" />
             Creative Processing Options
@@ -168,8 +168,9 @@ export function CreativeProcessingOptionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0 pr-4">
-          <div className="space-y-6 py-2">
+        <div className="flex-1 min-h-0 px-6">
+          <ScrollArea className="h-full min-h-0 pr-4">
+            <div className="space-y-6 py-2">
             {/* Toggle: Carousel Auto-Grouping */}
             <div className="flex items-start gap-4">
               <div className="p-2.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 mt-0.5">
@@ -284,7 +285,7 @@ export function CreativeProcessingOptionsDialog({
                     rejected groups will have their assets treated as individual creatives.
                   </p>
 
-                  <div className="space-y-2">
+                  <div className="max-h-[34vh] overflow-y-auto pr-2 space-y-2">
                     {allGroups.map((group) => (
                       <DetectedGroupCard
                         key={group.id}
@@ -317,10 +318,11 @@ export function CreativeProcessingOptionsDialog({
                 </Alert>
               </>
             )}
-          </div>
-        </ScrollArea>
+            </div>
+          </ScrollArea>
+        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
             Cancel
           </Button>
