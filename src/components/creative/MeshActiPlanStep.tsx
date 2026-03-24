@@ -227,11 +227,43 @@ export function MeshActiPlanStep({
         </Card>
       )}
 
+      {/* Existing Assignments Shortcut */}
+      {localCampaignId && selectedPlatform && assignmentCount > 0 && onJumpToContent && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Existing Creative Assignments Found</p>
+                  <p className="text-sm text-muted-foreground">
+                    {assignmentCount} creative{assignmentCount !== 1 ? 's' : ''} already assigned. You can edit text assets directly.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="default"
+                className="gap-2"
+                onClick={() => {
+                  const campaign = campaigns.find(c => c.id === localCampaignId);
+                  if (campaign) {
+                    onJumpToContent(campaign.id, campaign.name, selectedPlatform);
+                  }
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                Edit Text Assets
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Continue Button - Always show when campaign selected */}
       {localCampaignId && selectedPlatform && (
         <div className="flex justify-end">
           <Button size="lg" className="gap-2" onClick={() => onPlatformSelect(selectedPlatform)}>
-            Continue to Creative Source
+            {assignmentCount > 0 ? 'Add More Creatives' : 'Continue to Creative Source'}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
