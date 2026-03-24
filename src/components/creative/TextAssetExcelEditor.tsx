@@ -40,6 +40,7 @@ import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/a
 import { CarouselCreator } from './CarouselCreator';
 import type { CarouselLink } from '@/types/carouselTypes';
 import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
+import { detectCarouselGroups, validateCarouselSelection, type CarouselGroup } from '@/utils/carouselDetection';
 import { BulkParameterEditor } from './BulkParameterEditor';
 import { ApplyModeDialog, type ApplyMode } from './ApplyModeDialog';
 import { ThumbnailUploader } from './ThumbnailUploader';
