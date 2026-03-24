@@ -1475,6 +1475,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               creativeId = creative.id;
               // Cache the creative ID for reuse by other assignments of the same asset
               createdCreativeByAssetId.set(assetId, creativeId);
+              createdCreativeByFilename.set(asset.fileName.toLowerCase(), creativeId);
             }
           }
 
