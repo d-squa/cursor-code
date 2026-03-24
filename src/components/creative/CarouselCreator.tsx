@@ -436,6 +436,20 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                                       className="text-xs min-h-[60px]"
                                       maxLength={field.maxLength}
                                     />
+                                  ) : field.key === 'callToAction' ? (
+                                    (() => {
+                                      const ctaList = PLATFORM_CTAS[platform as keyof typeof PLATFORM_CTAS] || PLATFORM_CTAS.meta;
+                                      const ctaOpts = ctaList.map(c => ({ value: c, label: c.replace(/_/g, ' ') }));
+                                      return (
+                                        <Combobox
+                                          options={ctaOpts}
+                                          value={(row[field.key] as string) || ''}
+                                          onValueChange={(v) => onRowChange?.(row.id, { [field.key]: v })}
+                                          placeholder={field.placeholder}
+                                          className="h-8 text-xs"
+                                        />
+                                      );
+                                    })()
                                   ) : (
                                     <Input
                                       value={(row[field.key] as string) || ''}
