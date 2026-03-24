@@ -456,14 +456,10 @@ export function TextAssetsStep({
           };
         });
 
-        const dedupedRowsMap = new Map<string, CreativeTextAssetRowWithTikTok>();
-        for (const row of transformedRows) {
-          if (!dedupedRowsMap.has(row.creativeId)) {
-            dedupedRowsMap.set(row.creativeId, row);
-          }
-        }
-
-        setRows(Array.from(dedupedRowsMap.values()));
+        // Keep one row per assignment, not per creative.
+        // The same creative can legitimately be reused across multiple phases/ad sets,
+        // and collapsing by creativeId hides valid assignments in the editor.
+        setRows(transformedRows);
       } catch (error) {
         console.error('Error loading assignments:', error);
         toast.error('Failed to load creative assignments');
