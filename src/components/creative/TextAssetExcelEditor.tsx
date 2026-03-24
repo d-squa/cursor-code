@@ -1613,6 +1613,25 @@ export function TextAssetExcelEditor({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {/* Asset Customization button (shown when 2+ selected, meta only) */}
+              {canCreateAssetCustomization && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-950"
+                        onClick={() => setShowAssetCustomizationBuilder(true)}
+                      >
+                        <LayoutGrid className="h-4 w-4 mr-1" />
+                        Asset Customization
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Group selected creatives as an asset customization set (different formats/languages)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <div className="h-5 w-px bg-border mx-1" />
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
@@ -1620,24 +1639,42 @@ export function TextAssetExcelEditor({
             </>
           )}
 
-          {/* Detect Carousel button (shown when no selection) */}
+          {/* Detect buttons (shown when no selection) */}
           {selectedRowIds.size === 0 && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
-                    onClick={() => handleDetectCarousels('all')}
-                  >
-                    <Sparkles className="h-4 w-4 mr-1" />
-                    Detect Carousel
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Auto-detect carousel groups from creative naming patterns</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
+                      onClick={() => handleDetectCarousels('all')}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Detect Carousel
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Auto-detect carousel groups from creative naming patterns</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-950"
+                      onClick={() => setShowAssetCustomizationBuilder(true)}
+                    >
+                      <LayoutGrid className="h-4 w-4 mr-1" />
+                      Asset Customization
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Detect and build asset customization groups for Meta</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </>
           )}
           
           <Button variant="outline" size="sm" onClick={handleDownload}>
