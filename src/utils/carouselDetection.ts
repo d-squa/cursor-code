@@ -105,9 +105,11 @@ export function detectCarouselGroups(rows: CreativeTextAssetRow[]): CarouselGrou
       if (!aspectGroup) return null;
 
       const nameSource = (row as any).originalFilename || row.creativeName || '';
-      const folderPath = (row as any).folderPath || '';
+      const folderPath = (row as any).folderPath || row.folderPath || '';
       const fullContext = `${folderPath}/${nameSource}`;
-      const { prefix, sequenceToken } = extractPrefixAndSequence(nameSource);
+      // Strip file extension before sequence matching (e.g. Reels_A.jpg → Reels_A)
+      const nameWithoutExt = nameSource.replace(/\.[a-zA-Z0-9]{2,5}$/, '');
+      const { prefix, sequenceToken } = extractPrefixAndSequence(nameWithoutExt);
       const keyword = hasCarouselKeyword(fullContext);
 
       return {
