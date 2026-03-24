@@ -362,7 +362,44 @@ export function TextAssetExcelEditor({
     onRowChange(id, updates);
   }, [rows, processingGroups, onBulkUpdate, onRowChange]);
 
-  const carouselDialogRows = useMemo(() => selectedRows, [selectedRows]);
+  // Rows for the carousel dialog: either selected rows (create) or editing group rows
+  const carouselDialogRows = useMemo(() => {
+    if (editingCarouselGroupId) {
+      const group = processingGroups.get(`carousel:${editingCarouselGroupId}`);
+      if (group) return rows.filter(r => group.rowIds.includes(r.id));
+    }
+    return selectedRows;
+  }, [selectedRows, editingCarouselGroupId, processingGroups, rows]);
+
+  // Build existingCarousel object when editing
+  const editingCarousel = useMemo<CarouselLink | null>(() => {
+    if (!editingCarouselGroupId) return null;
+    const group = processingGroups.get(`carousel:${editingCarouselGroupId}`);
+    if (!group) return null;
+    const groupRows = rows.filter(r => group.rowIds.includes(r.id));
+    if (groupRows.length === 0) return null;
+    const first = groupRows[0];
+    const cardData: Record<string, import('@/types/carouselTypes').CarouselCardData> = {};
+    for (const r of groupRows) {
+      cardData[r.id] = {
+        cardHeadline: (r as any).carouselCardHeadline || '',
+        cardDescription: (r as any).carouselCardDescription || '',
+        cardWebsiteUrl: (r as any).carouselCardWebsiteUrl || '',
+        cardCallToAction: (r as any).carouselCardCta || '',
+      };
+    }
+    return {
+      id: editingCarouselGroupId,
+      carouselName: editingCarouselGroupId,
+      adSetId: first.assignmentId?.split('_')[0] || '',
+      adSetName: first.adSet || '',
+      platform: first.platform || 'meta',
+      market: first.market || '',
+      phase: first.phase || '',
+      cardIds: groupRows.map(r => r.id),
+      cardData,
+    };
+  }, [editingCarouselGroupId, processingGroups, rows]);
 
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
