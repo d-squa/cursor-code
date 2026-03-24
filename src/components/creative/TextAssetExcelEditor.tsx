@@ -690,9 +690,24 @@ export function TextAssetExcelEditor({
   const handleApplyDetectedCarousels = useCallback((selectedGroupIds: string[]) => {
     const groupsToApply = detectedCarousels.filter(g => selectedGroupIds.includes(g.id));
     let totalCards = 0;
+    const rowMap = new Map(rows.map(r => [r.id, r]));
 
     for (const group of groupsToApply) {
       onBulkUpdate(group.rowIds, { carouselGroupId: group.id } as any);
+
+      // Seed card-level data from each row's existing text fields
+      for (const cardId of group.rowIds) {
+        const row = rowMap.get(cardId);
+        if (!row) continue;
+        const seeded: Record<string, string | undefined> = {
+          carouselCardHeadline: (row.headline as string) || undefined,
+          carouselCardDescription: (row.description as string) || undefined,
+          carouselCardWebsiteUrl: (row.destinationUrl as string) || undefined,
+          carouselCardCta: (row.callToAction as string) || undefined,
+        };
+        onBulkUpdate([cardId], seeded as any);
+      }
+
       totalCards += group.rowIds.length;
     }
 
