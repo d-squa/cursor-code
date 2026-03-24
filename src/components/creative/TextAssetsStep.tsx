@@ -39,8 +39,8 @@ interface TextAssetsStepProps {
   campaignId: string;
   campaignName: string;
   /**
-   * When provided, we load only these newly-saved assignments.
-   * When omitted/empty, we load all assignments for the campaign.
+   * Optional snapshot from the matching flow.
+   * The editor still loads the full assignment set for the campaign.
    */
   savedAssignments?: SavedAssignment[];
   onComplete: () => void;
@@ -80,11 +80,15 @@ export function TextAssetsStep({
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
     const loadAssignments = async () => {
-      const hasSavedAssignments = Array.isArray(savedAssignments) && savedAssignments.length > 0;
-      console.log('TextAssetsStep: Loading. hasSavedAssignments=', hasSavedAssignments, 'savedAssignments:', savedAssignments);
+      console.log('TextAssetsStep: Loading all campaign assignments', {
+        campaignId,
+        savedAssignmentCount: savedAssignments?.length || 0,
+      });
 
       try {
-        // Fetch assignments (either specific IDs from the just-saved flow, or all for the campaign)
+        // Always fetch the full campaign assignment set.
+        // The matching-flow snapshot can be incomplete when the same creative is reused
+        // across multiple phases/ad sets, which would hide valid rows in the editor.
         const buildAssignmentsQuery = () =>
           supabase
             .from('creative_assignments')
@@ -128,62 +132,29 @@ export function TextAssetsStep({
             .order('position');
 
         let assignmentsResult: { data: any[] | null; error: any | null } = { data: null, error: null };
+        const allRows: any[] = [];
+        const pageSize = 1000;
+        let from = 0;
+        let hasMore = true;
 
-        if (hasSavedAssignments) {
-          // Avoid huge query strings when many IDs were saved (e.g. hundreds).
-          const ids = (savedAssignments || []).map(a => a.id).filter(Boolean);
-          const chunkSize = 100;
-          const allRows: any[] = [];
+        while (hasMore) {
+          const { data, error } = await buildAssignmentsQuery()
+            .eq('campaign_id', campaignId)
+            .range(from, from + pageSize - 1);
 
-          for (let i = 0; i < ids.length; i += chunkSize) {
-            const chunk = ids.slice(i, i + chunkSize);
-            const { data, error } = await buildAssignmentsQuery().in('id', chunk);
-            if (error) {
-              assignmentsResult = { data: null, error };
-              break;
-            }
-            if (data) allRows.push(...data);
+          if (error) {
+            assignmentsResult = { data: null, error };
+            hasMore = false;
+            break;
           }
 
-          if (!assignmentsResult.error) {
-            const unique = Array.from(new Map(allRows.map((r: any) => [r.id, r])).values());
-            unique.sort((a: any, b: any) => {
-              const p = String(a.platform || '').localeCompare(String(b.platform || ''));
-              if (p) return p;
-              const m = String(a.market || '').localeCompare(String(b.market || ''));
-              if (m) return m;
-              const ph = String(a.phase_name || '').localeCompare(String(b.phase_name || ''));
-              if (ph) return ph;
-              return (Number(a.position) || 0) - (Number(b.position) || 0);
-            });
-            assignmentsResult = { data: unique, error: null };
-          }
-        } else {
-          // Fetch ALL assignments for this campaign (no limit - paginate if needed)
-          const allRows: any[] = [];
-          const pageSize = 1000;
-          let from = 0;
-          let hasMore = true;
+          if (data) allRows.push(...data);
+          hasMore = data !== null && data.length === pageSize;
+          from += pageSize;
+        }
 
-          while (hasMore) {
-            const { data, error } = await buildAssignmentsQuery()
-              .eq('campaign_id', campaignId)
-              .range(from, from + pageSize - 1);
-
-            if (error) {
-              assignmentsResult = { data: null, error };
-              hasMore = false;
-              break;
-            }
-
-            if (data) allRows.push(...data);
-            hasMore = data !== null && data.length === pageSize;
-            from += pageSize;
-          }
-
-          if (!assignmentsResult.error) {
-            assignmentsResult = { data: allRows, error: null };
-          }
+        if (!assignmentsResult.error) {
+          assignmentsResult = { data: allRows, error: null };
         }
 
         // Campaign metadata (needed for taxonomy)
@@ -373,10 +344,15 @@ export function TextAssetsStep({
           // 2. savedAssignments prop (passed during matching flow)
           // 3. Generated taxonomy name if available
           // 4. Fallback to unique identifier based on ad_set_id or position
-          const savedAssignment = hasSavedAssignments 
-            ? (savedAssignments || []).find((sa: SavedAssignment) => 
-                sa.id === assignment.id || sa.creativeId === assignment.creative_id)
-            : undefined;
+          const savedAssignment = (savedAssignments || []).find((sa: SavedAssignment) =>
+            sa.id === assignment.id || (
+              sa.creativeId === assignment.creative_id &&
+              sa.platform === assignment.platform &&
+              sa.market === assignment.market &&
+              sa.phaseName === assignment.phase_name &&
+              (sa.adSetName || '') === (assignment.ad_set_name || '')
+            )
+          );
           
           // Determine the ad set name - prioritize stored values, then taxonomy
           let adSetName = assignment.ad_set_name || savedAssignment?.adSetName;
