@@ -38,31 +38,49 @@ const TEXT_ASSET_FIELDS: { key: keyof CreativeTextAssetRow; label: string; maxLe
 
 export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open, onRowChange }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
-  const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>([]);
+  // orderedIds tracks card ordering only (not the row data itself)
+  const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [cardData, setCardData] = useState<Record<string, CarouselCardData>>({});
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const prevOpenRef = React.useRef(false);
 
-  // Sync orderedCards when dialog opens or selectedRows changes
+  // Build a lookup from selectedRows so text values always come from props (live data)
+  const rowLookup = useMemo(() => {
+    const map = new Map<string, CreativeTextAssetRow>();
+    for (const r of selectedRows) map.set(r.id, r);
+    return map;
+  }, [selectedRows]);
+
+  // Derive orderedCards from orderedIds + rowLookup (no stale copies)
+  const orderedCards = useMemo(() => {
+    return orderedIds
+      .map(id => rowLookup.get(id))
+      .filter(Boolean) as CreativeTextAssetRow[];
+  }, [orderedIds, rowLookup]);
+
+  // Only initialize when dialog first opens (not on every selectedRows change)
   useEffect(() => {
-    if (!open || selectedRows.length === 0) return;
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+
+    if (!justOpened || selectedRows.length === 0) return;
 
     if (existingCarousel) {
       setCarouselName(existingCarousel.carouselName);
       setCardData(existingCarousel.cardData ?? {});
 
-      const byId = new Map(selectedRows.map((r) => [r.id, r] as const));
-      const orderedFromIds = existingCarousel.cardIds
-        .map((id) => byId.get(id))
-        .filter(Boolean) as CreativeTextAssetRow[];
-
-      // Append any rows not found in saved ordering (shouldn't happen, but keeps UI stable)
-      const missing = selectedRows.filter((r) => !existingCarousel.cardIds.includes(r.id));
-      setOrderedCards([...orderedFromIds, ...missing]);
+      const existingIds = existingCarousel.cardIds.filter(id =>
+        selectedRows.some(r => r.id === id)
+      );
+      const missingIds = selectedRows
+        .filter(r => !existingCarousel.cardIds.includes(r.id))
+        .map(r => r.id);
+      setOrderedIds([...existingIds, ...missingIds]);
     } else {
       setCarouselName('');
       setCardData({});
-      setOrderedCards(selectedRows);
+      setOrderedIds(selectedRows.map(r => r.id));
     }
     setExpandedCards(new Set());
   }, [open, selectedRows, existingCarousel]);
@@ -130,12 +148,14 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
     
-    const newOrder = [...orderedCards];
-    const [removed] = newOrder.splice(draggedIndex, 1);
-    newOrder.splice(index, 0, removed);
-    setOrderedCards(newOrder);
+    setOrderedIds(prev => {
+      const newOrder = [...prev];
+      const [removed] = newOrder.splice(draggedIndex, 1);
+      newOrder.splice(index, 0, removed);
+      return newOrder;
+    });
     setDraggedIndex(index);
-  }, [draggedIndex, orderedCards]);
+  }, [draggedIndex]);
 
   // Handle drag end
   const handleDragEnd = useCallback(() => {
@@ -144,17 +164,19 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
   // Handle position number change
   const handlePositionChange = useCallback((currentIndex: number, newPosition: number) => {
-    if (newPosition < 1 || newPosition > orderedCards.length) return;
+    if (newPosition < 1 || newPosition > orderedIds.length) return;
     
-    const newOrder = [...orderedCards];
-    const [removed] = newOrder.splice(currentIndex, 1);
-    newOrder.splice(newPosition - 1, 0, removed);
-    setOrderedCards(newOrder);
-  }, [orderedCards]);
+    setOrderedIds(prev => {
+      const newOrder = [...prev];
+      const [removed] = newOrder.splice(currentIndex, 1);
+      newOrder.splice(newPosition - 1, 0, removed);
+      return newOrder;
+    });
+  }, [orderedIds.length]);
 
   // Remove card from carousel
   const handleRemoveCard = useCallback((index: number) => {
-    setOrderedCards(prev => prev.filter((_, i) => i !== index));
+    setOrderedIds(prev => prev.filter((_, i) => i !== index));
   }, []);
 
   // Create / update carousel
@@ -383,10 +405,6 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                                     <Textarea
                                       value={(row[field.key] as string) || ''}
                                       onChange={(e) => {
-                                        // Update local state
-                                        const updatedCards = orderedCards.map(c => c.id === row.id ? { ...c, [field.key]: e.target.value } : c);
-                                        setOrderedCards(updatedCards);
-                                        // Sync back to main table
                                         onRowChange?.(row.id, { [field.key]: e.target.value });
                                       }}
                                       placeholder={field.placeholder}
@@ -397,8 +415,6 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                                     <Input
                                       value={(row[field.key] as string) || ''}
                                       onChange={(e) => {
-                                        const updatedCards = orderedCards.map(c => c.id === row.id ? { ...c, [field.key]: e.target.value } : c);
-                                        setOrderedCards(updatedCards);
                                         onRowChange?.(row.id, { [field.key]: e.target.value });
                                       }}
                                       placeholder={field.placeholder}
