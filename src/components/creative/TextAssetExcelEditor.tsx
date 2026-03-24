@@ -644,19 +644,21 @@ export function TextAssetExcelEditor({
       } as any
     );
 
-    // Also update per-card data (headline, description, URL, CTA) if provided
-    if (carousel.cardData) {
-      for (const cardId of carousel.cardIds) {
-        const data = carousel.cardData[cardId];
-        if (data) {
-          onBulkUpdate([cardId], {
-            carouselCardHeadline: data.cardHeadline || undefined,
-            carouselCardDescription: data.cardDescription || undefined,
-            carouselCardWebsiteUrl: data.cardWebsiteUrl || undefined,
-            carouselCardCta: data.cardCallToAction || undefined,
-          } as any);
-        }
-      }
+    // Seed card-level data from each row's existing text fields if not already set in cardData
+    const rowMap = new Map(rows.map(r => [r.id, r]));
+    for (const cardId of carousel.cardIds) {
+      const existingCardData = carousel.cardData?.[cardId];
+      const row = rowMap.get(cardId);
+      if (!row) continue;
+
+      const seeded: Record<string, string | undefined> = {
+        carouselCardHeadline: existingCardData?.cardHeadline || (row.headline as string) || undefined,
+        carouselCardDescription: existingCardData?.cardDescription || (row.description as string) || undefined,
+        carouselCardWebsiteUrl: existingCardData?.cardWebsiteUrl || (row.destinationUrl as string) || undefined,
+        carouselCardCta: existingCardData?.cardCallToAction || (row.callToAction as string) || undefined,
+      };
+
+      onBulkUpdate([cardId], seeded as any);
     }
 
     setShowCarouselCreator(false);
@@ -664,7 +666,7 @@ export function TextAssetExcelEditor({
     clearSelection();
 
     toast.success(`Carousel "${carousel.carouselName}" ${editingCarouselGroupId ? 'updated' : 'created'} with ${carousel.cardIds.length} cards`);
-  }, [clearSelection, onBulkUpdate]);
+  }, [clearSelection, onBulkUpdate, rows]);
 
   // Handle carousel detection at a specific scope level
   const handleDetectCarousels = useCallback((scopeLevel: 'all' | 'platform' | 'market' | 'phase' | 'adset') => {
@@ -688,9 +690,24 @@ export function TextAssetExcelEditor({
   const handleApplyDetectedCarousels = useCallback((selectedGroupIds: string[]) => {
     const groupsToApply = detectedCarousels.filter(g => selectedGroupIds.includes(g.id));
     let totalCards = 0;
+    const rowMap = new Map(rows.map(r => [r.id, r]));
 
     for (const group of groupsToApply) {
       onBulkUpdate(group.rowIds, { carouselGroupId: group.id } as any);
+
+      // Seed card-level data from each row's existing text fields
+      for (const cardId of group.rowIds) {
+        const row = rowMap.get(cardId);
+        if (!row) continue;
+        const seeded: Record<string, string | undefined> = {
+          carouselCardHeadline: (row.headline as string) || undefined,
+          carouselCardDescription: (row.description as string) || undefined,
+          carouselCardWebsiteUrl: (row.destinationUrl as string) || undefined,
+          carouselCardCta: (row.callToAction as string) || undefined,
+        };
+        onBulkUpdate([cardId], seeded as any);
+      }
+
       totalCards += group.rowIds.length;
     }
 

@@ -66,9 +66,32 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
     if (!justOpened || selectedRows.length === 0) return;
 
+    // Build initial cardData by seeding from row text fields, then overlaying any saved cardData
+    const seededCardData: Record<string, CarouselCardData> = {};
+    for (const r of selectedRows) {
+      seededCardData[r.id] = {
+        cardHeadline: (r as any).carouselCardHeadline || (r.headline as string) || '',
+        cardDescription: (r as any).carouselCardDescription || (r.description as string) || '',
+        cardWebsiteUrl: (r as any).carouselCardWebsiteUrl || (r.destinationUrl as string) || '',
+        cardCallToAction: (r as any).carouselCardCta || (r.callToAction as string) || '',
+      };
+    }
+
     if (existingCarousel) {
       setCarouselName(existingCarousel.carouselName);
-      setCardData(existingCarousel.cardData ?? {});
+      // Overlay saved cardData on top of seeded values
+      const merged = { ...seededCardData };
+      if (existingCarousel.cardData) {
+        for (const [id, data] of Object.entries(existingCarousel.cardData)) {
+          merged[id] = {
+            cardHeadline: data.cardHeadline || merged[id]?.cardHeadline || '',
+            cardDescription: data.cardDescription || merged[id]?.cardDescription || '',
+            cardWebsiteUrl: data.cardWebsiteUrl || merged[id]?.cardWebsiteUrl || '',
+            cardCallToAction: data.cardCallToAction || merged[id]?.cardCallToAction || '',
+          };
+        }
+      }
+      setCardData(merged);
 
       const existingIds = existingCarousel.cardIds.filter(id =>
         selectedRows.some(r => r.id === id)
@@ -79,7 +102,7 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
       setOrderedIds([...existingIds, ...missingIds]);
     } else {
       setCarouselName('');
-      setCardData({});
+      setCardData(seededCardData);
       setOrderedIds(selectedRows.map(r => r.id));
     }
     setExpandedCards(new Set());
