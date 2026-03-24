@@ -12,6 +12,7 @@ export const TEXT_ASSET_COLUMNS = [
   { key: 'adSet', label: 'Ad Set', width: 20 },
   { key: 'creativeName', label: 'Creative Name', width: 30 },
   { key: 'originalFilename', label: 'Original Filename', width: 30 },
+  { key: 'folderPath', label: 'Folder Path', width: 35 },
   // Taxonomy names for ads manager upload
   { key: 'taxonomyCampaignName', label: 'Campaign Name (Taxonomy)', width: 50 },
   { key: 'taxonomyAdSetName', label: 'Ad Set Name (Taxonomy)', width: 50 },

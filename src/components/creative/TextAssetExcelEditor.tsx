@@ -113,6 +113,7 @@ const HIERARCHY_COLUMNS: GridColumn[] = [
   { key: 'adSet', label: 'Ad Set', width: 140, editable: false, type: 'text', sticky: true },
   { key: 'creativeName', label: 'Creative', width: 180, editable: false, type: 'text', sticky: true },
   { key: 'originalFilename', label: 'Original File', width: 160, editable: false, type: 'text', sticky: true },
+  { key: 'folderPath', label: 'Folder Path', width: 180, editable: false, type: 'text', sticky: true },
 ];
 
 // Scrollable columns

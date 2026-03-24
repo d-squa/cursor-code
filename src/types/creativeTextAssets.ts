@@ -123,6 +123,7 @@ export interface CreativeTextAssetRow {
   adSet: string;
   creativeName: string;
   originalFilename?: string;
+  folderPath?: string;
   creativeFormat: CreativeFormat;
   
   // Taxonomy names for ads manager upload
