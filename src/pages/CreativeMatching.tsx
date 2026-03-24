@@ -323,17 +323,33 @@ export default function CreativeMatching() {
     goToStep('content');
   }, [goToStep]);
 
-  // Build detectable assets from saved assignments (matched creatives only)
+  // Build detectable assets from saved assignments enriched with digested asset metadata
   const postMatchDetectableAssets: DetectableAsset[] = useMemo(() => {
     if (!matchingState.savedAssignments?.length) return [];
-    return matchingState.savedAssignments.map(a => ({
-      id: a.id,
-      name: a.creativeName || a.id,
-      filePath: a.creativeName || a.id,
-      folderPath: '/',
-      assetType: a.mediaType || 'image',
-    }));
-  }, [matchingState.savedAssignments]);
+    
+    // Build a lookup from digested assets for dimensions and folder info
+    const digestedLookup = new Map<string, typeof matchingState.assets[0]>();
+    for (const asset of matchingState.assets) {
+      digestedLookup.set(asset.id, asset);
+    }
+
+    return matchingState.savedAssignments.map(a => {
+      const digested = digestedLookup.get(a.creativeId);
+      const name = a.creativeName || digested?.fileName || a.id;
+      const filePath = digested?.filePath || digested?.fileName || name;
+      const folderPath = filePath.includes('/') ? filePath.split('/').slice(0, -1).join('/') : '/';
+
+      return {
+        id: a.id,
+        name,
+        filePath,
+        folderPath,
+        assetType: a.mediaType || 'image',
+        width: digested?.width,
+        height: digested?.height,
+      };
+    });
+  }, [matchingState.savedAssignments, matchingState.assets]);
 
   // Handle content step completion
   const handleContentComplete = useCallback(() => {
