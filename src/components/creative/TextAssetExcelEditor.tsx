@@ -598,12 +598,28 @@ export function TextAssetExcelEditor({
 
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
+    // Set carouselGroupId on all cards
     onBulkUpdate(
       carousel.cardIds,
       {
         carouselGroupId: carousel.id,
       } as any
     );
+
+    // Also update per-card data (headline, description, URL, CTA) if provided
+    if (carousel.cardData) {
+      for (const cardId of carousel.cardIds) {
+        const data = carousel.cardData[cardId];
+        if (data) {
+          onBulkUpdate([cardId], {
+            carouselCardHeadline: data.cardHeadline || undefined,
+            carouselCardDescription: data.cardDescription || undefined,
+            carouselCardWebsiteUrl: data.cardWebsiteUrl || undefined,
+            carouselCardCta: data.cardCallToAction || undefined,
+          } as any);
+        }
+      }
+    }
 
     setShowCarouselCreator(false);
     clearSelection();
