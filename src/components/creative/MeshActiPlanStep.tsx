@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Layers, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Loader2, Layers, ArrowRight, CheckCircle2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -19,6 +19,7 @@ interface MeshActiPlanStepProps {
   initialCampaignId?: string;
   onSelect: (campaignId: string, campaignName: string, platforms: string[]) => void;
   onPlatformSelect: (platform: 'meta' | 'tiktok' | 'google') => void;
+  onJumpToContent?: (campaignId: string, campaignName: string, platform: 'meta' | 'tiktok' | 'google') => void;
   selectedCampaignId?: string;
   selectedPlatform?: 'meta' | 'tiktok' | 'google';
 }
@@ -27,6 +28,7 @@ export function MeshActiPlanStep({
   initialCampaignId,
   onSelect,
   onPlatformSelect,
+  onJumpToContent,
   selectedCampaignId,
   selectedPlatform,
 }: MeshActiPlanStepProps) {
@@ -35,6 +37,8 @@ export function MeshActiPlanStep({
   const [isLoading, setIsLoading] = useState(true);
   const [localCampaignId, setLocalCampaignId] = useState(selectedCampaignId || initialCampaignId || '');
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
+  const [assignmentCount, setAssignmentCount] = useState<number>(0);
+  const [checkingAssignments, setCheckingAssignments] = useState(false);
 
   // Load campaigns
   useEffect(() => {
@@ -72,6 +76,29 @@ export function MeshActiPlanStep({
 
     loadCampaigns();
   }, [user, initialCampaignId]);
+
+  // Check for existing assignments when campaign changes
+  useEffect(() => {
+    if (!localCampaignId) {
+      setAssignmentCount(0);
+      return;
+    }
+
+    const checkAssignments = async () => {
+      setCheckingAssignments(true);
+      const { count, error } = await supabase
+        .from('creative_assignments')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', localCampaignId);
+
+      if (!error && count !== null) {
+        setAssignmentCount(count);
+      }
+      setCheckingAssignments(false);
+    };
+
+    checkAssignments();
+  }, [localCampaignId]);
 
   const handleCampaignChange = (campaignId: string, campaignList = campaigns) => {
     setLocalCampaignId(campaignId);
@@ -200,11 +227,43 @@ export function MeshActiPlanStep({
         </Card>
       )}
 
+      {/* Existing Assignments Shortcut */}
+      {localCampaignId && selectedPlatform && assignmentCount > 0 && onJumpToContent && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Existing Creative Assignments Found</p>
+                  <p className="text-sm text-muted-foreground">
+                    {assignmentCount} creative{assignmentCount !== 1 ? 's' : ''} already assigned. You can edit text assets directly.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="default"
+                className="gap-2"
+                onClick={() => {
+                  const campaign = campaigns.find(c => c.id === localCampaignId);
+                  if (campaign) {
+                    onJumpToContent(campaign.id, campaign.name, selectedPlatform);
+                  }
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                Edit Text Assets
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Continue Button - Always show when campaign selected */}
       {localCampaignId && selectedPlatform && (
         <div className="flex justify-end">
           <Button size="lg" className="gap-2" onClick={() => onPlatformSelect(selectedPlatform)}>
-            Continue to Creative Source
+            {assignmentCount > 0 ? 'Add More Creatives' : 'Continue to Creative Source'}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
