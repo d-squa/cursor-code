@@ -101,9 +101,10 @@ const TYPE_COLORS: Record<CustomizationType, string> = {
 };
 
 const BUCKET_ICONS: Record<DeliveryBucket, React.ReactNode> = {
-  vertical: <Smartphone className="h-3.5 w-3.5" />,
   square: <Tablet className="h-3.5 w-3.5" />,
-  landscape: <Monitor className="h-3.5 w-3.5" />,
+  fullscreen_vertical: <Smartphone className="h-3.5 w-3.5" />,
+  horizontal: <Monitor className="h-3.5 w-3.5" />,
+  vertical: <Smartphone className="h-3.5 w-3.5" />,
   other: <Image className="h-3.5 w-3.5" />,
 };
 
