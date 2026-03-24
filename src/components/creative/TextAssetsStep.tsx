@@ -344,10 +344,15 @@ export function TextAssetsStep({
           // 2. savedAssignments prop (passed during matching flow)
           // 3. Generated taxonomy name if available
           // 4. Fallback to unique identifier based on ad_set_id or position
-          const savedAssignment = hasSavedAssignments 
-            ? (savedAssignments || []).find((sa: SavedAssignment) => 
-                sa.id === assignment.id || sa.creativeId === assignment.creative_id)
-            : undefined;
+          const savedAssignment = (savedAssignments || []).find((sa: SavedAssignment) =>
+            sa.id === assignment.id || (
+              sa.creativeId === assignment.creative_id &&
+              sa.platform === assignment.platform &&
+              sa.market === assignment.market &&
+              sa.phaseName === assignment.phase_name &&
+              (sa.adSetName || '') === (assignment.ad_set_name || '')
+            )
+          );
           
           // Determine the ad set name - prioritize stored values, then taxonomy
           let adSetName = assignment.ad_set_name || savedAssignment?.adSetName;
