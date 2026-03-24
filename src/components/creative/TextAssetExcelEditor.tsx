@@ -1327,7 +1327,11 @@ export function TextAssetExcelEditor({
       const target = e.target as HTMLElement;
       const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       
-      // If editing a cell, handle edit shortcuts
+      // If the target is inside a dialog (carousel editor, etc.), don't intercept
+      const isInsideDialog = target.closest('[role="dialog"]');
+      if (isInsideDialog && !editingCell) return;
+      
+      // If editing a cell in our grid, handle edit shortcuts
       if (editingCell) {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -1338,7 +1342,7 @@ export function TextAssetExcelEditor({
         return;
       }
       
-      // Skip if focused on other input fields
+      // Skip if focused on other input fields (search, filters, etc.)
       if (isInputField) return;
       
       // Global shortcuts when not editing
