@@ -220,6 +220,7 @@ export function TextAssetExcelEditor({
   // Multi-select state for carousel creation
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
+  const [editingCarouselGroupId, setEditingCarouselGroupId] = useState<string | null>(null);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
   
