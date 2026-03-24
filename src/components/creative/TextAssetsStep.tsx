@@ -57,15 +57,7 @@ type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   folderPath?: string;
 };
 
-function stripProcessingGroups<T extends CreativeTextAssetRowWithTikTok>(row: T): T {
-  return {
-    ...row,
-    carouselGroupId: undefined,
-    assetCustomizationGroupId: undefined,
-    processingGroupId: undefined,
-    processingGroupType: undefined,
-  };
-}
+// Processing groups are now preserved (carousel groupings persist across loads)
 
 export function TextAssetsStep({ 
   campaignId, 
@@ -465,7 +457,7 @@ export function TextAssetsStep({
         });
 
         const dedupedRowsMap = new Map<string, CreativeTextAssetRowWithTikTok>();
-        for (const row of transformedRows.map(stripProcessingGroups)) {
+        for (const row of transformedRows) {
           if (!dedupedRowsMap.has(row.creativeId)) {
             dedupedRowsMap.set(row.creativeId, row);
           }
@@ -538,7 +530,7 @@ export function TextAssetsStep({
     // Re-validate all imported rows
     const validatedRows = importedRows.map(row => {
       const errors = validateTextAssetRow(row);
-      return stripProcessingGroups({ ...row, validationErrors: errors, isValid: errors.length === 0 } as CreativeTextAssetRowWithTikTok);
+      return { ...row, validationErrors: errors, isValid: errors.length === 0 } as CreativeTextAssetRowWithTikTok;
     });
     setRows(validatedRows as CreativeTextAssetRowWithTikTok[]);
   }, []);
@@ -628,7 +620,7 @@ export function TextAssetsStep({
       });
     
     // Add new rows while preserving existing ones with their edits
-    setRows(prev => [...prev, ...newRows.map(row => stripProcessingGroups(row as CreativeTextAssetRowWithTikTok))]);
+    setRows(prev => [...prev, ...newRows]);
     setShowAddDialog(false);
     toast.success(`Added ${newRows.length} creative(s) to the editor`);
   }, [availableCreatives, selectedNewCreatives]);

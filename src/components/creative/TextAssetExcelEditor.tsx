@@ -40,6 +40,7 @@ import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/a
 import { CarouselCreator } from './CarouselCreator';
 import type { CarouselLink } from '@/types/carouselTypes';
 import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
+import { detectCarouselGroups, validateCarouselSelection, type CarouselGroup } from '@/utils/carouselDetection';
 import { BulkParameterEditor } from './BulkParameterEditor';
 import { ApplyModeDialog, type ApplyMode } from './ApplyModeDialog';
 import { ThumbnailUploader } from './ThumbnailUploader';
@@ -233,6 +234,11 @@ export function TextAssetExcelEditor({
     updates: Partial<CreativeTextAssetRow>;
     groupLabel: string;
   } | null>(null);
+
+  // Carousel detection state
+  const [showDetectLevelDialog, setShowDetectLevelDialog] = useState(false);
+  const [detectedCarousels, setDetectedCarousels] = useState<CarouselGroup[]>([]);
+  const [showDetectionResults, setShowDetectionResults] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -357,20 +363,7 @@ export function TextAssetExcelEditor({
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
     if (selectedRows.length < 2) return false;
-    if (selectedRows.some((row) => !!getProcessingGroupId(row, 'carousel'))) return false;
-    const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
-    if (adSets.size !== 1) return false;
-
-    const validation = validateCarouselCreatives(
-      selectedRows.map(row => ({
-        width: row.width,
-        height: row.height,
-        aspectRatio: row.aspectRatio,
-        mediaType: row.mediaType,
-      })),
-      selectedRows[0]?.platform || 'meta'
-    );
-
+    const validation = validateCarouselSelection(selectedRows);
     return validation.isValid;
   }, [selectedRows]);
 
@@ -614,6 +607,40 @@ export function TextAssetExcelEditor({
 
     toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
   }, [clearSelection, onBulkUpdate]);
+
+  // Handle carousel detection at a specific scope level
+  const handleDetectCarousels = useCallback((scopeLevel: 'all' | 'platform' | 'market' | 'phase' | 'adset') => {
+    let targetRows = rows;
+
+    // If specific scope level, filter rows based on what's visible/relevant
+    // For simplicity, we detect across all rows (the algorithm already groups by ad set)
+    const detected = detectCarouselGroups(targetRows);
+
+    if (detected.length === 0) {
+      toast.info('No carousel groups detected. Try selecting creatives manually and using "Create Carousel".');
+      setShowDetectLevelDialog(false);
+      return;
+    }
+
+    setDetectedCarousels(detected);
+    setShowDetectLevelDialog(false);
+    setShowDetectionResults(true);
+  }, [rows]);
+
+  // Apply detected carousel groups
+  const handleApplyDetectedCarousels = useCallback((selectedGroupIds: string[]) => {
+    const groupsToApply = detectedCarousels.filter(g => selectedGroupIds.includes(g.id));
+    let totalCards = 0;
+
+    for (const group of groupsToApply) {
+      onBulkUpdate(group.rowIds, { carouselGroupId: group.id } as any);
+      totalCards += group.rowIds.length;
+    }
+
+    setShowDetectionResults(false);
+    setDetectedCarousels([]);
+    toast.success(`Created ${groupsToApply.length} carousel(s) with ${totalCards} total cards`);
+  }, [detectedCarousels, onBulkUpdate]);
 
   // Get visible columns based on row's media type
   const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
@@ -1474,11 +1501,50 @@ export function TextAssetExcelEditor({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {/* Carousel buttons */}
+              {canCreateCarousel && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
+                        onClick={() => setShowCarouselCreator(true)}
+                      >
+                        <Layers className="h-4 w-4 mr-1" />
+                        Create Carousel
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Group selected creatives as a carousel (same format, 2-10 cards)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <div className="h-5 w-px bg-border mx-1" />
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
               </Button>
             </>
+          )}
+
+          {/* Detect Carousel button (shown when no selection) */}
+          {selectedRowIds.size === 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
+                    onClick={() => setShowDetectLevelDialog(true)}
+                  >
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    Detect Carousel
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Auto-detect carousel groups from creative naming patterns</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           
           <Button variant="outline" size="sm" onClick={handleDownload}>
@@ -2410,6 +2476,93 @@ export function TextAssetExcelEditor({
           Object.keys(pendingApplyData.updates) as (keyof CreativeTextAssetRow)[]
         ) : 0}
       />
+
+      {/* Carousel Creator Dialog */}
+      <CarouselCreator
+        selectedRows={carouselDialogRows}
+        onCreateCarousel={handleCreateCarousel}
+        onCancel={() => setShowCarouselCreator(false)}
+        open={showCarouselCreator}
+      />
+
+      {/* Detect Carousel Level Dialog */}
+      <Dialog open={showDetectLevelDialog} onOpenChange={setShowDetectLevelDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-500" />
+              Detect Carousels
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              Auto-detect carousel groups by analyzing creative naming patterns, folder structure, and sequential numbering. Only 1:1 (square) and 4:5 (vertical) formats are eligible.
+            </p>
+            <div className="space-y-2">
+              <Button variant="outline" className="w-full justify-start gap-2" onClick={() => handleDetectCarousels('all')}>
+                <Layers className="h-4 w-4" />
+                Detect across all creatives
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detection Results Dialog */}
+      <Dialog open={showDetectionResults} onOpenChange={setShowDetectionResults}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-blue-500" />
+              Detected Carousels ({detectedCarousels.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
+            {detectedCarousels.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No carousel groups detected.</p>
+            ) : (
+              detectedCarousels.map(group => (
+                <div key={group.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-sm">{group.name}</span>
+                      <Badge variant={group.confidence === 'high' ? 'default' : 'secondary'} className="text-[10px]">
+                        {group.confidence}
+                      </Badge>
+                    </div>
+                    <Badge variant="outline" className="text-xs">{group.rowIds.length} cards • {group.aspectGroup}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Detected by: {group.reason}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {group.rowIds.map(id => {
+                      const row = rows.find(r => r.id === id);
+                      return row ? (
+                        <Badge key={id} variant="secondary" className="text-[10px] gap-1">
+                          {row.mediaType === 'video' ? <Video className="h-2.5 w-2.5" /> : <Image className="h-2.5 w-2.5" />}
+                          {row.creativeName}
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {detectedCarousels.length > 0 && (
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setShowDetectionResults(false)}>Cancel</Button>
+              <Button
+                className="gap-1"
+                onClick={() => handleApplyDetectedCarousels(detectedCarousels.map(g => g.id))}
+              >
+                <Layers className="h-4 w-4" />
+                Apply All ({detectedCarousels.length} carousels)
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

@@ -38,7 +38,7 @@ export const CAROUSEL_PLATFORM_REQUIREMENTS: Record<string, {
   storyCarouselSupported: boolean;
 }> = {
   meta: {
-    aspectRatios: ['1:1', '1.91:1', '9:16'], // 1:1/1.91:1 for feed, 9:16 for story/reels
+    aspectRatios: ['1:1', '4:5'], // Only square and vertical allowed for carousels
     minCards: 2,
     maxCards: 10,
     sameAspectRatio: true,
