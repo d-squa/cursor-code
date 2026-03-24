@@ -623,9 +623,10 @@ export function TextAssetExcelEditor({
     }
 
     setShowCarouselCreator(false);
+    setEditingCarouselGroupId(null);
     clearSelection();
 
-    toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
+    toast.success(`Carousel "${carousel.carouselName}" ${existingCarousel ? 'updated' : 'created'} with ${carousel.cardIds.length} cards`);
   }, [clearSelection, onBulkUpdate]);
 
   // Handle carousel detection at a specific scope level
