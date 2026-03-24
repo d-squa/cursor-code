@@ -1795,13 +1795,35 @@ export function TextAssetExcelEditor({
                             <span className={cn("font-medium text-sm truncate", isCarousel ? "text-blue-700 dark:text-blue-300" : "text-purple-700 dark:text-purple-300")}>
                               {item.groupLabel}
                             </span>
+                            {isCarousel && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs ml-auto shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingCarouselGroupId(item.processingGroupId!);
+                                        setShowCarouselCreator(true);
+                                      }}
+                                    >
+                                      <Settings2 className="h-3 w-3 mr-1" />
+                                      Edit
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit carousel order and text assets</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 px-2 text-xs ml-auto mr-2 shrink-0"
+                                    className="h-6 px-2 text-xs mr-2 shrink-0"
                                      onClick={(e) => {
                                        e.stopPropagation();
                                        handleUngroupEntireGroup(item.processingGroupType!, item.processingGroupId!);
