@@ -474,6 +474,131 @@ export type Database = {
           },
         ]
       }
+      asset_customization_group_members: {
+        Row: {
+          aspect_ratio: string | null
+          assignment_id: string
+          created_at: string
+          creative_id: string
+          delivery_bucket: string
+          group_id: string
+          id: string
+          language: string | null
+          mapped_placements: Json | null
+          position: number | null
+        }
+        Insert: {
+          aspect_ratio?: string | null
+          assignment_id: string
+          created_at?: string
+          creative_id: string
+          delivery_bucket: string
+          group_id: string
+          id?: string
+          language?: string | null
+          mapped_placements?: Json | null
+          position?: number | null
+        }
+        Update: {
+          aspect_ratio?: string | null
+          assignment_id?: string
+          created_at?: string
+          creative_id?: string
+          delivery_bucket?: string
+          group_id?: string
+          id?: string
+          language?: string | null
+          mapped_placements?: Json | null
+          position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_customization_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "asset_customization_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_customization_groups: {
+        Row: {
+          ad_set_name: string | null
+          asset_feed_spec: Json | null
+          campaign_id: string
+          created_at: string
+          customization_rules: Json | null
+          customization_type: string
+          default_language: string | null
+          group_name: string
+          id: string
+          language_mappings: Json | null
+          market: string | null
+          phase_name: string | null
+          platform: string
+          status: string
+          team_id: string | null
+          updated_at: string
+          user_id: string
+          validation_errors: Json | null
+        }
+        Insert: {
+          ad_set_name?: string | null
+          asset_feed_spec?: Json | null
+          campaign_id: string
+          created_at?: string
+          customization_rules?: Json | null
+          customization_type: string
+          default_language?: string | null
+          group_name: string
+          id?: string
+          language_mappings?: Json | null
+          market?: string | null
+          phase_name?: string | null
+          platform?: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+          user_id: string
+          validation_errors?: Json | null
+        }
+        Update: {
+          ad_set_name?: string | null
+          asset_feed_spec?: Json | null
+          campaign_id?: string
+          created_at?: string
+          customization_rules?: Json | null
+          customization_type?: string
+          default_language?: string | null
+          group_name?: string
+          id?: string
+          language_mappings?: Json | null
+          market?: string | null
+          phase_name?: string | null
+          platform?: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+          user_id?: string
+          validation_errors?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_customization_groups_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_customization_groups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_customers: {
         Row: {
           created_at: string
