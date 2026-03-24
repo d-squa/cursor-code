@@ -24,9 +24,19 @@ interface CarouselCreatorProps {
   onCreateCarousel: (carousel: CarouselLink) => void;
   onCancel: () => void;
   open: boolean;
+  /** When provided, text field changes are synced back to the main table in real time */
+  onRowChange?: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
 }
 
-export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open }: CarouselCreatorProps) {
+const TEXT_ASSET_FIELDS: { key: keyof CreativeTextAssetRow; label: string; maxLength?: number; placeholder: string; colSpan?: boolean }[] = [
+  { key: 'primaryText', label: 'Primary Text', maxLength: 500, placeholder: 'Main ad copy...', colSpan: true },
+  { key: 'headline', label: 'Headline', maxLength: 255, placeholder: 'Headline' },
+  { key: 'description', label: 'Description', maxLength: 125, placeholder: 'Description' },
+  { key: 'destinationUrl', label: 'Destination URL', maxLength: 2000, placeholder: 'https://...', colSpan: true },
+  { key: 'callToAction', label: 'Call to Action', maxLength: 50, placeholder: 'LEARN_MORE' },
+];
+
+export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open, onRowChange }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
   const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>([]);
   const [cardData, setCardData] = useState<Record<string, CarouselCardData>>({});
