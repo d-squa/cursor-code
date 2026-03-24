@@ -65,6 +65,8 @@ type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   folderPath?: string;
 };
 
+type ProcessingGroupKind = 'carousel' | 'asset_customization';
+
 function getDimensionKey(width?: number | null, height?: number | null) {
   if (!width || !height) return null;
   return `${width}x${height}`;
@@ -83,12 +85,76 @@ function normalizeAspectRatio(
   return `${width / divisor}:${height / divisor}`;
 }
 
-function clearProcessingGroup(row: CreativeTextAssetRowWithTikTok): CreativeTextAssetRowWithTikTok {
+function getProcessingGroupId(
+  row: CreativeTextAssetRowWithTikTok,
+  groupType: ProcessingGroupKind
+) {
+  if (groupType === 'carousel') {
+    return row.carouselGroupId || (row.processingGroupType === 'carousel' ? row.processingGroupId : undefined);
+  }
+
+  return row.assetCustomizationGroupId || (row.processingGroupType === 'asset_customization' ? row.processingGroupId : undefined);
+}
+
+function normalizeRowProcessingState(row: CreativeTextAssetRowWithTikTok): CreativeTextAssetRowWithTikTok {
+  const carouselGroupId = getProcessingGroupId(row, 'carousel');
+  const assetCustomizationGroupId = getProcessingGroupId(row, 'asset_customization');
+
+  const primaryGroupType: ProcessingGroupKind | undefined = carouselGroupId
+    ? 'carousel'
+    : assetCustomizationGroupId
+      ? 'asset_customization'
+      : undefined;
+
   return {
     ...row,
+    carouselGroupId,
+    assetCustomizationGroupId,
+    processingGroupId: primaryGroupType
+      ? (primaryGroupType === 'carousel' ? carouselGroupId : assetCustomizationGroupId)
+      : undefined,
+    processingGroupType: primaryGroupType,
+  };
+}
+
+function setProcessingGroup(
+  row: CreativeTextAssetRowWithTikTok,
+  groupType: ProcessingGroupKind,
+  groupId?: string
+) {
+  return normalizeRowProcessingState({
+    ...row,
+    carouselGroupId: groupType === 'carousel' ? groupId : getProcessingGroupId(row, 'carousel'),
+    assetCustomizationGroupId: groupType === 'asset_customization'
+      ? groupId
+      : getProcessingGroupId(row, 'asset_customization'),
     processingGroupId: undefined,
     processingGroupType: undefined,
-  };
+  });
+}
+
+function countProcessingMemberships(row: CreativeTextAssetRowWithTikTok) {
+  let count = 0;
+  if (getProcessingGroupId(row, 'carousel')) count += 1;
+  if (getProcessingGroupId(row, 'asset_customization')) count += 1;
+  return count;
+}
+
+function clearProcessingGroup(
+  row: CreativeTextAssetRowWithTikTok,
+  groupType?: ProcessingGroupKind
+): CreativeTextAssetRowWithTikTok {
+  if (!groupType) {
+    return normalizeRowProcessingState({
+      ...row,
+      carouselGroupId: undefined,
+      assetCustomizationGroupId: undefined,
+      processingGroupId: undefined,
+      processingGroupType: undefined,
+    });
+  }
+
+  return setProcessingGroup(row, groupType, undefined);
 }
 
 function normalizeSignaturePart(value?: string | null) {
@@ -155,14 +221,15 @@ function mapApprovedGroupsToRows(
   detectedGroups: DetectedGroup[],
   approvedGroupIds: Set<string>
 ) {
+  const normalizedRows = rows.map(normalizeRowProcessingState);
   const approvedGroups = detectedGroups.filter((group) => approvedGroupIds.has(group.id));
 
   if (approvedGroups.length === 0) {
-    return rows.map(clearProcessingGroup);
+    return normalizedRows.map((row) => clearProcessingGroup(row));
   }
 
   const rowIndexBySignature = new Map<string, string[]>();
-  rows.forEach((row) => {
+  normalizedRows.forEach((row) => {
     buildRowCandidateSignatures(row).forEach((signature) => {
       const existing = rowIndexBySignature.get(signature) || [];
       existing.push(row.id);
@@ -170,16 +237,20 @@ function mapApprovedGroupsToRows(
     });
   });
 
-  const rowAssignments = new Map<string, { groupId: string; groupType: 'carousel' | 'asset_customization' }>();
-  const assignedRows = new Set<string>();
+  const rowAssignments = new Map<string, string>();
+  const assignedRowsByType: Record<ProcessingGroupKind, Set<string>> = {
+    carousel: new Set<string>(),
+    asset_customization: new Set<string>(),
+  };
 
   for (const group of approvedGroups) {
     const matchedRowIds: string[] = [];
+    const groupType = group.type;
 
     for (const asset of group.assets) {
       const signature = buildAssetSignature(asset);
       const candidateIds = rowIndexBySignature.get(signature) || [];
-      const availableRowId = candidateIds.find((id) => !assignedRows.has(id));
+      const availableRowId = candidateIds.find((id) => !assignedRowsByType[groupType].has(id));
 
       if (availableRowId) {
         matchedRowIds.push(availableRowId);
@@ -189,44 +260,54 @@ function mapApprovedGroupsToRows(
     if (matchedRowIds.length < 2) continue;
 
     matchedRowIds.forEach((rowId) => {
-      assignedRows.add(rowId);
-      rowAssignments.set(rowId, { groupId: group.id, groupType: group.type });
+      assignedRowsByType[groupType].add(rowId);
+      rowAssignments.set(`${groupType}:${rowId}`, group.id);
     });
   }
 
-  return rows.map((row) => {
-    const assignment = rowAssignments.get(row.id);
-    return assignment
-      ? {
-          ...row,
-          processingGroupId: assignment.groupId,
-          processingGroupType: assignment.groupType,
-        }
-      : clearProcessingGroup(row);
+  return normalizedRows.map((row) => {
+    const nextRow = normalizeRowProcessingState({
+      ...row,
+      carouselGroupId: rowAssignments.get(`carousel:${row.id}`),
+      assetCustomizationGroupId: rowAssignments.get(`asset_customization:${row.id}`),
+      processingGroupId: undefined,
+      processingGroupType: undefined,
+    });
+
+    return countProcessingMemberships(nextRow) > 0 ? nextRow : clearProcessingGroup(nextRow);
   });
 }
 
 function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
-  const groupedRows = new Map<string, CreativeTextAssetRowWithTikTok[]>();
+  const normalizedRows = rows.map(normalizeRowProcessingState);
+  const groupedRows = new Map<string, { groupType: ProcessingGroupKind; rows: CreativeTextAssetRowWithTikTok[] }>();
 
-  rows.forEach((row) => {
-    if (!row.processingGroupId || !row.processingGroupType) return;
-    if (!groupedRows.has(row.processingGroupId)) {
-      groupedRows.set(row.processingGroupId, []);
-    }
-    groupedRows.get(row.processingGroupId)!.push(row);
+  normalizedRows.forEach((row) => {
+    (['carousel', 'asset_customization'] as const).forEach((groupType) => {
+      const groupId = getProcessingGroupId(row, groupType);
+      if (!groupId) return;
+
+      const key = `${groupType}:${groupId}`;
+      if (!groupedRows.has(key)) {
+        groupedRows.set(key, { groupType, rows: [] });
+      }
+      groupedRows.get(key)!.rows.push(row);
+    });
   });
 
-  const invalidGroupIds = new Set<string>();
+  const invalidGroupIdsByType: Record<ProcessingGroupKind, Set<string>> = {
+    carousel: new Set<string>(),
+    asset_customization: new Set<string>(),
+  };
 
-  groupedRows.forEach((groupRows, groupId) => {
-    const groupType = groupRows[0]?.processingGroupType;
+  groupedRows.forEach(({ groupType, rows: groupRows }, compositeKey) => {
+    const groupId = compositeKey.slice(groupType.length + 1);
     const structureKeys = new Set(groupRows.map(
       (row) => `${row.platform}|${row.market}|${row.phase}|${row.adSet}`
     ));
 
     if (!groupType || groupRows.length < 2 || structureKeys.size !== 1) {
-      invalidGroupIds.add(groupId);
+      invalidGroupIdsByType[groupType].add(groupId);
       return;
     }
 
@@ -244,7 +325,7 @@ function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
         uniqueDimensions.size !== 1 ||
         aspectRatios.size !== 1
       ) {
-        invalidGroupIds.add(groupId);
+        invalidGroupIdsByType.carousel.add(groupId);
       }
 
       return;
@@ -257,17 +338,29 @@ function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
     );
 
     if (aspectRatios.size < 2) {
-      invalidGroupIds.add(groupId);
+      invalidGroupIdsByType.asset_customization.add(groupId);
     }
   });
 
-  if (invalidGroupIds.size === 0) return rows;
+  if (
+    invalidGroupIdsByType.carousel.size === 0 &&
+    invalidGroupIdsByType.asset_customization.size === 0
+  ) {
+    return normalizedRows;
+  }
 
-  return rows.map((row) => (
-    row.processingGroupId && invalidGroupIds.has(row.processingGroupId)
-      ? clearProcessingGroup(row)
-      : row
-  ));
+  return normalizedRows.map((row) => {
+    let nextRow = row;
+
+    (['carousel', 'asset_customization'] as const).forEach((groupType) => {
+      const groupId = getProcessingGroupId(nextRow, groupType);
+      if (groupId && invalidGroupIdsByType[groupType].has(groupId)) {
+        nextRow = clearProcessingGroup(nextRow, groupType);
+      }
+    });
+
+    return normalizeRowProcessingState(nextRow);
+  });
 }
 
 /**
@@ -281,13 +374,13 @@ function applyProcessingOptionsToRows(
   processingOptions?: ProcessingOptions
 ) {
   if (!processingOptions) {
-    return normalizeProcessingGroups(rows);
+    return normalizeProcessingGroups(rows.map(normalizeRowProcessingState));
   }
 
   // If no approved groups, just clear and normalize
   if (processingOptions.approvedGroupIds.size === 0) {
     return normalizeProcessingGroups(
-      rows.map((row) => ({ ...row, processingGroupId: undefined, processingGroupType: undefined }))
+      rows.map((row) => clearProcessingGroup(normalizeRowProcessingState(row)))
     );
   }
 
@@ -298,9 +391,10 @@ function applyProcessingOptionsToRows(
   );
 
   const directMappedGroupIds = new Set(
-    directMappedRows
-      .map((row) => row.processingGroupId)
-      .filter(Boolean)
+    directMappedRows.flatMap((row) => [
+      getProcessingGroupId(row, 'carousel'),
+      getProcessingGroupId(row, 'asset_customization'),
+    ]).filter(Boolean)
   );
 
   const approvedGroups = processingOptions.detectedGroups.filter((group) =>
@@ -337,10 +431,19 @@ function applyProcessingOptionsToRows(
   // For each row-detected group, check if it matches an approved pre-detection group
   // using overlap with specifically approved groups; any groups not recovered here
   // keep the direct-mapped assignment from the approval dialog.
-  const nextRows = [...directMappedRows];
-  const assignedRowIds = new Set(
-    nextRows.map((row) => row.processingGroupId ? row.id : null).filter(Boolean) as string[]
-  );
+  const nextRows = directMappedRows.map((row) => ({ ...row }));
+  const assignedRowIdsByType: Record<ProcessingGroupKind, Set<string>> = {
+    carousel: new Set(
+      nextRows
+        .filter((row) => !!getProcessingGroupId(row, 'carousel'))
+        .map((row) => row.id)
+    ),
+    asset_customization: new Set(
+      nextRows
+        .filter((row) => !!getProcessingGroupId(row, 'asset_customization'))
+        .map((row) => row.id)
+    ),
+  };
 
   const approvedGroupSignatures = new Map(
     approvedGroups.map((group) => [
@@ -365,18 +468,21 @@ function applyProcessingOptionsToRows(
     if (!matchingApprovedGroup) continue;
 
     // All assets in row-detected groups are row IDs
-    const rowIdsInGroup = group.assets.map((a) => a.id).filter((id) => !assignedRowIds.has(id));
+    const rowIdsInGroup = group.assets
+      .map((a) => a.id)
+      .filter((id) => !assignedRowIdsByType[group.type].has(id));
     if (rowIdsInGroup.length < 2) continue;
 
-    for (const row of nextRows) {
+    rowIdsInGroup.forEach((rowId) => assignedRowIdsByType[group.type].add(rowId));
+
+    for (let index = 0; index < nextRows.length; index += 1) {
+      const row = nextRows[index];
       if (!rowIdsInGroup.includes(row.id)) continue;
-      row.processingGroupId = matchingApprovedGroup.id;
-      row.processingGroupType = matchingApprovedGroup.type;
-      assignedRowIds.add(row.id);
+      nextRows[index] = setProcessingGroup(row, matchingApprovedGroup.type, matchingApprovedGroup.id);
     }
   }
 
-  return normalizeProcessingGroups(nextRows);
+  return normalizeProcessingGroups(nextRows.map(normalizeRowProcessingState));
 }
 
 export function TextAssetsStep({ 
@@ -791,7 +897,12 @@ export function TextAssetsStep({
             continue;
           }
 
-          const shouldReplace = !existing.processingGroupId && !!row.processingGroupId;
+          const existingGroupCount = countProcessingMemberships(existing);
+          const rowGroupCount = countProcessingMemberships(row);
+          const shouldReplace =
+            rowGroupCount > existingGroupCount ||
+            (!!row.carouselGroupId && !existing.carouselGroupId) ||
+            (!!row.assetCustomizationGroupId && !existing.assetCustomizationGroupId);
           if (shouldReplace) {
             dedupedRowsMap.set(row.creativeId, row);
           }
@@ -1039,21 +1150,32 @@ export function TextAssetsStep({
     }
   }, []);
 
-  const handleUngroupRow = useCallback((rowId: string) => {
+  const handleUngroupRow = useCallback((rowId: string, groupType?: ProcessingGroupKind) => {
     setRows(prev => {
       const targetRow = prev.find(row => row.id === rowId);
-      if (!targetRow?.processingGroupId) return prev;
+      if (!targetRow) return prev;
 
-      const groupRows = prev.filter(row => row.processingGroupId === targetRow.processingGroupId);
+      const effectiveGroupType = groupType || (getProcessingGroupId(targetRow, 'carousel')
+        ? 'carousel'
+        : getProcessingGroupId(targetRow, 'asset_customization')
+          ? 'asset_customization'
+          : undefined);
+
+      if (!effectiveGroupType) return prev;
+
+      const targetGroupId = getProcessingGroupId(targetRow, effectiveGroupType);
+      if (!targetGroupId) return prev;
+
+      const groupRows = prev.filter(row => getProcessingGroupId(row, effectiveGroupType) === targetGroupId);
       const shouldClearWholeGroup = groupRows.length <= 2;
 
       return normalizeProcessingGroups(prev.map(row => {
         const isTarget = row.id === rowId;
-        const isSameGroup = row.processingGroupId === targetRow.processingGroupId;
+        const isSameGroup = getProcessingGroupId(row, effectiveGroupType) === targetGroupId;
 
         if (!isTarget && !(shouldClearWholeGroup && isSameGroup)) return row;
 
-        return clearProcessingGroup(row as CreativeTextAssetRowWithTikTok);
+        return clearProcessingGroup(row as CreativeTextAssetRowWithTikTok, effectiveGroupType);
       }) as CreativeTextAssetRowWithTikTok[]);
     });
   }, []);

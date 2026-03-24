@@ -76,6 +76,30 @@ interface GridColumn {
   sticky?: boolean;
 }
 
+type ProcessingGroupKind = 'carousel' | 'asset_customization';
+
+function getProcessingGroupId(row: CreativeTextAssetRow, groupType: ProcessingGroupKind) {
+  if (groupType === 'carousel') {
+    return row.carouselGroupId || (row.processingGroupType === 'carousel' ? row.processingGroupId : undefined);
+  }
+
+  return row.assetCustomizationGroupId || (row.processingGroupType === 'asset_customization' ? row.processingGroupId : undefined);
+}
+
+function getProcessingGroupTypes(row: CreativeTextAssetRow): ProcessingGroupKind[] {
+  const groupTypes: ProcessingGroupKind[] = [];
+
+  if (getProcessingGroupId(row, 'carousel')) {
+    groupTypes.push('carousel');
+  }
+
+  if (getProcessingGroupId(row, 'asset_customization')) {
+    groupTypes.push('asset_customization');
+  }
+
+  return groupTypes;
+}
+
 // Hierarchy columns (sticky)
 const HIERARCHY_COLUMNS: GridColumn[] = [
   { key: 'select', label: '', width: 36, editable: false, type: 'checkbox', sticky: true },
@@ -223,25 +247,32 @@ export function TextAssetExcelEditor({
 
   // Build processing group lookup: groupId → row IDs
   const processingGroups = useMemo(() => {
-    const groups = new Map<string, { type: 'carousel' | 'asset_customization'; rowIds: string[] }>();
+    const groups = new Map<string, { id: string; type: ProcessingGroupKind; rowIds: string[] }>();
     rows.forEach(row => {
-      if (row.processingGroupId && row.processingGroupType) {
-        if (!groups.has(row.processingGroupId)) {
-          groups.set(row.processingGroupId, { type: row.processingGroupType, rowIds: [] });
+      (['carousel', 'asset_customization'] as const).forEach((groupType) => {
+        const groupId = getProcessingGroupId(row, groupType);
+        if (!groupId) return;
+
+        const key = `${groupType}:${groupId}`;
+        if (!groups.has(key)) {
+          groups.set(key, { id: groupId, type: groupType, rowIds: [] });
         }
-        groups.get(row.processingGroupId)!.rowIds.push(row.id);
-      }
+        groups.get(key)!.rowIds.push(row.id);
+      });
     });
     return groups;
   }, [rows]);
 
   // Handle ungrouping a row from its processing group
-  const handleUngroupRow = useCallback((rowId: string) => {
+  const handleUngroupRow = useCallback((rowId: string, groupType?: ProcessingGroupKind) => {
     if (onUngroupRow) {
-      onUngroupRow(rowId);
+      onUngroupRow(rowId, groupType);
     } else {
-      // Fallback: clear group fields directly
-      onRowChange(rowId, { processingGroupId: undefined, processingGroupType: undefined } as any);
+      onRowChange(rowId, groupType === 'asset_customization'
+        ? { assetCustomizationGroupId: undefined } as any
+        : groupType === 'carousel'
+          ? { carouselGroupId: undefined } as any
+          : { carouselGroupId: undefined, assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
     }
     toast.success('Creative removed from group');
   }, [onUngroupRow, onRowChange]);
@@ -252,7 +283,7 @@ export function TextAssetExcelEditor({
   );
 
   const selectedGroupTypes = useMemo(
-    () => new Set(selectedGroupRows.map((row) => row.processingGroupType).filter(Boolean)),
+    () => new Set(selectedGroupRows.flatMap((row) => getProcessingGroupTypes(row))),
     [selectedGroupRows]
   );
 
@@ -262,32 +293,35 @@ export function TextAssetExcelEditor({
 
   // Create asset customization group from selected rows (defined after clearSelection)
   const handleCreateAssetCustomization = useCallback(() => {
-    if (hasGroupedSelection) {
-      toast.error('Grouped creatives cannot be added to asset customization. Ungroup them first.');
+    if (selectedRows.some((row) => !!getProcessingGroupId(row, 'asset_customization'))) {
+      toast.error('Selected creatives already belong to an asset customization group. Ungroup that first.');
       return;
     }
 
     const groupId = `ac-manual-${Date.now()}`;
     const ids = Array.from(selectedRowIds);
-    onBulkUpdate(ids, { processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
+    onBulkUpdate(ids, { assetCustomizationGroupId: groupId } as any);
     setSelectedRowIds(new Set());
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
-  }, [selectedRowIds, onBulkUpdate, hasGroupedSelection]);
+  }, [selectedRowIds, onBulkUpdate, selectedRows]);
 
   // Ungroup entire processing group
-  const handleUngroupEntireGroup = useCallback((groupId: string) => {
-    const group = processingGroups.get(groupId);
+  const handleUngroupEntireGroup = useCallback((groupType: ProcessingGroupKind, groupId: string) => {
+    const group = processingGroups.get(`${groupType}:${groupId}`);
     if (!group) return;
-    onBulkUpdate(group.rowIds, { processingGroupId: undefined, processingGroupType: undefined } as any);
+    onBulkUpdate(group.rowIds, groupType === 'carousel'
+      ? { carouselGroupId: undefined } as any
+      : { assetCustomizationGroupId: undefined } as any);
     toast.success('Group dissolved');
   }, [processingGroups, onBulkUpdate]);
 
   // For asset customization groups: sync text changes across all members
   const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
     const row = rows.find(r => r.id === id);
-    if (row?.processingGroupId && row.processingGroupType === 'asset_customization') {
+    const assetCustomizationGroupId = row ? getProcessingGroupId(row, 'asset_customization') : undefined;
+    if (assetCustomizationGroupId) {
       // Sync text fields to all members of the same group
-      const group = processingGroups.get(row.processingGroupId);
+      const group = processingGroups.get(`asset_customization:${assetCustomizationGroupId}`);
       if (group && group.rowIds.length > 1) {
         // Only sync text asset fields, not structural ones
         const textKeys: (keyof CreativeTextAssetRow)[] = [
@@ -320,7 +354,7 @@ export function TextAssetExcelEditor({
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
     if (selectedRows.length < 2) return false;
-    if (hasGroupedSelection) return false;
+    if (selectedRows.some((row) => !!getProcessingGroupId(row, 'carousel'))) return false;
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
     if (adSets.size !== 1) return false;
 
@@ -335,16 +369,16 @@ export function TextAssetExcelEditor({
     );
 
     return validation.isValid;
-  }, [selectedRows, hasGroupedSelection]);
+  }, [selectedRows]);
 
   const canCreateAssetCustomization = useMemo(() => {
     if (selectedRows.length < 2) return false;
-    if (hasGroupedSelection) return false;
+    if (selectedRows.some((row) => !!getProcessingGroupId(row, 'asset_customization'))) return false;
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
     if (adSets.size !== 1) return false;
     const ratios = new Set(selectedRows.map(r => r.aspectRatio).filter(Boolean));
     return ratios.size >= 2;
-  }, [selectedRows, hasGroupedSelection]);
+  }, [selectedRows]);
 
   // Toggle row selection with shift+click support
   // Organic posts are excluded from selection (they are read-only)
@@ -539,8 +573,7 @@ export function TextAssetExcelEditor({
     onBulkUpdate(
       carousel.cardIds,
       {
-        processingGroupId: carousel.id,
-        processingGroupType: 'carousel',
+        carouselGroupId: carousel.id,
       } as any
     );
 
@@ -660,33 +693,70 @@ export function TextAssetExcelEditor({
       if (collapsedGroups.has(adSetKey)) continue;
       
       // Organize rows into processing groups vs ungrouped
-      const pgMap = new Map<string, CreativeTextAssetRow[]>();
+      const carouselMap = new Map<string, CreativeTextAssetRow[]>();
+      const assetCustomizationMap = new Map<string, CreativeTextAssetRow[]>();
       const ungrouped: CreativeTextAssetRow[] = [];
       for (const row of groupRows) {
-        if (row.processingGroupId && row.processingGroupType) {
-          if (!pgMap.has(row.processingGroupId)) pgMap.set(row.processingGroupId, []);
-          pgMap.get(row.processingGroupId)!.push(row);
-        } else {
-          ungrouped.push(row);
+        const carouselGroupId = getProcessingGroupId(row, 'carousel');
+        const assetCustomizationGroupId = getProcessingGroupId(row, 'asset_customization');
+
+        if (carouselGroupId) {
+          if (!carouselMap.has(carouselGroupId)) carouselMap.set(carouselGroupId, []);
+          carouselMap.get(carouselGroupId)!.push(row);
+          continue;
         }
+
+        if (assetCustomizationGroupId) {
+          if (!assetCustomizationMap.has(assetCustomizationGroupId)) assetCustomizationMap.set(assetCustomizationGroupId, []);
+          assetCustomizationMap.get(assetCustomizationGroupId)!.push(row);
+          continue;
+        }
+
+        ungrouped.push(row);
       }
       
       // Processing group parents + children
-      for (const [pgId, pgRows] of pgMap) {
-        const pgType = pgRows[0].processingGroupType!;
-        const pgKey = `pg:${pgId}`;
+      for (const [pgId, pgRows] of carouselMap) {
+        const pgType: ProcessingGroupKind = 'carousel';
+        const pgKey = `pg:${pgType}:${pgId}`;
         items.push({
           type: 'processingGroup',
           key: pgKey,
-          groupLabel: pgType === 'carousel' 
-            ? `Carousel (${pgRows.length} cards)` 
-            : `Asset Customization (${pgRows.length} assets)`,
+          groupLabel: `Carousel (${pgRows.length} cards)`,
           groupKey: pgKey,
           level: 4,
           rowIds: pgRows.map(r => r.id),
           processingGroupType: pgType,
           processingGroupId: pgId,
-          row: pgType === 'asset_customization' ? pgRows[0] : undefined,
+        });
+
+        if (!collapsedGroups.has(pgKey)) {
+          pgRows.forEach((row, idx) => {
+            items.push({
+              type: 'row',
+              key: row.id,
+              row,
+              groupOrder: idx + 1,
+              isInProcessingGroup: true,
+              processingGroupType: pgType,
+            });
+          });
+        }
+      }
+
+      for (const [pgId, pgRows] of assetCustomizationMap) {
+        const pgType = pgRows[0].processingGroupType!;
+        const pgKey = `pg:asset_customization:${pgId}`;
+        items.push({
+          type: 'processingGroup',
+          key: pgKey,
+          groupLabel: `Asset Customization (${pgRows.length} assets)`,
+          groupKey: pgKey,
+          level: 4,
+          rowIds: pgRows.map(r => r.id),
+          processingGroupType: pgType,
+          processingGroupId: pgId,
+          row: pgRows[0],
         });
         
         if (!collapsedGroups.has(pgKey)) {
@@ -695,7 +765,7 @@ export function TextAssetExcelEditor({
               type: 'row',
               key: row.id,
               row,
-              groupOrder: pgType === 'carousel' ? idx + 1 : undefined,
+              groupOrder: undefined,
               isInProcessingGroup: true,
               processingGroupType: pgType,
             });
@@ -1599,10 +1669,10 @@ export function TextAssetExcelEditor({
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 px-2 text-xs ml-auto mr-2 shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUngroupEntireGroup(item.processingGroupId!);
-                                    }}
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       handleUngroupEntireGroup(item.processingGroupType!, item.processingGroupId!);
+                                     }}
                                   >
                                     <Unlink className="h-3 w-3 mr-1" />
                                     Ungroup
@@ -1622,11 +1692,11 @@ export function TextAssetExcelEditor({
                     const errors = validateTextAssetRow(row);
                     const hasErrors = errors.length > 0;
                     const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
-                    const groupId = row.processingGroupId;
-                    const groupType = row.processingGroupType;
-                    const isCarouselGrouped = groupType === 'carousel';
-                    const isACGrouped = groupType === 'asset_customization';
-                    const isGrouped = !!(groupId && groupType);
+                    const carouselGroupId = getProcessingGroupId(row, 'carousel');
+                    const assetCustomizationGroupId = getProcessingGroupId(row, 'asset_customization');
+                    const isCarouselGrouped = !!carouselGroupId;
+                    const isACGrouped = !!assetCustomizationGroupId;
+                    const isGrouped = isCarouselGrouped || isACGrouped;
                     
                     return (
                       <div
@@ -1635,18 +1705,21 @@ export function TextAssetExcelEditor({
                           "flex border-b relative",
                           hasErrors && "bg-destructive/5",
                           isOrganic && "bg-green-50/50 dark:bg-green-950/20",
-                          isCarouselGrouped && "bg-blue-50/40 dark:bg-blue-950/15",
-                          isACGrouped && "bg-purple-50/40 dark:bg-purple-950/15",
+                          isCarouselGrouped && !isACGrouped && "bg-blue-50/40 dark:bg-blue-950/15",
+                          !isCarouselGrouped && isACGrouped && "bg-purple-50/40 dark:bg-purple-950/15",
+                          isCarouselGrouped && isACGrouped && "bg-muted/40",
                           "hover:bg-accent/10"
                         )}
                         style={{ height: 40 }}
                       >
                         {/* Colored left border for processing groups */}
-                        {isGrouped && (
+                        {isCarouselGrouped && (
+                          <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-blue-500" />
+                        )}
+                        {isACGrouped && (
                           <div className={cn(
-                            "absolute left-0 top-0 bottom-0 w-[3px]",
-                            isCarouselGrouped && "bg-blue-500",
-                            isACGrouped && "bg-purple-500"
+                            "absolute top-0 bottom-0 w-[2px] bg-purple-500",
+                            isCarouselGrouped ? "left-[2px]" : "left-0"
                           )} />
                         )}
                         
@@ -1672,33 +1745,49 @@ export function TextAssetExcelEditor({
                           style={{ width: HIERARCHY_COLUMNS[1].width }}
                         >
                           {isGrouped ? (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge 
-                                    variant="outline"
-                                    className={cn(
-                                      "text-[9px] px-1 gap-0.5 cursor-pointer",
-                                      isCarouselGrouped && "border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400",
-                                      isACGrouped && "border-purple-400 text-purple-600 dark:border-purple-600 dark:text-purple-400"
-                                    )}
-                                    onClick={() => handleUngroupRow(row.id)}
-                                  >
-                                    {isCarouselGrouped ? (
-                                      <Layers className="h-3 w-3" />
-                                    ) : (
-                                      <SquareStack className="h-3 w-3" />
-                                    )}
-                                    <Unlink className="h-2.5 w-2.5" />
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="text-xs">
-                                  <p className="font-medium">{isCarouselGrouped ? 'Carousel Group' : 'Asset Customization Group'}</p>
-                                  <p className="text-muted-foreground">Click to ungroup this creative</p>
-                                  {isACGrouped && <p className="text-muted-foreground mt-1">Text edits sync to all group members</p>}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <div className="flex flex-wrap items-center justify-center gap-1">
+                              {isCarouselGrouped && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge 
+                                        variant="outline"
+                                        className="text-[9px] px-1 gap-0.5 cursor-pointer border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400"
+                                        onClick={() => handleUngroupRow(row.id, 'carousel')}
+                                      >
+                                        <Layers className="h-3 w-3" />
+                                        <Unlink className="h-2.5 w-2.5" />
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="text-xs">
+                                      <p className="font-medium">Carousel Group</p>
+                                      <p className="text-muted-foreground">Click to remove this creative from the carousel</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              {isACGrouped && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge 
+                                        variant="outline"
+                                        className="text-[9px] px-1 gap-0.5 cursor-pointer border-purple-400 text-purple-600 dark:border-purple-600 dark:text-purple-400"
+                                        onClick={() => handleUngroupRow(row.id, 'asset_customization')}
+                                      >
+                                        <SquareStack className="h-3 w-3" />
+                                        <Unlink className="h-2.5 w-2.5" />
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="text-xs">
+                                      <p className="font-medium">Asset Customization Group</p>
+                                      <p className="text-muted-foreground">Click to remove this creative from asset customization</p>
+                                      <p className="text-muted-foreground mt-1">Text edits sync to all group members</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                           ) : (
                             <Badge 
                               variant={isOrganic ? 'default' : 'secondary'}
@@ -1802,13 +1891,18 @@ export function TextAssetExcelEditor({
                                     )}
                                   </div>
                                   {isGrouped && (
-                                    <Badge variant="outline" className={cn(
-                                      "text-[9px] mt-1",
-                                      isCarouselGrouped && "border-blue-400 text-blue-600",
-                                      isACGrouped && "border-purple-400 text-purple-600"
-                                    )}>
-                                      {isCarouselGrouped ? 'Carousel Group' : 'Asset Customization'}
-                                    </Badge>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {isCarouselGrouped && (
+                                        <Badge variant="outline" className="text-[9px] border-blue-400 text-blue-600">
+                                          Carousel Group
+                                        </Badge>
+                                      )}
+                                      {isACGrouped && (
+                                        <Badge variant="outline" className="text-[9px] border-purple-400 text-purple-600">
+                                          Asset Customization
+                                        </Badge>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               </div>
