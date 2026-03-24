@@ -58,7 +58,7 @@ interface TextAssetExcelEditorProps {
   /** Called when an assignment should be deleted */
   onDeleteAssignment?: (assignmentId: string) => void;
   /** Called when a row is ungrouped from a processing group */
-  onUngroupRow?: (rowId: string) => void;
+  onUngroupRow?: (rowId: string, groupType?: ProcessingGroupKind) => void;
 }
 
 // Grid column definition - now includes checkbox for multi-select
