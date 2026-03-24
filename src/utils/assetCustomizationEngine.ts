@@ -6,7 +6,7 @@ import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 
 // ─── Delivery Bucket Classification ──────────────────────────────────────────
 
-export type DeliveryBucket = 'vertical' | 'square' | 'landscape' | 'other';
+export type DeliveryBucket = 'square' | 'fullscreen_vertical' | 'horizontal' | 'vertical' | 'other';
 
 export interface BucketInfo {
   bucket: DeliveryBucket;
@@ -16,23 +16,29 @@ export interface BucketInfo {
 }
 
 export const DELIVERY_BUCKETS: Record<DeliveryBucket, BucketInfo> = {
-  vertical: {
-    bucket: 'vertical',
-    label: 'Vertical (9:16)',
-    placements: ['story', 'reels', 'tiktok_feed'],
-    ratioRange: '9:16',
-  },
   square: {
     bucket: 'square',
-    label: 'Square / Portrait (1:1, 4:5)',
+    label: 'Square (1:1)',
     placements: ['feed', 'marketplace', 'search', 'video_feeds'],
-    ratioRange: '1:1 – 4:5',
+    ratioRange: '1:1',
   },
-  landscape: {
-    bucket: 'landscape',
-    label: 'Landscape (1.91:1, 16:9)',
+  fullscreen_vertical: {
+    bucket: 'fullscreen_vertical',
+    label: 'Fullscreen Vertical (9:16)',
+    placements: ['story', 'reels'],
+    ratioRange: '9:16',
+  },
+  horizontal: {
+    bucket: 'horizontal',
+    label: 'Horizontal (1.91:1)',
     placements: ['feed', 'right_column', 'instant_article', 'in_stream_video', 'search'],
-    ratioRange: '16:9 – 1.91:1',
+    ratioRange: '1.91:1',
+  },
+  vertical: {
+    bucket: 'vertical',
+    label: 'Vertical (4:5)',
+    placements: ['feed', 'video_feeds'],
+    ratioRange: '4:5',
   },
   other: {
     bucket: 'other',
@@ -59,40 +65,47 @@ export function classifyDeliveryBucket(width?: number, height?: number, aspectRa
 
   if (ratio === null) return 'other';
 
-  // Vertical: ratio ≤ 0.65 (covers 9:16 = 0.5625)
-  if (ratio <= 0.65) return 'vertical';
+  // Fullscreen Vertical: 9:16 = 0.5625, tolerance ±0.05 → ratio ≤ 0.62
+  if (ratio <= 0.62) return 'fullscreen_vertical';
 
-  // Square/Portrait: 0.65 < ratio ≤ 1.1 (covers 4:5 = 0.8, 1:1 = 1.0)
-  if (ratio <= 1.1) return 'square';
+  // Vertical: 4:5 = 0.8, range 0.62 < ratio ≤ 0.88
+  if (ratio <= 0.88) return 'vertical';
 
-  // Landscape: ratio > 1.1 (covers 16:9 = 1.78, 1.91:1)
-  return 'landscape';
+  // Square: 1:1 = 1.0, range 0.88 < ratio ≤ 1.12
+  if (ratio <= 1.12) return 'square';
+
+  // Horizontal: 1.91:1 = 1.91, ratio > 1.12
+  return 'horizontal';
 }
 
 // ─── Meta Placement Mapping ──────────────────────────────────────────────────
 
 export const META_PLACEMENT_MAP: Record<DeliveryBucket, string[]> = {
-  vertical: [
-    'instagram_stories',
-    'instagram_reels',
-    'facebook_stories',
-    'facebook_reels',
-  ],
   square: [
     'facebook_feed',
     'instagram_feed',
     'instagram_explore',
     'facebook_marketplace',
-    'facebook_video_feeds',
     'facebook_search',
   ],
-  landscape: [
+  fullscreen_vertical: [
+    'instagram_stories',
+    'instagram_reels',
+    'facebook_stories',
+    'facebook_reels',
+  ],
+  horizontal: [
     'facebook_feed',
     'facebook_right_column',
     'facebook_instant_article',
     'facebook_instream_video',
     'audience_network_classic',
     'audience_network_rewarded_video',
+  ],
+  vertical: [
+    'facebook_feed',
+    'instagram_feed',
+    'facebook_video_feeds',
   ],
   other: [],
 };
