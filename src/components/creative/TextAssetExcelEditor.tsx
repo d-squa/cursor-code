@@ -234,6 +234,11 @@ export function TextAssetExcelEditor({
     updates: Partial<CreativeTextAssetRow>;
     groupLabel: string;
   } | null>(null);
+
+  // Carousel detection state
+  const [showDetectLevelDialog, setShowDetectLevelDialog] = useState(false);
+  const [detectedCarousels, setDetectedCarousels] = useState<CarouselGroup[]>([]);
+  const [showDetectionResults, setShowDetectionResults] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
