@@ -362,6 +362,11 @@ const handler = async (req: Request): Promise<Response> => {
           status,
           dsp_creative_id,
           ad_set_name,
+          carousel_group_id,
+          carousel_card_headline,
+          carousel_card_description,
+          carousel_card_website_url,
+          carousel_card_cta,
           primary_text,
           primary_text_2,
           primary_text_3,
@@ -441,11 +446,446 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE} (filtered from ${assignments?.length || 0} total, excluding ${(assignments || []).filter((a: any) => a.dsp_creative_id).length} already pushed to DSP)`);
 
-      // Process assignments in batches
-      const batches = chunkArray(pendingAssignments, BATCH_SIZE);
+      // ========== CAROUSEL GROUPING ==========
+      // Separate carousel assignments from standalone assignments.
+      // Carousel assignments share the same carousel_group_id and must be pushed as a single ad.
+      const carouselGroups = new Map<string, any[]>();
+      const standaloneAssignments: any[] = [];
+
+      for (const a of pendingAssignments) {
+        const cgId = (a as any).carousel_group_id;
+        if (cgId) {
+          if (!carouselGroups.has(cgId)) carouselGroups.set(cgId, []);
+          carouselGroups.get(cgId)!.push(a);
+        } else {
+          standaloneAssignments.push(a);
+        }
+      }
+
+      console.log(`[push-creatives] Found ${carouselGroups.size} carousel group(s) and ${standaloneAssignments.length} standalone assignment(s)`);
+
+      // ========== PUSH CAROUSEL GROUPS ==========
+      for (const [carouselGroupId, carouselCards] of carouselGroups) {
+        // Check for timeout
+        if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
+          timedOut = true;
+          hasMoreWork = true;
+          break;
+        }
+
+        // A carousel group can only be pushed if ALL cards are pending
+        const allPending = carouselCards.every((a: any) => a.status !== "pushed" && !a.dsp_creative_id);
+        if (!allPending) {
+          console.log(`[push-creatives] Skipping carousel ${carouselGroupId}: some cards already pushed`);
+          continue;
+        }
+
+        // Sort by position
+        carouselCards.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+
+        // Mark all cards as "pushing"
+        for (const card of carouselCards) {
+          await supabase
+            .from("creative_assignments")
+            .update({ status: "pushing" })
+            .eq("id", card.id);
+        }
+
+        const firstCard = carouselCards[0];
+        const firstCreative = (firstCard as any).creative;
+        const firstResolvedText = {
+          primaryText: firstCard.primary_text || firstCreative.primary_text || "",
+          headline: firstCard.headline || firstCreative.headline || "",
+          description: firstCard.description || firstCreative.description || "",
+          callToAction: firstCard.call_to_action || firstCreative.call_to_action,
+          destinationUrl: firstCard.destination_url || firstCreative.destination_url,
+          urlParameters: firstCard.url_parameters || firstCreative.url_parameters,
+          brandName: firstCard.brand_name || firstCreative.brand_name,
+        };
+
+        try {
+          if (platformKey === "meta") {
+            // ========== META CAROUSEL AD ==========
+            const resolvedAdAccount =
+              (market as any)?.adAccountId ||
+              (market as any)?.ad_account_id ||
+              platform.ad_account_id ||
+              Deno.env.get("META_AD_ACCOUNT_ID");
+            const adAccountPath = resolvedAdAccount
+              ? String(resolvedAdAccount).startsWith("act_")
+                ? String(resolvedAdAccount)
+                : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`
+              : null;
+
+            if (!adAccountPath) {
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "Missing Meta ad account id" }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length;
+              continue;
+            }
+
+            // Resolve page ID
+            let pageId =
+              firstCreative.external_page_id ||
+              (phase as any)?.metaPageId ||
+              (market as any)?.metaPageId;
+
+            const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
+            const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
+            const { data: allMetaAdAccountRows } = await supabase
+              .from("meta_ad_accounts")
+              .select("default_page_id, default_landing_page_url, default_url_parameters, default_utm_mode, default_pixel_id")
+              .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
+              .order("synced_at", { ascending: false });
+            const metaAdAccountDefaults = allMetaAdAccountRows?.find(
+              (row: any) => row.default_landing_page_url || row.default_page_id
+            ) || allMetaAdAccountRows?.[0] || null;
+
+            if (!pageId) pageId = metaAdAccountDefaults?.default_page_id;
+            if (!pageId) {
+              const { data: latestPage } = await supabase
+                .from("meta_pages")
+                .select("page_id")
+                .eq("user_id", campaign.user_id)
+                .order("synced_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              pageId = latestPage?.page_id || null;
+            }
+
+            if (!pageId) {
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "Missing Meta page ID for carousel" }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length;
+              continue;
+            }
+
+            const utmMode = firstCard.utm_mode || metaAdAccountDefaults?.default_utm_mode || "auto";
+            let globalUrlParams = firstResolvedText.urlParameters;
+            if (utmMode === "auto") {
+              globalUrlParams = "utm_source={{site_source_name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{adset.name}}";
+            } else if (!globalUrlParams && metaAdAccountDefaults?.default_url_parameters) {
+              globalUrlParams = metaAdAccountDefaults.default_url_parameters;
+            }
+
+            const phaseLandingPageUrl =
+              (phase as any)?.metaLandingPageUrl || (phase as any)?.landingPageUrl;
+            const marketLandingPageUrl =
+              (market as any)?.metaLandingPageUrl || (market as any)?.landingPageUrl;
+            const defaultLandingPage = normalizeHttpUrl(
+              phaseLandingPageUrl || marketLandingPageUrl || metaAdAccountDefaults?.default_landing_page_url,
+            );
+
+            const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
+
+            // Build child_attachments for each carousel card
+            const childAttachments: any[] = [];
+            let carouselCardsFailed = 0;
+
+            for (const card of carouselCards) {
+              const creative = (card as any).creative;
+              if (!creative) { carouselCardsFailed++; continue; }
+
+              let hasAsset = !!creative.platform_image_hash || !!creative.platform_video_id;
+              if (!hasAsset) {
+                const { data: fullCreative } = await supabase
+                  .from("creatives").select("media_urls, media_type").eq("id", creative.id).single();
+
+                if (fullCreative?.media_urls?.[0]) {
+                  const mediaUrl = fullCreative.media_urls[0];
+                  const isVideoFile = /\.(mp4|mov|avi|wmv|flv|webm|m4v)(\?|$)/i.test(mediaUrl);
+                  try {
+                    const mediaResponse = await fetch(mediaUrl);
+                    const mediaBlob = await mediaResponse.blob();
+                    const fileName = mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
+                    if (isVideoFile) {
+                      const formData = new FormData();
+                      formData.append('access_token', platform.access_token);
+                      formData.append('source', mediaBlob, fileName);
+                      const uploadResult = await (await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/advideos`, { method: 'POST', body: formData })).json();
+                      if (uploadResult.id) {
+                        await supabase.from("creatives").update({ platform_video_id: uploadResult.id, dsp_upload_status: "uploaded" }).eq("id", creative.id);
+                        creative.platform_video_id = uploadResult.id;
+                        hasAsset = true;
+                      }
+                    } else {
+                      const formData = new FormData();
+                      formData.append('access_token', platform.access_token);
+                      formData.append('filename', fileName);
+                      formData.append('bytes', await blobToBase64(mediaBlob));
+                      const uploadResult = await (await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adimages`, { method: 'POST', body: formData })).json();
+                      const imageData = uploadResult.images?.[fileName] || (Object.values(uploadResult.images || {})[0] as any);
+                      if (imageData?.hash) {
+                        await supabase.from("creatives").update({ platform_image_hash: imageData.hash, dsp_upload_status: "uploaded" }).eq("id", creative.id);
+                        creative.platform_image_hash = imageData.hash;
+                        hasAsset = true;
+                      }
+                    }
+                  } catch (uploadErr) {
+                    console.error(`[push-creatives] Carousel card auto-upload failed:`, uploadErr);
+                  }
+                }
+              }
+
+              if (!hasAsset) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "Carousel card missing media asset" }).eq("id", card.id);
+                carouselCardsFailed++;
+                localFailed++;
+                continue;
+              }
+
+              const cardUrl = normalizeHttpUrl(
+                (card as any).carousel_card_website_url || card.destination_url || creative.destination_url || defaultLandingPage
+              );
+              let cardLink = cardUrl;
+              if (cardLink && globalUrlParams) {
+                const sep = cardLink.includes("?") ? "&" : "?";
+                cardLink = `${cardLink}${sep}${globalUrlParams}`;
+              }
+
+              const isVideo = !!creative.platform_video_id;
+              const childAttachment: any = {
+                ...(isVideo
+                  ? { video_id: creative.platform_video_id }
+                  : { image_hash: creative.platform_image_hash }),
+                name: (card as any).carousel_card_headline || card.headline || creative.headline || creative.name,
+                description: (card as any).carousel_card_description || card.description || creative.description || "",
+                link: cardLink,
+              };
+              const cta = (card as any).carousel_card_cta || card.call_to_action || creative.call_to_action;
+              if (cta) {
+                childAttachment.call_to_action = { type: cta, value: { link: cardLink } };
+              }
+              if (isVideo && creative.platform_thumbnail_id) {
+                childAttachment.image_hash = creative.platform_thumbnail_id;
+              } else if (isVideo && creative.thumbnail_url) {
+                childAttachment.image_url = creative.thumbnail_url;
+              }
+              childAttachments.push(childAttachment);
+            }
+
+            if (childAttachments.length < 2) {
+              console.error(`[push-creatives] Carousel ${carouselGroupId}: not enough valid cards (${childAttachments.length})`);
+              for (const card of carouselCards) {
+                if ((card as any).status !== "error") {
+                  await supabase.from("creative_assignments").update({ status: "error", error_message: `Carousel needs at least 2 valid cards, got ${childAttachments.length}` }).eq("id", card.id);
+                  localFailed++;
+                }
+              }
+              continue;
+            }
+
+            const carouselCreativePayload: any = {
+              name: `Carousel - ${firstCreative.name}`,
+              object_story_spec: {
+                page_id: pageId,
+                link_data: {
+                  message: firstResolvedText.primaryText,
+                  link: normalizeHttpUrl(firstResolvedText.destinationUrl || defaultLandingPage) || childAttachments[0]?.link,
+                  child_attachments: childAttachments,
+                  multi_share_optimized: true,
+                },
+              },
+            };
+
+            console.log(`[push-creatives] Creating Meta carousel adcreative with ${childAttachments.length} cards:`, JSON.stringify(carouselCreativePayload, null, 2));
+
+            const creativeResponse = await fetch(
+              `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
+              { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(carouselCreativePayload) },
+            );
+            const creativeData = await creativeResponse.json();
+            console.log(`[push-creatives] Meta carousel creative response:`, JSON.stringify(creativeData));
+
+            if (!creativeData.id) {
+              const errMsg = creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create Meta carousel creative";
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length - carouselCardsFailed;
+              continue;
+            }
+
+            const adPayload = {
+              name: `Carousel - ${firstCreative.name} - Ad`,
+              adset_id: entry.dsp_entity_id,
+              creative: { creative_id: creativeData.id },
+              status: "PAUSED",
+              tracking_specs: pixelId ? [{ "action.type": ["offsite_conversion"], fb_pixel: [pixelId] }] : undefined,
+            };
+
+            const adResponse = await fetch(
+              `https://graph.facebook.com/v22.0/${adAccountPath}/ads?access_token=${platform.access_token}`,
+              { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adPayload) },
+            );
+            const adData = await adResponse.json();
+            console.log(`[push-creatives] Meta carousel ad response:`, JSON.stringify(adData));
+
+            if (!adData.id) {
+              const errMsg = adData?.error?.error_user_msg || adData?.error?.message || "Failed to create Meta carousel ad";
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length - carouselCardsFailed;
+              continue;
+            }
+
+            for (const card of carouselCards) {
+              if ((card as any).status !== "error") {
+                await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).eq("id", card.id);
+                localPushed++;
+              }
+            }
+            console.log(`[push-creatives] ✅ Meta carousel pushed: ${childAttachments.length} cards, ad_id=${adData.id}`);
+
+          } else if (platformKey === "tiktok") {
+            // ========== TIKTOK CAROUSEL AD ==========
+            const marketAny = market as any;
+            const platformAny = platform as any;
+            const advertiserIdCandidates = [
+              marketAny?.advertiserId, marketAny?.advertiser_id,
+              marketAny?.tiktokAdvertiserId, marketAny?.tiktok_advertiser_id,
+              marketAny?.adAccountId, marketAny?.ad_account_id,
+              platformAny?.metadata?.advertiser_id,
+            ].filter((v) => v != null && String(v).trim().length > 0);
+            const tiktokAdvertiserId = advertiserIdCandidates[0];
+
+            if (!tiktokAdvertiserId) {
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "Missing TikTok advertiser ID" }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length;
+              continue;
+            }
+
+            const advertiserIdStr = String(tiktokAdvertiserId);
+            const imageIds: string[] = [];
+            let ttCardsFailed = 0;
+
+            for (const card of carouselCards) {
+              const creative = (card as any).creative;
+              if (!creative?.platform_image_hash) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "TikTok carousel only supports images" }).eq("id", card.id);
+                ttCardsFailed++;
+                localFailed++;
+              } else {
+                imageIds.push(creative.platform_image_hash);
+              }
+            }
+
+            if (imageIds.length < 2) {
+              for (const card of carouselCards) {
+                if ((card as any).status !== "error") {
+                  await supabase.from("creative_assignments").update({ status: "error", error_message: "TikTok carousel needs at least 2 image cards" }).eq("id", card.id);
+                  localFailed++;
+                }
+              }
+              continue;
+            }
+
+            // Resolve identity
+            let finalIdentityId: string | null = null;
+            let identityType = "CUSTOMIZED_USER";
+            try {
+              const identityGetUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/get/?advertiser_id=${advertiserIdStr}`;
+              const identityGetResponse = await fetch(identityGetUrl, { method: "GET", headers: { "Access-Token": platform.access_token } });
+              const identityGetData = await identityGetResponse.json();
+              const fetchedIdentities = identityGetData?.data?.identity_list || identityGetData?.data?.list || [];
+              const customizedUser = fetchedIdentities.find((id: any) => id.identity_type === "CUSTOMIZED_USER");
+              finalIdentityId = customizedUser ? String(customizedUser.identity_id) : (fetchedIdentities[0] ? String(fetchedIdentities[0].identity_id) : null);
+              if (fetchedIdentities[0] && !customizedUser) identityType = fetchedIdentities[0].identity_type || "CUSTOMIZED_USER";
+            } catch (e) {
+              console.error(`[push-creatives] TikTok identity fetch error:`, e);
+            }
+
+            if (!finalIdentityId) {
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "No valid TikTok identity found for carousel" }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length - ttCardsFailed;
+              continue;
+            }
+
+            let tiktokDestUrl = normalizeHttpUrl(
+              firstResolvedText.destinationUrl || firstCreative.destination_url ||
+              (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl
+            );
+            if (!tiktokDestUrl) {
+              const { data: ttDefaults } = await supabase.from("tiktok_ad_accounts")
+                .select("default_landing_page_url").eq("user_id", campaign.user_id)
+                .or(`advertiser_id.eq.${advertiserIdStr},account_id.eq.${advertiserIdStr}`)
+                .order("synced_at", { ascending: false }).limit(1).maybeSingle();
+              tiktokDestUrl = normalizeHttpUrl(ttDefaults?.default_landing_page_url);
+            }
+            if (!tiktokDestUrl) {
+              for (const card of carouselCards) {
+                await supabase.from("creative_assignments").update({ status: "error", error_message: "Carousel ads require a destination URL" }).eq("id", card.id);
+              }
+              localFailed += carouselCards.length - ttCardsFailed;
+              continue;
+            }
+
+            const tiktokCarouselPayload: any = {
+              advertiser_id: advertiserIdStr,
+              adgroup_id: entry.dsp_entity_id,
+              creatives: [{
+                ad_name: `Carousel - ${firstCreative.name}`,
+                identity_type: identityType,
+                identity_id: finalIdentityId,
+                ad_text: firstResolvedText.primaryText || firstCreative.name,
+                call_to_action: firstResolvedText.callToAction || "LEARN_MORE",
+                landing_page_url: tiktokDestUrl,
+                ad_format: "CAROUSEL",
+                image_ids: imageIds,
+                carousel_image_index: imageIds.map((_: string, i: number) => i),
+              }],
+            };
+
+            console.log(`[push-creatives] Creating TikTok carousel ad:`, JSON.stringify(tiktokCarouselPayload, null, 2));
+
+            const tiktokResponse = await fetch("https://business-api.tiktok.com/open_api/v1.3/ad/create/", {
+              method: "POST",
+              headers: { "Access-Token": platform.access_token, "Content-Type": "application/json" },
+              body: JSON.stringify(tiktokCarouselPayload),
+            });
+            const tiktokData = await tiktokResponse.json();
+            console.log(`[push-creatives] TikTok carousel response:`, JSON.stringify(tiktokData));
+
+            const adId = tiktokData?.data?.ad_ids?.[0] ? String(tiktokData.data.ad_ids[0]) : null;
+            if (tiktokData?.code !== 0 || !adId) {
+              const errMsg = tiktokData?.message || "Failed to create TikTok carousel ad";
+              for (const card of carouselCards) {
+                if ((card as any).status !== "error") {
+                  await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", card.id);
+                  localFailed++;
+                }
+              }
+              continue;
+            }
+
+            for (const card of carouselCards) {
+              if ((card as any).status !== "error") {
+                await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adId, error_message: null }).eq("id", card.id);
+                localPushed++;
+              }
+            }
+            console.log(`[push-creatives] ✅ TikTok carousel pushed: ${imageIds.length} cards, ad_id=${adId}`);
+          }
+        } catch (carouselError) {
+          console.error(`[push-creatives] Carousel ${carouselGroupId} push error:`, carouselError);
+          for (const card of carouselCards) {
+            await supabase.from("creative_assignments").update({ status: "error", error_message: `Carousel push failed: ${(carouselError as any).message}` }).eq("id", card.id);
+          }
+          localFailed += carouselCards.length;
+        }
+      }
+
+      // ========== PUSH STANDALONE ASSIGNMENTS ==========
+      const batches = chunkArray(standaloneAssignments, BATCH_SIZE);
       
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        // Check for timeout before processing each batch
         if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
           console.log(`[push-creatives] Approaching timeout limit, will auto-continue`);
           timedOut = true;
@@ -454,9 +894,8 @@ const handler = async (req: Request): Promise<Response> => {
         }
         
         const batch = batches[batchIndex];
-        console.log(`[push-creatives] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
+        console.log(`[push-creatives] Processing standalone batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
 
-        // Process each assignment in the batch sequentially to avoid rate limits
         for (const assignment of batch) {
           const creative = (assignment as any).creative;
           if (!creative) continue;

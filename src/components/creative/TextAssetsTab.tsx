@@ -125,6 +125,11 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             phase_name,
             ad_set_name,
             position,
+            carousel_group_id,
+            carousel_card_headline,
+            carousel_card_description,
+            carousel_card_website_url,
+            carousel_card_cta,
             creatives (
               id,
               name,
@@ -258,6 +263,12 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             isOrganic,
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
+            // Carousel group info from DB
+            carouselGroupId: assignment.carousel_group_id || undefined,
+            carouselCardHeadline: assignment.carousel_card_headline || undefined,
+            carouselCardDescription: assignment.carousel_card_description || undefined,
+            carouselCardWebsiteUrl: assignment.carousel_card_website_url || undefined,
+            carouselCardCta: assignment.carousel_card_cta || undefined,
           };
         });
 
@@ -333,6 +344,27 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         if (error) {
           console.error('Error updating creative:', error);
           throw error;
+        }
+      }
+
+      // Persist carousel group data to creative_assignments
+      for (const row of rows) {
+        const assignmentId = row.assignmentId;
+        if (!assignmentId) continue;
+
+        const { error: assignmentError } = await supabase
+          .from('creative_assignments')
+          .update({
+            carousel_group_id: row.carouselGroupId || null,
+            carousel_card_headline: (row as any).carouselCardHeadline || null,
+            carousel_card_description: (row as any).carouselCardDescription || null,
+            carousel_card_website_url: (row as any).carouselCardWebsiteUrl || null,
+            carousel_card_cta: (row as any).carouselCardCta || null,
+          })
+          .eq('id', assignmentId);
+
+        if (assignmentError) {
+          console.error('Error updating carousel data on assignment:', assignmentError);
         }
       }
 

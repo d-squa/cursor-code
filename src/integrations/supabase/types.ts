@@ -1086,6 +1086,11 @@ export type Database = {
           brand_name: string | null
           call_to_action: string | null
           campaign_id: string
+          carousel_card_cta: string | null
+          carousel_card_description: string | null
+          carousel_card_headline: string | null
+          carousel_card_website_url: string | null
+          carousel_group_id: string | null
           creative_id: string
           description: string | null
           description_2: string | null
@@ -1138,6 +1143,11 @@ export type Database = {
           brand_name?: string | null
           call_to_action?: string | null
           campaign_id: string
+          carousel_card_cta?: string | null
+          carousel_card_description?: string | null
+          carousel_card_headline?: string | null
+          carousel_card_website_url?: string | null
+          carousel_group_id?: string | null
           creative_id: string
           description?: string | null
           description_2?: string | null
@@ -1190,6 +1200,11 @@ export type Database = {
           brand_name?: string | null
           call_to_action?: string | null
           campaign_id?: string
+          carousel_card_cta?: string | null
+          carousel_card_description?: string | null
+          carousel_card_headline?: string | null
+          carousel_card_website_url?: string | null
+          carousel_group_id?: string | null
           creative_id?: string
           description?: string | null
           description_2?: string | null
