@@ -241,6 +241,7 @@ export function TextAssetExcelEditor({
   const [showDetectLevelDialog, setShowDetectLevelDialog] = useState(false);
   const [detectedCarousels, setDetectedCarousels] = useState<CarouselGroup[]>([]);
   const [showDetectionResults, setShowDetectionResults] = useState(false);
+  const [selectedDetectedIds, setSelectedDetectedIds] = useState<Set<string>>(new Set());
   
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
