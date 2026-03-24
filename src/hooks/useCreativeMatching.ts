@@ -868,32 +868,12 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
           }
         }
 
-        // Deduplicate: keep only the highest-confidence match per filename within this structure.
-        // The same file can appear as multiple DigestedAsset entries (different folder paths)
-        // but should only be assigned once per ad set.
-        const seenFilenames = new Map<string, number>();
-        const dedupedAssets = assignedAssets.filter((item, idx) => {
-          const fname = item.asset.fileName.toLowerCase();
-          if (seenFilenames.has(fname)) {
-            // Keep the one with higher confidence
-            const prevIdx = seenFilenames.get(fname)!;
-            if (item.confidenceScore > assignedAssets[prevIdx].confidenceScore) {
-              // Replace the previous one - mark it for removal
-              seenFilenames.set(fname, idx);
-              return true;
-            }
-            return false;
-          }
-          seenFilenames.set(fname, idx);
-          return true;
-        });
-
         // Sort by confidence score descending
-        dedupedAssets.sort((a, b) => b.confidenceScore - a.confidenceScore);
+        assignedAssets.sort((a, b) => b.confidenceScore - a.confidenceScore);
 
         structureResults.push({
           structure,
-          assignedAssets: dedupedAssets,
+          assignedAssets,
         });
       }
 
@@ -1218,10 +1198,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     // Cache created creative IDs per asset - when the same asset is matched to
     // multiple ad sets, we create ONE creative record and reuse it for all assignments.
     // This dramatically speeds up saves and prevents duplicate uploads.
-    // We also cache by filename so that the same file from different folder paths
-    // (different asset IDs) reuses the same creative record.
     const createdCreativeByAssetId = new Map<string, string>();
-    const createdCreativeByFilename = new Map<string, string>();
 
     const uploadAssetToStorage = async (assetId: string, file: File): Promise<string> => {
       const cached = uploadedUrlByAssetId.get(assetId);
@@ -1421,9 +1398,8 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               createdCreativeByAssetId.set(assetId, creativeId);
             }
           } else {
-            // Check if we already created a creative for this asset (by ID or by filename)
-            const cachedCreativeId = createdCreativeByAssetId.get(assetId) 
-              || createdCreativeByFilename.get(asset.fileName.toLowerCase());
+            // Check if we already created a creative for this asset
+            const cachedCreativeId = createdCreativeByAssetId.get(assetId);
             if (cachedCreativeId) {
               // Reuse existing creative - skip upload and creation
               creativeId = cachedCreativeId;
@@ -1475,7 +1451,6 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               creativeId = creative.id;
               // Cache the creative ID for reuse by other assignments of the same asset
               createdCreativeByAssetId.set(assetId, creativeId);
-              createdCreativeByFilename.set(asset.fileName.toLowerCase(), creativeId);
             }
           }
 
