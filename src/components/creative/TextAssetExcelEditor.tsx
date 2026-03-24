@@ -56,7 +56,9 @@ interface TextAssetExcelEditorProps {
   /** Called when user wants to add more creatives */
   onAddCreatives?: () => void;
   /** Called when an assignment should be deleted */
-  onDeleteAssignment?: (assignmentId: string) => void;
+  onDeleteAssignment?: (assignmentId: string) => void | Promise<void>;
+  /** Called when multiple assignments should be deleted at once */
+  onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
   /** Called when a row is ungrouped from a processing group */
   onUngroupRow?: (rowId: string, groupType?: ProcessingGroupKind) => void;
 }
@@ -200,6 +202,7 @@ export function TextAssetExcelEditor({
   isSaving,
   onAddCreatives,
   onDeleteAssignment,
+  onDeleteAssignments,
   onUngroupRow
 }: TextAssetExcelEditorProps) {
   // State
@@ -536,6 +539,35 @@ export function TextAssetExcelEditor({
       toast.success(`Pasted values to ${targetIds.length} rows`);
     }
   }, [copiedRowValues, selectedRowIds, countFilledRows, onBulkUpdate]);
+
+  const handleDeleteSelected = useCallback(async () => {
+    const assignmentIds = Array.from(new Set(
+      rows
+        .filter((row) => selectedRowIds.has(row.id))
+        .map((row) => row.assignmentId)
+        .filter(Boolean)
+    ));
+
+    if (assignmentIds.length === 0) {
+      toast.error('Select at least one creative to delete');
+      return;
+    }
+
+    try {
+      if (onDeleteAssignments) {
+        await onDeleteAssignments(assignmentIds);
+      } else if (onDeleteAssignment) {
+        await Promise.all(assignmentIds.map((assignmentId) => Promise.resolve(onDeleteAssignment(assignmentId))));
+      } else {
+        return;
+      }
+
+      clearSelection();
+    } catch (error) {
+      console.error('Error deleting selected creatives:', error);
+      toast.error('Failed to delete selected creatives');
+    }
+  }, [clearSelection, onDeleteAssignment, onDeleteAssignments, rows, selectedRowIds]);
 
   // Select rows by blank field
   const selectByBlankField = useCallback((field: keyof CreativeTextAssetRow, fieldLabel: string) => {
@@ -1425,6 +1457,23 @@ export function TextAssetExcelEditor({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+              {(onDeleteAssignment || onDeleteAssignments) && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDeleteSelected}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete Selected
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete all selected creatives</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <div className="h-5 w-px bg-border mx-1" />
               <Button
                 variant="default"
