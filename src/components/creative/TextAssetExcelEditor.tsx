@@ -1414,7 +1414,7 @@ export function TextAssetExcelEditor({
             </TooltipProvider>
           </div>
           
-          {/* Carousel creation button */}
+          {/* Row actions */}
           {selectedRowIds.size > 0 && (
             <>
               <Badge variant="outline" className="gap-1">
@@ -1475,40 +1475,9 @@ export function TextAssetExcelEditor({
                 </TooltipProvider>
               )}
               <div className="h-5 w-px bg-border mx-1" />
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => {
-                  setShowCarouselCreator(true);
-                }}
-                disabled={!canCreateCarousel}
-              >
-                <Layers className="h-4 w-4 mr-1" />
-                Create Carousel
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCreateAssetCustomization}
-                disabled={!canCreateAssetCustomization}
-                className="border-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:bg-accent/15"
-              >
-                <SquareStack className="h-4 w-4 mr-1" />
-                Create Asset Customization
-              </Button>
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
               </Button>
-              {hasGroupedSelection && (
-                <Badge variant="outline" className="text-xs">
-                  {hasCarouselSelection
-                    ? 'Ungroup carousel creatives before regrouping'
-                    : hasAssetCustomizationSelection
-                      ? 'Ungroup asset customization creatives before regrouping'
-                      : 'Ungroup selected creatives before regrouping'}
-                </Badge>
-              )}
-              <div className="h-5 w-px bg-border mx-1" />
             </>
           )}
           
@@ -1599,14 +1568,6 @@ export function TextAssetExcelEditor({
       {/* Help text */}
       <div className="px-4 py-2 bg-muted/30 border-b text-xs text-muted-foreground">
         <span className="font-medium">Excel-like editing:</span> Select cells and paste from Excel (Ctrl+V) • Copy selection (Ctrl+C) • Double-click to edit • Delete to clear • F2 to edit
-        <span className="mx-2">|</span>
-        <span className="font-medium">Carousel:</span> Select 2+ creatives in same ad set → Create Carousel
-        <span className="mx-2">|</span>
-        <span className="font-medium">Asset Customization:</span> Select 2+ creatives with different ratios → Create Asset Customization
-        <span className="mx-2">|</span>
-        <span className="font-medium">Groups:</span>
-        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-blue-500 inline-block" /> Carousel (expand for per-card text)</span>
-        <span className="inline-flex items-center gap-1 mx-1"><span className="w-2 h-2 rounded-sm bg-purple-500 inline-block" /> Asset Customization (shared text from parent)</span>
         <span className="mx-2">|</span>
         <span className="text-amber-600 font-medium">Organic posts: read-only except Destination URL</span>
       </div>
@@ -2436,17 +2397,6 @@ export function TextAssetExcelEditor({
           </div>
         </div>
       </div>
-      
-      {/* Carousel Creator Dialog */}
-      <CarouselCreator
-        selectedRows={carouselDialogRows}
-        existingCarousel={null}
-        onCreateCarousel={handleCreateCarousel}
-        onCancel={() => {
-          setShowCarouselCreator(false);
-        }}
-        open={showCarouselCreator}
-      />
       
       {/* Apply Mode Dialog */}
       <ApplyModeDialog

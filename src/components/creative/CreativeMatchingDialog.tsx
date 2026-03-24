@@ -14,8 +14,6 @@ import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { CreativeProcessingOptionsDialog, type ProcessingOptions } from './CreativeProcessingOptionsDialog';
-import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
 import { useCreativeMatching, UICreativeMatch, DigestedAsset, CampaignStructure } from '@/hooks/useCreativeMatching';
 import { CreativeMatchCard } from './CreativeMatchCard';
 import { StructureCentricView } from './StructureCentricView';
@@ -56,9 +54,6 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const [platformAssets, setPlatformAssets] = useState<any[]>([]);
   const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
   const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
-  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
-  const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
-
   // Sync state with props when they change
   useEffect(() => {
     if (initialCampaignId) {
@@ -258,37 +253,13 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     toast.success(`Added ${selected.length} platform assets for matching`);
   }, [platformAssets, selectedPlatformAssetIds, addPlatformAssets]);
 
-  // Open processing options dialog instead of directly running matching
-  const handleRunMatchingClick = () => {
+  const handleRunMatchingClick = async () => {
     const campaignIdToUse = effectiveCampaignId;
     if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
-    setShowProcessingOptions(true);
-  };
-
-  const handleProcessingConfirm = async (options: ProcessingOptions) => {
-    setShowProcessingOptions(false);
-    setApprovedProcessingGroups(options);
-    const campaignIdToUse = effectiveCampaignId;
-    if (!campaignIdToUse) return;
-    // Always reload structures from DB to pick up any changes
     const structures = await loadCampaignStructures(campaignIdToUse) || [];
     runMatching(structures);
   };
-
-  // Convert state.assets to DetectableAsset for the processing dialog
-  const detectableAssets: DetectableAsset[] = useMemo(() =>
-    state.assets.map(a => ({
-      id: a.id,
-      name: a.fileName,
-      filePath: a.filePath,
-      folderPath: a.filePath?.split('/').slice(0, -1).join('/'),
-      assetType: a.mediaType === 'video' ? 'video' as const : 'image' as const,
-      width: a.technicalAttributes.width,
-      height: a.technicalAttributes.height,
-    })),
-    [state.assets]
-  );
 
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
   const needsCampaignSelection = !effectiveCampaignId;
@@ -340,7 +311,6 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
             campaignId={effectiveCampaignId!}
             campaignName={selectedCampaignName}
             savedAssignments={state.savedAssignments}
-            processingOptions={approvedProcessingGroups ?? undefined}
             onComplete={() => {
               skipTextAssets();
               onOpenChange(false);
@@ -945,15 +915,6 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
       </DialogContent>
     </Dialog>
 
-    {/* Creative Processing Options Dialog */}
-    <CreativeProcessingOptionsDialog
-      open={showProcessingOptions}
-      onOpenChange={setShowProcessingOptions}
-      assets={detectableAssets}
-      platform="meta"
-      onConfirm={handleProcessingConfirm}
-      isProcessing={state.isProcessing}
-    />
     </>
   );
 }

@@ -1,7 +1,6 @@
 // Inline text assets step for the creative matching dialog
 // Shows hierarchical editor for configuring copy, CTAs, and tracking
 
-import type { ProcessingOptions } from './CreativeProcessingOptionsDialog';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,11 +14,6 @@ import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import type { CreativeTextAssetRow, CreativeFormat, AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
-import {
-  runCreativeDetection,
-  type DetectableAsset,
-  type DetectedGroup,
-} from '@/utils/creativeProcessingDetection';
 import { detectAdFormat } from '@/utils/adFormatDetection';
 import { 
   TaxonomyParam,
@@ -49,8 +43,6 @@ interface TextAssetsStepProps {
    * When omitted/empty, we load all assignments for the campaign.
    */
   savedAssignments?: SavedAssignment[];
-  /** Approved processing groups from the Creative Processing Options dialog */
-  processingOptions?: ProcessingOptions;
   onComplete: () => void;
   /** Called when user wants to save and select more creatives (goes back to step 1) */
   onSaveAndSelectMore?: () => void;
@@ -65,431 +57,20 @@ type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   folderPath?: string;
 };
 
-type ProcessingGroupKind = 'carousel' | 'asset_customization';
-
-function getDimensionKey(width?: number | null, height?: number | null) {
-  if (!width || !height) return null;
-  return `${width}x${height}`;
-}
-
-function normalizeAspectRatio(
-  aspectRatio?: string | null,
-  width?: number | null,
-  height?: number | null
-) {
-  if (aspectRatio?.trim()) return aspectRatio.trim().toLowerCase();
-  if (!width || !height) return null;
-
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
-  const divisor = gcd(width, height);
-  return `${width / divisor}:${height / divisor}`;
-}
-
-function getProcessingGroupId(
-  row: CreativeTextAssetRowWithTikTok,
-  groupType: ProcessingGroupKind
-) {
-  if (groupType === 'carousel') {
-    return row.carouselGroupId || (row.processingGroupType === 'carousel' ? row.processingGroupId : undefined);
-  }
-
-  return row.assetCustomizationGroupId || (row.processingGroupType === 'asset_customization' ? row.processingGroupId : undefined);
-}
-
-function normalizeRowProcessingState(row: CreativeTextAssetRowWithTikTok): CreativeTextAssetRowWithTikTok {
-  const carouselGroupId = getProcessingGroupId(row, 'carousel');
-  const assetCustomizationGroupId = getProcessingGroupId(row, 'asset_customization');
-
-  const primaryGroupType: ProcessingGroupKind | undefined = carouselGroupId
-    ? 'carousel'
-    : assetCustomizationGroupId
-      ? 'asset_customization'
-      : undefined;
-
+function stripProcessingGroups<T extends CreativeTextAssetRowWithTikTok>(row: T): T {
   return {
     ...row,
-    carouselGroupId,
-    assetCustomizationGroupId,
-    processingGroupId: primaryGroupType
-      ? (primaryGroupType === 'carousel' ? carouselGroupId : assetCustomizationGroupId)
-      : undefined,
-    processingGroupType: primaryGroupType,
-  };
-}
-
-function setProcessingGroup(
-  row: CreativeTextAssetRowWithTikTok,
-  groupType: ProcessingGroupKind,
-  groupId?: string
-) {
-  return normalizeRowProcessingState({
-    ...row,
-    carouselGroupId: groupType === 'carousel' ? groupId : getProcessingGroupId(row, 'carousel'),
-    assetCustomizationGroupId: groupType === 'asset_customization'
-      ? groupId
-      : getProcessingGroupId(row, 'asset_customization'),
+    carouselGroupId: undefined,
+    assetCustomizationGroupId: undefined,
     processingGroupId: undefined,
     processingGroupType: undefined,
-  });
-}
-
-function countProcessingMemberships(row: CreativeTextAssetRowWithTikTok) {
-  let count = 0;
-  if (getProcessingGroupId(row, 'carousel')) count += 1;
-  if (getProcessingGroupId(row, 'asset_customization')) count += 1;
-  return count;
-}
-
-function clearProcessingGroup(
-  row: CreativeTextAssetRowWithTikTok,
-  groupType?: ProcessingGroupKind
-): CreativeTextAssetRowWithTikTok {
-  if (!groupType) {
-    return normalizeRowProcessingState({
-      ...row,
-      carouselGroupId: undefined,
-      assetCustomizationGroupId: undefined,
-      processingGroupId: undefined,
-      processingGroupType: undefined,
-    });
-  }
-
-  return setProcessingGroup(row, groupType, undefined);
-}
-
-function normalizeSignaturePart(value?: string | null) {
-  return (value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\\/g, '/')
-    .replace(/\.[^/.]+$/, '')
-    .replace(/\s+/g, ' ');
-}
-
-function buildAssetSignature(asset: {
-  name?: string | null;
-  filePath?: string | null;
-  width?: number | null;
-  height?: number | null;
-}) {
-  return [
-    normalizeSignaturePart(asset.filePath),
-    normalizeSignaturePart(asset.name),
-    asset.width ?? '',
-    asset.height ?? '',
-  ].join('|');
-}
-
-function buildRowCandidateSignatures(row: CreativeTextAssetRowWithTikTok) {
-  const candidates = new Set<string>();
-  const names = [row.originalFilename, row.creativeName].filter(Boolean);
-  const paths = [
-    row.folderPath && row.originalFilename ? `${row.folderPath}/${row.originalFilename}` : undefined,
-    row.folderPath && row.creativeName ? `${row.folderPath}/${row.creativeName}` : undefined,
-    row.originalFilename,
-    row.creativeName,
-  ].filter(Boolean);
-
-  for (const path of paths) {
-    for (const name of names.length > 0 ? names : [undefined]) {
-      candidates.add(
-        buildAssetSignature({
-          filePath: path,
-          name,
-          width: row.width,
-          height: row.height,
-        })
-      );
-    }
-  }
-
-  if (candidates.size === 0) {
-    candidates.add(
-      buildAssetSignature({
-        name: row.originalFilename || row.creativeName,
-        width: row.width,
-        height: row.height,
-      })
-    );
-  }
-
-  return candidates;
-}
-
-function mapApprovedGroupsToRows(
-  rows: CreativeTextAssetRowWithTikTok[],
-  detectedGroups: DetectedGroup[],
-  approvedGroupIds: Set<string>
-) {
-  const normalizedRows = rows.map(normalizeRowProcessingState);
-  const approvedGroups = detectedGroups.filter((group) => approvedGroupIds.has(group.id));
-
-  if (approvedGroups.length === 0) {
-    return normalizedRows.map((row) => clearProcessingGroup(row));
-  }
-
-  const rowIndexBySignature = new Map<string, string[]>();
-  normalizedRows.forEach((row) => {
-    buildRowCandidateSignatures(row).forEach((signature) => {
-      const existing = rowIndexBySignature.get(signature) || [];
-      existing.push(row.id);
-      rowIndexBySignature.set(signature, existing);
-    });
-  });
-
-  const rowAssignments = new Map<string, string>();
-  const assignedRowsByType: Record<ProcessingGroupKind, Set<string>> = {
-    carousel: new Set<string>(),
-    asset_customization: new Set<string>(),
   };
-
-  for (const group of approvedGroups) {
-    const matchedRowIds: string[] = [];
-    const groupType = group.type;
-
-    for (const asset of group.assets) {
-      const signature = buildAssetSignature(asset);
-      const candidateIds = rowIndexBySignature.get(signature) || [];
-      const availableRowId = candidateIds.find((id) => !assignedRowsByType[groupType].has(id));
-
-      if (availableRowId) {
-        matchedRowIds.push(availableRowId);
-      }
-    }
-
-    if (matchedRowIds.length < 2) continue;
-
-    matchedRowIds.forEach((rowId) => {
-      assignedRowsByType[groupType].add(rowId);
-      rowAssignments.set(`${groupType}:${rowId}`, group.id);
-    });
-  }
-
-  return normalizedRows.map((row) => {
-    const nextRow = normalizeRowProcessingState({
-      ...row,
-      carouselGroupId: rowAssignments.get(`carousel:${row.id}`),
-      assetCustomizationGroupId: rowAssignments.get(`asset_customization:${row.id}`),
-      processingGroupId: undefined,
-      processingGroupType: undefined,
-    });
-
-    return countProcessingMemberships(nextRow) > 0 ? nextRow : clearProcessingGroup(nextRow);
-  });
-}
-
-function normalizeProcessingGroups(rows: CreativeTextAssetRowWithTikTok[]) {
-  const normalizedRows = rows.map(normalizeRowProcessingState);
-  const groupedRows = new Map<string, { groupType: ProcessingGroupKind; rows: CreativeTextAssetRowWithTikTok[] }>();
-
-  normalizedRows.forEach((row) => {
-    (['carousel', 'asset_customization'] as const).forEach((groupType) => {
-      const groupId = getProcessingGroupId(row, groupType);
-      if (!groupId) return;
-
-      const key = `${groupType}:${groupId}`;
-      if (!groupedRows.has(key)) {
-        groupedRows.set(key, { groupType, rows: [] });
-      }
-      groupedRows.get(key)!.rows.push(row);
-    });
-  });
-
-  const invalidGroupIdsByType: Record<ProcessingGroupKind, Set<string>> = {
-    carousel: new Set<string>(),
-    asset_customization: new Set<string>(),
-  };
-
-  groupedRows.forEach(({ groupType, rows: groupRows }, compositeKey) => {
-    const groupId = compositeKey.slice(groupType.length + 1);
-    const structureKeys = new Set(groupRows.map(
-      (row) => `${row.platform}|${row.market}|${row.phase}|${row.adSet}`
-    ));
-
-    if (!groupType || groupRows.length < 2 || structureKeys.size !== 1) {
-      invalidGroupIdsByType[groupType].add(groupId);
-      return;
-    }
-
-    if (groupType === 'carousel') {
-      const dimensionKeys = groupRows.map((row) => getDimensionKey(row.width, row.height));
-      const uniqueDimensions = new Set(dimensionKeys.filter(Boolean));
-      const aspectRatios = new Set(
-        groupRows
-          .map((row) => normalizeAspectRatio(row.aspectRatio, row.width, row.height))
-          .filter(Boolean)
-      );
-
-      if (
-        dimensionKeys.some((key) => !key) ||
-        uniqueDimensions.size !== 1 ||
-        aspectRatios.size !== 1
-      ) {
-        invalidGroupIdsByType.carousel.add(groupId);
-      }
-
-      return;
-    }
-
-    const aspectRatios = new Set(
-      groupRows
-        .map((row) => normalizeAspectRatio(row.aspectRatio, row.width, row.height))
-        .filter(Boolean)
-    );
-
-    if (aspectRatios.size < 2) {
-      invalidGroupIdsByType.asset_customization.add(groupId);
-    }
-  });
-
-  if (
-    invalidGroupIdsByType.carousel.size === 0 &&
-    invalidGroupIdsByType.asset_customization.size === 0
-  ) {
-    return normalizedRows;
-  }
-
-  return normalizedRows.map((row) => {
-    let nextRow = row;
-
-    (['carousel', 'asset_customization'] as const).forEach((groupType) => {
-      const groupId = getProcessingGroupId(nextRow, groupType);
-      if (groupId && invalidGroupIdsByType[groupType].has(groupId)) {
-        nextRow = clearProcessingGroup(nextRow, groupType);
-      }
-    });
-
-    return normalizeRowProcessingState(nextRow);
-  });
-}
-
-/**
- * Run detection directly on text asset rows and apply approved groups.
- * This replaces the old cross-referencing approach: instead of trying to match
- * pre-detected assets to rows by filename, we convert rows → DetectableAssets,
- * run detection, and apply groups that match the user's approvals.
- */
-function applyProcessingOptionsToRows(
-  rows: CreativeTextAssetRowWithTikTok[],
-  processingOptions?: ProcessingOptions
-) {
-  if (!processingOptions) {
-    return normalizeProcessingGroups(rows.map(normalizeRowProcessingState));
-  }
-
-  // If no approved groups, just clear and normalize
-  if (processingOptions.approvedGroupIds.size === 0) {
-    return normalizeProcessingGroups(
-      rows.map((row) => clearProcessingGroup(normalizeRowProcessingState(row)))
-    );
-  }
-
-  const directMappedRows = mapApprovedGroupsToRows(
-    rows,
-    processingOptions.detectedGroups,
-    processingOptions.approvedGroupIds
-  );
-
-  const directMappedGroupIds = new Set(
-    directMappedRows.flatMap((row) => [
-      getProcessingGroupId(row, 'carousel'),
-      getProcessingGroupId(row, 'asset_customization'),
-    ]).filter(Boolean)
-  );
-
-  const approvedGroups = processingOptions.detectedGroups.filter((group) =>
-    processingOptions.approvedGroupIds.has(group.id)
-  );
-
-  if (directMappedGroupIds.size === approvedGroups.length) {
-    return normalizeProcessingGroups(directMappedRows);
-  }
-
-  // Convert rows to DetectableAssets for the detection engine
-  const rowAssets: (DetectableAsset & { rowId: string })[] = rows.map((row) => ({
-    id: row.id,
-    rowId: row.id,
-    name: row.originalFilename || row.creativeName,
-    filePath: row.folderPath
-      ? `${row.folderPath}/${row.originalFilename || row.creativeName}`
-      : row.originalFilename || row.creativeName,
-    assetType: row.mediaType || 'image',
-    width: row.width ?? undefined,
-    height: row.height ?? undefined,
-    aspectRatio: row.aspectRatio ?? undefined,
-  }));
-
-  // Run detection on rows directly
-  const detection = runCreativeDetection(rowAssets, {
-    enableCarousel: processingOptions.enableCarousel,
-    enableAssetCustomization: processingOptions.enableAssetCustomization,
-    platform: rows[0]?.platform || 'meta',
-  });
-
-  const allDetected = [...detection.carouselGroups, ...detection.assetCustomizations];
-
-  // For each row-detected group, check if it matches an approved pre-detection group
-  // using overlap with specifically approved groups; any groups not recovered here
-  // keep the direct-mapped assignment from the approval dialog.
-  const nextRows = directMappedRows.map((row) => ({ ...row }));
-  const assignedRowIdsByType: Record<ProcessingGroupKind, Set<string>> = {
-    carousel: new Set(
-      nextRows
-        .filter((row) => !!getProcessingGroupId(row, 'carousel'))
-        .map((row) => row.id)
-    ),
-    asset_customization: new Set(
-      nextRows
-        .filter((row) => !!getProcessingGroupId(row, 'asset_customization'))
-        .map((row) => row.id)
-    ),
-  };
-
-  const approvedGroupSignatures = new Map(
-    approvedGroups.map((group) => [
-      group.id,
-      new Set(group.assets.map((asset) => buildAssetSignature(asset))),
-    ])
-  );
-
-  for (const group of allDetected) {
-    const matchingApprovedGroup = approvedGroups.find((approvedGroup) => {
-      if (approvedGroup.type !== group.type) return false;
-
-      const approvedSignatures = approvedGroupSignatures.get(approvedGroup.id);
-      if (!approvedSignatures) return false;
-
-      const groupSignatures = group.assets.map((asset) => buildAssetSignature(asset));
-      const overlapCount = groupSignatures.filter((signature) => approvedSignatures.has(signature)).length;
-
-      return overlapCount >= 2;
-    });
-
-    if (!matchingApprovedGroup) continue;
-
-    // All assets in row-detected groups are row IDs
-    const rowIdsInGroup = group.assets
-      .map((a) => a.id)
-      .filter((id) => !assignedRowIdsByType[group.type].has(id));
-    if (rowIdsInGroup.length < 2) continue;
-
-    rowIdsInGroup.forEach((rowId) => assignedRowIdsByType[group.type].add(rowId));
-
-    for (let index = 0; index < nextRows.length; index += 1) {
-      const row = nextRows[index];
-      if (!rowIdsInGroup.includes(row.id)) continue;
-      nextRows[index] = setProcessingGroup(row, matchingApprovedGroup.type, matchingApprovedGroup.id);
-    }
-  }
-
-  return normalizeProcessingGroups(nextRows.map(normalizeRowProcessingState));
 }
 
 export function TextAssetsStep({ 
   campaignId, 
   campaignName, 
   savedAssignments,
-  processingOptions,
   onComplete,
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
@@ -883,32 +464,14 @@ export function TextAssetsStep({
           };
         });
 
-        console.log('TextAssetsStep: Transformed rows:', transformedRows.length);
-        
-        const rowsWithProcessingGroups = applyProcessingOptionsToRows(transformedRows, processingOptions);
-        console.log('TextAssetsStep: Applied processing groups to rows');
-        
         const dedupedRowsMap = new Map<string, CreativeTextAssetRowWithTikTok>();
-        for (const row of rowsWithProcessingGroups) {
-          const existing = dedupedRowsMap.get(row.creativeId);
-
-          if (!existing) {
-            dedupedRowsMap.set(row.creativeId, row);
-            continue;
-          }
-
-          const existingGroupCount = countProcessingMemberships(existing);
-          const rowGroupCount = countProcessingMemberships(row);
-          const shouldReplace =
-            rowGroupCount > existingGroupCount ||
-            (!!row.carouselGroupId && !existing.carouselGroupId) ||
-            (!!row.assetCustomizationGroupId && !existing.assetCustomizationGroupId);
-          if (shouldReplace) {
+        for (const row of transformedRows.map(stripProcessingGroups)) {
+          if (!dedupedRowsMap.has(row.creativeId)) {
             dedupedRowsMap.set(row.creativeId, row);
           }
         }
 
-        setRows(normalizeProcessingGroups(Array.from(dedupedRowsMap.values())));
+        setRows(Array.from(dedupedRowsMap.values()));
       } catch (error) {
         console.error('Error loading assignments:', error);
         toast.error('Failed to load creative assignments');
@@ -919,12 +482,12 @@ export function TextAssetsStep({
     };
 
     loadAssignments();
-  }, [savedAssignments, campaignId, campaignName, processingOptions]);
+  }, [savedAssignments, campaignId, campaignName]);
 
   // Handle individual row changes
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => normalizeProcessingGroups(prev.map(row => {
+    setRows(prev => prev.map(row => {
       if (row.id !== id) return row;
       // For organic posts, only allow destinationUrl updates
       if (row.isOrganic || row.externalPostId) {
@@ -943,13 +506,13 @@ export function TextAssetsStep({
       // Re-validate after update
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    })));
+    }));
   }, []);
 
   // Handle bulk updates
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => normalizeProcessingGroups(prev.map(row => {
+    setRows(prev => prev.map(row => {
       if (!ids.includes(row.id)) return row;
       // For organic posts, only allow destinationUrl updates
       if (row.isOrganic || row.externalPostId) {
@@ -967,7 +530,7 @@ export function TextAssetsStep({
       const updated = { ...row, ...updates };
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    })));
+    }));
   }, []);
 
   // Handle import from Excel
@@ -975,9 +538,9 @@ export function TextAssetsStep({
     // Re-validate all imported rows
     const validatedRows = importedRows.map(row => {
       const errors = validateTextAssetRow(row);
-      return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+      return stripProcessingGroups({ ...row, validationErrors: errors, isValid: errors.length === 0 } as CreativeTextAssetRowWithTikTok);
     });
-    setRows(normalizeProcessingGroups(validatedRows as CreativeTextAssetRowWithTikTok[]));
+    setRows(validatedRows as CreativeTextAssetRowWithTikTok[]);
   }, []);
 
   // Existing creative IDs to exclude from add dialog
@@ -1065,7 +628,7 @@ export function TextAssetsStep({
       });
     
     // Add new rows while preserving existing ones with their edits
-    setRows(prev => normalizeProcessingGroups([...prev, ...newRows] as CreativeTextAssetRowWithTikTok[]));
+    setRows(prev => [...prev, ...newRows.map(row => stripProcessingGroups(row as CreativeTextAssetRowWithTikTok))]);
     setShowAddDialog(false);
     toast.success(`Added ${newRows.length} creative(s) to the editor`);
   }, [availableCreatives, selectedNewCreatives]);
@@ -1142,9 +705,7 @@ export function TextAssetsStep({
       if (error) throw error;
       
       // Remove from local state
-      setRows(prev => normalizeProcessingGroups(
-        prev.filter(r => !uniqueIds.includes((r as any).assignmentId)) as CreativeTextAssetRowWithTikTok[]
-      ));
+      setRows(prev => prev.filter(r => !uniqueIds.includes((r as any).assignmentId)));
       toast.success(uniqueIds.length === 1 ? 'Assignment deleted' : `${uniqueIds.length} creatives deleted`);
     } catch (error) {
       console.error('Error deleting assignments:', error);
@@ -1157,36 +718,6 @@ export function TextAssetsStep({
   const handleDeleteAssignment = useCallback(async (assignmentId: string) => {
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
-
-  const handleUngroupRow = useCallback((rowId: string, groupType?: ProcessingGroupKind) => {
-    setRows(prev => {
-      const targetRow = prev.find(row => row.id === rowId);
-      if (!targetRow) return prev;
-
-      const effectiveGroupType = groupType || (getProcessingGroupId(targetRow, 'carousel')
-        ? 'carousel'
-        : getProcessingGroupId(targetRow, 'asset_customization')
-          ? 'asset_customization'
-          : undefined);
-
-      if (!effectiveGroupType) return prev;
-
-      const targetGroupId = getProcessingGroupId(targetRow, effectiveGroupType);
-      if (!targetGroupId) return prev;
-
-      const groupRows = prev.filter(row => getProcessingGroupId(row, effectiveGroupType) === targetGroupId);
-      const shouldClearWholeGroup = groupRows.length <= 2;
-
-      return normalizeProcessingGroups(prev.map(row => {
-        const isTarget = row.id === rowId;
-        const isSameGroup = getProcessingGroupId(row, effectiveGroupType) === targetGroupId;
-
-        if (!isTarget && !(shouldClearWholeGroup && isSameGroup)) return row;
-
-        return clearProcessingGroup(row as CreativeTextAssetRowWithTikTok, effectiveGroupType);
-      }) as CreativeTextAssetRowWithTikTok[]);
-    });
-  }, []);
 
   if (isLoading) {
     return (
@@ -1228,7 +759,6 @@ export function TextAssetsStep({
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
           onDeleteAssignments={handleDeleteAssignments}
-          onUngroupRow={handleUngroupRow}
         />
       </div>
       
