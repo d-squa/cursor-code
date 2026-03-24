@@ -113,6 +113,7 @@ const HIERARCHY_COLUMNS: GridColumn[] = [
   { key: 'adSet', label: 'Ad Set', width: 140, editable: false, type: 'text', sticky: true },
   { key: 'creativeName', label: 'Creative', width: 180, editable: false, type: 'text', sticky: true },
   { key: 'originalFilename', label: 'Original File', width: 160, editable: false, type: 'text', sticky: true },
+  { key: 'folderPath', label: 'Folder Path', width: 180, editable: false, type: 'text', sticky: true },
 ];
 
 // Scrollable columns
@@ -2008,6 +2009,16 @@ export function TextAssetExcelEditor({
                         >
                           <span className="text-xs truncate text-muted-foreground" title={row.originalFilename || ''}>
                             {row.originalFilename || '—'}
+                          </span>
+                        </div>
+                        
+                        {/* Folder Path */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[8].width }}
+                        >
+                          <span className="text-xs truncate text-muted-foreground" title={row.folderPath || ''}>
+                            {row.folderPath || '—'}
                           </span>
                         </div>
                       </div>
