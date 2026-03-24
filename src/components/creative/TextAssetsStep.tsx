@@ -57,15 +57,7 @@ type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   folderPath?: string;
 };
 
-function stripProcessingGroups<T extends CreativeTextAssetRowWithTikTok>(row: T): T {
-  return {
-    ...row,
-    carouselGroupId: undefined,
-    assetCustomizationGroupId: undefined,
-    processingGroupId: undefined,
-    processingGroupType: undefined,
-  };
-}
+// Processing groups are now preserved (carousel groupings persist across loads)
 
 export function TextAssetsStep({ 
   campaignId, 
