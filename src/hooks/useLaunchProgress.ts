@@ -129,6 +129,34 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
       .on(
         "postgres_changes",
         {
+          event: "DELETE",
+          schema: "public",
+          table: "creative_assignments",
+          filter: `campaign_id=eq.${campaignId}`,
+        },
+        (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) {
+            setCreativeAssignments((prev) => prev.filter((item) => item.id !== deleted.id));
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "creative_assignments",
+          filter: `campaign_id=eq.${campaignId}`,
+        },
+        () => {
+          // Reload all data to get the full joined creative info
+          loadData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
           event: "UPDATE",
           schema: "public",
           table: "campaign_launch_status",
