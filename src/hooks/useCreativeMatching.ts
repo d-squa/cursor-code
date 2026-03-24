@@ -1090,14 +1090,6 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     const compositeKey = `${assetId}:${match.structure.id}`;
     setState(prev => {
       const newAccepted = new Map(prev.acceptedMatches);
-
-      // One creative asset can only be accepted into one structure at a time.
-      for (const key of Array.from(newAccepted.keys())) {
-        if (key.startsWith(`${assetId}:`) && key !== compositeKey) {
-          newAccepted.delete(key);
-        }
-      }
-
       newAccepted.set(compositeKey, match);
       return { ...prev, acceptedMatches: newAccepted };
     });
@@ -1184,16 +1176,9 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
       return false;
     }
 
-    const uniqueAcceptedMatches = new Map<string, { compositeKey: string; match: UICreativeMatch }>();
-    for (const [compositeKey, match] of currentState.acceptedMatches.entries()) {
-      const lastColonIdx = compositeKey.lastIndexOf(':');
-      const assetId = compositeKey.slice(0, lastColonIdx);
-      uniqueAcceptedMatches.set(assetId, { compositeKey, match });
-    }
-
     // Initialize progress for all accepted matches
     const initialProgress = new Map<string, SaveProgressItem>();
-    for (const { compositeKey } of uniqueAcceptedMatches.values()) {
+    for (const compositeKey of currentState.acceptedMatches.keys()) {
       // Parse compositeKey: last segment is structureId, everything before is assetId
       const lastColonIdx = compositeKey.lastIndexOf(':');
       const assetId = compositeKey.slice(0, lastColonIdx);
@@ -1201,7 +1186,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
       initialProgress.set(compositeKey, { compositeKey, assetId, structureId, status: 'pending' });
     }
     setState(prev => ({ ...prev, isProcessing: true, saveProgress: initialProgress }));
-    toast.info(`Saving ${uniqueAcceptedMatches.size} matches…`);
+    toast.info(`Saving ${currentState.acceptedMatches.size} matches…`);
 
     const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
     const PER_CALL_TIMEOUT_MS = 180_000; // 3 minutes
@@ -1253,7 +1238,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
         return parts.join(' • ') || 'Unknown error';
       };
 
-      for (const { compositeKey, match } of uniqueAcceptedMatches.values()) {
+      for (const [compositeKey, match] of currentState.acceptedMatches.entries()) {
       // Parse compositeKey: last segment is structureId, everything before is assetId
       const lastColonIdx = compositeKey.lastIndexOf(':');
       const assetId = compositeKey.slice(0, lastColonIdx);
@@ -1551,7 +1536,8 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               m.structure.campaignId === a.campaign_id && 
               m.structure.platform === a.platform && 
               m.structure.market === a.market &&
-              m.structure.phases?.[0] === a.phase_name;
+              m.structure.phases?.[0] === a.phase_name &&
+              (m.structure.adSetName || 'default') === (a.ad_set_name || 'default');
             
             if (asset && structureMatches) {
               // Also try to match on adSetId if present for precision
@@ -1752,12 +1738,31 @@ function calculateAspectRatio(w: number, h: number): string {
   return `${w/d}:${h/d}`;
 }
 
-function dedupeSavedAssignments<T extends { creativeId: string }>(assignments: T[]): T[] {
+function dedupeSavedAssignments<
+  T extends {
+    id?: string;
+    creativeId: string;
+    platform?: string;
+    market?: string;
+    phaseName?: string;
+    adSetId?: string;
+    adSetName?: string;
+  }
+>(assignments: T[]): T[] {
   const uniqueAssignments = new Map<string, T>();
 
   for (const assignment of assignments) {
-    if (!uniqueAssignments.has(assignment.creativeId)) {
-      uniqueAssignments.set(assignment.creativeId, assignment);
+    const key = assignment.id || [
+      assignment.creativeId,
+      assignment.platform || '',
+      assignment.market || '',
+      assignment.phaseName || '',
+      assignment.adSetId || '',
+      assignment.adSetName || '',
+    ].join('|');
+
+    if (!uniqueAssignments.has(key)) {
+      uniqueAssignments.set(key, assignment);
     }
   }
 
