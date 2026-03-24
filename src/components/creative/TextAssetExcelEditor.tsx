@@ -2476,6 +2476,93 @@ export function TextAssetExcelEditor({
           Object.keys(pendingApplyData.updates) as (keyof CreativeTextAssetRow)[]
         ) : 0}
       />
+
+      {/* Carousel Creator Dialog */}
+      <CarouselCreator
+        selectedRows={carouselDialogRows}
+        onCreateCarousel={handleCreateCarousel}
+        onCancel={() => setShowCarouselCreator(false)}
+        open={showCarouselCreator}
+      />
+
+      {/* Detect Carousel Level Dialog */}
+      <Dialog open={showDetectLevelDialog} onOpenChange={setShowDetectLevelDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-500" />
+              Detect Carousels
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              Auto-detect carousel groups by analyzing creative naming patterns, folder structure, and sequential numbering. Only 1:1 (square) and 4:5 (vertical) formats are eligible.
+            </p>
+            <div className="space-y-2">
+              <Button variant="outline" className="w-full justify-start gap-2" onClick={() => handleDetectCarousels('all')}>
+                <Layers className="h-4 w-4" />
+                Detect across all creatives
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detection Results Dialog */}
+      <Dialog open={showDetectionResults} onOpenChange={setShowDetectionResults}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-blue-500" />
+              Detected Carousels ({detectedCarousels.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4 max-h-[60vh] overflow-y-auto">
+            {detectedCarousels.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No carousel groups detected.</p>
+            ) : (
+              detectedCarousels.map(group => (
+                <div key={group.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium text-sm">{group.name}</span>
+                      <Badge variant={group.confidence === 'high' ? 'default' : 'secondary'} className="text-[10px]">
+                        {group.confidence}
+                      </Badge>
+                    </div>
+                    <Badge variant="outline" className="text-xs">{group.rowIds.length} cards • {group.aspectGroup}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Detected by: {group.reason}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {group.rowIds.map(id => {
+                      const row = rows.find(r => r.id === id);
+                      return row ? (
+                        <Badge key={id} variant="secondary" className="text-[10px] gap-1">
+                          {row.mediaType === 'video' ? <Video className="h-2.5 w-2.5" /> : <Image className="h-2.5 w-2.5" />}
+                          {row.creativeName}
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          {detectedCarousels.length > 0 && (
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setShowDetectionResults(false)}>Cancel</Button>
+              <Button
+                className="gap-1"
+                onClick={() => handleApplyDetectedCarousels(detectedCarousels.map(g => g.id))}
+              >
+                <Layers className="h-4 w-4" />
+                Apply All ({detectedCarousels.length} carousels)
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 
