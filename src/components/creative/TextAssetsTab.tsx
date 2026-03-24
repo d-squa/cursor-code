@@ -123,6 +123,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             platform,
             market,
             phase_name,
+            ad_set_name,
             position,
             creatives (
               id,
@@ -226,7 +227,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             platform: assignment.platform || 'meta',
             market: assignment.market || 'Global',
             phase: assignment.phase_name || 'Default',
-            adSet: `Ad Set ${assignment.position || 1}`,
+            adSet: assignment.ad_set_name || `Ad Set ${(assignment.position ?? 0) + 1}`,
             creativeName: creative?.name || 'Unknown Creative',
             originalFilename: [creative?.folder_path, creative?.original_filename]
               .filter((value): value is string => Boolean(value && String(value).trim()))
