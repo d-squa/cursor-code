@@ -168,7 +168,7 @@ export function CreativeProcessingOptionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           <div className="space-y-6 py-2">
             {/* Toggle: Carousel Auto-Grouping */}
             <div className="flex items-start gap-4">
