@@ -1,7 +1,6 @@
 // Inline text assets step for the creative matching dialog
 // Shows hierarchical editor for configuring copy, CTAs, and tracking
 
-import type { ProcessingOptions } from './CreativeProcessingOptionsDialog';
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,11 +14,6 @@ import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import type { CreativeTextAssetRow, CreativeFormat, AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
-import {
-  runCreativeDetection,
-  type DetectableAsset,
-  type DetectedGroup,
-} from '@/utils/creativeProcessingDetection';
 import { detectAdFormat } from '@/utils/adFormatDetection';
 import { 
   TaxonomyParam,
@@ -49,8 +43,6 @@ interface TextAssetsStepProps {
    * When omitted/empty, we load all assignments for the campaign.
    */
   savedAssignments?: SavedAssignment[];
-  /** Approved processing groups from the Creative Processing Options dialog */
-  processingOptions?: ProcessingOptions;
   onComplete: () => void;
   /** Called when user wants to save and select more creatives (goes back to step 1) */
   onSaveAndSelectMore?: () => void;
@@ -64,6 +56,16 @@ type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
   originalFilename?: string;
   folderPath?: string;
 };
+
+function stripProcessingGroups<T extends CreativeTextAssetRowWithTikTok>(row: T): T {
+  return {
+    ...row,
+    carouselGroupId: undefined,
+    assetCustomizationGroupId: undefined,
+    processingGroupId: undefined,
+    processingGroupType: undefined,
+  };
+}
 
 type ProcessingGroupKind = 'carousel' | 'asset_customization';
 
@@ -489,7 +491,6 @@ export function TextAssetsStep({
   campaignId, 
   campaignName, 
   savedAssignments,
-  processingOptions,
   onComplete,
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
@@ -883,32 +884,14 @@ export function TextAssetsStep({
           };
         });
 
-        console.log('TextAssetsStep: Transformed rows:', transformedRows.length);
-        
-        const rowsWithProcessingGroups = applyProcessingOptionsToRows(transformedRows, processingOptions);
-        console.log('TextAssetsStep: Applied processing groups to rows');
-        
         const dedupedRowsMap = new Map<string, CreativeTextAssetRowWithTikTok>();
-        for (const row of rowsWithProcessingGroups) {
-          const existing = dedupedRowsMap.get(row.creativeId);
-
-          if (!existing) {
-            dedupedRowsMap.set(row.creativeId, row);
-            continue;
-          }
-
-          const existingGroupCount = countProcessingMemberships(existing);
-          const rowGroupCount = countProcessingMemberships(row);
-          const shouldReplace =
-            rowGroupCount > existingGroupCount ||
-            (!!row.carouselGroupId && !existing.carouselGroupId) ||
-            (!!row.assetCustomizationGroupId && !existing.assetCustomizationGroupId);
-          if (shouldReplace) {
+        for (const row of transformedRows.map(stripProcessingGroups)) {
+          if (!dedupedRowsMap.has(row.creativeId)) {
             dedupedRowsMap.set(row.creativeId, row);
           }
         }
 
-        setRows(normalizeProcessingGroups(Array.from(dedupedRowsMap.values())));
+        setRows(Array.from(dedupedRowsMap.values()));
       } catch (error) {
         console.error('Error loading assignments:', error);
         toast.error('Failed to load creative assignments');
@@ -919,12 +902,12 @@ export function TextAssetsStep({
     };
 
     loadAssignments();
-  }, [savedAssignments, campaignId, campaignName, processingOptions]);
+  }, [savedAssignments, campaignId, campaignName]);
 
   // Handle individual row changes
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => normalizeProcessingGroups(prev.map(row => {
+    setRows(prev => prev.map(row => {
       if (row.id !== id) return row;
       // For organic posts, only allow destinationUrl updates
       if (row.isOrganic || row.externalPostId) {
@@ -943,13 +926,13 @@ export function TextAssetsStep({
       // Re-validate after update
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    })));
+    }));
   }, []);
 
   // Handle bulk updates
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => normalizeProcessingGroups(prev.map(row => {
+    setRows(prev => prev.map(row => {
       if (!ids.includes(row.id)) return row;
       // For organic posts, only allow destinationUrl updates
       if (row.isOrganic || row.externalPostId) {
@@ -967,7 +950,7 @@ export function TextAssetsStep({
       const updated = { ...row, ...updates };
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    })));
+    }));
   }, []);
 
   // Handle import from Excel
@@ -975,9 +958,9 @@ export function TextAssetsStep({
     // Re-validate all imported rows
     const validatedRows = importedRows.map(row => {
       const errors = validateTextAssetRow(row);
-      return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+      return stripProcessingGroups({ ...row, validationErrors: errors, isValid: errors.length === 0 } as CreativeTextAssetRowWithTikTok);
     });
-    setRows(normalizeProcessingGroups(validatedRows as CreativeTextAssetRowWithTikTok[]));
+    setRows(validatedRows as CreativeTextAssetRowWithTikTok[]);
   }, []);
 
   // Existing creative IDs to exclude from add dialog
@@ -1065,7 +1048,7 @@ export function TextAssetsStep({
       });
     
     // Add new rows while preserving existing ones with their edits
-    setRows(prev => normalizeProcessingGroups([...prev, ...newRows] as CreativeTextAssetRowWithTikTok[]));
+    setRows(prev => [...prev, ...newRows.map(row => stripProcessingGroups(row as CreativeTextAssetRowWithTikTok))]);
     setShowAddDialog(false);
     toast.success(`Added ${newRows.length} creative(s) to the editor`);
   }, [availableCreatives, selectedNewCreatives]);
@@ -1142,9 +1125,7 @@ export function TextAssetsStep({
       if (error) throw error;
       
       // Remove from local state
-      setRows(prev => normalizeProcessingGroups(
-        prev.filter(r => !uniqueIds.includes((r as any).assignmentId)) as CreativeTextAssetRowWithTikTok[]
-      ));
+      setRows(prev => prev.filter(r => !uniqueIds.includes((r as any).assignmentId)));
       toast.success(uniqueIds.length === 1 ? 'Assignment deleted' : `${uniqueIds.length} creatives deleted`);
     } catch (error) {
       console.error('Error deleting assignments:', error);
@@ -1157,36 +1138,6 @@ export function TextAssetsStep({
   const handleDeleteAssignment = useCallback(async (assignmentId: string) => {
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
-
-  const handleUngroupRow = useCallback((rowId: string, groupType?: ProcessingGroupKind) => {
-    setRows(prev => {
-      const targetRow = prev.find(row => row.id === rowId);
-      if (!targetRow) return prev;
-
-      const effectiveGroupType = groupType || (getProcessingGroupId(targetRow, 'carousel')
-        ? 'carousel'
-        : getProcessingGroupId(targetRow, 'asset_customization')
-          ? 'asset_customization'
-          : undefined);
-
-      if (!effectiveGroupType) return prev;
-
-      const targetGroupId = getProcessingGroupId(targetRow, effectiveGroupType);
-      if (!targetGroupId) return prev;
-
-      const groupRows = prev.filter(row => getProcessingGroupId(row, effectiveGroupType) === targetGroupId);
-      const shouldClearWholeGroup = groupRows.length <= 2;
-
-      return normalizeProcessingGroups(prev.map(row => {
-        const isTarget = row.id === rowId;
-        const isSameGroup = getProcessingGroupId(row, effectiveGroupType) === targetGroupId;
-
-        if (!isTarget && !(shouldClearWholeGroup && isSameGroup)) return row;
-
-        return clearProcessingGroup(row as CreativeTextAssetRowWithTikTok, effectiveGroupType);
-      }) as CreativeTextAssetRowWithTikTok[]);
-    });
-  }, []);
 
   if (isLoading) {
     return (
@@ -1228,7 +1179,6 @@ export function TextAssetsStep({
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
           onDeleteAssignments={handleDeleteAssignments}
-          onUngroupRow={handleUngroupRow}
         />
       </div>
       

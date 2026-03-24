@@ -1,12 +1,11 @@
 // Creative Mesh Page - Step-based workflow for matching creatives to campaign structures
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Wand2, X, ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
 import { useCreativeMatching, UICreativeMatch } from '@/hooks/useCreativeMatching';
 import { useCreativeMeshProgress, MeshStep, SelectedAsset } from '@/hooks/useCreativeMeshProgress';
 import { MeshStepIndicator } from '@/components/creative/MeshStepIndicator';
@@ -15,8 +14,6 @@ import { MeshSourceStep } from '@/components/creative/MeshSourceStep';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
-import { CreativeProcessingOptionsDialog, type ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
-import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
 
 interface AdAccountInfo {
   platform: 'meta' | 'tiktok' | 'google';
@@ -32,7 +29,6 @@ interface PageConfig {
 }
 
 export default function CreativeMatching() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCampaignId = searchParams.get('campaignId') || undefined;
@@ -70,9 +66,6 @@ export default function CreativeMatching() {
     skipTextAssets,
     loadExistingAssignments,
   } = useCreativeMatching(progress?.campaignId, progress?.platform);
-
-  const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
-  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
 
   // Load existing assignments when campaign is loaded (for duplicated ActiPlans)
   useEffect(() => {
@@ -235,8 +228,7 @@ export default function CreativeMatching() {
   }, [progress?.campaignId]);
 
   // Handle running the mesh
-  const handleRunMesh = useCallback(async (processingOpts?: ProcessingOptions) => {
-    // processingOpts is no longer passed from MeshSourceStep; kept for API compat
+  const handleRunMesh = useCallback(async () => {
     if (!progress?.campaignId) return;
 
     // Separate uploads (need processFiles) from platform assets (use addPlatformAssets)
@@ -298,7 +290,6 @@ export default function CreativeMatching() {
     // Load structures and run matching
     const structures = await loadCampaignStructures(progress.campaignId);
     if (structures && structures.length > 0) {
-      if (processingOpts) setApprovedProcessingGroups(processingOpts);
       runMatching(structures);
       goToStep('mesh');
     } else {
@@ -306,50 +297,13 @@ export default function CreativeMatching() {
     }
   }, [progress, processFiles, addPlatformAssets, loadCampaignStructures, runMatching, goToStep]);
 
-  // Handle save matches — show processing options dialog before advancing to content
+  // Handle save matches — advance directly to text assets
   const handleSaveMatches = useCallback(async () => {
     const ok = await saveMatches();
     if (ok) {
-      // Show processing options dialog so user can review carousel/AC groups
-      // on the MATCHED creatives only (not all selected assets)
-      setShowProcessingOptions(true);
+      goToStep('content');
     }
-  }, [saveMatches]);
-
-  // Handle processing options confirm — apply and advance to content step
-  const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
-    setShowProcessingOptions(false);
-    setApprovedProcessingGroups(options);
-    goToStep('content');
-  }, [goToStep]);
-
-  // Build detectable assets from saved assignments enriched with digested asset metadata
-  const postMatchDetectableAssets: DetectableAsset[] = useMemo(() => {
-    if (!matchingState.savedAssignments?.length) return [];
-    
-    // Build a lookup from digested assets for dimensions and folder info
-    const digestedLookup = new Map<string, typeof matchingState.assets[0]>();
-    for (const asset of matchingState.assets) {
-      digestedLookup.set(asset.id, asset);
-    }
-
-    return matchingState.savedAssignments.map(a => {
-      const digested = digestedLookup.get(a.creativeId);
-      const name = a.creativeName || digested?.fileName || a.id;
-      const filePath = digested?.filePath || digested?.fileName || name;
-      const folderPath = filePath.includes('/') ? filePath.split('/').slice(0, -1).join('/') : '/';
-
-      return {
-        id: a.id,
-        name,
-        filePath,
-        folderPath,
-        assetType: a.mediaType || 'image',
-        width: digested?.technicalAttributes?.width,
-        height: digested?.technicalAttributes?.height,
-      };
-    });
-  }, [matchingState.savedAssignments, matchingState.assets]);
+  }, [goToStep, saveMatches]);
 
   // Handle content step completion
   const handleContentComplete = useCallback(() => {
@@ -558,29 +512,12 @@ export default function CreativeMatching() {
                 campaignId={progress.campaignId}
                 campaignName={progress.campaignName}
                 savedAssignments={matchingState.savedAssignments}
-                processingOptions={approvedProcessingGroups ?? undefined}
                 onComplete={handleContentComplete}
                 onSaveAndSelectMore={handleSaveAndSelectMore}
               />
             </div>
           )}
         </div>
-
-        {/* Processing Options Dialog — shown after Save & Continue on matched creatives */}
-        <CreativeProcessingOptionsDialog
-          open={showProcessingOptions}
-          onOpenChange={(open) => {
-            setShowProcessingOptions(open);
-            // If user closes without confirming, still advance to content without processing
-            if (!open) {
-              goToStep('content');
-            }
-          }}
-          assets={postMatchDetectableAssets}
-          platform={progress?.platform || 'meta'}
-          googleCampaignType={campaignData.googleCampaignTypes?.[0]}
-          onConfirm={handleProcessingConfirm}
-        />
       </div>
     </FeatureGate>
   );

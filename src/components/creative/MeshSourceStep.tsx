@@ -28,8 +28,6 @@ import { toast } from 'sonner';
 import { SelectedAsset, CreativeSource } from '@/hooks/useCreativeMeshProgress';
 import { MeshPageAssetsPicker } from '@/components/creative/MeshPageAssetsPicker';
 import { MeshAdAccountAssetsPicker } from '@/components/creative/MeshAdAccountAssetsPicker';
-import type { ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
-
 // Ad account configuration passed from parent
 interface AdAccountInfo {
   platform: 'meta' | 'tiktok' | 'google';
@@ -155,7 +153,7 @@ interface MeshSourceStepProps {
   onAddAsset: (asset: SelectedAsset) => void;
   onRemoveAsset: (assetId: string) => void;
   onClearAssets: () => void;
-  onRunMesh: (processingOptions?: ProcessingOptions) => void;
+  onRunMesh: () => void;
   isProcessing?: boolean;
   googleCampaignTypes?: string[];
 }
