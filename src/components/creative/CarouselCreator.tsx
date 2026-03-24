@@ -467,9 +467,9 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                                     <div key={field.id} className="space-y-1">
                                       <Label className="text-xs">{field.label}</Label>
                                       <Combobox
-                                        items={ctaOptions}
+                                        options={ctaOptions}
                                         value={value}
-                                        onChange={(v) => updateCardField(row.id, fieldKey, v)}
+                                        onValueChange={(v) => updateCardField(row.id, fieldKey, v)}
                                         placeholder={field.placeholder}
                                         className="h-8 text-xs"
                                       />
