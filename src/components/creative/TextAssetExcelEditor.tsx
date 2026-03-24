@@ -363,20 +363,7 @@ export function TextAssetExcelEditor({
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
     if (selectedRows.length < 2) return false;
-    if (selectedRows.some((row) => !!getProcessingGroupId(row, 'carousel'))) return false;
-    const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
-    if (adSets.size !== 1) return false;
-
-    const validation = validateCarouselCreatives(
-      selectedRows.map(row => ({
-        width: row.width,
-        height: row.height,
-        aspectRatio: row.aspectRatio,
-        mediaType: row.mediaType,
-      })),
-      selectedRows[0]?.platform || 'meta'
-    );
-
+    const validation = validateCarouselSelection(selectedRows);
     return validation.isValid;
   }, [selectedRows]);
 
