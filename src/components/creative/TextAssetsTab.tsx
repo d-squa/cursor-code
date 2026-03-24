@@ -127,6 +127,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             creatives (
               id,
               name,
+              original_filename,
               creative_type,
               primary_text,
               headline,
