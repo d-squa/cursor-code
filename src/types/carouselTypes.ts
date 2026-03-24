@@ -64,8 +64,8 @@ export const VIDEO_FORMAT_FIELDS: FormatFieldConfig[] = [
 
 // Carousel card fields (per-card within carousel)
 export const CAROUSEL_CARD_FIELDS: FormatFieldConfig[] = [
-  { id: 'cardHeadline', label: 'Card Headline', required: false, maxLength: 40, placeholder: 'Card headline' },
-  { id: 'cardDescription', label: 'Card Description', required: false, maxLength: 25, placeholder: 'Card description' },
+  { id: 'cardHeadline', label: 'Card Headline', required: false, maxLength: 45, placeholder: 'Card headline (40-45 chars)' },
+  { id: 'cardDescription', label: 'Card Description', required: false, maxLength: 18, placeholder: 'Card description (18 chars, Facebook only)' },
   { id: 'cardWebsiteUrl', label: 'Card Website URL', required: true, maxLength: 2000, placeholder: 'https://...' },
   { id: 'cardCallToAction', label: 'Card Call to Action', required: false, maxLength: 50, placeholder: 'LEARN_MORE' },
 ];
