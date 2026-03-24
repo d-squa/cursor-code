@@ -2579,9 +2579,14 @@ export function TextAssetExcelEditor({
       {/* Carousel Creator Dialog */}
       <CarouselCreator
         selectedRows={carouselDialogRows}
+        existingCarousel={editingCarousel}
         onCreateCarousel={handleCreateCarousel}
-        onCancel={() => setShowCarouselCreator(false)}
+        onCancel={() => {
+          setShowCarouselCreator(false);
+          setEditingCarouselGroupId(null);
+        }}
         open={showCarouselCreator}
+        onRowChange={onRowChange}
       />
 
 
