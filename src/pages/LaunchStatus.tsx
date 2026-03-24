@@ -763,7 +763,14 @@ export default function LaunchStatus() {
   // Show confirmation before pushing creatives
   const handlePushCreativesClick = async () => {
     const pages = await getPageInfoForPush();
-    setPushPageInfos(pages);
+    
+    // Filter to only platforms that have actual creative assignments
+    const platformsWithCreatives = new Set(
+      liveCreativeAssignments.map((a) => a.platform?.toLowerCase()).filter(Boolean)
+    );
+    const filteredPages = pages.filter((p) => platformsWithCreatives.has(p.platform));
+    
+    setPushPageInfos(filteredPages);
     setShowCreativePushConfirm(true);
   };
 
