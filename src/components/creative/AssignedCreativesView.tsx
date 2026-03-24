@@ -116,7 +116,7 @@ export function AssignedCreativesView({
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const buildQuery = () => supabase
         .from('creative_assignments')
         .select(`
           *,
@@ -133,11 +133,22 @@ export function AssignedCreativesView({
         .order('phase_name')
         .order('position');
 
-      if (error) throw error;
+      const allData: any[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      setAssignments(data || []);
+      while (hasMore) {
+        const { data: page, error: pageError } = await buildQuery().range(from, from + pageSize - 1);
+        if (pageError) throw pageError;
+        if (page) allData.push(...page);
+        hasMore = page !== null && page.length === pageSize;
+        from += pageSize;
+      }
+
+      setAssignments(allData);
       
-      const platforms = new Set((data || []).map((a: CreativeAssignment) => a.platform));
+      const platforms = new Set((allData).map((a: CreativeAssignment) => a.platform));
       setExpandedPlatforms(platforms);
       setSelectedIds(new Set());
     } catch (error) {
