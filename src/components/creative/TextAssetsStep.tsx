@@ -1129,26 +1129,34 @@ export function TextAssetsStep({
     rows.filter(r => validateTextAssetRow(r).length === 0).length
   , [rows]);
 
-  // Handle delete assignment - must be before any early returns
-  const handleDeleteAssignment = useCallback(async (assignmentId: string) => {
+  const handleDeleteAssignments = useCallback(async (assignmentIds: string[]) => {
+    const uniqueIds = Array.from(new Set(assignmentIds.filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+
     try {
       const { error } = await supabase
         .from('creative_assignments')
         .delete()
-        .eq('id', assignmentId);
+        .in('id', uniqueIds);
       
       if (error) throw error;
       
       // Remove from local state
       setRows(prev => normalizeProcessingGroups(
-        prev.filter(r => (r as any).assignmentId !== assignmentId) as CreativeTextAssetRowWithTikTok[]
+        prev.filter(r => !uniqueIds.includes((r as any).assignmentId)) as CreativeTextAssetRowWithTikTok[]
       ));
-      toast.success('Assignment deleted');
+      toast.success(uniqueIds.length === 1 ? 'Assignment deleted' : `${uniqueIds.length} creatives deleted`);
     } catch (error) {
-      console.error('Error deleting assignment:', error);
-      toast.error('Failed to delete assignment');
+      console.error('Error deleting assignments:', error);
+      toast.error(uniqueIds.length === 1 ? 'Failed to delete assignment' : 'Failed to delete selected creatives');
+      throw error;
     }
   }, []);
+
+  // Handle delete assignment - must be before any early returns
+  const handleDeleteAssignment = useCallback(async (assignmentId: string) => {
+    await handleDeleteAssignments([assignmentId]);
+  }, [handleDeleteAssignments]);
 
   const handleUngroupRow = useCallback((rowId: string, groupType?: ProcessingGroupKind) => {
     setRows(prev => {
@@ -1219,6 +1227,7 @@ export function TextAssetsStep({
           onSave={handleSaveOnly}
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
+          onDeleteAssignments={handleDeleteAssignments}
           onUngroupRow={handleUngroupRow}
         />
       </div>
