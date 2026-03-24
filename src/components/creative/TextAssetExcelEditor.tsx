@@ -42,6 +42,9 @@ import type { CarouselLink } from '@/types/carouselTypes';
 import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
 import { detectCarouselGroups, validateCarouselSelection, type CarouselGroup } from '@/utils/carouselDetection';
 import { BulkParameterEditor } from './BulkParameterEditor';
+import { AssetCustomizationBuilder } from './AssetCustomizationBuilder';
+import type { DetectedACGroup } from '@/utils/assetCustomizationEngine';
+import type { CompilationResult } from '@/utils/assetFeedSpecCompiler';
 import { ApplyModeDialog, type ApplyMode } from './ApplyModeDialog';
 import { ThumbnailUploader } from './ThumbnailUploader';
 import { PageIdentityIndicator } from './PageIdentityIndicator';
@@ -221,6 +224,7 @@ export function TextAssetExcelEditor({
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
   const [editingCarouselGroupId, setEditingCarouselGroupId] = useState<string | null>(null);
+  const [showAssetCustomizationBuilder, setShowAssetCustomizationBuilder] = useState(false);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
   
@@ -317,6 +321,17 @@ export function TextAssetExcelEditor({
     setSelectedRowIds(new Set());
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
   }, [selectedRowIds, onBulkUpdate, selectedRows]);
+
+  // Handle AC Builder group creation
+  const handleACBuilderCreateGroup = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
+    const groupId = group.id;
+    const rowIds = group.rows.map(r => r.id);
+    onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId } as any);
+  }, [onBulkUpdate]);
+
+  const handleACBuilderUngroupRows = useCallback((rowIds: string[]) => {
+    onBulkUpdate(rowIds, { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
+  }, [onBulkUpdate]);
 
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupType: ProcessingGroupKind, groupId: string) => {
@@ -1598,6 +1613,25 @@ export function TextAssetExcelEditor({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {/* Asset Customization button (shown when 2+ selected, meta only) */}
+              {canCreateAssetCustomization && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-950"
+                        onClick={() => setShowAssetCustomizationBuilder(true)}
+                      >
+                        <LayoutGrid className="h-4 w-4 mr-1" />
+                        Asset Customization
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Group selected creatives as an asset customization set (different formats/languages)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <div className="h-5 w-px bg-border mx-1" />
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
@@ -1605,24 +1639,42 @@ export function TextAssetExcelEditor({
             </>
           )}
 
-          {/* Detect Carousel button (shown when no selection) */}
+          {/* Detect buttons (shown when no selection) */}
           {selectedRowIds.size === 0 && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
-                    onClick={() => handleDetectCarousels('all')}
-                  >
-                    <Sparkles className="h-4 w-4 mr-1" />
-                    Detect Carousel
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Auto-detect carousel groups from creative naming patterns</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
+                      onClick={() => handleDetectCarousels('all')}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1" />
+                      Detect Carousel
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Auto-detect carousel groups from creative naming patterns</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-950"
+                      onClick={() => setShowAssetCustomizationBuilder(true)}
+                    >
+                      <LayoutGrid className="h-4 w-4 mr-1" />
+                      Asset Customization
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Detect and build asset customization groups for Meta</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </>
           )}
           
           <Button variant="outline" size="sm" onClick={handleDownload}>
@@ -2712,6 +2764,17 @@ export function TextAssetExcelEditor({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Asset Customization Builder Dialog */}
+      <AssetCustomizationBuilder
+        open={showAssetCustomizationBuilder}
+        onOpenChange={setShowAssetCustomizationBuilder}
+        rows={rows}
+        selectedRowIds={selectedRowIds}
+        platform={rows[0]?.platform || 'meta'}
+        onCreateGroup={handleACBuilderCreateGroup}
+        onUngroupRows={handleACBuilderUngroupRows}
+      />
     </div>
   );
 
