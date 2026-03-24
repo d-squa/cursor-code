@@ -1540,7 +1540,7 @@ export function TextAssetExcelEditor({
                     variant="outline"
                     size="sm"
                     className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
-                    onClick={() => setShowDetectLevelDialog(true)}
+                    onClick={() => handleDetectCarousels('all')}
                   >
                     <Sparkles className="h-4 w-4 mr-1" />
                     Detect Carousel
@@ -2509,28 +2509,6 @@ export function TextAssetExcelEditor({
         open={showCarouselCreator}
       />
 
-      {/* Detect Carousel Level Dialog */}
-      <Dialog open={showDetectLevelDialog} onOpenChange={setShowDetectLevelDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-blue-500" />
-              Detect Carousels
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-4">
-            <p className="text-sm text-muted-foreground">
-              Auto-detect carousel groups by analyzing creative naming patterns, folder structure, and sequential numbering. Only 1:1 (square) and 4:5 (vertical) formats are eligible.
-            </p>
-            <div className="space-y-2">
-              <Button variant="outline" className="w-full justify-start gap-2" onClick={() => handleDetectCarousels('all')}>
-                <Layers className="h-4 w-4" />
-                Detect across all creatives
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
        {/* Detection Results Dialog */}
       <Dialog open={showDetectionResults} onOpenChange={(open) => {
