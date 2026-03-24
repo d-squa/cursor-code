@@ -159,7 +159,6 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
 
         const assignments = allAssignments;
 
-        if (error) throw error;
 
         // Transform to CreativeTextAssetRow format
         const transformedRows: CreativeTextAssetRow[] = (assignments || []).map((assignment: any) => {
