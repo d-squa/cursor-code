@@ -2000,6 +2000,16 @@ export function TextAssetExcelEditor({
                             </TooltipProvider>
                           )}
                         </div>
+                        
+                        {/* Original Filename */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[7].width }}
+                        >
+                          <span className="text-xs truncate text-muted-foreground" title={row.originalFilename || ''}>
+                            {row.originalFilename || '—'}
+                          </span>
+                        </div>
                       </div>
                     );
                   });
