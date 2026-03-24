@@ -2764,6 +2764,17 @@ export function TextAssetExcelEditor({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Asset Customization Builder Dialog */}
+      <AssetCustomizationBuilder
+        open={showAssetCustomizationBuilder}
+        onOpenChange={setShowAssetCustomizationBuilder}
+        rows={rows}
+        selectedRowIds={selectedRowIds}
+        platform={rows[0]?.platform || 'meta'}
+        onCreateGroup={handleACBuilderCreateGroup}
+        onUngroupRows={handleACBuilderUngroupRows}
+      />
     </div>
   );
 
