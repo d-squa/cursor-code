@@ -228,7 +228,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             phase: assignment.phase_name || 'Default',
             adSet: `Ad Set ${assignment.position || 1}`,
             creativeName: creative?.name || 'Unknown Creative',
-            originalFilename: creative?.original_filename || undefined,
+            originalFilename: [creative?.folder_path, creative?.original_filename]
+              .filter((value): value is string => Boolean(value && String(value).trim()))
+              .join('/').replace(/\/+/g, '/').replace(/([^:]\/)\/+/, '$1') || creative?.original_filename || undefined,
             folderPath: creative?.folder_path || undefined,
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
             adFormat: suggestedFormat,
