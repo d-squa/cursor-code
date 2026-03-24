@@ -148,12 +148,14 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
     
-    const newOrder = [...orderedCards];
-    const [removed] = newOrder.splice(draggedIndex, 1);
-    newOrder.splice(index, 0, removed);
-    setOrderedCards(newOrder);
+    setOrderedIds(prev => {
+      const newOrder = [...prev];
+      const [removed] = newOrder.splice(draggedIndex, 1);
+      newOrder.splice(index, 0, removed);
+      return newOrder;
+    });
     setDraggedIndex(index);
-  }, [draggedIndex, orderedCards]);
+  }, [draggedIndex]);
 
   // Handle drag end
   const handleDragEnd = useCallback(() => {
@@ -162,17 +164,19 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
   // Handle position number change
   const handlePositionChange = useCallback((currentIndex: number, newPosition: number) => {
-    if (newPosition < 1 || newPosition > orderedCards.length) return;
+    if (newPosition < 1 || newPosition > orderedIds.length) return;
     
-    const newOrder = [...orderedCards];
-    const [removed] = newOrder.splice(currentIndex, 1);
-    newOrder.splice(newPosition - 1, 0, removed);
-    setOrderedCards(newOrder);
-  }, [orderedCards]);
+    setOrderedIds(prev => {
+      const newOrder = [...prev];
+      const [removed] = newOrder.splice(currentIndex, 1);
+      newOrder.splice(newPosition - 1, 0, removed);
+      return newOrder;
+    });
+  }, [orderedIds.length]);
 
   // Remove card from carousel
   const handleRemoveCard = useCallback((index: number) => {
-    setOrderedCards(prev => prev.filter((_, i) => i !== index));
+    setOrderedIds(prev => prev.filter((_, i) => i !== index));
   }, []);
 
   // Create / update carousel
@@ -401,10 +405,6 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                                     <Textarea
                                       value={(row[field.key] as string) || ''}
                                       onChange={(e) => {
-                                        // Update local state
-                                        const updatedCards = orderedCards.map(c => c.id === row.id ? { ...c, [field.key]: e.target.value } : c);
-                                        setOrderedCards(updatedCards);
-                                        // Sync back to main table
                                         onRowChange?.(row.id, { [field.key]: e.target.value });
                                       }}
                                       placeholder={field.placeholder}
@@ -415,8 +415,6 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                                     <Input
                                       value={(row[field.key] as string) || ''}
                                       onChange={(e) => {
-                                        const updatedCards = orderedCards.map(c => c.id === row.id ? { ...c, [field.key]: e.target.value } : c);
-                                        setOrderedCards(updatedCards);
                                         onRowChange?.(row.id, { [field.key]: e.target.value });
                                       }}
                                       placeholder={field.placeholder}
