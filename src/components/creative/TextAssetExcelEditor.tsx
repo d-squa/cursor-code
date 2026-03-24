@@ -626,6 +626,7 @@ export function TextAssetExcelEditor({
     }
 
     setDetectedCarousels(detected);
+    setSelectedDetectedIds(new Set(detected.map(g => g.id)));
     setShowDetectLevelDialog(false);
     setShowDetectionResults(true);
   }, [rows]);
