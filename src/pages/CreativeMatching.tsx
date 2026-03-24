@@ -15,7 +15,8 @@ import { MeshSourceStep } from '@/components/creative/MeshSourceStep';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
-import type { ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
+import { CreativeProcessingOptionsDialog, type ProcessingOptions } from '@/components/creative/CreativeProcessingOptionsDialog';
+import type { DetectableAsset } from '@/utils/creativeProcessingDetection';
 
 interface AdAccountInfo {
   platform: 'meta' | 'tiktok' | 'google';
@@ -71,6 +72,7 @@ export default function CreativeMatching() {
   } = useCreativeMatching(progress?.campaignId, progress?.platform);
 
   const [approvedProcessingGroups, setApprovedProcessingGroups] = useState<ProcessingOptions | null>(null);
+  const [showProcessingOptions, setShowProcessingOptions] = useState(false);
 
   // Load existing assignments when campaign is loaded (for duplicated ActiPlans)
   useEffect(() => {
@@ -234,6 +236,7 @@ export default function CreativeMatching() {
 
   // Handle running the mesh
   const handleRunMesh = useCallback(async (processingOpts?: ProcessingOptions) => {
+    // processingOpts is no longer passed from MeshSourceStep; kept for API compat
     if (!progress?.campaignId) return;
 
     // Separate uploads (need processFiles) from platform assets (use addPlatformAssets)
@@ -303,14 +306,34 @@ export default function CreativeMatching() {
     }
   }, [progress, processFiles, addPlatformAssets, loadCampaignStructures, runMatching, goToStep]);
 
-  // Handle save matches
+  // Handle save matches — show processing options dialog before advancing to content
   const handleSaveMatches = useCallback(async () => {
     const ok = await saveMatches();
-    // Only advance if the save actually created assignments
     if (ok) {
-      goToStep('content');
+      // Show processing options dialog so user can review carousel/AC groups
+      // on the MATCHED creatives only (not all selected assets)
+      setShowProcessingOptions(true);
     }
-  }, [saveMatches, goToStep]);
+  }, [saveMatches]);
+
+  // Handle processing options confirm — apply and advance to content step
+  const handleProcessingConfirm = useCallback((options: ProcessingOptions) => {
+    setShowProcessingOptions(false);
+    setApprovedProcessingGroups(options);
+    goToStep('content');
+  }, [goToStep]);
+
+  // Build detectable assets from saved assignments (matched creatives only)
+  const postMatchDetectableAssets: DetectableAsset[] = useMemo(() => {
+    if (!matchingState.savedAssignments?.length) return [];
+    return matchingState.savedAssignments.map(a => ({
+      id: a.id,
+      name: a.creativeName || a.id,
+      filePath: a.creativeName || a.id,
+      folderPath: '/',
+      assetType: a.mediaType || 'image',
+    }));
+  }, [matchingState.savedAssignments]);
 
   // Handle content step completion
   const handleContentComplete = useCallback(() => {
