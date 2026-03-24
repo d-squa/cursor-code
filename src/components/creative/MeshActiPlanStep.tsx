@@ -28,6 +28,7 @@ export function MeshActiPlanStep({
   initialCampaignId,
   onSelect,
   onPlatformSelect,
+  onJumpToContent,
   selectedCampaignId,
   selectedPlatform,
 }: MeshActiPlanStepProps) {
@@ -36,6 +37,8 @@ export function MeshActiPlanStep({
   const [isLoading, setIsLoading] = useState(true);
   const [localCampaignId, setLocalCampaignId] = useState(selectedCampaignId || initialCampaignId || '');
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
+  const [assignmentCount, setAssignmentCount] = useState<number>(0);
+  const [checkingAssignments, setCheckingAssignments] = useState(false);
 
   // Load campaigns
   useEffect(() => {
