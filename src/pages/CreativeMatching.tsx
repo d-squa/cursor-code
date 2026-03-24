@@ -403,6 +403,14 @@ export default function CreativeMatching() {
                 selectPlatform(platform);
                 goToStep('source');
               }}
+              onJumpToContent={(id, name, platform) => {
+                selectActiPlan(id, name, [platform]);
+                selectPlatform(platform);
+                // Load existing assignments then jump to content
+                loadExistingAssignments(id).then(() => {
+                  goToStep('content');
+                });
+              }}
               selectedCampaignId={progress?.campaignId}
               selectedPlatform={progress?.platform}
             />
