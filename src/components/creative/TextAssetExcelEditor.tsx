@@ -220,6 +220,7 @@ export function TextAssetExcelEditor({
   // Multi-select state for carousel creation
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
+  const [editingCarouselGroupId, setEditingCarouselGroupId] = useState<string | null>(null);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
   
@@ -361,7 +362,44 @@ export function TextAssetExcelEditor({
     onRowChange(id, updates);
   }, [rows, processingGroups, onBulkUpdate, onRowChange]);
 
-  const carouselDialogRows = useMemo(() => selectedRows, [selectedRows]);
+  // Rows for the carousel dialog: either selected rows (create) or editing group rows
+  const carouselDialogRows = useMemo(() => {
+    if (editingCarouselGroupId) {
+      const group = processingGroups.get(`carousel:${editingCarouselGroupId}`);
+      if (group) return rows.filter(r => group.rowIds.includes(r.id));
+    }
+    return selectedRows;
+  }, [selectedRows, editingCarouselGroupId, processingGroups, rows]);
+
+  // Build existingCarousel object when editing
+  const editingCarousel = useMemo<CarouselLink | null>(() => {
+    if (!editingCarouselGroupId) return null;
+    const group = processingGroups.get(`carousel:${editingCarouselGroupId}`);
+    if (!group) return null;
+    const groupRows = rows.filter(r => group.rowIds.includes(r.id));
+    if (groupRows.length === 0) return null;
+    const first = groupRows[0];
+    const cardData: Record<string, import('@/types/carouselTypes').CarouselCardData> = {};
+    for (const r of groupRows) {
+      cardData[r.id] = {
+        cardHeadline: (r as any).carouselCardHeadline || '',
+        cardDescription: (r as any).carouselCardDescription || '',
+        cardWebsiteUrl: (r as any).carouselCardWebsiteUrl || '',
+        cardCallToAction: (r as any).carouselCardCta || '',
+      };
+    }
+    return {
+      id: editingCarouselGroupId,
+      carouselName: editingCarouselGroupId,
+      adSetId: first.assignmentId?.split('_')[0] || '',
+      adSetName: first.adSet || '',
+      platform: first.platform || 'meta',
+      market: first.market || '',
+      phase: first.phase || '',
+      cardIds: groupRows.map(r => r.id),
+      cardData,
+    };
+  }, [editingCarouselGroupId, processingGroups, rows]);
 
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
@@ -622,9 +660,10 @@ export function TextAssetExcelEditor({
     }
 
     setShowCarouselCreator(false);
+    setEditingCarouselGroupId(null);
     clearSelection();
 
-    toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
+    toast.success(`Carousel "${carousel.carouselName}" ${editingCarouselGroupId ? 'updated' : 'created'} with ${carousel.cardIds.length} cards`);
   }, [clearSelection, onBulkUpdate]);
 
   // Handle carousel detection at a specific scope level
@@ -1756,13 +1795,35 @@ export function TextAssetExcelEditor({
                             <span className={cn("font-medium text-sm truncate", isCarousel ? "text-blue-700 dark:text-blue-300" : "text-purple-700 dark:text-purple-300")}>
                               {item.groupLabel}
                             </span>
+                            {isCarousel && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs ml-auto shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingCarouselGroupId(item.processingGroupId!);
+                                        setShowCarouselCreator(true);
+                                      }}
+                                    >
+                                      <Settings2 className="h-3 w-3 mr-1" />
+                                      Edit
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit carousel order and text assets</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-6 px-2 text-xs ml-auto mr-2 shrink-0"
+                                    className="h-6 px-2 text-xs mr-2 shrink-0"
                                      onClick={(e) => {
                                        e.stopPropagation();
                                        handleUngroupEntireGroup(item.processingGroupType!, item.processingGroupId!);
@@ -2518,9 +2579,14 @@ export function TextAssetExcelEditor({
       {/* Carousel Creator Dialog */}
       <CarouselCreator
         selectedRows={carouselDialogRows}
+        existingCarousel={editingCarousel}
         onCreateCarousel={handleCreateCarousel}
-        onCancel={() => setShowCarouselCreator(false)}
+        onCancel={() => {
+          setShowCarouselCreator(false);
+          setEditingCarouselGroupId(null);
+        }}
         open={showCarouselCreator}
+        onRowChange={onRowChange}
       />
 
 

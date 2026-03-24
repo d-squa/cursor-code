@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +24,19 @@ interface CarouselCreatorProps {
   onCreateCarousel: (carousel: CarouselLink) => void;
   onCancel: () => void;
   open: boolean;
+  /** When provided, text field changes are synced back to the main table in real time */
+  onRowChange?: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
 }
 
-export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open }: CarouselCreatorProps) {
+const TEXT_ASSET_FIELDS: { key: keyof CreativeTextAssetRow; label: string; maxLength?: number; placeholder: string; colSpan?: boolean }[] = [
+  { key: 'primaryText', label: 'Primary Text', maxLength: 500, placeholder: 'Main ad copy...', colSpan: true },
+  { key: 'headline', label: 'Headline', maxLength: 255, placeholder: 'Headline' },
+  { key: 'description', label: 'Description', maxLength: 125, placeholder: 'Description' },
+  { key: 'destinationUrl', label: 'Destination URL', maxLength: 2000, placeholder: 'https://...', colSpan: true },
+  { key: 'callToAction', label: 'Call to Action', maxLength: 50, placeholder: 'LEARN_MORE' },
+];
+
+export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open, onRowChange }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
   const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>([]);
   const [cardData, setCardData] = useState<Record<string, CarouselCardData>>({});
@@ -360,21 +371,63 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
                       {/* Card-level parameters */}
                       <CollapsibleContent>
-                        <div className="px-3 pb-3 pt-1 border-t bg-muted/20 space-y-2">
-                          <p className="text-xs text-muted-foreground font-medium">Card Parameters</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {CAROUSEL_CARD_FIELDS.map(field => (
-                              <div key={field.id} className={cn("space-y-1", field.id.includes('Url') && 'col-span-2')}>
-                                <Label className="text-xs">{field.label}</Label>
-                                <Input
-                                  value={thisCardData[field.id as keyof CarouselCardData] || ''}
-                                  onChange={(e) => updateCardField(row.id, field.id as keyof CarouselCardData, e.target.value)}
-                                  placeholder={field.placeholder}
-                                  className="h-8 text-xs"
-                                  maxLength={field.maxLength}
-                                />
-                              </div>
-                            ))}
+                        <div className="px-3 pb-3 pt-1 border-t bg-muted/20 space-y-3">
+                          {/* Main text assets */}
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium mb-1.5">Text Assets</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {TEXT_ASSET_FIELDS.map(field => (
+                                <div key={field.key} className={cn("space-y-1", field.colSpan && 'col-span-2')}>
+                                  <Label className="text-xs">{field.label}</Label>
+                                  {field.key === 'primaryText' ? (
+                                    <Textarea
+                                      value={(row[field.key] as string) || ''}
+                                      onChange={(e) => {
+                                        // Update local state
+                                        const updatedCards = orderedCards.map(c => c.id === row.id ? { ...c, [field.key]: e.target.value } : c);
+                                        setOrderedCards(updatedCards);
+                                        // Sync back to main table
+                                        onRowChange?.(row.id, { [field.key]: e.target.value });
+                                      }}
+                                      placeholder={field.placeholder}
+                                      className="text-xs min-h-[60px]"
+                                      maxLength={field.maxLength}
+                                    />
+                                  ) : (
+                                    <Input
+                                      value={(row[field.key] as string) || ''}
+                                      onChange={(e) => {
+                                        const updatedCards = orderedCards.map(c => c.id === row.id ? { ...c, [field.key]: e.target.value } : c);
+                                        setOrderedCards(updatedCards);
+                                        onRowChange?.(row.id, { [field.key]: e.target.value });
+                                      }}
+                                      placeholder={field.placeholder}
+                                      className="h-8 text-xs"
+                                      maxLength={field.maxLength}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Card-level parameters */}
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium mb-1.5">Card Parameters</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {CAROUSEL_CARD_FIELDS.map(field => (
+                                <div key={field.id} className={cn("space-y-1", field.id.includes('Url') && 'col-span-2')}>
+                                  <Label className="text-xs">{field.label}</Label>
+                                  <Input
+                                    value={thisCardData[field.id as keyof CarouselCardData] || ''}
+                                    onChange={(e) => updateCardField(row.id, field.id as keyof CarouselCardData, e.target.value)}
+                                    placeholder={field.placeholder}
+                                    className="h-8 text-xs"
+                                    maxLength={field.maxLength}
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </CollapsibleContent>
