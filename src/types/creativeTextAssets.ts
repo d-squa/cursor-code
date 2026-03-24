@@ -201,7 +201,11 @@ export interface CreativeTextAssetRow {
   organicMessage?: string;
   organicPermalink?: string;
   
-  // Creative processing group (carousel or asset customization)
+  // Creative processing groups
+  // A row can belong to both a carousel group and an asset customization group.
+  carouselGroupId?: string;
+  assetCustomizationGroupId?: string;
+  // Legacy single-group fields kept for backward compatibility with older editor flows.
   processingGroupId?: string;
   processingGroupType?: 'carousel' | 'asset_customization';
 }
