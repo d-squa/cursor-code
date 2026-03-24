@@ -224,6 +224,7 @@ export function TextAssetExcelEditor({
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
   const [editingCarouselGroupId, setEditingCarouselGroupId] = useState<string | null>(null);
+  const [showAssetCustomizationBuilder, setShowAssetCustomizationBuilder] = useState(false);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
   
