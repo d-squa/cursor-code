@@ -1683,18 +1683,6 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
       }
 
       if (assignments && assignments.length > 0) {
-        const campaignUpdatedAt = campaign?.updated_at ? new Date(campaign.updated_at).getTime() : 0;
-        const latestAssignmentAt = Math.max(
-          ...assignments.map((a: any) => new Date(a.assigned_at).getTime()).filter((value: number) => Number.isFinite(value)),
-          0,
-        );
-
-        if (campaignUpdatedAt > 0 && latestAssignmentAt > 0 && campaignUpdatedAt > latestAssignmentAt) {
-          setState(prev => ({ ...prev, savedAssignments: undefined }));
-          console.log(`Skipping stale creative assignments for campaign ${targetCampaignId} because the ActiPlan was edited after matching`);
-          return;
-        }
-
         const savedAssignments = dedupeSavedAssignments(assignments.map((a: any) => {
           const creative = a.creatives;
           const isVideo = creative?.creative_type === 'video' || 
