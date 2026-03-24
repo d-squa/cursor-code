@@ -238,7 +238,7 @@ export function TextAssetExcelEditor({
   } | null>(null);
 
   // Carousel detection state
-  const [showDetectLevelDialog, setShowDetectLevelDialog] = useState(false);
+  
   const [detectedCarousels, setDetectedCarousels] = useState<CarouselGroup[]>([]);
   const [showDetectionResults, setShowDetectionResults] = useState(false);
   const [selectedDetectedIds, setSelectedDetectedIds] = useState<Set<string>>(new Set());
@@ -621,13 +621,11 @@ export function TextAssetExcelEditor({
 
     if (detected.length === 0) {
       toast.info('No carousel groups detected. Try selecting creatives manually and using "Create Carousel".');
-      setShowDetectLevelDialog(false);
       return;
     }
 
     setDetectedCarousels(detected);
     setSelectedDetectedIds(new Set(detected.map(g => g.id)));
-    setShowDetectLevelDialog(false);
     setShowDetectionResults(true);
   }, [rows]);
 
