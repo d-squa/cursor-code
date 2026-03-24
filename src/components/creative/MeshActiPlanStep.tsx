@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Layers, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Loader2, Layers, ArrowRight, CheckCircle2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -19,6 +19,7 @@ interface MeshActiPlanStepProps {
   initialCampaignId?: string;
   onSelect: (campaignId: string, campaignName: string, platforms: string[]) => void;
   onPlatformSelect: (platform: 'meta' | 'tiktok' | 'google') => void;
+  onJumpToContent?: (campaignId: string, campaignName: string, platform: 'meta' | 'tiktok' | 'google') => void;
   selectedCampaignId?: string;
   selectedPlatform?: 'meta' | 'tiktok' | 'google';
 }
