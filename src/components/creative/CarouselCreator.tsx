@@ -11,9 +11,11 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Combobox } from '@/components/ui/combobox';
 import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { PLATFORM_CTAS } from '@/types/creativeTextAssets';
 import type { CarouselLink, CarouselCardData } from '@/types/carouselTypes';
 import { CAROUSEL_CARD_FIELDS } from '@/types/carouselTypes';
 import { validateCarouselCreatives, getPlacementBadges, CAROUSEL_PLATFORM_REQUIREMENTS } from '@/utils/placementCompatibility';
@@ -454,18 +456,40 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
                           <div>
                             <p className="text-xs text-muted-foreground font-medium mb-1.5">Card Parameters</p>
                             <div className="grid grid-cols-2 gap-2">
-                              {CAROUSEL_CARD_FIELDS.map(field => (
-                                <div key={field.id} className={cn("space-y-1", field.id.includes('Url') && 'col-span-2')}>
-                                  <Label className="text-xs">{field.label}</Label>
-                                  <Input
-                                    value={thisCardData[field.id as keyof CarouselCardData] || ''}
-                                    onChange={(e) => updateCardField(row.id, field.id as keyof CarouselCardData, e.target.value)}
-                                    placeholder={field.placeholder}
-                                    className="h-8 text-xs"
-                                    maxLength={field.maxLength}
-                                  />
-                                </div>
-                              ))}
+                              {CAROUSEL_CARD_FIELDS.map(field => {
+                                const fieldKey = field.id as keyof CarouselCardData;
+                                const value = thisCardData[fieldKey] || '';
+
+                                if (fieldKey === 'cardCallToAction') {
+                                  const ctaList = PLATFORM_CTAS[platform as keyof typeof PLATFORM_CTAS] || PLATFORM_CTAS.meta;
+                                  const ctaOptions = ctaList.map(c => ({ value: c, label: c.replace(/_/g, ' ') }));
+                                  return (
+                                    <div key={field.id} className="space-y-1">
+                                      <Label className="text-xs">{field.label}</Label>
+                                      <Combobox
+                                        items={ctaOptions}
+                                        value={value}
+                                        onChange={(v) => updateCardField(row.id, fieldKey, v)}
+                                        placeholder={field.placeholder}
+                                        className="h-8 text-xs"
+                                      />
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div key={field.id} className={cn("space-y-1", field.id.includes('Url') && 'col-span-2')}>
+                                    <Label className="text-xs">{field.label}</Label>
+                                    <Input
+                                      value={value}
+                                      onChange={(e) => updateCardField(row.id, fieldKey, e.target.value)}
+                                      placeholder={field.placeholder}
+                                      className="h-8 text-xs"
+                                      maxLength={field.maxLength}
+                                    />
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
