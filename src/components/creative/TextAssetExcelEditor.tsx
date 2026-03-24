@@ -1501,11 +1501,50 @@ export function TextAssetExcelEditor({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {/* Carousel buttons */}
+              {canCreateCarousel && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
+                        onClick={() => setShowCarouselCreator(true)}
+                      >
+                        <Layers className="h-4 w-4 mr-1" />
+                        Create Carousel
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Group selected creatives as a carousel (same format, 2-10 cards)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <div className="h-5 w-px bg-border mx-1" />
               <Button variant="ghost" size="sm" onClick={clearSelection}>
                 <XCircle className="h-4 w-4" />
               </Button>
             </>
+          )}
+
+          {/* Detect Carousel button (shown when no selection) */}
+          {selectedRowIds.size === 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-950"
+                    onClick={() => setShowDetectLevelDialog(true)}
+                  >
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    Detect Carousel
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Auto-detect carousel groups from creative naming patterns</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           
           <Button variant="outline" size="sm" onClick={handleDownload}>
