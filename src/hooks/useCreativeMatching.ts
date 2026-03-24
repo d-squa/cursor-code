@@ -1421,8 +1421,9 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               createdCreativeByAssetId.set(assetId, creativeId);
             }
           } else {
-            // Check if we already created a creative for this asset
-            const cachedCreativeId = createdCreativeByAssetId.get(assetId);
+            // Check if we already created a creative for this asset (by ID or by filename)
+            const cachedCreativeId = createdCreativeByAssetId.get(assetId) 
+              || createdCreativeByFilename.get(asset.fileName.toLowerCase());
             if (cachedCreativeId) {
               // Reuse existing creative - skip upload and creation
               creativeId = cachedCreativeId;
