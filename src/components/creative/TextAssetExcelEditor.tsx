@@ -608,6 +608,40 @@ export function TextAssetExcelEditor({
     toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
   }, [clearSelection, onBulkUpdate]);
 
+  // Handle carousel detection at a specific scope level
+  const handleDetectCarousels = useCallback((scopeLevel: 'all' | 'platform' | 'market' | 'phase' | 'adset') => {
+    let targetRows = rows;
+
+    // If specific scope level, filter rows based on what's visible/relevant
+    // For simplicity, we detect across all rows (the algorithm already groups by ad set)
+    const detected = detectCarouselGroups(targetRows);
+
+    if (detected.length === 0) {
+      toast.info('No carousel groups detected. Try selecting creatives manually and using "Create Carousel".');
+      setShowDetectLevelDialog(false);
+      return;
+    }
+
+    setDetectedCarousels(detected);
+    setShowDetectLevelDialog(false);
+    setShowDetectionResults(true);
+  }, [rows]);
+
+  // Apply detected carousel groups
+  const handleApplyDetectedCarousels = useCallback((selectedGroupIds: string[]) => {
+    const groupsToApply = detectedCarousels.filter(g => selectedGroupIds.includes(g.id));
+    let totalCards = 0;
+
+    for (const group of groupsToApply) {
+      onBulkUpdate(group.rowIds, { carouselGroupId: group.id } as any);
+      totalCards += group.rowIds.length;
+    }
+
+    setShowDetectionResults(false);
+    setDetectedCarousels([]);
+    toast.success(`Created ${groupsToApply.length} carousel(s) with ${totalCards} total cards`);
+  }, [detectedCarousels, onBulkUpdate]);
+
   // Get visible columns based on row's media type
   const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
     const formatKey = mediaType === 'video' ? 'video' : 'image';
