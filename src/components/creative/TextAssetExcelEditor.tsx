@@ -317,7 +317,7 @@ export function TextAssetExcelEditor({
 
     const groupId = `ac-manual-${Date.now()}`;
     const ids = Array.from(selectedRowIds);
-    onBulkUpdate(ids, { assetCustomizationGroupId: groupId } as any);
+    onBulkUpdate(ids, { assetCustomizationGroupId: groupId, processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
     setSelectedRowIds(new Set());
     toast.success(`Created Asset Customization group with ${ids.length} assets`);
   }, [selectedRowIds, onBulkUpdate, selectedRows]);
@@ -326,7 +326,7 @@ export function TextAssetExcelEditor({
   const handleACBuilderCreateGroup = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
     const groupId = group.id;
     const rowIds = group.rows.map(r => r.id);
-    onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId } as any);
+    onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId, processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
   }, [onBulkUpdate]);
 
   const handleACBuilderUngroupRows = useCallback((rowIds: string[]) => {
@@ -893,7 +893,7 @@ export function TextAssetExcelEditor({
       }
 
       for (const [pgId, pgRows] of assetCustomizationMap) {
-        const pgType = pgRows[0].processingGroupType!;
+        const pgType: ProcessingGroupKind = 'asset_customization';
         const pgKey = `pg:asset_customization:${pgId}`;
         items.push({
           type: 'processingGroup',
