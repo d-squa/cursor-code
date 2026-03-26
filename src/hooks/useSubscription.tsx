@@ -145,7 +145,32 @@ export function useSubscription() {
     const {
       data: { subscription: authSub },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "INITIAL_SESSION" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      if (event === "INITIAL_SESSION") {
+        if (!session) {
+          cachedSessionRef.current = null;
+          setSubscription(null);
+          setError(null);
+          setLoading(false);
+          hasCheckedOnceRef.current = true;
+          hasDataRef.current = false;
+          lastCheckTimeRef.current = 0;
+          currentUserIdRef.current = null;
+          lastSuccessfulUserIdRef.current = null;
+          return;
+        }
+
+        cachedSessionRef.current = {
+          accessToken: session.access_token,
+          userId: session.user.id,
+        };
+
+        queueMicrotask(() => {
+          void checkSubscription({ showLoading: true, force: true });
+        });
+        return;
+      }
+
+      if (event === "SIGNED_IN") {
         if (session) {
           cachedSessionRef.current = {
             accessToken: session.access_token,
@@ -153,29 +178,28 @@ export function useSubscription() {
           };
         }
 
-        if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
-          queueMicrotask(() => {
-            void checkSubscription({ showLoading: true, force: true });
-          });
-        }
+        queueMicrotask(() => {
+          void checkSubscription({ showLoading: true, force: true });
+        });
+        return;
+      }
 
-        // TOKEN_REFRESHED: update cached token only; do not re-check subscription.
-      } else if (event === "SIGNED_OUT") {
+      if (event === "TOKEN_REFRESHED") {
+        if (session) {
+          cachedSessionRef.current = {
+            accessToken: session.access_token,
+            userId: session.user.id,
+          };
+        }
+        return;
+      }
+
+      if (event === "SIGNED_OUT") {
         cachedSessionRef.current = null;
         setSubscription(null);
         setError(null);
         setLoading(false);
         hasCheckedOnceRef.current = false;
-        hasDataRef.current = false;
-        lastCheckTimeRef.current = 0;
-        currentUserIdRef.current = null;
-        lastSuccessfulUserIdRef.current = null;
-      } else if (event === "INITIAL_SESSION" && !session) {
-        cachedSessionRef.current = null;
-        setSubscription(null);
-        setError(null);
-        setLoading(false);
-        hasCheckedOnceRef.current = true;
         hasDataRef.current = false;
         lastCheckTimeRef.current = 0;
         currentUserIdRef.current = null;

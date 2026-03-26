@@ -30,7 +30,7 @@ interface UseDspConfigSyncOptions {
 }
 
 export function useDspConfigSync({ campaignId, enabled = true, autoSyncOnMount = true }: UseDspConfigSyncOptions) {
-  const { user, session } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const [changes, setChanges] = useState<DspConfigChange[]>([]);
   const [unacknowledgedCount, setUnacknowledgedCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
@@ -67,12 +67,13 @@ export function useDspConfigSync({ campaignId, enabled = true, autoSyncOnMount =
 
   // Trigger DSP config sync via edge function
   const syncFromDsp = useCallback(async () => {
-    if (!campaignId || !session?.access_token || syncing) return;
+    const accessToken = getAccessToken();
+    if (!campaignId || !accessToken || syncing) return;
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("sync-dsp-config", {
         body: { campaignId },
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (error) {
@@ -87,7 +88,7 @@ export function useDspConfigSync({ campaignId, enabled = true, autoSyncOnMount =
     } finally {
       setSyncing(false);
     }
-  }, [campaignId, session?.access_token, syncing, fetchChanges]);
+  }, [campaignId, syncing, fetchChanges, getAccessToken]);
 
   // Acknowledge a single change
   const acknowledgeChange = useCallback(
@@ -166,14 +167,14 @@ export function useDspConfigSync({ campaignId, enabled = true, autoSyncOnMount =
 
   // Auto-sync on mount (if campaign has DSP entities)
   useEffect(() => {
-    if (enabled && autoSyncOnMount && campaignId && user && session?.access_token) {
+    if (enabled && autoSyncOnMount && campaignId && user && getAccessToken()) {
       // Small delay to not block initial page load
       const timer = setTimeout(() => {
         syncFromDsp();
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [enabled, autoSyncOnMount, campaignId, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, autoSyncOnMount, campaignId, user, syncFromDsp, getAccessToken]);
 
   return {
     changes,
