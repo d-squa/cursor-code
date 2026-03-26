@@ -37,6 +37,10 @@ interface CarouselCreatorProps {
   open: boolean;
   /** When provided, text field changes are synced back to the main table in real time */
   onRowChange?: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
+  /** Apply current carousel's text assets to all other carousels */
+  onApplyToAllCarousels?: (cardData: Record<string, CarouselCardData>, sourceRows: CreativeTextAssetRow[]) => void;
+  /** Total number of carousel groups (to show/hide the apply button) */
+  totalCarouselCount?: number;
 }
 
 const TEXT_ASSET_FIELDS: { key: keyof CreativeTextAssetRow; label: string; maxLength?: number; placeholder: string; colSpan?: boolean }[] = [
@@ -47,7 +51,7 @@ const TEXT_ASSET_FIELDS: { key: keyof CreativeTextAssetRow; label: string; maxLe
   { key: 'callToAction', label: 'Call to Action', maxLength: 50, placeholder: 'LEARN_MORE' },
 ];
 
-export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open, onRowChange }: CarouselCreatorProps) {
+export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open, onRowChange, onApplyToAllCarousels, totalCarouselCount }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
   // orderedIds tracks card ordering only (not the row data itself)
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
@@ -613,17 +617,32 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleCreate}
-            disabled={!isSameAdSet || !carouselName.trim() || orderedCards.length < platformReqs.minCards || carouselValidation.errors.length > 0}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            {existingCarousel ? 'Save Carousel' : 'Create Carousel'}
-          </Button>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <div className="flex-1 flex items-center">
+            {onApplyToAllCarousels && totalCarouselCount && totalCarouselCount > 1 && existingCarousel && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5"
+                onClick={() => onApplyToAllCarousels(cardData, orderedCards)}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Apply text assets to all {totalCarouselCount} carousels
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleCreate}
+              disabled={!isSameAdSet || !carouselName.trim() || orderedCards.length < platformReqs.minCards || carouselValidation.errors.length > 0}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {existingCarousel ? 'Save Carousel' : 'Create Carousel'}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
