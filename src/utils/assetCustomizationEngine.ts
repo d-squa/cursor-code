@@ -174,29 +174,25 @@ export function detectLanguage(row: CreativeTextAssetRow): string | null {
 
 /**
  * Check if a group of rows contains indicators that suggest multi-language content.
- * Auto-detection of language customization only triggers when taxonomy explicitly
- * references "All Languages" or multiple distinct language tokens are found.
+ * 
+ * IMPORTANT: Only checks taxonomy-level fields (ad set name, folder path) for
+ * explicit multi-language markers like "All Languages" or "Multi Language".
+ * We do NOT scan individual creative filenames because they often contain
+ * format abbreviations (PT = Portrait, SQ = Square) that get falsely matched
+ * as language codes.
  */
 function hasMultiLanguageTaxonomyHint(rows: CreativeTextAssetRow[]): boolean {
-  const allSearchables = rows.map(r => [
-    r.folderPath || '',
-    r.creativeName || '',
-    r.originalFilename || '',
-    (r as any).taxonomyAdName || '',
+  // Only check taxonomy-level fields — NOT individual creative filenames
+  const taxonomySearchables = rows.map(r => [
     (r as any).taxonomyAdSetName || '',
+    (r as any).taxonomyAdName || '',
+    r.adSet || '',
   ].join(' ')).join(' ').toLowerCase();
 
-  // Check for explicit multi-language markers
-  if (/all[\s_-]?lang/i.test(allSearchables)) return true;
-  if (/multi[\s_-]?lang/i.test(allSearchables)) return true;
-
-  // Check if at least 2 distinct languages are detected across the rows
-  const detectedLangs = new Set<string>();
-  for (const row of rows) {
-    const lang = detectLanguage(row);
-    if (lang) detectedLangs.add(lang);
-    if (detectedLangs.size >= 2) return true;
-  }
+  // Check for explicit multi-language markers in taxonomy/ad-set naming
+  if (/all[\s_-]?lang/i.test(taxonomySearchables)) return true;
+  if (/multi[\s_-]?lang/i.test(taxonomySearchables)) return true;
+  if (/multiple[\s_-]?lang/i.test(taxonomySearchables)) return true;
 
   return false;
 }
