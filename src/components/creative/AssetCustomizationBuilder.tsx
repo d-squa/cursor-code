@@ -162,57 +162,113 @@ function TypeSelector({
   );
 }
 
-// ─── Language Text Inputs per Language ────────────────────────────────────────
+// ─── Language Text Inputs via Bulk Excel Paste ──────────────────────────────
 
-const LANG_TEXT_FIELDS = [
-  { id: 'primaryText', label: 'Primary Text', multiline: true, maxLength: 500 },
-  { id: 'headline', label: 'Headline', multiline: false, maxLength: 255 },
-  { id: 'description', label: 'Description', multiline: false, maxLength: 125 },
-  { id: 'destinationUrl', label: 'Destination URL', multiline: false, maxLength: 2000 },
-  { id: 'callToAction', label: 'Call to Action', multiline: false, isCta: true },
-];
+const LANG_PASTE_COLUMNS = ['Language', 'Primary Text', 'Headline', 'Description', 'Destination URL', 'CTA'];
+const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', 'destinationUrl', 'callToAction'] as const;
 
 const META_CTAS = PLATFORM_CTAS.meta;
 
+interface ParsedLangRow {
+  language: string;
+  languageCode: string;
+  primaryText: string;
+  headline: string;
+  description: string;
+  destinationUrl: string;
+  callToAction: string;
+}
+
+function resolveLanguageCode(input: string): string | null {
+  const cleaned = input.trim().toLowerCase();
+  // Direct code match
+  const direct = SUPPORTED_LANGUAGES.find(l => l.code === cleaned);
+  if (direct) return direct.code;
+  // Label match
+  const byLabel = SUPPORTED_LANGUAGES.find(l => l.label.toLowerCase() === cleaned);
+  if (byLabel) return byLabel.code;
+  // Partial match
+  const partial = SUPPORTED_LANGUAGES.find(l =>
+    l.label.toLowerCase().startsWith(cleaned) || cleaned.startsWith(l.code)
+  );
+  if (partial) return partial.code;
+  return null;
+}
+
 function LanguageTextInputs({
-  selectedLanguages,
   languageTexts,
   onLanguageTextsChange,
   defaultLanguage,
+  onDefaultLanguageChange,
 }: {
-  selectedLanguages: string[];
   languageTexts: Map<string, Record<string, string>>;
   onLanguageTextsChange: (texts: Map<string, Record<string, string>>) => void;
   defaultLanguage?: string;
+  onDefaultLanguageChange?: (lang: string) => void;
 }) {
-  const [activeLangTab, setActiveLangTab] = useState(defaultLanguage || selectedLanguages[0] || '');
-  const fieldRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const [pasteValue, setPasteValue] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [editingLang, setEditingLang] = useState<string | null>(null);
 
-  // Handle tab-separated paste from Excel: fill consecutive fields
-  const handlePaste = useCallback((e: React.ClipboardEvent, lang: string, startFieldIdx: number) => {
+  const detectedLanguages = useMemo(() => {
+    return [...languageTexts.keys()].sort();
+  }, [languageTexts]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
 
-    // Detect tab-separated values (Excel row)
-    const values = pasted.includes('\t') ? pasted.split('\t').map(v => v.trim()) : null;
-    if (!values || values.length <= 1) return; // Not a multi-column paste
+    // Detect tab-separated (Excel paste)
+    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
+    const tsvLines = lines.filter(l => l.includes('\t'));
+    if (tsvLines.length === 0) return;
 
     e.preventDefault();
-
-    const current = { ...(languageTexts.get(lang) || {}) };
-    const editableFields = LANG_TEXT_FIELDS.filter(f => !f.isCta);
-    let filled = 0;
-    for (let i = 0; i < values.length && startFieldIdx + i < editableFields.length; i++) {
-      const field = editableFields[startFieldIdx + i];
-      current[field.id] = values[i];
-      filled++;
-    }
+    setParseError(null);
 
     const next = new Map(languageTexts);
-    next.set(lang, current);
+    const errors: string[] = [];
+    let parsed = 0;
+
+    for (const line of tsvLines) {
+      const cols = line.split('\t').map(c => c.trim());
+      if (cols.length < 2) continue;
+
+      const langInput = cols[0];
+      const langCode = resolveLanguageCode(langInput);
+      if (!langCode) {
+        errors.push(`Unknown language: "${langInput}"`);
+        continue;
+      }
+
+      const row: Record<string, string> = {};
+      if (cols[1]) row.primaryText = cols[1];
+      if (cols[2]) row.headline = cols[2];
+      if (cols[3]) row.description = cols[3];
+      if (cols[4]) row.destinationUrl = cols[4];
+      if (cols[5]) row.callToAction = cols[5];
+
+      // Merge with existing
+      const existing = next.get(langCode) || {};
+      next.set(langCode, { ...existing, ...row });
+      parsed++;
+    }
+
     onLanguageTextsChange(next);
-    toast.success(`Pasted ${filled} field(s) from clipboard`);
-  }, [languageTexts, onLanguageTextsChange]);
+    setPasteValue('');
+
+    if (parsed > 0) {
+      toast.success(`Parsed ${parsed} language row(s)`);
+    }
+    if (errors.length > 0) {
+      setParseError(errors.join('; '));
+    }
+
+    // Auto-set default language if not set
+    if (!defaultLanguage && next.size > 0 && onDefaultLanguageChange) {
+      onDefaultLanguageChange([...next.keys()][0]);
+    }
+  }, [languageTexts, onLanguageTextsChange, defaultLanguage, onDefaultLanguageChange]);
 
   const handleFieldChange = useCallback((lang: string, fieldId: string, value: string) => {
     const current = { ...(languageTexts.get(lang) || {}) };
@@ -222,132 +278,154 @@ function LanguageTextInputs({
     onLanguageTextsChange(next);
   }, [languageTexts, onLanguageTextsChange]);
 
-  const handleCopyToAllLangs = useCallback((sourceLang: string) => {
-    const sourceTexts = languageTexts.get(sourceLang);
-    if (!sourceTexts) return;
+  const handleRemoveLanguage = useCallback((lang: string) => {
     const next = new Map(languageTexts);
-    for (const lang of selectedLanguages) {
-      if (lang === sourceLang) continue;
-      next.set(lang, { ...sourceTexts });
-    }
+    next.delete(lang);
     onLanguageTextsChange(next);
-    toast.success(`Copied text to ${selectedLanguages.length - 1} language(s)`);
-  }, [languageTexts, selectedLanguages, onLanguageTextsChange]);
-
-  if (selectedLanguages.length === 0) return null;
+    if (editingLang === lang) setEditingLang(null);
+    if (defaultLanguage === lang && next.size > 0 && onDefaultLanguageChange) {
+      onDefaultLanguageChange([...next.keys()][0]);
+    }
+  }, [languageTexts, onLanguageTextsChange, editingLang, defaultLanguage, onDefaultLanguageChange]);
 
   return (
     <div className="space-y-3 mt-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Text Assets per Language</span>
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <ClipboardPaste className="h-3 w-3" />
-          Paste from Excel supported
+      {/* Paste area */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Paste from Excel</span>
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <ClipboardPaste className="h-3 w-3" />
+            Columns: {LANG_PASTE_COLUMNS.join(' | ')}
+          </div>
         </div>
+        <Textarea
+          value={pasteValue}
+          onChange={(e) => setPasteValue(e.target.value)}
+          onPaste={handlePaste}
+          placeholder={`Paste rows from Excel here...\ne.g.:\nEnglish\tCheck out our deals\tBig Sale\tSave up to 50%\thttps://example.com\tSHOP_NOW\nArabic\tتحقق من عروضنا\tتخفيضات كبيرة\tوفر حتى 50%\thttps://example.com/ar\tSHOP_NOW`}
+          className="text-xs min-h-[80px] resize-none font-mono"
+        />
+        {parseError && (
+          <p className="text-[10px] text-destructive">{parseError}</p>
+        )}
       </div>
 
-      <Tabs value={activeLangTab} onValueChange={setActiveLangTab}>
-        <TabsList className="h-7 w-full justify-start gap-0.5 bg-muted/50">
-          {selectedLanguages.map(lang => {
-            const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || lang.toUpperCase();
-            const texts = languageTexts.get(lang);
-            const hasContent = texts && Object.values(texts).some(v => v && v.length > 0);
-            return (
-              <TabsTrigger key={lang} value={lang} className="text-[11px] h-6 px-2 gap-1 data-[state=active]:bg-background">
-                {langLabel}
-                {lang === defaultLanguage && (
-                  <Badge variant="outline" className="text-[8px] h-3 px-1 ml-0.5">default</Badge>
-                )}
-                {hasContent && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" />}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-
-        {selectedLanguages.map(lang => {
-          const texts = languageTexts.get(lang) || {};
-          const editableFieldIdx = { current: 0 };
-
-          return (
-            <TabsContent key={lang} value={lang} className="mt-2 space-y-2">
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] h-6 gap-1"
-                  onClick={() => handleCopyToAllLangs(lang)}
-                >
-                  <Copy className="h-3 w-3" />
-                  Copy to all languages
-                </Button>
+      {/* Detected languages table */}
+      {detectedLanguages.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              {detectedLanguages.length} language(s) detected
+            </span>
+            {detectedLanguages.length >= 2 && onDefaultLanguageChange && (
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] text-muted-foreground">Default:</Label>
+                <Select value={defaultLanguage || detectedLanguages[0]} onValueChange={onDefaultLanguageChange}>
+                  <SelectTrigger className="h-6 w-28 text-[10px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {detectedLanguages.map(l => (
+                      <SelectItem key={l} value={l} className="text-xs">
+                        {SUPPORTED_LANGUAGES.find(sl => sl.code === l)?.label || l.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            )}
+          </div>
 
-              {LANG_TEXT_FIELDS.map((field, fieldIdx) => {
-                if (field.isCta) {
-                  return (
-                    <div key={field.id} className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">{field.label}</Label>
-                      <Select
-                        value={texts[field.id] || ''}
-                        onValueChange={(val) => handleFieldChange(lang, field.id, val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Select CTA..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {META_CTAS.map(cta => (
-                            <SelectItem key={cta} value={cta} className="text-xs">
-                              {cta.replace(/_/g, ' ')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                }
+          <div className="border rounded-md divide-y">
+            {detectedLanguages.map(lang => {
+              const texts = languageTexts.get(lang) || {};
+              const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || lang.toUpperCase();
+              const isEditing = editingLang === lang;
+              const filledCount = Object.values(texts).filter(v => v && v.length > 0).length;
 
-                const currentIdx = editableFieldIdx.current;
-                editableFieldIdx.current++;
-
-                return (
-                  <div key={field.id} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[11px] text-muted-foreground">{field.label}</Label>
-                      {field.maxLength && texts[field.id] && (
-                        <span className={cn(
-                          'text-[10px]',
-                          (texts[field.id]?.length || 0) > field.maxLength ? 'text-destructive' : 'text-muted-foreground'
-                        )}>
-                          {texts[field.id]?.length || 0}/{field.maxLength}
-                        </span>
-                      )}
-                    </div>
-                    {field.multiline ? (
-                      <Textarea
-                        value={texts[field.id] || ''}
-                        onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
-                        onPaste={(e) => handlePaste(e, lang, currentIdx)}
-                        placeholder={`${field.label}...`}
-                        className="text-xs min-h-[60px] resize-none"
-                        maxLength={field.maxLength}
-                      />
-                    ) : (
-                      <Input
-                        value={texts[field.id] || ''}
-                        onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
-                        onPaste={(e) => handlePaste(e, lang, currentIdx)}
-                        placeholder={`${field.label}...`}
-                        className="h-8 text-xs"
-                        maxLength={field.maxLength}
-                      />
-                    )}
+              return (
+                <div key={lang} className="text-xs">
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <button onClick={() => setEditingLang(isEditing ? null : lang)} className="p-0.5 hover:bg-muted rounded">
+                      {isEditing ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    </button>
+                    <Badge variant={lang === defaultLanguage ? 'default' : 'secondary'} className="text-[10px] h-5">
+                      {langLabel}
+                    </Badge>
+                    <span className="text-muted-foreground flex-1 truncate">
+                      {texts.headline || texts.primaryText || '(no text yet)'}
+                    </span>
+                    <Badge variant="outline" className="text-[9px] h-4">{filledCount} fields</Badge>
+                    <button
+                      onClick={() => handleRemoveLanguage(lang)}
+                      className="p-0.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </button>
                   </div>
-                );
-              })}
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+
+                  {isEditing && (
+                    <div className="px-3 pb-3 space-y-2 bg-muted/20">
+                      {[
+                        { id: 'primaryText', label: 'Primary Text', multiline: true },
+                        { id: 'headline', label: 'Headline' },
+                        { id: 'description', label: 'Description' },
+                        { id: 'destinationUrl', label: 'Destination URL' },
+                      ].map(field => (
+                        <div key={field.id} className="space-y-0.5">
+                          <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+                          {field.multiline ? (
+                            <Textarea
+                              value={texts[field.id] || ''}
+                              onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
+                              className="text-xs min-h-[50px] resize-none"
+                              placeholder={`${field.label}...`}
+                            />
+                          ) : (
+                            <Input
+                              value={texts[field.id] || ''}
+                              onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
+                              className="h-7 text-xs"
+                              placeholder={`${field.label}...`}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      <div className="space-y-0.5">
+                        <Label className="text-[10px] text-muted-foreground">Call to Action</Label>
+                        <Select
+                          value={texts.callToAction || ''}
+                          onValueChange={(val) => handleFieldChange(lang, 'callToAction', val)}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="Select CTA..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {META_CTAS.map(cta => (
+                              <SelectItem key={cta} value={cta} className="text-xs">
+                                {cta.replace(/_/g, ' ')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {detectedLanguages.length < 2 && (
+            <Alert className="py-2">
+              <AlertDescription className="text-[10px]">
+                Paste at least 2 language rows to enable language customization.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
     </div>
   );
 }
