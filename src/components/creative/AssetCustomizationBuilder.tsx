@@ -540,59 +540,23 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {isLanguageGroup && onLanguagesChange && (
+          {isLanguageGroup && languageTexts && onLanguageTextsChange && (
             <div className="space-y-3">
               <div>
-                <span className="text-xs font-medium text-muted-foreground">Select Target Languages</span>
+                <span className="text-xs font-medium text-muted-foreground">Language Text Assets</span>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Choose 2+ languages. The creative stays the same — text is swapped per language.
+                  Paste rows from Excel with columns: Language, Primary Text, Headline, Description, URL, CTA. Languages are auto-detected.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {SUPPORTED_LANGUAGES.map(lang => {
-                  const isChecked = selectedLanguages?.includes(lang.code) || false;
-                  return (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        const current = selectedLanguages || [];
-                        const updated = isChecked
-                          ? current.filter(c => c !== lang.code)
-                          : [...current, lang.code];
-                        onLanguagesChange(updated);
-                      }}
-                      className={cn(
-                        'px-2 py-1 rounded-md text-xs border transition-colors',
-                        isChecked
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
-                          : 'border-border hover:border-primary/50 text-muted-foreground',
-                      )}
-                    >
-                      {lang.label} ({lang.code.toUpperCase()})
-                    </button>
-                  );
-                })}
-              </div>
 
-              {selectedLanguages && selectedLanguages.length >= 2 && onDefaultLanguageChange && (
-                <div className="flex items-center gap-3">
-                  <Label className="text-xs shrink-0">Default Language</Label>
-                  <Select value={groupDefaultLanguage || selectedLanguages[0]} onValueChange={onDefaultLanguageChange}>
-                    <SelectTrigger className="h-7 w-36 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedLanguages.map(l => (
-                        <SelectItem key={l} value={l} className="text-xs">
-                          {SUPPORTED_LANGUAGES.find(sl => sl.code === l)?.label || l.toUpperCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <LanguageTextInputs
+                languageTexts={languageTexts}
+                onLanguageTextsChange={onLanguageTextsChange}
+                defaultLanguage={groupDefaultLanguage}
+                onDefaultLanguageChange={onDefaultLanguageChange}
+              />
 
-              {selectedLanguages && selectedLanguages.length >= 2 && onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && (
+              {onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && [...languageTexts.keys()].length >= 2 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -600,25 +564,8 @@ function DetectedGroupCard({
                   onClick={onApplyToAll}
                 >
                   <Globe className="h-3 w-3" />
-                  Apply these languages to all {totalLanguageGroups} language groups
+                  Apply text assets to all {totalLanguageGroups} language groups
                 </Button>
-              )}
-
-              {(!selectedLanguages || selectedLanguages.length < 2) && (
-                <Alert className="py-2">
-                  <AlertDescription className="text-xs">
-                    Select at least 2 languages to enable this customization.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {selectedLanguages && selectedLanguages.length >= 2 && languageTexts && onLanguageTextsChange && (
-                <LanguageTextInputs
-                  selectedLanguages={selectedLanguages}
-                  languageTexts={languageTexts}
-                  onLanguageTextsChange={onLanguageTextsChange}
-                  defaultLanguage={groupDefaultLanguage}
-                />
               )}
             </div>
           )}
@@ -1194,20 +1141,12 @@ export function AssetCustomizationBuilder({
                     onDefaultLanguageChange={setDefaultLanguage}
                   />
 
-                  {(() => {
-                    const uniqueLangs = [...new Set([...languageAssignments.values()].filter(Boolean))];
-                    if (uniqueLangs.length >= 2) {
-                      return (
-                        <LanguageTextInputs
-                          selectedLanguages={uniqueLangs}
-                          languageTexts={manualLanguageTexts}
-                          onLanguageTextsChange={setManualLanguageTexts}
-                          defaultLanguage={defaultLanguage}
-                        />
-                      );
-                    }
-                    return null;
-                  })()}
+                  <LanguageTextInputs
+                    languageTexts={manualLanguageTexts}
+                    onLanguageTextsChange={setManualLanguageTexts}
+                    defaultLanguage={defaultLanguage}
+                    onDefaultLanguageChange={setDefaultLanguage}
+                  />
 
                   {manualSpec && (
                     <>
