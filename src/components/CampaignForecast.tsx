@@ -242,6 +242,8 @@ export function CampaignForecast({
   const [budgetRecommendationOpen, setBudgetRecommendationOpen] = useState(false);
   const lastPoppedForecastId = useRef<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [forecastOptionsOpen, setForecastOptionsOpen] = useState(false);
+  const [pendingForecastOptions, setPendingForecastOptions] = useState<ForecastOptions | null>(null);
   const { versions, saveVersion, loadVersions } = useForecastVersions(campaignId);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
