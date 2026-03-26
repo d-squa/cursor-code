@@ -224,7 +224,8 @@ export async function getBenchmarkCostPerResult(
  */
 export async function getAllBenchmarks(
   industry?: string | null,
-  platform?: string
+  platform?: string,
+  dateRange?: { startDate?: string; endDate?: string }
 ): Promise<Map<string, BenchmarkData>> {
   try {
     let query = supabase
@@ -246,6 +247,22 @@ export async function getAllBenchmarks(
       return new Map();
     }
     
+    // Apply date range filter if provided
+    if (dateRange?.startDate) {
+      // Convert YYYY-MM to YYYY-MM-01
+      const startISO = dateRange.startDate.length === 7 ? `${dateRange.startDate}-01` : dateRange.startDate;
+      query = query.gte("date_range_start", startISO);
+      console.log(`📊 Benchmark date filter: start >= ${startISO}`);
+    }
+    if (dateRange?.endDate) {
+      // Convert YYYY-MM to last day of month
+      const [y, m] = dateRange.endDate.split("-").map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const endISO = `${dateRange.endDate}-${String(lastDay).padStart(2, "0")}`;
+      query = query.lte("date_range_end", endISO);
+      console.log(`📊 Benchmark date filter: end <= ${endISO}`);
+    }
+
     const { data, error } = await query.order("date_range_end", { ascending: false });
 
     if (error) {

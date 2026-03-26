@@ -26,6 +26,7 @@ import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
+import { ForecastOptionsDialog, ForecastOptions } from "./ForecastOptionsDialog";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
@@ -241,6 +242,8 @@ export function CampaignForecast({
   const [budgetRecommendationOpen, setBudgetRecommendationOpen] = useState(false);
   const lastPoppedForecastId = useRef<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [forecastOptionsOpen, setForecastOptionsOpen] = useState(false);
+  const [pendingForecastOptions, setPendingForecastOptions] = useState<ForecastOptions | null>(null);
   const { versions, saveVersion, loadVersions } = useForecastVersions(campaignId);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
@@ -537,7 +540,7 @@ export function CampaignForecast({
     if (!platforms || platforms.length === 0) return;
 
     // Trigger a single automatic fetch on first load of the Forecast step
-    handleFetchForecasts();
+    handleFetchForecasts(undefined);
   }, [existingLoadComplete, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
@@ -675,9 +678,9 @@ export function CampaignForecast({
   };
 
   // Reload benchmarks after sync
-  const reloadBenchmarks = async () => {
-    console.log("📊 Reloading benchmarks for industry:", resolvedIndustry || "(none)");
-    const benchmarkData = await getAllBenchmarks(resolvedIndustry);
+  const reloadBenchmarks = async (dateRange?: { startDate?: string; endDate?: string }) => {
+    console.log("📊 Reloading benchmarks for industry:", resolvedIndustry || "(none)", "dateRange:", dateRange);
+    const benchmarkData = await getAllBenchmarks(resolvedIndustry, undefined, dateRange);
     setBenchmarks(benchmarkData);
     console.log(`✅ Loaded ${benchmarkData.size} benchmarks`);
     return benchmarkData;
@@ -1465,9 +1468,14 @@ export function CampaignForecast({
     }
   };
 
-  const handleFetchForecasts = async () => {
+  const handleFetchForecasts = async (options?: ForecastOptions) => {
     setLoading(true);
     setHasExistingForecast(false);
+    
+    // Extract date range from options for benchmark filtering
+    const benchmarkDateRange = options?.benchmarkDateRange?.preset !== "all" 
+      ? { startDate: options?.benchmarkDateRange?.startDate, endDate: options?.benchmarkDateRange?.endDate }
+      : undefined;
     
     try {
       // Step 1: Sync benchmarks for all selected ad accounts
@@ -1476,8 +1484,8 @@ export function CampaignForecast({
       
       try {
         await syncBenchmarksForSelectedAccounts();
-        // Reload benchmarks after sync completes
-        await reloadBenchmarks();
+        // Reload benchmarks after sync completes (with optional date range filter)
+        await reloadBenchmarks(benchmarkDateRange);
       } catch (syncError) {
         console.warn("Benchmark sync failed, continuing with existing data:", syncError);
         toast.warning("Could not sync latest benchmarks. Using cached data.", { duration: 3000 });
@@ -1963,10 +1971,9 @@ export function CampaignForecast({
         const platformTotalAudienceSize = marketForecastsArray.reduce((sum, m) => sum + m.audienceSize, 0);
         const platformTotalReach = marketForecastsArray.reduce((sum, m) => sum + m.reach, 0);
         const platformTotalImp = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
-        // Use weighted average of market CPMs (weighted by impressions) to stay consistent
-        // with API/AI-predicted CPMs rather than recalculating from budget/impressions
+        // Use standard formula: CPM = (Budget / Impressions) * 1000
         const platformAvgCPM = platformTotalImp > 0
-          ? marketForecastsArray.reduce((sum, m) => sum + (m.cpm * m.impressions), 0) / platformTotalImp
+          ? (platformBudget / platformTotalImp) * 1000
           : 0;
         const platformFrequency = platformTotalReach > 0 ? platformTotalImp / platformTotalReach : 0;
         const platformSOV = platformTotalAudienceSize > 0 ? (platformTotalReach / platformTotalAudienceSize) * 100 : 0;
@@ -2001,8 +2008,9 @@ export function CampaignForecast({
       const actiplanTotalAudienceSize = platformForecasts.reduce((sum, p) => sum + p.totalAudienceSize, 0);
       const actiplanTotalImpressions = platformForecasts.reduce((sum, p) => sum + p.totalImpressions, 0);
       const actiplanTotalReach = platformForecasts.reduce((sum, p) => sum + p.totalReach, 0);
+      // Use standard formula: CPM = (Budget / Impressions) * 1000
       const actiplanAvgCPM = actiplanTotalImpressions > 0
-        ? platformForecasts.reduce((sum, p) => sum + (p.avgCPM * p.totalImpressions), 0) / actiplanTotalImpressions
+        ? (actiplanTotalBudget / actiplanTotalImpressions) * 1000
         : 0;
       const actiplanFrequency = actiplanTotalReach > 0 ? actiplanTotalImpressions / actiplanTotalReach : 0;
       const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
@@ -2030,15 +2038,92 @@ export function CampaignForecast({
         });
       });
 
+      // Apply markup/markdown if options specified
+      if (options?.applyMarkup && options.markupPercentage > 0) {
+        const multiplier = options.markupDirection === "up" 
+          ? 1 + (options.markupPercentage / 100)
+          : 1 - (options.markupPercentage / 100);
+        
+        const direction = options.markupDirection === "up" ? "+" : "−";
+        console.log(`📈 Applying ${direction}${options.markupPercentage}% markup (multiplier: ${multiplier})`);
+        
+        // Apply to all market-level forecasts in newForecasts
+        for (const platformId of Object.keys(newForecasts)) {
+          for (const forecast of newForecasts[platformId]) {
+            forecast.metrics.reach = Math.round(forecast.metrics.reach * multiplier);
+            forecast.metrics.impressions = Math.round(forecast.metrics.impressions * multiplier);
+            forecast.metrics.audienceSize = Math.round(forecast.metrics.audienceSize * multiplier);
+            forecast.metrics.result = Math.round(forecast.metrics.result * multiplier);
+            // CPM and costPerResult are inverse: if impressions go up, CPM goes down
+            if (forecast.metrics.impressions > 0) {
+              forecast.metrics.cpm = (forecast.budget / forecast.metrics.impressions) * 1000;
+            }
+            if (forecast.metrics.result > 0) {
+              forecast.metrics.costPerResult = parseFloat((forecast.budget / forecast.metrics.result).toFixed(2));
+            }
+          }
+        }
+        
+        // Recalculate platform-level aggregations
+        for (const pf of platformForecasts) {
+          pf.totalImpressions = Math.round(pf.totalImpressions * multiplier);
+          pf.totalReach = Math.round(pf.totalReach * multiplier);
+          pf.totalAudienceSize = Math.round(pf.totalAudienceSize * multiplier);
+          pf.avgCPM = pf.totalImpressions > 0 ? (pf.totalBudget / pf.totalImpressions) * 1000 : 0;
+          pf.frequency = pf.totalReach > 0 ? pf.totalImpressions / pf.totalReach : 0;
+          pf.sov = pf.totalAudienceSize > 0 ? (pf.totalReach / pf.totalAudienceSize) * 100 : 0;
+          
+          // Apply to market forecasts within platform
+          for (const mf of pf.markets) {
+            mf.impressions = Math.round(mf.impressions * multiplier);
+            mf.reach = Math.round(mf.reach * multiplier);
+            mf.audienceSize = Math.round(mf.audienceSize * multiplier);
+            mf.cpm = mf.impressions > 0 ? (mf.budget / mf.impressions) * 1000 : 0;
+            mf.frequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
+            mf.sov = mf.audienceSize > 0 ? (mf.reach / mf.audienceSize) * 100 : 0;
+            for (const r of mf.resultsByGoal) {
+              r.result = Math.round(r.result * multiplier);
+              r.costPerResult = r.result > 0 ? mf.budget / r.result : 0;
+              r.resultRate = mf.impressions > 0 ? (r.result / mf.impressions) * 100 : 0;
+            }
+            for (const ph of mf.phases) {
+              ph.result = Math.round(ph.result * multiplier);
+              ph.costPerResult = ph.result > 0 ? ph.budget / ph.result : 0;
+              ph.resultRate = mf.impressions > 0 ? (ph.result / mf.impressions) * 100 : 0;
+            }
+          }
+        }
+        
+        // Recalculate actiplan-level
+        const newActiplanImp = platformForecasts.reduce((s, p) => s + p.totalImpressions, 0);
+        const newActiplanReach = platformForecasts.reduce((s, p) => s + p.totalReach, 0);
+        const newActiplanAudience = platformForecasts.reduce((s, p) => s + p.totalAudienceSize, 0);
+        
+        // Override the let variables used below
+        Object.assign({ actiplanTotalImpressions: newActiplanImp, actiplanTotalReach: newActiplanReach, actiplanTotalAudienceSize: newActiplanAudience });
+        
+        toast.info(`${direction}${options.markupPercentage}% markup applied to all forecast numbers`);
+      }
+
       setForecasts(newForecasts);
+      
+      // Re-derive actiplan numbers from (potentially marked-up) platform forecasts
+      const finalActiplanBudget = platformForecasts.reduce((sum, p) => sum + p.totalBudget, 0);
+      const finalActiplanAudience = platformForecasts.reduce((sum, p) => sum + p.totalAudienceSize, 0);
+      const finalActiplanImp = platformForecasts.reduce((sum, p) => sum + p.totalImpressions, 0);
+      const finalActiplanReach = platformForecasts.reduce((sum, p) => sum + p.totalReach, 0);
+      const finalActiplanCPM = finalActiplanImp > 0 ? (finalActiplanBudget / finalActiplanImp) * 1000 : 0;
+      const finalActiplanFreq = finalActiplanReach > 0 ? finalActiplanImp / finalActiplanReach : 0;
+      const finalActiplanSOV = finalActiplanAudience > 0 ? (finalActiplanReach / finalActiplanAudience) * 100 : 0;
+      
       setActiplanForecast({
-        totalBudget: actiplanTotalBudget,
-        totalAudienceSize: actiplanTotalAudienceSize,
-        totalImpressions: actiplanTotalImpressions,
-        totalReach: actiplanTotalReach,
-        avgCPM: actiplanAvgCPM,
-        frequency: actiplanFrequency,
-        sov: actiplanSOV,
+        totalBudget: finalActiplanBudget,
+        totalAudienceSize: finalActiplanAudience,
+        totalImpressions: finalActiplanImp,
+        totalReach: finalActiplanReach,
+        avgCPM: finalActiplanCPM,
+        frequency: finalActiplanFreq,
+        sov: finalActiplanSOV,
         platformDeliverables,
         platforms: platformForecasts,
       });
@@ -2049,13 +2134,13 @@ export function CampaignForecast({
         generatedAt: new Date().toISOString(),
         forecasts: newForecasts,
         actiplanForecast: {
-          totalBudget: actiplanTotalBudget,
-          totalAudienceSize: actiplanTotalAudienceSize,
-          totalImpressions: actiplanTotalImpressions,
-          totalReach: actiplanTotalReach,
-          avgCPM: actiplanAvgCPM,
-          frequency: actiplanFrequency,
-          sov: actiplanSOV,
+          totalBudget: finalActiplanBudget,
+          totalAudienceSize: finalActiplanAudience,
+          totalImpressions: finalActiplanImp,
+          totalReach: finalActiplanReach,
+          avgCPM: finalActiplanCPM,
+          frequency: finalActiplanFreq,
+          sov: finalActiplanSOV,
           platformDeliverables,
           platforms: platformForecasts,
         },
@@ -2390,7 +2475,7 @@ export function CampaignForecast({
           </div>
           <div className="flex gap-2">
             {!loading && Object.keys(forecasts).length === 0 && (
-              <Button onClick={handleFetchForecasts} disabled={isSyncingBenchmarks}>
+              <Button onClick={() => setForecastOptionsOpen(true)} disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -2405,7 +2490,7 @@ export function CampaignForecast({
               </Button>
             )}
             {!loading && Object.keys(forecasts).length > 0 && (
-              <Button onClick={handleFetchForecasts} variant="outline" disabled={isSyncingBenchmarks}>
+              <Button onClick={() => setForecastOptionsOpen(true)} variant="outline" disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -2619,6 +2704,15 @@ export function CampaignForecast({
           />
         )}
       </CardContent>
+
+      <ForecastOptionsDialog
+        open={forecastOptionsOpen}
+        onOpenChange={setForecastOptionsOpen}
+        onConfirm={(options) => {
+          setForecastOptionsOpen(false);
+          handleFetchForecasts(options);
+        }}
+      />
     </Card>
   );
 }
