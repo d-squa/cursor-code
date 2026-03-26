@@ -533,6 +533,15 @@ function DetectedGroupCard({
                   </AlertDescription>
                 </Alert>
               )}
+
+              {selectedLanguages && selectedLanguages.length >= 2 && languageTexts && onLanguageTextsChange && (
+                <LanguageTextInputs
+                  selectedLanguages={selectedLanguages}
+                  languageTexts={languageTexts}
+                  onLanguageTextsChange={onLanguageTextsChange}
+                  defaultLanguage={groupDefaultLanguage}
+                />
+              )}
             </div>
           )}
 
