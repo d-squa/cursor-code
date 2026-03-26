@@ -438,8 +438,6 @@ function DetectedGroupCard({
   onToggle,
   expanded,
   onToggleExpand,
-  selectedLanguages,
-  onLanguagesChange,
   groupDefaultLanguage,
   onDefaultLanguageChange,
   onApplyToAll,
@@ -452,8 +450,6 @@ function DetectedGroupCard({
   onToggle: () => void;
   expanded: boolean;
   onToggleExpand: () => void;
-  selectedLanguages?: string[];
-  onLanguagesChange?: (langs: string[]) => void;
   groupDefaultLanguage?: string;
   onDefaultLanguageChange?: (lang: string) => void;
   onApplyToAll?: () => void;
@@ -462,9 +458,10 @@ function DetectedGroupCard({
   onLanguageTextsChange?: (texts: Map<string, Record<string, string>>) => void;
 }) {
   const isLanguageGroup = group.type === 'language';
-  const hasLanguages = isLanguageGroup && selectedLanguages && selectedLanguages.length >= 2;
+  const langCount = languageTexts ? [...languageTexts.keys()].length : 0;
+  const hasLanguages = isLanguageGroup && langCount >= 2;
   const hasErrors = group.validationErrors.length > 0;
-  const languageIncomplete = isLanguageGroup && (!selectedLanguages || selectedLanguages.length < 2);
+  const languageIncomplete = isLanguageGroup && langCount < 2;
 
   return (
     <div className={cn(
@@ -495,7 +492,7 @@ function DetectedGroupCard({
             </Badge>
             {hasLanguages && (
               <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] shrink-0">
-                {selectedLanguages.length} langs
+                {langCount} langs
               </Badge>
             )}
           </div>
@@ -1027,10 +1024,11 @@ export function AssetCustomizationBuilder({
 
         // For language groups, inject selected languages into the group
         if (group.type === 'language') {
-          const langs = groupLanguageSelections.get(group.id);
-          if (!langs || langs.length < 2) continue;
+          const langTexts = groupLanguageTexts.get(group.id);
+          const langs = langTexts ? [...langTexts.keys()] : [];
+          if (langs.length < 2) continue;
           const defLang = groupDefaultLanguages.get(group.id) || langs[0];
-          // Build language map from selected languages
+          // Build language map from pasted languages
           const langMap = new Map<string, CreativeTextAssetRow[]>();
           for (const lang of langs) {
             langMap.set(lang, group.rows);
@@ -1040,7 +1038,6 @@ export function AssetCustomizationBuilder({
             languages: langMap,
             manualLanguages: new Map(group.rows.map(r => [r.id, langs[0]])),
           };
-          const langTexts = groupLanguageTexts.get(group.id);
           const compiled = compileAssetFeedSpec(enrichedGroup, { defaultLanguage: defLang, languageTexts: langTexts });
           if (compiled.success) {
             onCreateGroup(enrichedGroup, compiled);
@@ -1079,13 +1076,13 @@ export function AssetCustomizationBuilder({
     }
   }, [manualGroup, manualSpec, onCreateGroup, handleOpenChange]);
 
-  // Count valid selected: for language groups, require 2+ languages selected
+  // Count valid selected: for language groups, require 2+ languages from pasted texts
   const validSelectedCount = detectedGroups.filter(g => {
     if (!selectedGroupIds.has(g.id)) return false;
     if (g.validationErrors.length > 0) return false;
     if (g.type === 'language') {
-      const langs = groupLanguageSelections.get(g.id);
-      return langs && langs.length >= 2;
+      const langTexts = groupLanguageTexts.get(g.id);
+      return langTexts && [...langTexts.keys()].length >= 2;
     }
     return true;
   }).length;
