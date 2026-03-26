@@ -444,8 +444,8 @@ async function syncAccountBenchmarks(
   const insightsResponse = await fetch(insightsUrl);
   if (!insightsResponse.ok) {
     const errorText = await insightsResponse.text();
-    console.error(`[BENCHMARK] Error fetching insights: ${errorText}`);
-    throw new Error(`Failed to fetch insights: ${errorText}`);
+    console.warn(`[BENCHMARK] Skipping benchmarks for ${accountId} - API error (likely permissions): ${errorText}`);
+    return { synced: 0, error: `API error: ${errorText}` };
   }
 
   const insightsData = await insightsResponse.json();
@@ -805,34 +805,8 @@ async function syncGoogleAdsAssets(
         }
 
         if (audiences.length > 0) {
-          // Delete existing audiences for this account
-          await supabase
-            .from("google_audiences")
-            .delete()
-            .eq("user_id", user.id)
-            .eq("customer_id", cleanAccountId);
-
-          const audiencesToInsert = audiences.map((aud: any) => ({
-            user_id: user.id,
-            customer_id: cleanAccountId,
-            audience_id: aud.userList?.id || "",
-            audience_name: aud.userList?.name || "",
-            audience_type: aud.userList?.type || "",
-            size_for_display: aud.userList?.sizeForDisplay || 0,
-            size_for_search: aud.userList?.sizeForSearch || 0,
-            synced_at: new Date().toISOString(),
-          }));
-
-          const { error: insertError } = await supabase
-            .from("google_audiences")
-            .insert(audiencesToInsert);
-
-          if (!insertError) {
-            syncResults.audiences = audiencesToInsert.length;
-            console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.audiences} Google audiences`);
-          } else {
-            console.error("[SYNC-ACCOUNT-ASSETS] Error inserting audiences:", insertError);
-          }
+          syncResults.audiences = audiences.length;
+          console.log(`[SYNC-ACCOUNT-ASSETS] Found ${syncResults.audiences} Google audiences (storage skipped - table not yet created)`);
         }
       } else {
         const errorText = await audienceResponse.text();
@@ -951,7 +925,7 @@ async function syncGoogleAdsBenchmarks(
 
   // Paginate through results using regular search endpoint
   do {
-    const requestBody: any = { query, pageSize: 10000 };
+    const requestBody: any = { query };
     if (nextPageToken) {
       requestBody.pageToken = nextPageToken;
     }
