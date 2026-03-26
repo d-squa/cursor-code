@@ -173,27 +173,32 @@ export function detectLanguage(row: CreativeTextAssetRow): string | null {
 }
 
 /**
- * Check if a group explicitly signals multi-language intent via taxonomy/path naming.
+ * Detect whether a single creative should become a Language Customization opportunity.
  *
- * IMPORTANT:
- * - This only looks for explicit multi-language markers such as "All Languages",
- *   "Multiple Language", or "Multi Language".
- * - It intentionally does NOT infer language intent from creative filename tokens like
- *   EN / FR / PT because those can collide with format abbreviations such as PT = Portrait.
+ * Rules:
+ * - explicit multi-language markers (folder/path/naming) can qualify a row
+ * - BUT explicit single-language creatives (EN / AR / FR...) must NOT be hijacked by
+ *   language mode, even if they live inside a multi-language folder hierarchy
  */
-function hasExplicitMultiLanguageMarker(rows: CreativeTextAssetRow[]): boolean {
-  const searchables = rows.map((row) => [
+function isExplicitMultiLanguageAsset(row: CreativeTextAssetRow): boolean {
+  const rowSearchable = [
     row.folderPath || '',
-    (row as any).taxonomyAdSetName || '',
+    row.creativeName || '',
+    row.originalFilename || '',
     (row as any).taxonomyAdName || '',
+    (row as any).taxonomyAdSetName || '',
     row.adSet || '',
-  ].join(' ')).join(' ').toLowerCase();
+  ].join(' ').toLowerCase();
 
-  if (/all[\s_-]*languages?/i.test(searchables)) return true;
-  if (/multiple[\s_-]*languages?/i.test(searchables)) return true;
-  if (/multi[\s_-]*languages?/i.test(searchables)) return true;
+  const hasMultiLanguageMarker =
+    /all[\s_-]*languages?/i.test(rowSearchable) ||
+    /multiple[\s_-]*languages?/i.test(rowSearchable) ||
+    /multi[\s_-]*languages?/i.test(rowSearchable);
 
-  return false;
+  if (!hasMultiLanguageMarker) return false;
+
+  // Explicit single-language assets should remain eligible for placement grouping.
+  return detectLanguage(row) === null;
 }
 
 export function getLocale(langCode: string): string {
@@ -258,88 +263,95 @@ export function detectAssetCustomizationGroups(
   const detected: DetectedACGroup[] = [];
 
   for (const [taxKey, groupRows] of taxonomyGroups) {
-    if (groupRows.length < 2) continue;
+    const autoLanguageRows = groupRows.filter(isExplicitMultiLanguageAsset);
+    const nonLanguageRows = groupRows.filter((row) => !isExplicitMultiLanguageAsset(row));
 
-    const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
-    const languageMap = new Map<string, CreativeTextAssetRow[]>();
-
-    for (const row of groupRows) {
+    // Priority 1: Explicit multi-language assets → each creative becomes its own Language group.
+    for (const row of autoLanguageRows) {
       const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
-      if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
-      bucketMap.get(bucket)!.push(row);
-
+      const singleBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+      singleBucketMap.set(bucket, [row]);
       const lang = detectLanguage(row) || 'unknown';
-      if (!languageMap.has(lang)) languageMap.set(lang, []);
-      languageMap.get(lang)!.push(row);
-    }
+      const singleLangMap = new Map<string, CreativeTextAssetRow[]>();
+      singleLangMap.set(lang, [row]);
 
-    const uniqueBuckets = new Set([...bucketMap.keys()].filter((bucket) => bucket !== 'other'));
-    const uniqueLanguages = new Set([...languageMap.keys()].filter((lang) => lang !== 'unknown'));
-    const hasDifferentBuckets = uniqueBuckets.size >= 2;
-    const hasExplicitMultiLanguageIntent = hasExplicitMultiLanguageMarker(groupRows);
+      const creativeName = row.creativeName || row.originalFilename || 'Creative';
+      const bucketLabel = bucket !== 'other' ? DELIVERY_BUCKETS[bucket].label : '';
 
-    // Priority 1: Explicit multi-language intent → each creative is its own Language group
-    // In language customization, the creative stays the same but text varies per locale.
-    // So every single creative is a standalone language customization opportunity.
-    if (hasExplicitMultiLanguageIntent) {
-      for (const row of groupRows) {
-        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
-        const singleBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
-        singleBucketMap.set(bucket, [row]);
-        const lang = detectLanguage(row) || 'unknown';
-        const singleLangMap = new Map<string, CreativeTextAssetRow[]>();
-        singleLangMap.set(lang, [row]);
-
-        const creativeName = row.creativeName || row.originalFilename || 'Creative';
-        const bucketLabel = bucket !== 'other' ? DELIVERY_BUCKETS[bucket].label : '';
-
-        detected.push({
-          id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}-${row.id}`,
-          type: 'language',
-          label: `Language Customization`,
-          description: `${creativeName}${bucketLabel ? ` (${bucketLabel})` : ''} — set text per language`,
-          rows: [row],
-          taxonomyKey: taxKey,
-          deliveryBuckets: singleBucketMap,
-          languages: singleLangMap,
-          validationErrors: [],
-        });
-      }
-    }
-    // Priority 2: Different formats without explicit language intent = Placement
-    else if (hasDifferentBuckets) {
-      const errors = validatePlacementGroup(bucketMap);
       detected.push({
-        id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
-        type: 'placement',
-        label: `Placement Customization`,
-        description: `${uniqueBuckets.size} delivery buckets: ${[...uniqueBuckets].map((bucket) => DELIVERY_BUCKETS[bucket].label).join(', ')}`,
-        rows: groupRows,
+        id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}-${row.id}`,
+        type: 'language',
+        label: `Language Customization`,
+        description: `${creativeName}${bucketLabel ? ` (${bucketLabel})` : ''} — set text per language`,
+        rows: [row],
         taxonomyKey: taxKey,
-        deliveryBuckets: bucketMap,
-        languages: languageMap,
-        validationErrors: errors,
+        deliveryBuckets: singleBucketMap,
+        languages: singleLangMap,
+        validationErrors: [],
       });
     }
-    // Priority 3: Same-ad-set creative pool fallback = Flexible
-    else if (groupRows.length >= 2) {
-      const supportedRows = groupRows.filter((row) => {
-        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
-        return bucket !== 'other';
-      });
 
-      if (supportedRows.length >= 2) {
+    // Remaining rows are evaluated in language-specific subgroups so EN/AR variants can still
+    // form placement customization opportunities instead of being merged into language mode.
+    const subgroupMap = new Map<string, CreativeTextAssetRow[]>();
+    for (const row of nonLanguageRows) {
+      const subgroupKey = detectLanguage(row) || 'unknown';
+      if (!subgroupMap.has(subgroupKey)) subgroupMap.set(subgroupKey, []);
+      subgroupMap.get(subgroupKey)!.push(row);
+    }
+
+    for (const [subgroupKey, subgroupRows] of subgroupMap) {
+      if (subgroupRows.length < 2) continue;
+
+      const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+      const languageMap = new Map<string, CreativeTextAssetRow[]>();
+
+      for (const row of subgroupRows) {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
+        bucketMap.get(bucket)!.push(row);
+
+        const lang = detectLanguage(row) || 'unknown';
+        if (!languageMap.has(lang)) languageMap.set(lang, []);
+        languageMap.get(lang)!.push(row);
+      }
+
+      const uniqueBuckets = new Set([...bucketMap.keys()].filter((bucket) => bucket !== 'other'));
+      const hasDifferentBuckets = uniqueBuckets.size >= 2;
+      const subgroupSuffix = subgroupKey === 'unknown' ? '' : `-${subgroupKey}`;
+
+      if (hasDifferentBuckets) {
+        const errors = validatePlacementGroup(bucketMap);
         detected.push({
-          id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
-          type: 'flexible_creative',
-          label: `Flexible Creative`,
-          description: `${supportedRows.length} creative variations for dynamic optimization`,
-          rows: supportedRows,
+          id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}${subgroupSuffix}`,
+          type: 'placement',
+          label: `Placement Customization`,
+          description: `${uniqueBuckets.size} delivery buckets: ${[...uniqueBuckets].map((bucket) => DELIVERY_BUCKETS[bucket].label).join(', ')}`,
+          rows: subgroupRows,
           taxonomyKey: taxKey,
           deliveryBuckets: bucketMap,
           languages: languageMap,
-          validationErrors: [],
+          validationErrors: errors,
         });
+      } else {
+        const supportedRows = subgroupRows.filter((row) => {
+          const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+          return bucket !== 'other';
+        });
+
+        if (supportedRows.length >= 2) {
+          detected.push({
+            id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}${subgroupSuffix}`,
+            type: 'flexible_creative',
+            label: `Flexible Creative`,
+            description: `${supportedRows.length} creative variations for dynamic optimization`,
+            rows: supportedRows,
+            taxonomyKey: taxKey,
+            deliveryBuckets: bucketMap,
+            languages: languageMap,
+            validationErrors: [],
+          });
+        }
       }
     }
   }
