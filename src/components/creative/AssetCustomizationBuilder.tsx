@@ -766,10 +766,33 @@ export function AssetCustomizationBuilder({
 
       for (const group of selected) {
         if (group.validationErrors.length > 0) continue;
-        const compiled = compileAssetFeedSpec(group, { defaultLanguage });
-        if (compiled.success) {
-          onCreateGroup(group, compiled);
-          count++;
+
+        // For language groups, inject selected languages into the group
+        if (group.type === 'language') {
+          const langs = groupLanguageSelections.get(group.id);
+          if (!langs || langs.length < 2) continue;
+          const defLang = groupDefaultLanguages.get(group.id) || langs[0];
+          // Build language map from selected languages
+          const langMap = new Map<string, CreativeTextAssetRow[]>();
+          for (const lang of langs) {
+            langMap.set(lang, group.rows);
+          }
+          const enrichedGroup: DetectedACGroup = {
+            ...group,
+            languages: langMap,
+            manualLanguages: new Map(group.rows.map(r => [r.id, langs[0]])),
+          };
+          const compiled = compileAssetFeedSpec(enrichedGroup, { defaultLanguage: defLang });
+          if (compiled.success) {
+            onCreateGroup(enrichedGroup, compiled);
+            count++;
+          }
+        } else {
+          const compiled = compileAssetFeedSpec(group, { defaultLanguage });
+          if (compiled.success) {
+            onCreateGroup(group, compiled);
+            count++;
+          }
         }
       }
 
@@ -782,7 +805,7 @@ export function AssetCustomizationBuilder({
     } finally {
       setIsCompiling(false);
     }
-  }, [detectedGroups, selectedGroupIds, defaultLanguage, onCreateGroup, handleOpenChange]);
+  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupLanguageSelections, groupDefaultLanguages, onCreateGroup, handleOpenChange]);
 
   const handleConfirmManual = useCallback(() => {
     if (!manualGroup || !manualSpec || !manualSpec.success) return;
@@ -797,9 +820,18 @@ export function AssetCustomizationBuilder({
     }
   }, [manualGroup, manualSpec, onCreateGroup, handleOpenChange]);
 
-  const validSelectedCount = detectedGroups.filter(
-    g => selectedGroupIds.has(g.id) && g.validationErrors.length === 0
-  ).length;
+  // Count valid selected: for language groups, require 2+ languages selected
+  const validSelectedCount = detectedGroups.filter(g => {
+    if (!selectedGroupIds.has(g.id)) return false;
+    if (g.validationErrors.length > 0) return false;
+    if (g.type === 'language') {
+      const langs = groupLanguageSelections.get(g.id);
+      return langs && langs.length >= 2;
+    }
+    return true;
+  }).length;
+
+  const totalLanguageGroups = detectedGroups.filter(g => g.type === 'language').length;
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
