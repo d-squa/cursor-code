@@ -806,7 +806,6 @@ export function AssetCustomizationBuilder({
       setExpandedGroupIds(new Set());
       setPreviewGroupId(null);
       setGroupDefaultLanguages(new Map());
-      setGroupDefaultLanguages(new Map());
       setGroupLanguageTexts(new Map());
       if (selectedRowIds.size >= 2) {
         setTab('manual');
