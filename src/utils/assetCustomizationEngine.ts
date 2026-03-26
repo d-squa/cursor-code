@@ -278,22 +278,33 @@ export function detectAssetCustomizationGroups(
     const hasDifferentBuckets = uniqueBuckets.size >= 2;
     const hasExplicitMultiLanguageIntent = hasExplicitMultiLanguageMarker(groupRows);
 
-    // Priority 1: Explicit multi-language intent should always become Language customization
+    // Priority 1: Explicit multi-language intent → each creative is its own Language group
+    // In language customization, the creative stays the same but text varies per locale.
+    // So every single creative is a standalone language customization opportunity.
     if (hasExplicitMultiLanguageIntent) {
-      const errors = validateLanguageGroup(languageMap);
-      detected.push({
-        id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
-        type: 'language',
-        label: `Language Customization`,
-        description: uniqueLanguages.size > 0
-          ? `${uniqueLanguages.size} languages detected`
-          : 'Multi-language taxonomy/path detected',
-        rows: groupRows,
-        taxonomyKey: taxKey,
-        deliveryBuckets: bucketMap,
-        languages: languageMap,
-        validationErrors: errors,
-      });
+      for (const row of groupRows) {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        const singleBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+        singleBucketMap.set(bucket, [row]);
+        const lang = detectLanguage(row) || 'unknown';
+        const singleLangMap = new Map<string, CreativeTextAssetRow[]>();
+        singleLangMap.set(lang, [row]);
+
+        const creativeName = row.creativeName || row.originalFilename || 'Creative';
+        const bucketLabel = bucket !== 'other' ? DELIVERY_BUCKETS[bucket].label : '';
+
+        detected.push({
+          id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}-${row.id}`,
+          type: 'language',
+          label: `Language Customization`,
+          description: `${creativeName}${bucketLabel ? ` (${bucketLabel})` : ''} — set text per language`,
+          rows: [row],
+          taxonomyKey: taxKey,
+          deliveryBuckets: singleBucketMap,
+          languages: singleLangMap,
+          validationErrors: [],
+        });
+      }
     }
     // Priority 2: Different formats without explicit language intent = Placement
     else if (hasDifferentBuckets) {
