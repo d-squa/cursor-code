@@ -1126,7 +1126,7 @@ async function syncGoogleAdsBenchmarks(
     if (error) {
       console.error(`[GOOGLE-BENCHMARK] Error storing ${key}:`, error);
     } else {
-      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} ROAS ${avgRoas?.toFixed(2) || 'N/A'}`);
+      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.total_results.toFixed(0)} results)`);
       storedCount++;
     }
   }
