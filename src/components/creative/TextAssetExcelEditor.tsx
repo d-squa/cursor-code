@@ -2733,6 +2733,8 @@ export function TextAssetExcelEditor({
         }}
         open={showCarouselCreator}
         onRowChange={onRowChange}
+        onApplyToAllCarousels={handleApplyToAllCarousels}
+        totalCarouselCount={totalCarouselCount}
       />
 
 
