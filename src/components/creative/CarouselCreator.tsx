@@ -129,6 +129,54 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
     });
   }, []);
 
+  // Bulk paste state
+  const [cardPasteValue, setCardPasteValue] = useState('');
+  const [cardPasteError, setCardPasteError] = useState<string | null>(null);
+
+  const handleCardBulkPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text/plain');
+    if (!pasted) return;
+    e.preventDefault();
+    setCardPasteError(null);
+
+    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      setCardPasteError('No data found in paste');
+      return;
+    }
+
+    const newCardData = { ...cardData };
+    let filled = 0;
+
+    for (let i = 0; i < lines.length && i < orderedIds.length; i++) {
+      const cardId = orderedIds[i];
+      const parts = lines[i].includes('\t')
+        ? lines[i].split('\t').map(s => s.trim())
+        : lines[i].split(/\s{2,}/).map(s => s.trim());
+
+      // Order: Headline, Description, Website URL, CTA
+      const [headline, description, websiteUrl, cta] = parts;
+      newCardData[cardId] = {
+        ...newCardData[cardId],
+        cardHeadline: headline || newCardData[cardId]?.cardHeadline || '',
+        cardDescription: description || newCardData[cardId]?.cardDescription || '',
+        cardWebsiteUrl: websiteUrl || newCardData[cardId]?.cardWebsiteUrl || '',
+        cardCallToAction: cta ? normalizeCardCTA(cta) : (newCardData[cardId]?.cardCallToAction || ''),
+      };
+      filled++;
+    }
+
+    setCardData(newCardData);
+    setCardPasteValue('');
+
+    if (filled < lines.length) {
+      setCardPasteError(`Pasted ${lines.length} rows but only ${orderedIds.length} cards exist. ${filled} cards filled.`);
+    }
+
+    // Auto-expand all cards to show results
+    setExpandedCards(new Set(orderedIds));
+  }, [cardData, orderedIds]);
+
   // Update card data field
   const updateCardField = useCallback((cardId: string, field: keyof CarouselCardData, value: string) => {
     setCardData(prev => ({
