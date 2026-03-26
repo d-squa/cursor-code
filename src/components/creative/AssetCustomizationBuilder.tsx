@@ -1014,7 +1014,8 @@ export function AssetCustomizationBuilder({
             languages: langMap,
             manualLanguages: new Map(group.rows.map(r => [r.id, langs[0]])),
           };
-          const compiled = compileAssetFeedSpec(enrichedGroup, { defaultLanguage: defLang });
+          const langTexts = groupLanguageTexts.get(group.id);
+          const compiled = compileAssetFeedSpec(enrichedGroup, { defaultLanguage: defLang, languageTexts: langTexts });
           if (compiled.success) {
             onCreateGroup(enrichedGroup, compiled);
             count++;
