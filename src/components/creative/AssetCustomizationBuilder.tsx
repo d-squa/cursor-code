@@ -1038,7 +1038,7 @@ export function AssetCustomizationBuilder({
     } finally {
       setIsCompiling(false);
     }
-  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupLanguageSelections, groupDefaultLanguages, onCreateGroup, handleOpenChange]);
+  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupLanguageSelections, groupDefaultLanguages, groupLanguageTexts, onCreateGroup, handleOpenChange]);
 
   const handleConfirmManual = useCallback(() => {
     if (!manualGroup || !manualSpec || !manualSpec.success) return;
