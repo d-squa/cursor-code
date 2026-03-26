@@ -114,11 +114,14 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
       const missingIds = selectedRows
         .filter(r => !existingCarousel.cardIds.includes(r.id))
         .map(r => r.id);
-      setOrderedIds([...existingIds, ...missingIds]);
+      // Deduplicate to prevent duplicate cards on re-group
+      setOrderedIds([...new Set([...existingIds, ...missingIds])]);
     } else {
       setCarouselName('');
       setCardData(seededCardData);
-      setOrderedIds(selectedRows.map(r => r.id));
+      // Deduplicate IDs to prevent duplicate cards on re-group
+      const uniqueIds = [...new Set(selectedRows.map(r => r.id))];
+      setOrderedIds(uniqueIds);
     }
     setExpandedCards(new Set());
   }, [open, selectedRows, existingCarousel]);
