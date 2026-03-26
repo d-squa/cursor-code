@@ -208,7 +208,8 @@ function compilePlacement(
  */
 function compileLanguage(
   group: DetectedACGroup,
-  defaultLanguage?: string
+  defaultLanguage?: string,
+  languageTexts?: Map<string, Record<string, string>>
 ): CompilationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -380,13 +381,13 @@ function compileFlexible(group: DetectedACGroup): CompilationResult {
  */
 export function compileAssetFeedSpec(
   group: DetectedACGroup,
-  options?: { defaultLanguage?: string }
+  options?: { defaultLanguage?: string; languageTexts?: Map<string, Record<string, string>> }
 ): CompilationResult {
   switch (group.type) {
     case 'placement':
       return compilePlacement(group);
     case 'language':
-      return compileLanguage(group, options?.defaultLanguage);
+      return compileLanguage(group, options?.defaultLanguage, options?.languageTexts);
     case 'flexible_creative':
       return compileFlexible(group);
     default:
