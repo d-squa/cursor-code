@@ -2398,7 +2398,7 @@ export function CampaignForecast({
           </div>
           <div className="flex gap-2">
             {!loading && Object.keys(forecasts).length === 0 && (
-              <Button onClick={handleFetchForecasts} disabled={isSyncingBenchmarks}>
+              <Button onClick={() => setForecastOptionsOpen(true)} disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -2413,7 +2413,7 @@ export function CampaignForecast({
               </Button>
             )}
             {!loading && Object.keys(forecasts).length > 0 && (
-              <Button onClick={handleFetchForecasts} variant="outline" disabled={isSyncingBenchmarks}>
+              <Button onClick={() => setForecastOptionsOpen(true)} variant="outline" disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
