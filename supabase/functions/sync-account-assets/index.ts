@@ -909,7 +909,6 @@ async function syncGoogleAdsBenchmarks(
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
-      metrics.video_views,
       metrics.all_conversions,
       metrics.conversions_value,
       metrics.all_conversions_value

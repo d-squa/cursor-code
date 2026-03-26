@@ -2162,6 +2162,45 @@ export type Database = {
           },
         ]
       }
+      google_conversion_actions: {
+        Row: {
+          category: string | null
+          conversion_action_id: string
+          conversion_action_name: string
+          conversion_type: string | null
+          created_at: string | null
+          customer_id: string
+          id: string
+          status: string | null
+          synced_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          conversion_action_id: string
+          conversion_action_name: string
+          conversion_type?: string | null
+          created_at?: string | null
+          customer_id: string
+          id?: string
+          status?: string | null
+          synced_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          conversion_action_id?: string
+          conversion_action_name?: string
+          conversion_type?: string | null
+          created_at?: string | null
+          customer_id?: string
+          id?: string
+          status?: string | null
+          synced_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_at: string | null
