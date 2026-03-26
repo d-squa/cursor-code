@@ -941,28 +941,6 @@ export function AssetCustomizationBuilder({
     });
   }, []);
 
-  // Language selection for auto-detected language groups
-  const handleGroupLanguageChange = useCallback((groupId: string, langs: string[]) => {
-    setGroupLanguageSelections(prev => {
-      const next = new Map(prev);
-      next.set(groupId, langs);
-      return next;
-    });
-    // Auto-expand and auto-select when 2+ languages
-    if (langs.length >= 2) {
-      setSelectedGroupIds(prev => {
-        const next = new Set(prev);
-        next.add(groupId);
-        return next;
-      });
-    }
-    setExpandedGroupIds(prev => {
-      const next = new Set(prev);
-      next.add(groupId);
-      return next;
-    });
-  }, []);
-
   const handleGroupDefaultLanguageChange = useCallback((groupId: string, lang: string) => {
     setGroupDefaultLanguages(prev => {
       const next = new Map(prev);
@@ -971,17 +949,22 @@ export function AssetCustomizationBuilder({
     });
   }, []);
 
-  // Apply language selections from one group to all other language groups
+  // Apply language text assets from one group to all other language groups
   const handleApplyLanguagesToAll = useCallback((sourceGroupId: string) => {
-    const sourceLangs = groupLanguageSelections.get(sourceGroupId);
+    const sourceTexts = groupLanguageTexts.get(sourceGroupId);
     const sourceDefault = groupDefaultLanguages.get(sourceGroupId);
-    if (!sourceLangs || sourceLangs.length === 0) return;
+    if (!sourceTexts || [...sourceTexts.keys()].length === 0) return;
 
     const langGroups = detectedGroups.filter(g => g.type === 'language');
-    setGroupLanguageSelections(prev => {
+    setGroupLanguageTexts(prev => {
       const next = new Map(prev);
       for (const g of langGroups) {
-        next.set(g.id, [...sourceLangs]);
+        // Deep copy the texts map
+        const copied = new Map<string, Record<string, string>>();
+        for (const [lang, texts] of sourceTexts) {
+          copied.set(lang, { ...texts });
+        }
+        next.set(g.id, copied);
       }
       return next;
     });
@@ -1002,8 +985,8 @@ export function AssetCustomizationBuilder({
       }
       return next;
     });
-    toast.success(`Applied languages to ${langGroups.length} language group(s)`);
-  }, [groupLanguageSelections, groupDefaultLanguages, detectedGroups]);
+    toast.success(`Applied text assets to ${langGroups.length} language group(s)`);
+  }, [groupLanguageTexts, groupDefaultLanguages, detectedGroups]);
 
   const handleGroupLanguageTextsChange = useCallback((groupId: string, texts: Map<string, Record<string, string>>) => {
     setGroupLanguageTexts(prev => {
