@@ -113,7 +113,7 @@ function normalizeBenchmarkGoal(goal: string, platform: string): string {
       'MANUAL CPC': 'CLICK',
       'MAXIMUM_CPC': 'CLICK',
       'MAXIMUM CPC': 'CLICK',
-      'CPM': 'CLICK',
+      'CPM': 'REACH',
       'VIEWABLE_IMPRESSIONS': 'CLICK',
       'MAXIMIZE_CONVERSIONS': 'CONVERSION',
       'MAXIMIZE CONVERSIONS': 'CONVERSION',
