@@ -1014,6 +1014,12 @@ export function AssetCustomizationBuilder({
                         onToggle={() => toggleGroupSelection(group.id)}
                         expanded={expandedGroupIds.has(group.id)}
                         onToggleExpand={() => toggleGroupExpand(group.id)}
+                        selectedLanguages={groupLanguageSelections.get(group.id)}
+                        onLanguagesChange={group.type === 'language' ? (langs) => handleGroupLanguageChange(group.id, langs) : undefined}
+                        groupDefaultLanguage={groupDefaultLanguages.get(group.id)}
+                        onDefaultLanguageChange={group.type === 'language' ? (lang) => handleGroupDefaultLanguageChange(group.id, lang) : undefined}
+                        onApplyToAll={group.type === 'language' ? () => handleApplyLanguagesToAll(group.id) : undefined}
+                        totalLanguageGroups={totalLanguageGroups}
                       />
                     ))}
                   </div>
