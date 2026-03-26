@@ -1963,7 +1963,11 @@ export function CampaignForecast({
         const platformTotalAudienceSize = marketForecastsArray.reduce((sum, m) => sum + m.audienceSize, 0);
         const platformTotalReach = marketForecastsArray.reduce((sum, m) => sum + m.reach, 0);
         const platformTotalImp = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
-        const platformAvgCPM = platformTotalImp > 0 ? (platformBudget / (platformTotalImp / 1000)) : 0;
+        // Use weighted average of market CPMs (weighted by impressions) to stay consistent
+        // with API/AI-predicted CPMs rather than recalculating from budget/impressions
+        const platformAvgCPM = platformTotalImp > 0
+          ? marketForecastsArray.reduce((sum, m) => sum + (m.cpm * m.impressions), 0) / platformTotalImp
+          : 0;
         const platformFrequency = platformTotalReach > 0 ? platformTotalImp / platformTotalReach : 0;
         const platformSOV = platformTotalAudienceSize > 0 ? (platformTotalReach / platformTotalAudienceSize) * 100 : 0;
         
