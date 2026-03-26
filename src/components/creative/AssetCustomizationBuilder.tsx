@@ -588,10 +588,12 @@ function DetectedGroupCard({
   onLanguageTextsChange?: (texts: Map<string, Record<string, string>>) => void;
 }) {
   const isLanguageGroup = group.type === 'language';
+  const isFlexibleGroup = group.type === 'flexible_creative';
+  const needsLanguageInput = isLanguageGroup || isFlexibleGroup;
   const langCount = languageTexts ? [...languageTexts.keys()].length : 0;
-  const hasLanguages = isLanguageGroup && langCount >= 2;
+  const hasLanguages = needsLanguageInput && langCount >= 2;
   const hasErrors = group.validationErrors.length > 0;
-  const languageIncomplete = isLanguageGroup && langCount < 2;
+  const languageIncomplete = needsLanguageInput && langCount < 2;
 
   return (
     <div className={cn(
@@ -697,18 +699,49 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {group.type === 'flexible_creative' && (
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">Asset Variations</span>
-              {group.rows.map((row) => (
-                <div key={row.id} className="flex items-center gap-2 pl-2 text-xs">
-                  {row.mediaType === 'video' ? <Video className="h-3 w-3" /> : <Image className="h-3 w-3" />}
-                  <span className="truncate">{row.creativeName}</span>
-                  {row.aspectRatio && (
-                    <Badge variant="outline" className="text-[9px] h-4">{row.aspectRatio}</Badge>
-                  )}
+          {isFlexibleGroup && (
+            <div className="space-y-2">
+              <span className="text-xs font-medium text-muted-foreground">Delivery Buckets</span>
+              {[...group.deliveryBuckets.entries()].filter(([b]) => b !== 'other').map(([bucket, rows]) => (
+                <div key={bucket} className="flex items-center gap-2 pl-2">
+                  {BUCKET_ICONS[bucket]}
+                  <span className="text-xs">{DELIVERY_BUCKETS[bucket].label}</span>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground truncate">
+                    {rows.map(r => r.creativeName).join(', ')}
+                  </span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {isFlexibleGroup && languageTexts && onLanguageTextsChange && (
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Language Text Assets</span>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Flexible = multi-format + multi-language. Paste rows from Excel: Language, Primary Text, Headline, Description, URL, CTA.
+                </p>
+              </div>
+
+              <LanguageTextInputs
+                languageTexts={languageTexts}
+                onLanguageTextsChange={onLanguageTextsChange}
+                defaultLanguage={groupDefaultLanguage}
+                onDefaultLanguageChange={onDefaultLanguageChange}
+              />
+
+              {onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && [...languageTexts.keys()].length >= 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 gap-1.5"
+                  onClick={onApplyToAll}
+                >
+                  <Globe className="h-3 w-3" />
+                  Apply text assets to all flexible groups
+                </Button>
+              )}
             </div>
           )}
 
@@ -1146,8 +1179,8 @@ export function AssetCustomizationBuilder({
       for (const group of selected) {
         if (group.validationErrors.length > 0) continue;
 
-        // For language groups, inject selected languages into the group
-        if (group.type === 'language') {
+        // For language and flexible groups, inject selected languages into the group
+        if (group.type === 'language' || group.type === 'flexible_creative') {
           const langTexts = groupLanguageTexts.get(group.id);
           const langs = langTexts ? [...langTexts.keys()] : [];
           if (langs.length < 2) continue;
@@ -1204,14 +1237,14 @@ export function AssetCustomizationBuilder({
   const validSelectedCount = detectedGroups.filter(g => {
     if (!selectedGroupIds.has(g.id)) return false;
     if (g.validationErrors.length > 0) return false;
-    if (g.type === 'language') {
+    if (g.type === 'language' || g.type === 'flexible_creative') {
       const langTexts = groupLanguageTexts.get(g.id);
       return langTexts && [...langTexts.keys()].length >= 2;
     }
     return true;
   }).length;
 
-  const totalLanguageGroups = detectedGroups.filter(g => g.type === 'language').length;
+  const totalLanguageGroups = detectedGroups.filter(g => g.type === 'language' || g.type === 'flexible_creative').length;
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -1268,6 +1301,63 @@ export function AssetCustomizationBuilder({
                     defaultLanguage={defaultLanguage}
                     onDefaultLanguageChange={setDefaultLanguage}
                   />
+
+                  {manualSpec && (
+                    <>
+                      <Separator />
+                      <SpecPreviewPanel spec={manualSpec} />
+                    </>
+                  )}
+                </div>
+              ) : manualType === 'flexible_creative' ? (
+                <div className="space-y-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setManualType(null)}
+                      className="text-xs h-7"
+                    >
+                      ← Back
+                    </Button>
+                    <div className={cn('p-1.5 rounded-md', TYPE_COLORS.flexible_creative)}>
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-medium">Flexible Creative</span>
+                  </div>
+
+                  {/* Show delivery buckets */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Selected Creatives (Multi-format + Multi-language)</span>
+                    {manualRows.map(row => {
+                      const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+                      return (
+                        <div key={row.id} className="flex items-center gap-2 pl-2 text-xs p-1.5 border rounded-md">
+                          {row.mediaType === 'video' ? <Video className="h-3.5 w-3.5 text-muted-foreground" /> : <Image className="h-3.5 w-3.5 text-muted-foreground" />}
+                          <span className="truncate flex-1">{row.creativeName}</span>
+                          <Badge variant="outline" className="text-[9px] h-4 shrink-0">
+                            {DELIVERY_BUCKETS[bucket].label}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Language text inputs — same as language mode */}
+                  <LanguageTextInputs
+                    languageTexts={manualLanguageTexts}
+                    onLanguageTextsChange={setManualLanguageTexts}
+                    defaultLanguage={defaultLanguage}
+                    onDefaultLanguageChange={setDefaultLanguage}
+                  />
+
+                  {manualGroup && manualGroup.validationErrors.length > 0 && (
+                    <Alert variant="destructive" className="py-2">
+                      <AlertDescription className="text-xs">
+                        {manualGroup.validationErrors.map((e, i) => <div key={i}>• {e}</div>)}
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   {manualSpec && (
                     <>
@@ -1402,11 +1492,11 @@ export function AssetCustomizationBuilder({
                         expanded={expandedGroupIds.has(group.id)}
                         onToggleExpand={() => toggleGroupExpand(group.id)}
                         groupDefaultLanguage={groupDefaultLanguages.get(group.id)}
-                        onDefaultLanguageChange={group.type === 'language' ? (lang) => handleGroupDefaultLanguageChange(group.id, lang) : undefined}
-                        onApplyToAll={group.type === 'language' ? () => handleApplyLanguagesToAll(group.id) : undefined}
+                        onDefaultLanguageChange={(group.type === 'language' || group.type === 'flexible_creative') ? (lang) => handleGroupDefaultLanguageChange(group.id, lang) : undefined}
+                        onApplyToAll={(group.type === 'language' || group.type === 'flexible_creative') ? () => handleApplyLanguagesToAll(group.id) : undefined}
                         totalLanguageGroups={totalLanguageGroups}
-                        languageTexts={group.type === 'language' ? (groupLanguageTexts.get(group.id) || new Map()) : undefined}
-                        onLanguageTextsChange={group.type === 'language' ? (texts) => handleGroupLanguageTextsChange(group.id, texts) : undefined}
+                        languageTexts={(group.type === 'language' || group.type === 'flexible_creative') ? (groupLanguageTexts.get(group.id) || new Map()) : undefined}
+                        onLanguageTextsChange={(group.type === 'language' || group.type === 'flexible_creative') ? (texts) => handleGroupLanguageTextsChange(group.id, texts) : undefined}
                       />
                     ))}
                   </div>
