@@ -66,6 +66,7 @@ import {
   classifyDeliveryBucket,
   detectLanguage,
   DELIVERY_BUCKETS,
+  SUPPORTED_LANGUAGES,
 } from '@/utils/assetCustomizationEngine';
 import { compileAssetFeedSpec, type CompilationResult } from '@/utils/assetFeedSpecCompiler';
 
@@ -78,6 +79,8 @@ interface AssetCustomizationBuilderProps {
   selectedRowIds: Set<string>;
   platform: string;
   campaignId?: string;
+  /** If set, skip type selection and go straight to this mode */
+  forcedType?: CustomizationType;
   onCreateGroup: (group: DetectedACGroup, compiledSpec: CompilationResult) => void;
   onUngroupRows: (rowIds: string[]) => void;
 }
@@ -94,6 +97,12 @@ const TYPE_LABELS: Record<CustomizationType, string> = {
   flexible_creative: 'Flexible Creative',
 };
 
+const TYPE_DESCRIPTIONS: Record<CustomizationType, string> = {
+  placement: 'Different creative dimensions per placement (e.g. 9:16 for Stories, 1:1 for Feed). Text stays the same.',
+  language: 'Same creative, different text per language. The system swaps text based on the user\'s language.',
+  flexible_creative: 'Pool of creatives + text options. Meta AI mixes and matches for best performance.',
+};
+
 const TYPE_COLORS: Record<CustomizationType, string> = {
   placement: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30',
   language: 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30',
@@ -107,6 +116,47 @@ const BUCKET_ICONS: Record<DeliveryBucket, React.ReactNode> = {
   vertical: <Smartphone className="h-3.5 w-3.5" />,
   other: <Image className="h-3.5 w-3.5" />,
 };
+
+// ─── Type Selector Step ──────────────────────────────────────────────────────
+
+function TypeSelector({
+  onSelect,
+}: {
+  onSelect: (type: CustomizationType) => void;
+}) {
+  const types: CustomizationType[] = ['placement', 'language', 'flexible_creative'];
+
+  return (
+    <div className="space-y-4 py-4">
+      <p className="text-sm text-muted-foreground">
+        Choose the type of asset customization to create:
+      </p>
+      <div className="space-y-3">
+        {types.map(type => (
+          <button
+            key={type}
+            onClick={() => onSelect(type)}
+            className={cn(
+              'w-full flex items-start gap-3 p-4 rounded-lg border text-left transition-colors',
+              'hover:border-primary hover:bg-primary/5',
+            )}
+          >
+            <div className={cn('p-2 rounded-md mt-0.5 shrink-0', TYPE_COLORS[type])}>
+              {TYPE_ICONS[type]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm">{TYPE_LABELS[type]}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {TYPE_DESCRIPTIONS[type]}
+              </p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ─── Sub-Components ──────────────────────────────────────────────────────────
 
@@ -173,7 +223,6 @@ function DetectedGroupCard({
 
       {expanded && (
         <div className="border-t px-3 py-2 space-y-2">
-          {/* Delivery bucket breakdown */}
           {group.type === 'placement' && (
             <div className="space-y-1.5">
               <span className="text-xs font-medium text-muted-foreground">Delivery Buckets</span>
@@ -195,7 +244,6 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {/* Language breakdown */}
           {group.type === 'language' && (
             <div className="space-y-1.5">
               <span className="text-xs font-medium text-muted-foreground">Languages</span>
@@ -212,11 +260,10 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {/* Flexible creative - list all assets */}
           {group.type === 'flexible_creative' && (
             <div className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground">Asset Variations</span>
-              {group.rows.map((row, i) => (
+              {group.rows.map((row) => (
                 <div key={row.id} className="flex items-center gap-2 pl-2 text-xs">
                   {row.mediaType === 'video' ? <Video className="h-3 w-3" /> : <Image className="h-3 w-3" />}
                   <span className="truncate">{row.creativeName}</span>
@@ -228,7 +275,6 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {/* Validation errors */}
           {hasErrors && (
             <Alert variant="destructive" className="py-2">
               <AlertDescription className="text-xs">
@@ -242,88 +288,123 @@ function DetectedGroupCard({
   );
 }
 
-function ManualSelectionPanel({
+// ─── Manual Language Assignment Panel ────────────────────────────────────────
+
+function LanguageAssignmentPanel({
   rows,
-  selectedIds,
-  onToggleRow,
+  languageAssignments,
+  onAssignLanguage,
+  defaultLanguage,
+  onDefaultLanguageChange,
 }: {
   rows: CreativeTextAssetRow[];
-  selectedIds: Set<string>;
-  onToggleRow: (id: string) => void;
+  languageAssignments: Map<string, string>;
+  onAssignLanguage: (rowId: string, lang: string) => void;
+  defaultLanguage: string;
+  onDefaultLanguageChange: (lang: string) => void;
 }) {
-  const validation = useMemo(() => {
-    const selected = rows.filter(r => selectedIds.has(r.id));
-    if (selected.length < 2) return null;
-    return validateACSelection(selected);
-  }, [rows, selectedIds]);
+  const assignedLangs = useMemo(() => {
+    const langs = new Set<string>();
+    for (const lang of languageAssignments.values()) {
+      if (lang) langs.add(lang);
+    }
+    return langs;
+  }, [languageAssignments]);
+
+  const allAssigned = rows.every(r => languageAssignments.get(r.id));
+  const uniqueLangs = assignedLangs.size;
+  const hasEnoughLangs = uniqueLangs >= 2;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Select Creatives</span>
-        {selectedIds.size >= 2 && validation && (
-          <div className="flex items-center gap-1.5">
-            {validation.valid ? (
-              <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px]">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                {TYPE_LABELS[validation.type!]}
-              </Badge>
-            ) : (
-              <Badge variant="destructive" className="text-[10px]">
-                <XCircle className="h-3 w-3 mr-1" />
-                Invalid
-              </Badge>
-            )}
-          </div>
+        <div>
+          <span className="text-sm font-medium">Assign Languages</span>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Assign a language to each creative. The creative (image/video) stays the same — text is swapped per language.
+          </p>
+        </div>
+        {allAssigned && hasEnoughLangs && (
+          <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px]">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            {uniqueLangs} languages
+          </Badge>
         )}
       </div>
 
-      <ScrollArea className="h-[300px] border rounded-md">
-        <div className="p-2 space-y-1">
-          {rows.map(row => {
-            const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
-            const lang = detectLanguage(row);
-            const isDisabled = !!(row as any).isOrganic || !!row.carouselGroupId || !!row.assetCustomizationGroupId;
+      <div className="space-y-2">
+        {rows.map(row => {
+          const autoDetected = detectLanguage(row);
+          const assigned = languageAssignments.get(row.id) || '';
 
-            return (
-              <label
-                key={row.id}
-                className={cn(
-                  'flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 transition-colors',
-                  selectedIds.has(row.id) && 'bg-primary/10',
-                  isDisabled && 'opacity-50 cursor-not-allowed',
-                )}
-              >
-                <Checkbox
-                  checked={selectedIds.has(row.id)}
-                  onCheckedChange={() => onToggleRow(row.id)}
-                  disabled={isDisabled}
-                />
-                {row.mediaType === 'video' ? <Video className="h-3.5 w-3.5 text-muted-foreground" /> : <Image className="h-3.5 w-3.5 text-muted-foreground" />}
-                <span className="text-xs truncate flex-1">{row.creativeName}</span>
-                <Badge variant="outline" className="text-[9px] h-4 shrink-0">
-                  {DELIVERY_BUCKETS[bucket].label.split(' ')[0]}
-                </Badge>
-                {lang && (
-                  <Badge variant="secondary" className="text-[9px] h-4 shrink-0 uppercase">
-                    {lang}
-                  </Badge>
-                )}
+          return (
+            <div key={row.id} className="flex items-center gap-3 p-2 border rounded-md">
+              {row.mediaType === 'video' ? <Video className="h-4 w-4 text-muted-foreground shrink-0" /> : <Image className="h-4 w-4 text-muted-foreground shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <span className="text-xs truncate block">{row.creativeName}</span>
                 {row.aspectRatio && (
-                  <span className="text-[10px] text-muted-foreground shrink-0">{row.aspectRatio}</span>
+                  <span className="text-[10px] text-muted-foreground">{row.aspectRatio}</span>
                 )}
-              </label>
-            );
-          })}
-        </div>
-      </ScrollArea>
+              </div>
+              <Select
+                value={assigned}
+                onValueChange={(val) => onAssignLanguage(row.id, val)}
+              >
+                <SelectTrigger className="h-7 w-36 text-xs">
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUPPORTED_LANGUAGES.map(l => (
+                    <SelectItem key={l.code} value={l.code} className="text-xs">
+                      {l.label} ({l.code.toUpperCase()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {autoDetected && !assigned && (
+                <Badge variant="outline" className="text-[9px] h-5 shrink-0 cursor-pointer"
+                  onClick={() => onAssignLanguage(row.id, autoDetected)}
+                >
+                  Auto: {autoDetected.toUpperCase()}
+                </Badge>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
-      {validation && !validation.valid && validation.errors.length > 0 && (
-        <Alert variant="destructive" className="py-2">
+      {!allAssigned && (
+        <Alert className="py-2">
           <AlertDescription className="text-xs">
-            {validation.errors.map((e, i) => <div key={i}>• {e}</div>)}
+            Assign a language to every creative to proceed.
           </AlertDescription>
         </Alert>
+      )}
+
+      {allAssigned && !hasEnoughLangs && (
+        <Alert variant="destructive" className="py-2">
+          <AlertDescription className="text-xs">
+            At least 2 distinct languages are required for language customization.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {allAssigned && hasEnoughLangs && (
+        <div className="flex items-center gap-3">
+          <Label className="text-xs shrink-0">Default Language</Label>
+          <Select value={defaultLanguage} onValueChange={onDefaultLanguageChange}>
+            <SelectTrigger className="h-8 w-36 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[...assignedLangs].map(l => (
+                <SelectItem key={l} value={l} className="text-xs">
+                  {SUPPORTED_LANGUAGES.find(sl => sl.code === l)?.label || l.toUpperCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
     </div>
   );
@@ -384,19 +465,43 @@ export function AssetCustomizationBuilder({
   selectedRowIds,
   platform,
   campaignId,
+  forcedType,
   onCreateGroup,
   onUngroupRows,
 }: AssetCustomizationBuilderProps) {
   const [tab, setTab] = useState<'detect' | 'manual'>('detect');
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
-  const [manualSelectedIds, setManualSelectedIds] = useState<Set<string>>(new Set(selectedRowIds));
   const [previewGroupId, setPreviewGroupId] = useState<string | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
   const [defaultLanguage, setDefaultLanguage] = useState<string>('en');
-  const [groupName, setGroupName] = useState('');
 
-  // Filter to same-adset rows for manual mode
+  // Manual mode state
+  const [manualType, setManualType] = useState<CustomizationType | null>(forcedType || null);
+  const [languageAssignments, setLanguageAssignments] = useState<Map<string, string>>(new Map());
+
+  // Determine if we're in manual mode (user selected creatives before opening)
+  const isManualMode = selectedRowIds.size >= 2;
+
+  // Reset state when dialog opens
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setManualType(forcedType || null);
+      setLanguageAssignments(new Map());
+      setSelectedGroupIds(new Set());
+      setExpandedGroupIds(new Set());
+      setPreviewGroupId(null);
+      // If user has selection, go to manual tab
+      if (selectedRowIds.size >= 2) {
+        setTab('manual');
+      } else {
+        setTab('detect');
+      }
+    }
+    onOpenChange(open);
+  }, [onOpenChange, selectedRowIds.size, forcedType]);
+
+  // Filter to eligible rows for detection
   const eligibleRows = useMemo(() => {
     return rows.filter(r =>
       r.platform.toLowerCase() === 'meta' &&
@@ -405,12 +510,17 @@ export function AssetCustomizationBuilder({
     );
   }, [rows]);
 
+  // Selected rows for manual mode
+  const manualRows = useMemo(() => {
+    return rows.filter(r => selectedRowIds.has(r.id));
+  }, [rows, selectedRowIds]);
+
   // Run detection
   const detectedGroups = useMemo(() => {
     return detectAssetCustomizationGroups(eligibleRows, platform);
   }, [eligibleRows, platform]);
 
-  // Compile preview
+  // Compile preview for detected groups
   const previewSpec = useMemo(() => {
     if (!previewGroupId) return null;
     const group = detectedGroups.find(g => g.id === previewGroupId);
@@ -418,47 +528,75 @@ export function AssetCustomizationBuilder({
     return compileAssetFeedSpec(group, { defaultLanguage });
   }, [previewGroupId, detectedGroups, defaultLanguage]);
 
-  // Manual selection validation + preview
+  // Build manual group based on selected type
   const manualGroup = useMemo<DetectedACGroup | null>(() => {
-    const selected = eligibleRows.filter(r => manualSelectedIds.has(r.id));
-    if (selected.length < 2) return null;
+    if (!manualType || manualRows.length < 2) return null;
 
-    const validation = validateACSelection(selected);
+    const validation = validateACSelection(manualRows, manualType);
     if (!validation.type) return null;
 
-    // Build a synthetic DetectedACGroup
     const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
     const languageMap = new Map<string, CreativeTextAssetRow[]>();
 
-    for (const row of selected) {
+    for (const row of manualRows) {
       const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
       if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
       bucketMap.get(bucket)!.push(row);
 
-      const lang = detectLanguage(row) || 'unknown';
-      if (!languageMap.has(lang)) languageMap.set(lang, []);
-      languageMap.get(lang)!.push(row);
+      // For language mode, use manual assignments
+      if (manualType === 'language') {
+        const lang = languageAssignments.get(row.id) || 'unknown';
+        if (!languageMap.has(lang)) languageMap.set(lang, []);
+        languageMap.get(lang)!.push(row);
+      } else {
+        const lang = detectLanguage(row) || 'unknown';
+        if (!languageMap.has(lang)) languageMap.set(lang, []);
+        languageMap.get(lang)!.push(row);
+      }
+    }
+
+    // For language mode, check if we have enough distinct languages assigned
+    if (manualType === 'language') {
+      const uniqueLangs = new Set([...languageMap.keys()].filter(l => l !== 'unknown'));
+      const allAssigned = manualRows.every(r => languageAssignments.get(r.id));
+      if (!allAssigned || uniqueLangs.size < 2) {
+        return {
+          id: `ac-manual-${Date.now()}`,
+          type: 'language',
+          label: TYPE_LABELS.language,
+          description: `${manualRows.length} creatives — assign languages to proceed`,
+          rows: manualRows,
+          taxonomyKey: '',
+          deliveryBuckets: bucketMap,
+          languages: languageMap,
+          manualLanguages: languageAssignments,
+          validationErrors: allAssigned && uniqueLangs.size < 2
+            ? ['At least 2 distinct languages are required']
+            : ['Assign a language to every creative'],
+        };
+      }
     }
 
     return {
       id: `ac-manual-${Date.now()}`,
       type: validation.type,
       label: TYPE_LABELS[validation.type],
-      description: `${selected.length} creatives manually grouped`,
-      rows: selected,
+      description: `${manualRows.length} creatives manually grouped`,
+      rows: manualRows,
       taxonomyKey: '',
       deliveryBuckets: bucketMap,
       languages: languageMap,
+      manualLanguages: manualType === 'language' ? languageAssignments : undefined,
       validationErrors: validation.errors,
     };
-  }, [eligibleRows, manualSelectedIds]);
+  }, [manualRows, manualType, languageAssignments]);
 
   const manualSpec = useMemo(() => {
     if (!manualGroup || manualGroup.validationErrors.length > 0) return null;
     return compileAssetFeedSpec(manualGroup, { defaultLanguage });
   }, [manualGroup, defaultLanguage]);
 
-  // Toggle group selection
+  // Toggle handlers
   const toggleGroupSelection = useCallback((id: string) => {
     setSelectedGroupIds(prev => {
       const next = new Set(prev);
@@ -478,16 +616,15 @@ export function AssetCustomizationBuilder({
     });
   }, []);
 
-  const toggleManualRow = useCallback((id: string) => {
-    setManualSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+  const handleAssignLanguage = useCallback((rowId: string, lang: string) => {
+    setLanguageAssignments(prev => {
+      const next = new Map(prev);
+      next.set(rowId, lang);
       return next;
     });
   }, []);
 
-  // Confirm creation
+  // Confirm creation for detected groups
   const handleConfirmDetected = useCallback(() => {
     setIsCompiling(true);
     try {
@@ -505,14 +642,14 @@ export function AssetCustomizationBuilder({
 
       if (count > 0) {
         toast.success(`Created ${count} asset customization group(s)`);
-        onOpenChange(false);
+        handleOpenChange(false);
       } else {
         toast.error('No valid groups to create');
       }
     } finally {
       setIsCompiling(false);
     }
-  }, [detectedGroups, selectedGroupIds, defaultLanguage, onCreateGroup, onOpenChange]);
+  }, [detectedGroups, selectedGroupIds, defaultLanguage, onCreateGroup, handleOpenChange]);
 
   const handleConfirmManual = useCallback(() => {
     if (!manualGroup || !manualSpec || !manualSpec.success) return;
@@ -521,18 +658,162 @@ export function AssetCustomizationBuilder({
     try {
       onCreateGroup(manualGroup, manualSpec);
       toast.success(`Created ${TYPE_LABELS[manualGroup.type]} group`);
-      onOpenChange(false);
+      handleOpenChange(false);
     } finally {
       setIsCompiling(false);
     }
-  }, [manualGroup, manualSpec, onCreateGroup, onOpenChange]);
+  }, [manualGroup, manualSpec, onCreateGroup, handleOpenChange]);
 
   const validSelectedCount = detectedGroups.filter(
     g => selectedGroupIds.has(g.id) && g.validationErrors.length === 0
   ).length;
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  // Manual mode: user selected creatives first
+  if (isManualMode) {
+    return (
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-2xl h-[80vh] overflow-hidden p-0 flex flex-col">
+          <DialogHeader className="shrink-0 px-6 pt-6">
+            <DialogTitle className="flex items-center gap-2">
+              <LayoutGrid className="h-5 w-5 text-primary" />
+              Create Asset Customization
+            </DialogTitle>
+            <DialogDescription>
+              {manualType
+                ? `${TYPE_LABELS[manualType]} — ${manualRows.length} creatives selected`
+                : `Select the type of customization for your ${manualRows.length} selected creatives.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 px-6 pb-2">
+            <ScrollArea className="h-full">
+              {!manualType ? (
+                <TypeSelector onSelect={setManualType} />
+              ) : manualType === 'language' ? (
+                <div className="space-y-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setManualType(null)}
+                      className="text-xs h-7"
+                    >
+                      ← Back
+                    </Button>
+                    <div className={cn('p-1.5 rounded-md', TYPE_COLORS.language)}>
+                      <Globe className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-medium">Language Customization</span>
+                  </div>
+
+                  <LanguageAssignmentPanel
+                    rows={manualRows}
+                    languageAssignments={languageAssignments}
+                    onAssignLanguage={handleAssignLanguage}
+                    defaultLanguage={defaultLanguage}
+                    onDefaultLanguageChange={setDefaultLanguage}
+                  />
+
+                  {manualSpec && (
+                    <>
+                      <Separator />
+                      <SpecPreviewPanel spec={manualSpec} />
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setManualType(null)}
+                      className="text-xs h-7"
+                    >
+                      ← Back
+                    </Button>
+                    <div className={cn('p-1.5 rounded-md', TYPE_COLORS[manualType])}>
+                      {TYPE_ICONS[manualType]}
+                    </div>
+                    <span className="text-sm font-medium">{TYPE_LABELS[manualType]}</span>
+                  </div>
+
+                  {/* Show selected creatives summary */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Selected Creatives</span>
+                    {manualRows.map(row => {
+                      const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+                      return (
+                        <div key={row.id} className="flex items-center gap-2 pl-2 text-xs p-1.5 border rounded-md">
+                          {row.mediaType === 'video' ? <Video className="h-3.5 w-3.5 text-muted-foreground" /> : <Image className="h-3.5 w-3.5 text-muted-foreground" />}
+                          <span className="truncate flex-1">{row.creativeName}</span>
+                          <Badge variant="outline" className="text-[9px] h-4 shrink-0">
+                            {DELIVERY_BUCKETS[bucket].label}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Validation feedback */}
+                  {manualGroup && manualGroup.validationErrors.length > 0 && (
+                    <Alert variant="destructive" className="py-2">
+                      <AlertDescription className="text-xs">
+                        {manualGroup.validationErrors.map((e, i) => <div key={i}>• {e}</div>)}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {manualGroup && manualGroup.validationErrors.length === 0 && (
+                    <Alert className="py-2 border-emerald-200 dark:border-emerald-800">
+                      <AlertDescription className="text-xs text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                        {manualGroup.description}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {manualSpec && (
+                    <>
+                      <Separator />
+                      <SpecPreviewPanel spec={manualSpec} />
+                    </>
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:gap-0">
+            <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isCompiling}>
+              Cancel
+            </Button>
+            {manualType && (
+              <Button
+                onClick={handleConfirmManual}
+                disabled={isCompiling || !manualGroup || !manualSpec?.success}
+                className="gap-2"
+              >
+                {isCompiling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LayoutGrid className="h-4 w-4" />
+                )}
+                {isCompiling ? 'Creating...' : 'Create Group'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Auto-detect mode: no pre-selection
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl h-[85vh] overflow-hidden p-0 flex flex-col">
         <DialogHeader className="shrink-0 px-6 pt-6">
           <DialogTitle className="flex items-center gap-2">
@@ -540,156 +821,68 @@ export function AssetCustomizationBuilder({
             Asset Customization Builder
           </DialogTitle>
           <DialogDescription>
-            Group creatives into asset customization structures for Meta's asset_feed_spec.
-            Only one customization type per group.
+            Auto-detect asset customization opportunities across your Meta creatives.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1 min-h-0 flex flex-col">
-          <div className="px-6">
-            <TabsList className="w-full">
-              <TabsTrigger value="detect" className="flex-1 gap-1.5">
-                <Wand2 className="h-3.5 w-3.5" />
-                Auto-Detect
-                {detectedGroups.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1.5">
-                    {detectedGroups.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="flex-1 gap-1.5">
-                <LayoutGrid className="h-3.5 w-3.5" />
-                Manual Selection
-              </TabsTrigger>
-            </TabsList>
-          </div>
+        <div className="flex-1 min-h-0 px-6 pb-2">
+          <ScrollArea className="h-full">
+            <div className="mt-4 space-y-4">
+              {detectedGroups.length === 0 ? (
+                <Alert>
+                  <AlertDescription className="text-xs">
+                    No asset customization patterns auto-detected in your {eligibleRows.length} Meta creatives.
+                    Select 2+ creatives in the editor and use the Asset Customization button to create groups manually.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {detectedGroups.length} group(s) detected. Select the ones you want to create.
+                  </p>
+                  <div className="space-y-2">
+                    {detectedGroups.map(group => (
+                      <DetectedGroupCard
+                        key={group.id}
+                        group={group}
+                        isSelected={selectedGroupIds.has(group.id)}
+                        onToggle={() => toggleGroupSelection(group.id)}
+                        expanded={expandedGroupIds.has(group.id)}
+                        onToggleExpand={() => toggleGroupExpand(group.id)}
+                      />
+                    ))}
+                  </div>
 
-          <div className="flex-1 min-h-0 px-6 pb-2">
-            <ScrollArea className="h-full">
-              <TabsContent value="detect" className="mt-4 space-y-4">
-                {detectedGroups.length === 0 ? (
-                  <Alert>
-                    <AlertDescription className="text-xs">
-                      No asset customization patterns detected in your {eligibleRows.length} Meta creatives.
-                      Try the Manual Selection tab to group creatives yourself.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      {detectedGroups.length} group(s) detected. Select the ones you want to create.
-                    </p>
-                    <div className="space-y-2">
-                      {detectedGroups.map(group => (
-                        <DetectedGroupCard
-                          key={group.id}
-                          group={group}
-                          isSelected={selectedGroupIds.has(group.id)}
-                          onToggle={() => toggleGroupSelection(group.id)}
-                          expanded={expandedGroupIds.has(group.id)}
-                          onToggleExpand={() => toggleGroupExpand(group.id)}
-                        />
-                      ))}
-                    </div>
-
-                    {/* Preview */}
-                    {previewSpec && (
-                      <>
-                        <Separator />
-                        <SpecPreviewPanel spec={previewSpec} />
-                      </>
-                    )}
-                  </>
-                )}
-              </TabsContent>
-
-              <TabsContent value="manual" className="mt-4 space-y-4">
-                <ManualSelectionPanel
-                  rows={eligibleRows}
-                  selectedIds={manualSelectedIds}
-                  onToggleRow={toggleManualRow}
-                />
-
-                {manualGroup && (
-                  <>
-                    <Separator />
-                    <div className="flex items-center gap-2">
-                      <div className={cn('p-1.5 rounded-md', TYPE_COLORS[manualGroup.type])}>
-                        {TYPE_ICONS[manualGroup.type]}
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium">{TYPE_LABELS[manualGroup.type]}</span>
-                        <p className="text-xs text-muted-foreground">{manualGroup.description}</p>
-                      </div>
-                    </div>
-
-                    {manualGroup.type === 'language' && (
-                      <div className="flex items-center gap-3">
-                        <Label className="text-xs shrink-0">Default Language</Label>
-                        <Select value={defaultLanguage} onValueChange={setDefaultLanguage}>
-                          <SelectTrigger className="h-8 w-32 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[...manualGroup.languages.keys()]
-                              .filter(l => l !== 'unknown')
-                              .map(l => (
-                                <SelectItem key={l} value={l} className="text-xs uppercase">
-                                  {l}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {manualSpec && (
-                      <>
-                        <Separator />
-                        <SpecPreviewPanel spec={manualSpec} />
-                      </>
-                    )}
-                  </>
-                )}
-              </TabsContent>
-            </ScrollArea>
-          </div>
-        </Tabs>
+                  {previewSpec && (
+                    <>
+                      <Separator />
+                      <SpecPreviewPanel spec={previewSpec} />
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
 
         <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isCompiling}>
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={isCompiling}>
             Cancel
           </Button>
-
-          {tab === 'detect' ? (
-            <Button
-              onClick={handleConfirmDetected}
-              disabled={isCompiling || validSelectedCount === 0}
-              className="gap-2"
-            >
-              {isCompiling ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LayoutGrid className="h-4 w-4" />
-              )}
-              {isCompiling
-                ? 'Creating...'
-                : `Create ${validSelectedCount} Group${validSelectedCount !== 1 ? 's' : ''}`}
-            </Button>
-          ) : (
-            <Button
-              onClick={handleConfirmManual}
-              disabled={isCompiling || !manualGroup || !manualSpec?.success}
-              className="gap-2"
-            >
-              {isCompiling ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LayoutGrid className="h-4 w-4" />
-              )}
-              {isCompiling ? 'Creating...' : 'Create Group'}
-            </Button>
-          )}
+          <Button
+            onClick={handleConfirmDetected}
+            disabled={isCompiling || validSelectedCount === 0}
+            className="gap-2"
+          >
+            {isCompiling ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <LayoutGrid className="h-4 w-4" />
+            )}
+            {isCompiling
+              ? 'Creating...'
+              : `Create ${validSelectedCount} Group${validSelectedCount !== 1 ? 's' : ''}`}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
