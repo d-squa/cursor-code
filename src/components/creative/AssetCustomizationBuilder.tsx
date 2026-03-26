@@ -169,6 +169,23 @@ const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', '
 
 const META_CTAS = PLATFORM_CTAS.meta;
 
+/** Normalize a pasted CTA value to match the META_CTAS enum format */
+function normalizeCTA(input: string): string {
+  if (!input) return '';
+  // Normalize: trim, uppercase, replace spaces/hyphens with underscores
+  const normalized = input.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  // Direct match
+  if (META_CTAS.includes(normalized as any)) return normalized;
+  // Try without underscores (e.g. "LearnMore" -> "LEARN_MORE" won't match directly,
+  // but "Learn_More" -> "LEARN_MORE" will via the uppercase above)
+  // Also try matching by removing all underscores and comparing
+  const stripped = normalized.replace(/_/g, '');
+  const found = META_CTAS.find(cta => cta.replace(/_/g, '') === stripped);
+  if (found) return found;
+  // Return original trimmed value as fallback
+  return input.trim();
+}
+
 interface ParsedLangRow {
   language: string;
   languageCode: string;
@@ -340,7 +357,7 @@ function LanguageTextInputs({
         if (cols[1]) row.primaryText = cols[1];
         if (cols[2]) row.headline = cols[2];
         if (cols[3]) row.description = cols[3];
-        if (cols[4]) row.callToAction = cols[4];
+        if (cols[4]) row.callToAction = normalizeCTA(cols[4]);
         if (cols[5]) row.destinationUrl = cols[5];
 
         const existing = next.get(langCode) || {};
@@ -355,7 +372,7 @@ function LanguageTextInputs({
         if (fields[0]) row.primaryText = fields[0];
         if (fields[1]) row.headline = fields[1];
         if (fields[2]) row.description = fields[2];
-        if (fields[3]) row.callToAction = fields[3];
+        if (fields[3]) row.callToAction = normalizeCTA(fields[3]);
         if (fields[4]) row.destinationUrl = fields[4];
 
         const existing = next.get(lang) || {};
