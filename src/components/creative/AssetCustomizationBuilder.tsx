@@ -993,6 +993,19 @@ export function AssetCustomizationBuilder({
       next.set(groupId, texts);
       return next;
     });
+    // Auto-select when 2+ languages are pasted
+    if ([...texts.keys()].length >= 2) {
+      setSelectedGroupIds(prev => {
+        const next = new Set(prev);
+        next.add(groupId);
+        return next;
+      });
+      setExpandedGroupIds(prev => {
+        const next = new Set(prev);
+        next.add(groupId);
+        return next;
+      });
+    }
   }, []);
 
   const handleConfirmDetected = useCallback(() => {
