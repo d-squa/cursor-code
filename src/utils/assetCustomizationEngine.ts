@@ -112,7 +112,7 @@ export const META_PLACEMENT_MAP: Record<DeliveryBucket, string[]> = {
 
 // ─── Language Detection ──────────────────────────────────────────────────────
 
-const LANGUAGE_PATTERNS: Record<string, string> = {
+export const LANGUAGE_PATTERNS: Record<string, string> = {
   english: 'en', eng: 'en', en: 'en',
   arabic: 'ar', arab: 'ar', ar: 'ar',
   french: 'fr', fra: 'fr', fr: 'fr',
@@ -129,15 +129,32 @@ const LANGUAGE_PATTERNS: Record<string, string> = {
   hindi: 'hi', hin: 'hi', hi: 'hi',
 };
 
-const LOCALE_MAP: Record<string, string> = {
+export const LOCALE_MAP: Record<string, string> = {
   en: 'en_XX', ar: 'ar_AR', fr: 'fr_XX', de: 'de_DE',
   es: 'es_XX', pt: 'pt_XX', it: 'it_IT', nl: 'nl_NL',
   tr: 'tr_TR', ru: 'ru_RU', ja: 'ja_JP', ko: 'ko_KR',
   zh: 'zh_CN', hi: 'hi_IN',
 };
 
+/** All supported language codes for manual selection */
+export const SUPPORTED_LANGUAGES: Array<{ code: string; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'it', label: 'Italian' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'tr', label: 'Turkish' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'hi', label: 'Hindi' },
+];
+
 export function detectLanguage(row: CreativeTextAssetRow): string | null {
-  // Check taxonomy fields, folder path, creative name for language hints
   const searchables = [
     row.folderPath || '',
     row.creativeName || '',
@@ -155,16 +172,41 @@ export function detectLanguage(row: CreativeTextAssetRow): string | null {
   return null;
 }
 
+/**
+ * Check if a group of rows contains indicators that suggest multi-language content.
+ * Auto-detection of language customization only triggers when taxonomy explicitly
+ * references "All Languages" or multiple distinct language tokens are found.
+ */
+function hasMultiLanguageTaxonomyHint(rows: CreativeTextAssetRow[]): boolean {
+  const allSearchables = rows.map(r => [
+    r.folderPath || '',
+    r.creativeName || '',
+    r.originalFilename || '',
+    (r as any).taxonomyAdName || '',
+    (r as any).taxonomyAdSetName || '',
+  ].join(' ')).join(' ').toLowerCase();
+
+  // Check for explicit multi-language markers
+  if (/all[\s_-]?lang/i.test(allSearchables)) return true;
+  if (/multi[\s_-]?lang/i.test(allSearchables)) return true;
+
+  // Check if at least 2 distinct languages are detected across the rows
+  const detectedLangs = new Set<string>();
+  for (const row of rows) {
+    const lang = detectLanguage(row);
+    if (lang) detectedLangs.add(lang);
+    if (detectedLangs.size >= 2) return true;
+  }
+
+  return false;
+}
+
 export function getLocale(langCode: string): string {
   return LOCALE_MAP[langCode] || `${langCode}_XX`;
 }
 
 // ─── Taxonomy Key Extraction ─────────────────────────────────────────────────
 
-/**
- * Extract a taxonomy key that represents the "same campaign/message" grouping.
- * Used to identify creatives that are variations of the same concept.
- */
 export function extractTaxonomyKey(row: CreativeTextAssetRow): string {
   return [
     row.platform,
@@ -172,20 +214,6 @@ export function extractTaxonomyKey(row: CreativeTextAssetRow): string {
     row.phase,
     row.adSet,
   ].join('|').toLowerCase();
-}
-
-/**
- * Extract a "base creative name" by stripping format/language/dimension suffixes.
- */
-function extractBaseCreativeName(name: string): string {
-  return name
-    .replace(/\.[^/.]+$/, '') // extension
-    .replace(/[-_]?\d{2,4}x\d{2,4}/gi, '') // dimensions
-    .replace(/[-_]?(1x1|4x5|9x16|16x9|1_1|4_5|9_16|16_9|square|portrait|landscape|vertical|horizontal)/gi, '')
-    .replace(/[-_]?(en|ar|fr|de|es|pt|it|nl|tr|ru|ja|ko|zh|hi|english|arabic|french|german|spanish)(\b|[-_])/gi, '')
-    .replace(/[-_\s]+$/g, '')
-    .trim()
-    .toLowerCase();
 }
 
 // ─── Customization Type Classification ───────────────────────────────────────
@@ -201,23 +229,29 @@ export interface DetectedACGroup {
   taxonomyKey: string;
   deliveryBuckets: Map<DeliveryBucket, CreativeTextAssetRow[]>;
   languages: Map<string, CreativeTextAssetRow[]>;
+  /** For language mode: manually assigned languages per row id */
+  manualLanguages?: Map<string, string>;
   validationErrors: string[];
 }
 
 /**
  * Core detection engine — scans assigned creatives and identifies grouping opportunities.
- * Returns detected groups with classified customization types.
+ * 
+ * Auto-detection rules:
+ * - Placement: Different delivery buckets in same ad set → auto-detected
+ * - Language: Only if taxonomy/naming hints at multiple languages (e.g. "All Languages" or distinct lang tokens)
+ * - Flexible: Same bucket, same language, 2+ assets → auto-detected
+ * 
+ * Language customization without taxonomy hints must be created manually.
  */
 export function detectAssetCustomizationGroups(
   rows: CreativeTextAssetRow[],
   platform: string = 'meta'
 ): DetectedACGroup[] {
-  if (platform.toLowerCase() !== 'meta') return []; // Only Meta for now
+  if (platform.toLowerCase() !== 'meta') return [];
 
-  // Group by taxonomy key (same campaign structure)
   const taxonomyGroups = new Map<string, CreativeTextAssetRow[]>();
   for (const row of rows) {
-    // Skip organic posts and already-grouped carousels
     if ((row as any).isOrganic || (row as any).externalPostId) continue;
     if (row.carouselGroupId) continue;
 
@@ -231,10 +265,8 @@ export function detectAssetCustomizationGroups(
   for (const [taxKey, groupRows] of taxonomyGroups) {
     if (groupRows.length < 2) continue;
 
-    // Classify each row into delivery bucket and language
     const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
     const languageMap = new Map<string, CreativeTextAssetRow[]>();
-    const baseNameMap = new Map<string, CreativeTextAssetRow[]>();
 
     for (const row of groupRows) {
       const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
@@ -244,20 +276,15 @@ export function detectAssetCustomizationGroups(
       const lang = detectLanguage(row) || 'unknown';
       if (!languageMap.has(lang)) languageMap.set(lang, []);
       languageMap.get(lang)!.push(row);
-
-      const baseName = extractBaseCreativeName(row.creativeName);
-      if (!baseNameMap.has(baseName)) baseNameMap.set(baseName, []);
-      baseNameMap.get(baseName)!.push(row);
     }
 
     const uniqueBuckets = new Set([...bucketMap.keys()].filter(b => b !== 'other'));
     const uniqueLanguages = new Set([...languageMap.keys()].filter(l => l !== 'unknown'));
     const hasDifferentBuckets = uniqueBuckets.size >= 2;
-    const hasDifferentLanguages = uniqueLanguages.size >= 2;
+    const hasMultiLangHint = hasMultiLanguageTaxonomyHint(groupRows);
 
-    // Classify: ONE type only per the spec
-    if (hasDifferentBuckets && !hasDifferentLanguages) {
-      // PLACEMENT CUSTOMIZATION
+    // Priority 1: Placement (different formats in same ad set)
+    if (hasDifferentBuckets && !hasMultiLangHint) {
       const errors = validatePlacementGroup(bucketMap);
       detected.push({
         id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
@@ -270,8 +297,9 @@ export function detectAssetCustomizationGroups(
         languages: languageMap,
         validationErrors: errors,
       });
-    } else if (hasDifferentLanguages && !hasDifferentBuckets) {
-      // LANGUAGE CUSTOMIZATION
+    }
+    // Priority 2: Language — only auto-detect if taxonomy hints exist
+    else if (hasMultiLangHint && uniqueLanguages.size >= 2) {
       const errors = validateLanguageGroup(languageMap);
       detected.push({
         id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
@@ -284,8 +312,9 @@ export function detectAssetCustomizationGroups(
         languages: languageMap,
         validationErrors: errors,
       });
-    } else if (!hasDifferentBuckets && !hasDifferentLanguages && groupRows.length >= 2) {
-      // Check for FLEXIBLE CREATIVE — same bucket, same language, multiple assets
+    }
+    // Priority 3: Flexible — same bucket, 2+ variations
+    else if (!hasDifferentBuckets && !hasMultiLangHint && groupRows.length >= 2) {
       const sameBucketRows = groupRows.filter(r => {
         const b = classifyDeliveryBucket(r.width, r.height, r.aspectRatio);
         return b !== 'other';
@@ -304,7 +333,6 @@ export function detectAssetCustomizationGroups(
         });
       }
     }
-    // If both different buckets AND languages — skip (conflicting, per spec rule)
   }
 
   return detected;
@@ -335,10 +363,12 @@ function validateLanguageGroup(languageMap: Map<string, CreativeTextAssetRow[]>)
 }
 
 /**
- * Validate a manual selection for asset customization grouping.
+ * Validate a manual selection for a specific customization type.
+ * Unlike auto-detect, manual mode lets the user pick the type.
  */
 export function validateACSelection(
-  rows: CreativeTextAssetRow[]
+  rows: CreativeTextAssetRow[],
+  forcedType?: CustomizationType
 ): { valid: boolean; type: CustomizationType | null; errors: string[] } {
   if (rows.length < 2) return { valid: false, type: null, errors: ['At least 2 creatives required'] };
 
@@ -356,37 +386,47 @@ export function validateACSelection(
     return { valid: false, type: null, errors: ['One or more creatives already belong to an asset customization group'] };
   }
 
-  // Classify
-  const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
-  const languageMap = new Map<string, CreativeTextAssetRow[]>();
+  if (forcedType === 'placement') {
+    const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+    for (const row of rows) {
+      const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+      if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
+      bucketMap.get(bucket)!.push(row);
+    }
+    const uniqueBuckets = new Set([...bucketMap.keys()].filter(b => b !== 'other'));
+    if (uniqueBuckets.size < 2) {
+      return { valid: false, type: 'placement', errors: ['Placement customization requires at least 2 different delivery buckets (aspect ratios)'] };
+    }
+    const errors = validatePlacementGroup(bucketMap);
+    return { valid: errors.length === 0, type: 'placement', errors };
+  }
 
+  if (forcedType === 'language') {
+    // Language mode: always valid for manual — user will assign languages in the dialog
+    return { valid: true, type: 'language', errors: [] };
+  }
+
+  if (forcedType === 'flexible_creative') {
+    // Flexible: valid as long as 2+ creatives
+    if (rows.length > 10) {
+      return { valid: false, type: 'flexible_creative', errors: ['Flexible creative supports up to 10 media assets'] };
+    }
+    return { valid: true, type: 'flexible_creative', errors: [] };
+  }
+
+  // Auto-classify (legacy fallback)
+  const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
   for (const row of rows) {
     const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
     if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
     bucketMap.get(bucket)!.push(row);
-
-    const lang = detectLanguage(row) || 'unknown';
-    if (!languageMap.has(lang)) languageMap.set(lang, []);
-    languageMap.get(lang)!.push(row);
   }
-
   const uniqueBuckets = new Set([...bucketMap.keys()].filter(b => b !== 'other'));
-  const uniqueLanguages = new Set([...languageMap.keys()].filter(l => l !== 'unknown'));
-
-  if (uniqueBuckets.size >= 2 && uniqueLanguages.size >= 2) {
-    return { valid: false, type: null, errors: ['Cannot combine placement and language customization in one group'] };
-  }
 
   if (uniqueBuckets.size >= 2) {
     const errors = validatePlacementGroup(bucketMap);
     return { valid: errors.length === 0, type: 'placement', errors };
   }
 
-  if (uniqueLanguages.size >= 2) {
-    const errors = validateLanguageGroup(languageMap);
-    return { valid: errors.length === 0, type: 'language', errors };
-  }
-
-  // Same bucket, same language → flexible creative
   return { valid: true, type: 'flexible_creative', errors: [] };
 }
