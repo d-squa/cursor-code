@@ -2001,7 +2001,9 @@ export function CampaignForecast({
       const actiplanTotalAudienceSize = platformForecasts.reduce((sum, p) => sum + p.totalAudienceSize, 0);
       const actiplanTotalImpressions = platformForecasts.reduce((sum, p) => sum + p.totalImpressions, 0);
       const actiplanTotalReach = platformForecasts.reduce((sum, p) => sum + p.totalReach, 0);
-      const actiplanAvgCPM = actiplanTotalImpressions > 0 ? actiplanTotalBudget / (actiplanTotalImpressions / 1000) : 0;
+      const actiplanAvgCPM = actiplanTotalImpressions > 0
+        ? platformForecasts.reduce((sum, p) => sum + (p.avgCPM * p.totalImpressions), 0) / actiplanTotalImpressions
+        : 0;
       const actiplanFrequency = actiplanTotalReach > 0 ? actiplanTotalImpressions / actiplanTotalReach : 0;
       const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
 
