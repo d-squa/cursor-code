@@ -54,7 +54,7 @@ export function ModificationRequestsView({
   campaignName,
   initialRequestId,
 }: ModificationRequestsViewProps) {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [requests, setRequests] = useState<ModificationRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -180,10 +180,10 @@ export function ModificationRequestsView({
   };
 
   const canUpdateStatus = (request: ModificationRequest) => {
-    if (!session?.user?.id) return false;
+    if (!user?.id) return false;
     // Allow update if assigned to the request, or if notifyAllTeam is true for team members
-    return request.assigned_to?.includes(session.user.id) || 
-           (request.notify_all_team && request.requester_id !== session.user.id);
+    return request.assigned_to?.includes(user.id) || 
+           (request.notify_all_team && request.requester_id !== user.id);
   };
 
   const getChangeTypeInitials = (type: string) => {

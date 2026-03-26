@@ -140,39 +140,61 @@ export function useSubscription() {
   );
 
   useEffect(() => {
-    // Bootstrap: read the initial session once without triggering a refresh.
-    // getSession() reads from the in-memory cache; Supabase-js only refreshes
-    // when the token is expired. We capture it here and then rely solely on
-    // onAuthStateChange for subsequent updates.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    // Listen for auth changes only — avoid getSession() entirely so this hook
+    // never proactively touches the user's auth session.
+    const {
+      data: { subscription: authSub },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") {
+        if (!session) {
+          cachedSessionRef.current = null;
+          setSubscription(null);
+          setError(null);
+          setLoading(false);
+          hasCheckedOnceRef.current = true;
+          hasDataRef.current = false;
+          lastCheckTimeRef.current = 0;
+          currentUserIdRef.current = null;
+          lastSuccessfulUserIdRef.current = null;
+          return;
+        }
+
         cachedSessionRef.current = {
           accessToken: session.access_token,
           userId: session.user.id,
         };
-        checkSubscription({ showLoading: true, force: true });
-      } else {
-        setLoading(false);
-        hasCheckedOnceRef.current = true;
-      }
-    });
 
-    // Listen for auth changes — cache token, never call getSession again
-    const {
-      data: { subscription: authSub },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        queueMicrotask(() => {
+          void checkSubscription({ showLoading: true, force: true });
+        });
+        return;
+      }
+
+      if (event === "SIGNED_IN") {
         if (session) {
           cachedSessionRef.current = {
             accessToken: session.access_token,
             userId: session.user.id,
           };
         }
-        if (event === "SIGNED_IN") {
-          checkSubscription({ showLoading: true, force: true });
+
+        queueMicrotask(() => {
+          void checkSubscription({ showLoading: true, force: true });
+        });
+        return;
+      }
+
+      if (event === "TOKEN_REFRESHED") {
+        if (session) {
+          cachedSessionRef.current = {
+            accessToken: session.access_token,
+            userId: session.user.id,
+          };
         }
-        // TOKEN_REFRESHED: update cached token but don't re-check subscription
-      } else if (event === "SIGNED_OUT") {
+        return;
+      }
+
+      if (event === "SIGNED_OUT") {
         cachedSessionRef.current = null;
         setSubscription(null);
         setError(null);

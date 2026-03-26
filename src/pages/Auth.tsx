@@ -101,120 +101,123 @@ export default function Auth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        if (!session.user.email_confirmed_at) {
-          setShowEmailConfirmation(true);
-          setEmail(session.user.email || "");
-          return;
-        }
+      if (event === "SIGNED_OUT") {
+        clearSession();
+        return;
+      }
 
-        setTimeout(() => {
-          void (async () => {
-            await registerSession(session);
-            startValidation(session);
-          })();
-        }, 0);
+      if (!session || (event !== "SIGNED_IN" && event !== "INITIAL_SESSION")) {
+        return;
+      }
 
-        const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
-        if (pendingEmail && pendingEmail === session.user.email) {
-          if (isConfirmedRedirect) {
-            localStorage.removeItem("actiplan_pending_signup_email");
-            localStorage.removeItem("actiplan_onboarding");
-            setShowEmailConfirmation(false);
-            setShowPostConfirmSuccess(true);
-          } else {
-            setShowEmailConfirmation(true);
-            setEmail(pendingEmail);
-          }
-          return;
-        }
-        
-        if (pendingEmail && pendingEmail !== session.user.email) {
+      if (!session.user.email_confirmed_at) {
+        setShowEmailConfirmation(true);
+        setEmail(session.user.email || "");
+        return;
+      }
+
+      setTimeout(() => {
+        void (async () => {
+          await registerSession(session);
+          startValidation(session);
+        })();
+      }, 0);
+
+      const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
+      if (pendingEmail && pendingEmail === session.user.email) {
+        if (isConfirmedRedirect) {
           localStorage.removeItem("actiplan_pending_signup_email");
+          localStorage.removeItem("actiplan_onboarding");
+          setShowEmailConfirmation(false);
+          setShowPostConfirmSuccess(true);
+        } else {
+          setShowEmailConfirmation(true);
+          setEmail(pendingEmail);
         }
+        return;
+      }
+      
+      if (pendingEmail && pendingEmail !== session.user.email) {
+        localStorage.removeItem("actiplan_pending_signup_email");
+      }
 
-        setShowEmailConfirmation(false);
-        setShowPostConfirmSuccess(false);
+      setShowEmailConfirmation(false);
+      setShowPostConfirmSuccess(false);
 
-        if (session.user.email === "superadmin@actiplan.app") {
-          navigate("/admin");
-          return;
-        }
+      if (session.user.email === "superadmin@actiplan.app") {
+        navigate("/admin");
+        return;
+      }
 
-        // Route to onboarding — step 1 handles profile data collection
-        setTimeout(() => {
-          void (async () => {
-            const onboardingData = localStorage.getItem("actiplan_onboarding");
-            let onboardingComplete = false;
-            if (onboardingData) {
-              try {
-                onboardingComplete = Boolean(JSON.parse(onboardingData)?.completedAt);
-              } catch {
-                onboardingComplete = false;
-              }
+      // Route to onboarding — step 1 handles profile data collection
+      setTimeout(() => {
+        void (async () => {
+          const onboardingData = localStorage.getItem("actiplan_onboarding");
+          let onboardingComplete = false;
+          if (onboardingData) {
+            try {
+              onboardingComplete = Boolean(JSON.parse(onboardingData)?.completedAt);
+            } catch {
+              onboardingComplete = false;
             }
+          }
 
-            if (!onboardingComplete) {
-              navigate("/onboarding");
+          if (!onboardingComplete) {
+            navigate("/onboarding");
+            return;
+          }
+
+          try {
+            const { data: subData } = await supabase.functions.invoke("check-subscription", {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+
+            if (subData?.subscribed) {
+              navigate("/overview");
               return;
             }
 
-            try {
-              const { data: subData } = await supabase.functions.invoke("check-subscription", {
-                headers: {
-                  Authorization: `Bearer ${session.access_token}`,
-                },
-              });
+            const signupSource = localStorage.getItem("actiplan_signup_source");
+            const alreadyActivating = sessionStorage.getItem("actiplan_trial_activating");
+            if (signupSource === "landing" && !alreadyActivating) {
+              try {
+                sessionStorage.setItem("actiplan_trial_activating", "true");
+                const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
+                  headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                });
 
-              if (subData?.subscribed) {
-                navigate("/overview");
-                return;
-              }
-
-              const signupSource = localStorage.getItem("actiplan_signup_source");
-              const alreadyActivating = sessionStorage.getItem("actiplan_trial_activating");
-              if (signupSource === "landing" && !alreadyActivating) {
-                try {
-                  sessionStorage.setItem("actiplan_trial_activating", "true");
-                  const { data: trialData, error: trialError } = await supabase.functions.invoke("activate-free-trial", {
-                    headers: {
-                      Authorization: `Bearer ${session.access_token}`,
-                    },
-                  });
-
-                  if (trialError) {
-                    console.error("Error activating free trial:", trialError);
-                    sessionStorage.removeItem("actiplan_trial_activating");
-                    navigate("/choose-plan");
-                    return;
-                  }
-
-                  if (trialData?.success) {
-                    localStorage.removeItem("actiplan_signup_source");
-                    sessionStorage.removeItem("actiplan_trial_activating");
-                    toast.success("Welcome! Your 30-day free trial has started.");
-                    navigate("/overview");
-                    return;
-                  }
+                if (trialError) {
+                  console.error("Error activating free trial:", trialError);
                   sessionStorage.removeItem("actiplan_trial_activating");
-                } catch (err) {
-                  console.error("Error activating free trial:", err);
-                  sessionStorage.removeItem("actiplan_trial_activating");
+                  navigate("/choose-plan");
+                  return;
                 }
+
+                if (trialData?.success) {
+                  localStorage.removeItem("actiplan_signup_source");
+                  sessionStorage.removeItem("actiplan_trial_activating");
+                  toast.success("Welcome! Your 30-day free trial has started.");
+                  navigate("/overview");
+                  return;
+                }
+                sessionStorage.removeItem("actiplan_trial_activating");
+              } catch (err) {
+                console.error("Error activating free trial:", err);
+                sessionStorage.removeItem("actiplan_trial_activating");
               }
-
-              navigate("/choose-plan");
-            } catch (error) {
-              console.error("Error checking subscription:", error);
-              navigate("/overview");
             }
-          })();
-        }, 0);
-      }
 
-      if (event === "SIGNED_OUT") {
-        clearSession();
-      }
+            navigate("/choose-plan");
+          } catch (error) {
+            console.error("Error checking subscription:", error);
+            navigate("/overview");
+          }
+        })();
+      }, 0);
     });
 
     return () => {

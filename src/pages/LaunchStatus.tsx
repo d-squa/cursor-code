@@ -127,7 +127,7 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: Re
 export default function LaunchStatus() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
-  const { user, session } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const { dailyLimit, remaining, canCreate, refetch: refetchLimits } = useActiplanLimits();
   const { tier } = useFeatureAccess();
 
@@ -231,12 +231,13 @@ export default function LaunchStatus() {
 
   const handleValidate = async () => {
     if (!campaignId) return;
+    const accessToken = getAccessToken();
 
     setValidating(true);
     try {
       const { data, error } = await supabase.functions.invoke("validate-campaign-launch", {
         body: { campaignId },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
       });
 
       if (error) throw error;
@@ -291,6 +292,7 @@ export default function LaunchStatus() {
 
   const handlePush = async () => {
     if (!campaignId) return;
+    const accessToken = getAccessToken();
 
     // First validate
     setValidating(true);
@@ -299,7 +301,7 @@ export default function LaunchStatus() {
         "validate-campaign-launch",
         {
           body: { campaignId },
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         },
       );
 
@@ -777,13 +779,14 @@ export default function LaunchStatus() {
   // Actual push creatives function
   const handlePushCreatives = async () => {
     if (!campaignId) return;
+    const accessToken = getAccessToken();
     setShowCreativePushConfirm(false);
 
     setPushingCreatives(true);
     try {
       const { data, error } = await supabase.functions.invoke("push-creatives-to-dsp", {
         body: { campaignId },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
       });
 
       if (error) throw error;
