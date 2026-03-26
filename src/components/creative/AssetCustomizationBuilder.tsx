@@ -1179,8 +1179,8 @@ export function AssetCustomizationBuilder({
       for (const group of selected) {
         if (group.validationErrors.length > 0) continue;
 
-        // For language groups, inject selected languages into the group
-        if (group.type === 'language') {
+        // For language and flexible groups, inject selected languages into the group
+        if (group.type === 'language' || group.type === 'flexible_creative') {
           const langTexts = groupLanguageTexts.get(group.id);
           const langs = langTexts ? [...langTexts.keys()] : [];
           if (langs.length < 2) continue;
@@ -1237,14 +1237,14 @@ export function AssetCustomizationBuilder({
   const validSelectedCount = detectedGroups.filter(g => {
     if (!selectedGroupIds.has(g.id)) return false;
     if (g.validationErrors.length > 0) return false;
-    if (g.type === 'language') {
+    if (g.type === 'language' || g.type === 'flexible_creative') {
       const langTexts = groupLanguageTexts.get(g.id);
       return langTexts && [...langTexts.keys()].length >= 2;
     }
     return true;
   }).length;
 
-  const totalLanguageGroups = detectedGroups.filter(g => g.type === 'language').length;
+  const totalLanguageGroups = detectedGroups.filter(g => g.type === 'language' || g.type === 'flexible_creative').length;
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
