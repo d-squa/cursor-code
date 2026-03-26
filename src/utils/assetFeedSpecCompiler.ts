@@ -245,12 +245,19 @@ function compileLanguage(
       images.push({ adlabels });
     }
 
-    // Text
-    if (row.primaryText) bodies.push({ text: row.primaryText, adlabels });
-    if (row.headline) titles.push({ text: row.headline, adlabels });
-    if (row.description) descriptions.push({ text: row.description, adlabels });
-    if (row.destinationUrl) linkUrls.push({ website_url: row.destinationUrl, adlabels });
-    if (row.callToAction) ctaTypes.push({ value: String(row.callToAction), adlabels });
+    // Use per-language text overrides if available, otherwise fall back to row data
+    const langText = languageTexts?.get(lang);
+    const primaryText = langText?.primaryText || row.primaryText;
+    const headline = langText?.headline || row.headline;
+    const description = langText?.description || row.description;
+    const destinationUrl = langText?.destinationUrl || row.destinationUrl;
+    const callToAction = langText?.callToAction || row.callToAction;
+
+    if (primaryText) bodies.push({ text: primaryText, adlabels });
+    if (headline) titles.push({ text: headline, adlabels });
+    if (description) descriptions.push({ text: description, adlabels });
+    if (destinationUrl) linkUrls.push({ website_url: destinationUrl, adlabels });
+    if (callToAction) ctaTypes.push({ value: String(callToAction), adlabels });
 
     const rule: AssetCustomizationRule = {
       customization_spec: {
