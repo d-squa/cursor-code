@@ -12,13 +12,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Combobox } from '@/components/ui/combobox';
-import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight } from 'lucide-react';
+import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight, ClipboardPaste } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { PLATFORM_CTAS } from '@/types/creativeTextAssets';
 import type { CarouselLink, CarouselCardData } from '@/types/carouselTypes';
 import { CAROUSEL_CARD_FIELDS } from '@/types/carouselTypes';
 import { validateCarouselCreatives, getPlacementBadges, CAROUSEL_PLATFORM_REQUIREMENTS } from '@/utils/placementCompatibility';
+
+const CARD_PASTE_COLUMNS = ['Headline', 'Description', 'Website URL', 'CTA'];
+
+/** Normalize a pasted CTA value */
+function normalizeCardCTA(input: string): string {
+  if (!input) return '';
+  const cleaned = input.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return cleaned;
+}
 
 interface CarouselCreatorProps {
   selectedRows: CreativeTextAssetRow[];
@@ -119,6 +128,54 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
       return next;
     });
   }, []);
+
+  // Bulk paste state
+  const [cardPasteValue, setCardPasteValue] = useState('');
+  const [cardPasteError, setCardPasteError] = useState<string | null>(null);
+
+  const handleCardBulkPaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text/plain');
+    if (!pasted) return;
+    e.preventDefault();
+    setCardPasteError(null);
+
+    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      setCardPasteError('No data found in paste');
+      return;
+    }
+
+    const newCardData = { ...cardData };
+    let filled = 0;
+
+    for (let i = 0; i < lines.length && i < orderedIds.length; i++) {
+      const cardId = orderedIds[i];
+      const parts = lines[i].includes('\t')
+        ? lines[i].split('\t').map(s => s.trim())
+        : lines[i].split(/\s{2,}/).map(s => s.trim());
+
+      // Order: Headline, Description, Website URL, CTA
+      const [headline, description, websiteUrl, cta] = parts;
+      newCardData[cardId] = {
+        ...newCardData[cardId],
+        cardHeadline: headline || newCardData[cardId]?.cardHeadline || '',
+        cardDescription: description || newCardData[cardId]?.cardDescription || '',
+        cardWebsiteUrl: websiteUrl || newCardData[cardId]?.cardWebsiteUrl || '',
+        cardCallToAction: cta ? normalizeCardCTA(cta) : (newCardData[cardId]?.cardCallToAction || ''),
+      };
+      filled++;
+    }
+
+    setCardData(newCardData);
+    setCardPasteValue('');
+
+    if (filled < lines.length) {
+      setCardPasteError(`Pasted ${lines.length} rows but only ${orderedIds.length} cards exist. ${filled} cards filled.`);
+    }
+
+    // Auto-expand all cards to show results
+    setExpandedCards(new Set(orderedIds));
+  }, [cardData, orderedIds]);
 
   // Update card data field
   const updateCardField = useCallback((cardId: string, field: keyof CarouselCardData, value: string) => {
@@ -309,6 +366,28 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Ad Set:</span>
             <Badge variant="secondary">{adSetName}</Badge>
+          </div>
+
+          {/* Bulk paste area for card text assets */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Bulk Paste Card Text Assets</span>
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <ClipboardPaste className="h-3 w-3" />
+                Columns: {CARD_PASTE_COLUMNS.join(' | ')}
+              </div>
+            </div>
+            <Textarea
+              value={cardPasteValue}
+              onChange={(e) => setCardPasteValue(e.target.value)}
+              onPaste={handleCardBulkPaste}
+              placeholder={`Paste ${orderedCards.length} rows from Excel (one row per card):\nHeadline ⇥ Description ⇥ Website URL ⇥ CTA`}
+              className="text-xs min-h-[60px] font-mono"
+              rows={3}
+            />
+            {cardPasteError && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{cardPasteError}</p>
+            )}
           </div>
 
           {/* Card ordering */}
