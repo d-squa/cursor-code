@@ -681,6 +681,57 @@ export function TextAssetExcelEditor({
     toast.success(`Carousel "${carousel.carouselName}" ${editingCarouselGroupId ? 'updated' : 'created'} with ${carousel.cardIds.length} cards`);
   }, [clearSelection, onBulkUpdate, rows]);
 
+  // Count total carousel groups
+  const totalCarouselCount = useMemo(() => {
+    let count = 0;
+    for (const [key] of processingGroups) {
+      if (key.startsWith('carousel:')) count++;
+    }
+    return count;
+  }, [processingGroups]);
+
+  // Apply text assets from one carousel to all other carousels
+  const handleApplyToAllCarousels = useCallback((sourceCardData: Record<string, import('@/types/carouselTypes').CarouselCardData>, sourceRows: CreativeTextAssetRow[]) => {
+    // Collect text values from source cards (by position)
+    const sourceTexts = sourceRows.map((row, idx) => {
+      const cd = sourceCardData[row.id] || {};
+      return {
+        headline: cd.cardHeadline || row.headline || '',
+        description: cd.cardDescription || row.description || '',
+        destinationUrl: cd.cardWebsiteUrl || row.destinationUrl || '',
+        callToAction: cd.cardCallToAction || row.callToAction || '',
+      };
+    });
+
+    if (sourceTexts.length === 0) return;
+
+    let appliedCount = 0;
+    for (const [key, group] of processingGroups) {
+      if (!key.startsWith('carousel:')) continue;
+      // Skip the source carousel being edited
+      if (editingCarouselGroupId && group.id === editingCarouselGroupId) continue;
+
+      const groupRows = rows.filter(r => group.rowIds.includes(r.id));
+      for (let i = 0; i < groupRows.length; i++) {
+        const text = sourceTexts[i % sourceTexts.length]; // cycle if target has more cards
+        const updates: Record<string, string> = {
+          headline: text.headline,
+          description: text.description,
+          destinationUrl: text.destinationUrl,
+          callToAction: text.callToAction,
+          carouselCardHeadline: text.headline,
+          carouselCardDescription: text.description,
+          carouselCardWebsiteUrl: text.destinationUrl,
+          carouselCardCta: text.callToAction,
+        };
+        onRowChange(groupRows[i].id, updates as any);
+      }
+      appliedCount++;
+    }
+
+    toast.success(`Text assets applied to ${appliedCount} other carousel${appliedCount !== 1 ? 's' : ''}`);
+  }, [processingGroups, editingCarouselGroupId, rows, onRowChange]);
+
   // Handle carousel detection at a specific scope level
   const handleDetectCarousels = useCallback((scopeLevel: 'all' | 'platform' | 'market' | 'phase' | 'adset') => {
     let targetRows = rows;
