@@ -1888,6 +1888,30 @@ export function TextAssetExcelEditor({
                                 </Tooltip>
                               </TooltipProvider>
                             )}
+                            {isAC && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs ml-auto shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Select the rows in this AC group, then open builder
+                                        const acRowIds = item.rowIds || [];
+                                        setSelectedRowIds(new Set(acRowIds));
+                                        setShowAssetCustomizationBuilder(true);
+                                      }}
+                                    >
+                                      <Settings2 className="h-3 w-3 mr-1" />
+                                      Edit
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit asset customization settings</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
