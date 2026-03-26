@@ -630,7 +630,56 @@ export function AssetCustomizationBuilder({
     });
   }, []);
 
-  // Confirm creation for detected groups
+  // Language selection for auto-detected language groups
+  const handleGroupLanguageChange = useCallback((groupId: string, langs: string[]) => {
+    setGroupLanguageSelections(prev => {
+      const next = new Map(prev);
+      next.set(groupId, langs);
+      return next;
+    });
+  }, []);
+
+  const handleGroupDefaultLanguageChange = useCallback((groupId: string, lang: string) => {
+    setGroupDefaultLanguages(prev => {
+      const next = new Map(prev);
+      next.set(groupId, lang);
+      return next;
+    });
+  }, []);
+
+  // Apply language selections from one group to all other language groups
+  const handleApplyLanguagesToAll = useCallback((sourceGroupId: string) => {
+    const sourceLangs = groupLanguageSelections.get(sourceGroupId);
+    const sourceDefault = groupDefaultLanguages.get(sourceGroupId);
+    if (!sourceLangs || sourceLangs.length === 0) return;
+
+    const langGroups = detectedGroups.filter(g => g.type === 'language');
+    setGroupLanguageSelections(prev => {
+      const next = new Map(prev);
+      for (const g of langGroups) {
+        next.set(g.id, [...sourceLangs]);
+      }
+      return next;
+    });
+    if (sourceDefault) {
+      setGroupDefaultLanguages(prev => {
+        const next = new Map(prev);
+        for (const g of langGroups) {
+          next.set(g.id, sourceDefault);
+        }
+        return next;
+      });
+    }
+    // Also select all language groups
+    setSelectedGroupIds(prev => {
+      const next = new Set(prev);
+      for (const g of langGroups) {
+        next.add(g.id);
+      }
+      return next;
+    });
+    toast.success(`Applied languages to ${langGroups.length} language group(s)`);
+  }, [groupLanguageSelections, groupDefaultLanguages, detectedGroups]);
   const handleConfirmDetected = useCallback(() => {
     setIsCompiling(true);
     try {
