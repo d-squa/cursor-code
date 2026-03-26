@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Loader2, TrendingUp, TrendingDown, ArrowLeft, RefreshCcw, Lock } from "lucide-react";
 import { format, eachWeekOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import FunnelAnalysisChart from "@/components/dashboard/FunnelAnalysisChart";
 
 interface Campaign {
   id: string;
@@ -785,6 +786,12 @@ export default function Performance() {
                     />
                   )}
                 </div>
+
+                {/* Funnel Analysis */}
+                <FunnelAnalysisChart
+                  campaign={selectedCampaign}
+                  actualMetrics={actualMetrics}
+                />
 
                 {/* Weekly Charts */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
