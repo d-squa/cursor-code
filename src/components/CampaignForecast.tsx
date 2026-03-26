@@ -2704,6 +2704,15 @@ export function CampaignForecast({
           />
         )}
       </CardContent>
+
+      <ForecastOptionsDialog
+        open={forecastOptionsOpen}
+        onOpenChange={setForecastOptionsOpen}
+        onConfirm={(options) => {
+          setForecastOptionsOpen(false);
+          handleFetchForecasts(options);
+        }}
+      />
     </Card>
   );
 }
