@@ -216,6 +216,22 @@ export function extractTaxonomyKey(row: CreativeTextAssetRow): string {
   ].join('|').toLowerCase();
 }
 
+/**
+ * Extract a "base key" from a creative's name/filename by stripping dimension and
+ * format tokens (e.g. 1x1, 4x5, 9x16, SQ, PT, 1080x1080). Creatives that share
+ * the same base key but differ in delivery bucket form a placement customization group.
+ */
+function extractCreativeBaseKey(row: CreativeTextAssetRow): string {
+  const name = (row.originalFilename || row.creativeName || '').toLowerCase();
+  return name
+    .replace(/\.[^/.]+$/, '') // remove extension
+    .replace(/[-_]?\d{2,4}x\d{2,4}/gi, '') // e.g. 1080x1080
+    .replace(/[-_]?(1x1|1_1|4x5|4_5|9x16|9_16|16x9|16_9|1\.91x1|191x1)/gi, '') // ratio tags
+    .replace(/[-_]?(sq|square|pt|portrait|vt|vertical|hz|horizontal|fullscreen)/gi, '') // format labels
+    .replace(/[-_\s]+$/g, '') // trailing separators
+    .trim() || 'base';
+}
+
 // ─── Customization Type Classification ───────────────────────────────────────
 
 export type CustomizationType = 'placement' | 'language' | 'flexible_creative';
