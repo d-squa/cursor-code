@@ -114,7 +114,8 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
       const missingIds = selectedRows
         .filter(r => !existingCarousel.cardIds.includes(r.id))
         .map(r => r.id);
-      setOrderedIds([...existingIds, ...missingIds]);
+      // Deduplicate to prevent duplicate cards on re-group
+      setOrderedIds([...new Set([...existingIds, ...missingIds])]);
     } else {
       setCarouselName('');
       setCardData(seededCardData);
