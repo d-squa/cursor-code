@@ -307,7 +307,11 @@ function compileLanguage(
  * Compile a flexible creative (multiple asset variations) group.
  * No customization_rules — Meta dynamically optimizes combinations.
  */
-function compileFlexible(group: DetectedACGroup): CompilationResult {
+function compileFlexible(
+  group: DetectedACGroup,
+  defaultLanguage?: string,
+  languageTexts?: Map<string, Record<string, string>>
+): CompilationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const images: AssetFeedImage[] = [];
@@ -318,44 +322,53 @@ function compileFlexible(group: DetectedACGroup): CompilationResult {
   const linkUrls: AssetFeedLinkUrl[] = [];
   const ctaTypes: AssetFeedCallToActionType[] = [];
 
-  // Collect unique text assets and media from all rows
-  const seenBodies = new Set<string>();
-  const seenTitles = new Set<string>();
-  const seenDescriptions = new Set<string>();
-  const seenUrls = new Set<string>();
-  const seenCtas = new Set<string>();
-
+  // Media from rows
   group.rows.forEach((row, idx) => {
     const label = makeVariantLabel(idx);
     const adlabels = [{ name: label }];
-
     if (row.mediaType === 'video') {
       videos.push({ adlabels });
     } else {
       images.push({ adlabels });
     }
-
-    if (row.primaryText && !seenBodies.has(row.primaryText)) {
-      bodies.push({ text: row.primaryText });
-      seenBodies.add(row.primaryText);
-    }
-    if (row.headline && !seenTitles.has(row.headline)) {
-      titles.push({ text: row.headline });
-      seenTitles.add(row.headline);
-    }
-    if (row.description && !seenDescriptions.has(row.description)) {
-      descriptions.push({ text: row.description });
-      seenDescriptions.add(row.description);
-    }
-    if (row.destinationUrl && !seenUrls.has(row.destinationUrl)) {
-      linkUrls.push({ website_url: row.destinationUrl });
-      seenUrls.add(row.destinationUrl);
-    }
-    if (row.callToAction && !seenCtas.has(String(row.callToAction))) {
-      ctaTypes.push({ value: String(row.callToAction) });
-      seenCtas.add(String(row.callToAction));
-    }
   });
+
+  // Text assets: prefer pasted language texts, fall back to row data
+  if (languageTexts && languageTexts.size > 0) {
+    const seenBodies = new Set<string>();
+    const seenTitles = new Set<string>();
+    const seenDescriptions = new Set<string>();
+    const seenUrls = new Set<string>();
+    const seenCtas = new Set<string>();
+
+    for (const [, fields] of languageTexts) {
+      const pt = fields.primary_text || fields.primaryText;
+      if (pt && !seenBodies.has(pt)) { bodies.push({ text: pt }); seenBodies.add(pt); }
+      const hl = fields.headline;
+      if (hl && !seenTitles.has(hl)) { titles.push({ text: hl }); seenTitles.add(hl); }
+      const desc = fields.description;
+      if (desc && !seenDescriptions.has(desc)) { descriptions.push({ text: desc }); seenDescriptions.add(desc); }
+      const url = fields.website_url || fields.destinationUrl;
+      if (url && !seenUrls.has(url)) { linkUrls.push({ website_url: url }); seenUrls.add(url); }
+      const cta = fields.call_to_action || fields.callToAction;
+      if (cta && !seenCtas.has(cta)) { ctaTypes.push({ value: cta }); seenCtas.add(cta); }
+    }
+  } else {
+    // Fallback: collect from row data
+    const seenBodies = new Set<string>();
+    const seenTitles = new Set<string>();
+    const seenDescriptions = new Set<string>();
+    const seenUrls = new Set<string>();
+    const seenCtas = new Set<string>();
+
+    for (const row of group.rows) {
+      if (row.primaryText && !seenBodies.has(row.primaryText)) { bodies.push({ text: row.primaryText }); seenBodies.add(row.primaryText); }
+      if (row.headline && !seenTitles.has(row.headline)) { titles.push({ text: row.headline }); seenTitles.add(row.headline); }
+      if (row.description && !seenDescriptions.has(row.description)) { descriptions.push({ text: row.description }); seenDescriptions.add(row.description); }
+      if (row.destinationUrl && !seenUrls.has(row.destinationUrl)) { linkUrls.push({ website_url: row.destinationUrl }); seenUrls.add(row.destinationUrl); }
+      if (row.callToAction && !seenCtas.has(String(row.callToAction))) { ctaTypes.push({ value: String(row.callToAction) }); seenCtas.add(String(row.callToAction)); }
+    }
+  }
 
   if (bodies.length === 0) {
     errors.push('At least one primary text is required');
@@ -396,7 +409,7 @@ export function compileAssetFeedSpec(
     case 'language':
       return compileLanguage(group, options?.defaultLanguage, options?.languageTexts);
     case 'flexible_creative':
-      return compileFlexible(group);
+      return compileFlexible(group, options?.defaultLanguage, options?.languageTexts);
     default:
       return {
         success: false,
