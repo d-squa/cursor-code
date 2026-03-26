@@ -715,6 +715,19 @@ export function AssetCustomizationBuilder({
       next.set(groupId, langs);
       return next;
     });
+    // Auto-expand and auto-select when 2+ languages
+    if (langs.length >= 2) {
+      setSelectedGroupIds(prev => {
+        const next = new Set(prev);
+        next.add(groupId);
+        return next;
+      });
+    }
+    setExpandedGroupIds(prev => {
+      const next = new Set(prev);
+      next.add(groupId);
+      return next;
+    });
   }, []);
 
   const handleGroupDefaultLanguageChange = useCallback((groupId: string, lang: string) => {
