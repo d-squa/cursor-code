@@ -765,6 +765,8 @@ export function AssetCustomizationBuilder({
   const [groupLanguageSelections, setGroupLanguageSelections] = useState<Map<string, string[]>>(new Map());
   // Default language per detected group
   const [groupDefaultLanguages, setGroupDefaultLanguages] = useState<Map<string, string>>(new Map());
+  // Text assets per language per group (groupId -> langCode -> { primaryText, headline, ... })
+  const [groupLanguageTexts, setGroupLanguageTexts] = useState<Map<string, Map<string, Record<string, string>>>>(new Map());
 
   // Manual mode state
   const [manualType, setManualType] = useState<CustomizationType | null>(forcedType || null);
