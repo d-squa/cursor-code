@@ -981,6 +981,15 @@ export function AssetCustomizationBuilder({
     });
     toast.success(`Applied languages to ${langGroups.length} language group(s)`);
   }, [groupLanguageSelections, groupDefaultLanguages, detectedGroups]);
+
+  const handleGroupLanguageTextsChange = useCallback((groupId: string, texts: Map<string, Record<string, string>>) => {
+    setGroupLanguageTexts(prev => {
+      const next = new Map(prev);
+      next.set(groupId, texts);
+      return next;
+    });
+  }, []);
+
   const handleConfirmDetected = useCallback(() => {
     setIsCompiling(true);
     try {
