@@ -416,7 +416,7 @@ function LanguageTextInputs({
           value={pasteValue}
           onChange={(e) => setPasteValue(e.target.value)}
           onPaste={handlePaste}
-          placeholder={`Paste rows from Excel here...\ne.g.:\nEnglish\tCheck out our deals\tBig Sale\tSave up to 50%\thttps://example.com\tSHOP_NOW\nArabic\tتحقق من عروضنا\tتخفيضات كبيرة\tوفر حتى 50%\thttps://example.com/ar\tSHOP_NOW`}
+          placeholder={`Paste bulk data here (tabs or plain text)...\ne.g.: UAE Primary Text1 Caption 1 Learn_More https://example.com KSA نص أساسي عنوان Learn_More https://example.com/ar\n\nOr tab-separated rows from Excel:\nUAE\tPrimary Text\tHeadline\tLearn_More\thttps://example.com`}
           className="text-xs min-h-[80px] resize-none font-mono"
         />
         {parseError && (
