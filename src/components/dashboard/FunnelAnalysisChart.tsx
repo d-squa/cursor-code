@@ -95,7 +95,7 @@ interface FunnelAnalysisChartProps {
   campaign: {
     id: string;
     name: string;
-    platforms: any[];
+    platforms?: any[];
     total_budget: number;
     forecast_data?: any;
     market_splits?: any;

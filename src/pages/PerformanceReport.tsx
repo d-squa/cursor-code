@@ -19,6 +19,7 @@ import MetricScorecard from "@/components/dashboard/MetricScorecard";
 import TimeSeriesChart from "@/components/dashboard/TimeSeriesChart";
 import BudgetPacingChart from "@/components/dashboard/BudgetPacingChart";
 import CoverageEvolutionChart from "@/components/dashboard/CoverageEvolutionChart";
+import FunnelAnalysisChart from "@/components/dashboard/FunnelAnalysisChart";
 import PerformanceTable from "@/components/dashboard/PerformanceTable";
 import PlatformComparisonSection from "@/components/dashboard/PlatformComparisonSection";
 import MarketComparisonSection from "@/components/dashboard/MarketComparisonSection";
@@ -817,6 +818,20 @@ export default function PerformanceReport() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Funnel Analysis */}
+          {campaign && (
+            <FunnelAnalysisChart
+              campaign={campaign}
+              insights={filteredData.insights}
+              actualMetrics={{
+                reach: metrics.actual.reach,
+                impressions: metrics.actual.impressions,
+                clicks: metrics.actual.clicks,
+                spend: metrics.actual.spend,
+              }}
+            />
+          )}
 
           <Separator />
 
