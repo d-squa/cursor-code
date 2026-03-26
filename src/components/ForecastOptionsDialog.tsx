@@ -139,10 +139,15 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
           {/* Markup Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2 text-sm font-medium">
-                <Percent className="h-4 w-4" />
-                Apply Markup/Markdown
-              </Label>
+              <div>
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  <Percent className="h-4 w-4" />
+                  CPM Markup/Markdown
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Adjusts CPM — impressions, reach, and results recalculate accordingly.
+                </p>
+              </div>
               <Switch checked={applyMarkup} onCheckedChange={setApplyMarkup} />
             </div>
             
