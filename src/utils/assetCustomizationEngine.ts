@@ -216,6 +216,22 @@ export function extractTaxonomyKey(row: CreativeTextAssetRow): string {
   ].join('|').toLowerCase();
 }
 
+/**
+ * Extract a "base key" from a creative's name/filename by stripping dimension and
+ * format tokens (e.g. 1x1, 4x5, 9x16, SQ, PT, 1080x1080). Creatives that share
+ * the same base key but differ in delivery bucket form a placement customization group.
+ */
+function extractCreativeBaseKey(row: CreativeTextAssetRow): string {
+  const name = (row.originalFilename || row.creativeName || '').toLowerCase();
+  return name
+    .replace(/\.[^/.]+$/, '') // remove extension
+    .replace(/[-_]?\d{2,4}x\d{2,4}/gi, '') // e.g. 1080x1080
+    .replace(/[-_]?(1x1|1_1|4x5|4_5|9x16|9_16|16x9|16_9|1\.91x1|191x1)/gi, '') // ratio tags
+    .replace(/[-_]?(sq|square|pt|portrait|vt|vertical|hz|horizontal|fullscreen)/gi, '') // format labels
+    .replace(/[-_\s]+$/g, '') // trailing separators
+    .trim() || 'base';
+}
+
 // ─── Customization Type Classification ───────────────────────────────────────
 
 export type CustomizationType = 'placement' | 'language' | 'flexible_creative';
@@ -291,68 +307,97 @@ export function detectAssetCustomizationGroups(
       });
     }
 
-    // Remaining rows are evaluated in language-specific subgroups so EN/AR variants can still
-    // form placement customization opportunities instead of being merged into language mode.
-    const subgroupMap = new Map<string, CreativeTextAssetRow[]>();
+    // Remaining rows: find placement groups by matching creatives that share a common
+    // base name (taxonomy minus format/dimension tokens) but differ in delivery bucket.
+    // Each placement group must have exactly 1 creative per bucket.
+
+    // Step 1: Extract a "creative base key" by stripping dimension/format tokens from the name
+    const baseKeyMap = new Map<string, CreativeTextAssetRow[]>();
     for (const row of nonLanguageRows) {
-      const subgroupKey = detectLanguage(row) || 'unknown';
-      if (!subgroupMap.has(subgroupKey)) subgroupMap.set(subgroupKey, []);
-      subgroupMap.get(subgroupKey)!.push(row);
+      const baseKey = extractCreativeBaseKey(row);
+      if (!baseKeyMap.has(baseKey)) baseKeyMap.set(baseKey, []);
+      baseKeyMap.get(baseKey)!.push(row);
     }
 
-    for (const [subgroupKey, subgroupRows] of subgroupMap) {
-      if (subgroupRows.length < 2) continue;
+    const claimedRowIds = new Set<string>();
+
+    // Step 2: For each base key, check if creatives span 2+ different buckets with 1 each
+    for (const [baseKey, baseRows] of baseKeyMap) {
+      if (baseRows.length < 2) continue;
 
       const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
-      const languageMap = new Map<string, CreativeTextAssetRow[]>();
-
-      for (const row of subgroupRows) {
+      for (const row of baseRows) {
         const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
         if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
         bucketMap.get(bucket)!.push(row);
+      }
 
+      const uniqueBuckets = new Set([...bucketMap.keys()].filter((b) => b !== 'other'));
+      if (uniqueBuckets.size < 2) continue;
+
+      // Only form a placement group if each bucket has exactly 1 creative
+      const allSinglePerBucket = [...uniqueBuckets].every((b) => (bucketMap.get(b)?.length || 0) === 1);
+      if (!allSinglePerBucket) continue;
+
+      const placementRows = [...uniqueBuckets].map((b) => bucketMap.get(b)![0]);
+      const languageMap = new Map<string, CreativeTextAssetRow[]>();
+      for (const row of placementRows) {
         const lang = detectLanguage(row) || 'unknown';
         if (!languageMap.has(lang)) languageMap.set(lang, []);
         languageMap.get(lang)!.push(row);
       }
 
-      const uniqueBuckets = new Set([...bucketMap.keys()].filter((bucket) => bucket !== 'other'));
-      const hasDifferentBuckets = uniqueBuckets.size >= 2;
-      const subgroupSuffix = subgroupKey === 'unknown' ? '' : `-${subgroupKey}`;
-
-      if (hasDifferentBuckets) {
-        const errors = validatePlacementGroup(bucketMap);
-        detected.push({
-          id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}${subgroupSuffix}`,
-          type: 'placement',
-          label: `Placement Customization`,
-          description: `${uniqueBuckets.size} delivery buckets: ${[...uniqueBuckets].map((bucket) => DELIVERY_BUCKETS[bucket].label).join(', ')}`,
-          rows: subgroupRows,
-          taxonomyKey: taxKey,
-          deliveryBuckets: bucketMap,
-          languages: languageMap,
-          validationErrors: errors,
-        });
-      } else {
-        const supportedRows = subgroupRows.filter((row) => {
-          const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
-          return bucket !== 'other';
-        });
-
-        if (supportedRows.length >= 2) {
-          detected.push({
-            id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}${subgroupSuffix}`,
-            type: 'flexible_creative',
-            label: `Flexible Creative`,
-            description: `${supportedRows.length} creative variations for dynamic optimization`,
-            rows: supportedRows,
-            taxonomyKey: taxKey,
-            deliveryBuckets: bucketMap,
-            languages: languageMap,
-            validationErrors: [],
-          });
-        }
+      const newBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+      for (const row of placementRows) {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        newBucketMap.set(bucket, [row]);
       }
+
+      detected.push({
+        id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}-${baseKey.replace(/[^a-z0-9]/gi, '-')}`,
+        type: 'placement',
+        label: `Placement Customization`,
+        description: `${uniqueBuckets.size} delivery buckets: ${[...uniqueBuckets].map((b) => DELIVERY_BUCKETS[b].label).join(', ')}`,
+        rows: placementRows,
+        taxonomyKey: taxKey,
+        deliveryBuckets: newBucketMap,
+        languages: languageMap,
+        validationErrors: [],
+      });
+
+      placementRows.forEach((r) => claimedRowIds.add(r.id));
+    }
+
+    // Step 3: Unclaimed rows with 2+ supported formats → Flexible Creative
+    const unclaimedRows = nonLanguageRows.filter((r) => !claimedRowIds.has(r.id));
+    const supportedUnclaimed = unclaimedRows.filter((r) => {
+      const bucket = classifyDeliveryBucket(r.width, r.height, r.aspectRatio);
+      return bucket !== 'other';
+    });
+
+    if (supportedUnclaimed.length >= 2) {
+      const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+      const languageMap = new Map<string, CreativeTextAssetRow[]>();
+      for (const row of supportedUnclaimed) {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
+        bucketMap.get(bucket)!.push(row);
+        const lang = detectLanguage(row) || 'unknown';
+        if (!languageMap.has(lang)) languageMap.set(lang, []);
+        languageMap.get(lang)!.push(row);
+      }
+
+      detected.push({
+        id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
+        type: 'flexible_creative',
+        label: `Flexible Creative`,
+        description: `${supportedUnclaimed.length} creative variations for dynamic optimization`,
+        rows: supportedUnclaimed,
+        taxonomyKey: taxKey,
+        deliveryBuckets: bucketMap,
+        languages: languageMap,
+        validationErrors: [],
+      });
     }
   }
 
