@@ -162,57 +162,113 @@ function TypeSelector({
   );
 }
 
-// ─── Language Text Inputs per Language ────────────────────────────────────────
+// ─── Language Text Inputs via Bulk Excel Paste ──────────────────────────────
 
-const LANG_TEXT_FIELDS = [
-  { id: 'primaryText', label: 'Primary Text', multiline: true, maxLength: 500 },
-  { id: 'headline', label: 'Headline', multiline: false, maxLength: 255 },
-  { id: 'description', label: 'Description', multiline: false, maxLength: 125 },
-  { id: 'destinationUrl', label: 'Destination URL', multiline: false, maxLength: 2000 },
-  { id: 'callToAction', label: 'Call to Action', multiline: false, isCta: true },
-];
+const LANG_PASTE_COLUMNS = ['Language', 'Primary Text', 'Headline', 'Description', 'Destination URL', 'CTA'];
+const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', 'destinationUrl', 'callToAction'] as const;
 
 const META_CTAS = PLATFORM_CTAS.meta;
 
+interface ParsedLangRow {
+  language: string;
+  languageCode: string;
+  primaryText: string;
+  headline: string;
+  description: string;
+  destinationUrl: string;
+  callToAction: string;
+}
+
+function resolveLanguageCode(input: string): string | null {
+  const cleaned = input.trim().toLowerCase();
+  // Direct code match
+  const direct = SUPPORTED_LANGUAGES.find(l => l.code === cleaned);
+  if (direct) return direct.code;
+  // Label match
+  const byLabel = SUPPORTED_LANGUAGES.find(l => l.label.toLowerCase() === cleaned);
+  if (byLabel) return byLabel.code;
+  // Partial match
+  const partial = SUPPORTED_LANGUAGES.find(l =>
+    l.label.toLowerCase().startsWith(cleaned) || cleaned.startsWith(l.code)
+  );
+  if (partial) return partial.code;
+  return null;
+}
+
 function LanguageTextInputs({
-  selectedLanguages,
   languageTexts,
   onLanguageTextsChange,
   defaultLanguage,
+  onDefaultLanguageChange,
 }: {
-  selectedLanguages: string[];
   languageTexts: Map<string, Record<string, string>>;
   onLanguageTextsChange: (texts: Map<string, Record<string, string>>) => void;
   defaultLanguage?: string;
+  onDefaultLanguageChange?: (lang: string) => void;
 }) {
-  const [activeLangTab, setActiveLangTab] = useState(defaultLanguage || selectedLanguages[0] || '');
-  const fieldRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const [pasteValue, setPasteValue] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [editingLang, setEditingLang] = useState<string | null>(null);
 
-  // Handle tab-separated paste from Excel: fill consecutive fields
-  const handlePaste = useCallback((e: React.ClipboardEvent, lang: string, startFieldIdx: number) => {
+  const detectedLanguages = useMemo(() => {
+    return [...languageTexts.keys()].sort();
+  }, [languageTexts]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
 
-    // Detect tab-separated values (Excel row)
-    const values = pasted.includes('\t') ? pasted.split('\t').map(v => v.trim()) : null;
-    if (!values || values.length <= 1) return; // Not a multi-column paste
+    // Detect tab-separated (Excel paste)
+    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
+    const tsvLines = lines.filter(l => l.includes('\t'));
+    if (tsvLines.length === 0) return;
 
     e.preventDefault();
-
-    const current = { ...(languageTexts.get(lang) || {}) };
-    const editableFields = LANG_TEXT_FIELDS.filter(f => !f.isCta);
-    let filled = 0;
-    for (let i = 0; i < values.length && startFieldIdx + i < editableFields.length; i++) {
-      const field = editableFields[startFieldIdx + i];
-      current[field.id] = values[i];
-      filled++;
-    }
+    setParseError(null);
 
     const next = new Map(languageTexts);
-    next.set(lang, current);
+    const errors: string[] = [];
+    let parsed = 0;
+
+    for (const line of tsvLines) {
+      const cols = line.split('\t').map(c => c.trim());
+      if (cols.length < 2) continue;
+
+      const langInput = cols[0];
+      const langCode = resolveLanguageCode(langInput);
+      if (!langCode) {
+        errors.push(`Unknown language: "${langInput}"`);
+        continue;
+      }
+
+      const row: Record<string, string> = {};
+      if (cols[1]) row.primaryText = cols[1];
+      if (cols[2]) row.headline = cols[2];
+      if (cols[3]) row.description = cols[3];
+      if (cols[4]) row.destinationUrl = cols[4];
+      if (cols[5]) row.callToAction = cols[5];
+
+      // Merge with existing
+      const existing = next.get(langCode) || {};
+      next.set(langCode, { ...existing, ...row });
+      parsed++;
+    }
+
     onLanguageTextsChange(next);
-    toast.success(`Pasted ${filled} field(s) from clipboard`);
-  }, [languageTexts, onLanguageTextsChange]);
+    setPasteValue('');
+
+    if (parsed > 0) {
+      toast.success(`Parsed ${parsed} language row(s)`);
+    }
+    if (errors.length > 0) {
+      setParseError(errors.join('; '));
+    }
+
+    // Auto-set default language if not set
+    if (!defaultLanguage && next.size > 0 && onDefaultLanguageChange) {
+      onDefaultLanguageChange([...next.keys()][0]);
+    }
+  }, [languageTexts, onLanguageTextsChange, defaultLanguage, onDefaultLanguageChange]);
 
   const handleFieldChange = useCallback((lang: string, fieldId: string, value: string) => {
     const current = { ...(languageTexts.get(lang) || {}) };
@@ -222,132 +278,154 @@ function LanguageTextInputs({
     onLanguageTextsChange(next);
   }, [languageTexts, onLanguageTextsChange]);
 
-  const handleCopyToAllLangs = useCallback((sourceLang: string) => {
-    const sourceTexts = languageTexts.get(sourceLang);
-    if (!sourceTexts) return;
+  const handleRemoveLanguage = useCallback((lang: string) => {
     const next = new Map(languageTexts);
-    for (const lang of selectedLanguages) {
-      if (lang === sourceLang) continue;
-      next.set(lang, { ...sourceTexts });
-    }
+    next.delete(lang);
     onLanguageTextsChange(next);
-    toast.success(`Copied text to ${selectedLanguages.length - 1} language(s)`);
-  }, [languageTexts, selectedLanguages, onLanguageTextsChange]);
-
-  if (selectedLanguages.length === 0) return null;
+    if (editingLang === lang) setEditingLang(null);
+    if (defaultLanguage === lang && next.size > 0 && onDefaultLanguageChange) {
+      onDefaultLanguageChange([...next.keys()][0]);
+    }
+  }, [languageTexts, onLanguageTextsChange, editingLang, defaultLanguage, onDefaultLanguageChange]);
 
   return (
     <div className="space-y-3 mt-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Text Assets per Language</span>
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <ClipboardPaste className="h-3 w-3" />
-          Paste from Excel supported
+      {/* Paste area */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">Paste from Excel</span>
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <ClipboardPaste className="h-3 w-3" />
+            Columns: {LANG_PASTE_COLUMNS.join(' | ')}
+          </div>
         </div>
+        <Textarea
+          value={pasteValue}
+          onChange={(e) => setPasteValue(e.target.value)}
+          onPaste={handlePaste}
+          placeholder={`Paste rows from Excel here...\ne.g.:\nEnglish\tCheck out our deals\tBig Sale\tSave up to 50%\thttps://example.com\tSHOP_NOW\nArabic\tتحقق من عروضنا\tتخفيضات كبيرة\tوفر حتى 50%\thttps://example.com/ar\tSHOP_NOW`}
+          className="text-xs min-h-[80px] resize-none font-mono"
+        />
+        {parseError && (
+          <p className="text-[10px] text-destructive">{parseError}</p>
+        )}
       </div>
 
-      <Tabs value={activeLangTab} onValueChange={setActiveLangTab}>
-        <TabsList className="h-7 w-full justify-start gap-0.5 bg-muted/50">
-          {selectedLanguages.map(lang => {
-            const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || lang.toUpperCase();
-            const texts = languageTexts.get(lang);
-            const hasContent = texts && Object.values(texts).some(v => v && v.length > 0);
-            return (
-              <TabsTrigger key={lang} value={lang} className="text-[11px] h-6 px-2 gap-1 data-[state=active]:bg-background">
-                {langLabel}
-                {lang === defaultLanguage && (
-                  <Badge variant="outline" className="text-[8px] h-3 px-1 ml-0.5">default</Badge>
-                )}
-                {hasContent && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500" />}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-
-        {selectedLanguages.map(lang => {
-          const texts = languageTexts.get(lang) || {};
-          const editableFieldIdx = { current: 0 };
-
-          return (
-            <TabsContent key={lang} value={lang} className="mt-2 space-y-2">
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] h-6 gap-1"
-                  onClick={() => handleCopyToAllLangs(lang)}
-                >
-                  <Copy className="h-3 w-3" />
-                  Copy to all languages
-                </Button>
+      {/* Detected languages table */}
+      {detectedLanguages.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              {detectedLanguages.length} language(s) detected
+            </span>
+            {detectedLanguages.length >= 2 && onDefaultLanguageChange && (
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] text-muted-foreground">Default:</Label>
+                <Select value={defaultLanguage || detectedLanguages[0]} onValueChange={onDefaultLanguageChange}>
+                  <SelectTrigger className="h-6 w-28 text-[10px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {detectedLanguages.map(l => (
+                      <SelectItem key={l} value={l} className="text-xs">
+                        {SUPPORTED_LANGUAGES.find(sl => sl.code === l)?.label || l.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            )}
+          </div>
 
-              {LANG_TEXT_FIELDS.map((field, fieldIdx) => {
-                if (field.isCta) {
-                  return (
-                    <div key={field.id} className="space-y-1">
-                      <Label className="text-[11px] text-muted-foreground">{field.label}</Label>
-                      <Select
-                        value={texts[field.id] || ''}
-                        onValueChange={(val) => handleFieldChange(lang, field.id, val)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Select CTA..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {META_CTAS.map(cta => (
-                            <SelectItem key={cta} value={cta} className="text-xs">
-                              {cta.replace(/_/g, ' ')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                }
+          <div className="border rounded-md divide-y">
+            {detectedLanguages.map(lang => {
+              const texts = languageTexts.get(lang) || {};
+              const langLabel = SUPPORTED_LANGUAGES.find(l => l.code === lang)?.label || lang.toUpperCase();
+              const isEditing = editingLang === lang;
+              const filledCount = Object.values(texts).filter(v => v && v.length > 0).length;
 
-                const currentIdx = editableFieldIdx.current;
-                editableFieldIdx.current++;
-
-                return (
-                  <div key={field.id} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[11px] text-muted-foreground">{field.label}</Label>
-                      {field.maxLength && texts[field.id] && (
-                        <span className={cn(
-                          'text-[10px]',
-                          (texts[field.id]?.length || 0) > field.maxLength ? 'text-destructive' : 'text-muted-foreground'
-                        )}>
-                          {texts[field.id]?.length || 0}/{field.maxLength}
-                        </span>
-                      )}
-                    </div>
-                    {field.multiline ? (
-                      <Textarea
-                        value={texts[field.id] || ''}
-                        onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
-                        onPaste={(e) => handlePaste(e, lang, currentIdx)}
-                        placeholder={`${field.label}...`}
-                        className="text-xs min-h-[60px] resize-none"
-                        maxLength={field.maxLength}
-                      />
-                    ) : (
-                      <Input
-                        value={texts[field.id] || ''}
-                        onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
-                        onPaste={(e) => handlePaste(e, lang, currentIdx)}
-                        placeholder={`${field.label}...`}
-                        className="h-8 text-xs"
-                        maxLength={field.maxLength}
-                      />
-                    )}
+              return (
+                <div key={lang} className="text-xs">
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <button onClick={() => setEditingLang(isEditing ? null : lang)} className="p-0.5 hover:bg-muted rounded">
+                      {isEditing ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    </button>
+                    <Badge variant={lang === defaultLanguage ? 'default' : 'secondary'} className="text-[10px] h-5">
+                      {langLabel}
+                    </Badge>
+                    <span className="text-muted-foreground flex-1 truncate">
+                      {texts.headline || texts.primaryText || '(no text yet)'}
+                    </span>
+                    <Badge variant="outline" className="text-[9px] h-4">{filledCount} fields</Badge>
+                    <button
+                      onClick={() => handleRemoveLanguage(lang)}
+                      className="p-0.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </button>
                   </div>
-                );
-              })}
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+
+                  {isEditing && (
+                    <div className="px-3 pb-3 space-y-2 bg-muted/20">
+                      {[
+                        { id: 'primaryText', label: 'Primary Text', multiline: true },
+                        { id: 'headline', label: 'Headline' },
+                        { id: 'description', label: 'Description' },
+                        { id: 'destinationUrl', label: 'Destination URL' },
+                      ].map(field => (
+                        <div key={field.id} className="space-y-0.5">
+                          <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+                          {field.multiline ? (
+                            <Textarea
+                              value={texts[field.id] || ''}
+                              onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
+                              className="text-xs min-h-[50px] resize-none"
+                              placeholder={`${field.label}...`}
+                            />
+                          ) : (
+                            <Input
+                              value={texts[field.id] || ''}
+                              onChange={(e) => handleFieldChange(lang, field.id, e.target.value)}
+                              className="h-7 text-xs"
+                              placeholder={`${field.label}...`}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      <div className="space-y-0.5">
+                        <Label className="text-[10px] text-muted-foreground">Call to Action</Label>
+                        <Select
+                          value={texts.callToAction || ''}
+                          onValueChange={(val) => handleFieldChange(lang, 'callToAction', val)}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="Select CTA..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {META_CTAS.map(cta => (
+                              <SelectItem key={cta} value={cta} className="text-xs">
+                                {cta.replace(/_/g, ' ')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {detectedLanguages.length < 2 && (
+            <Alert className="py-2">
+              <AlertDescription className="text-[10px]">
+                Paste at least 2 language rows to enable language customization.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -360,8 +438,6 @@ function DetectedGroupCard({
   onToggle,
   expanded,
   onToggleExpand,
-  selectedLanguages,
-  onLanguagesChange,
   groupDefaultLanguage,
   onDefaultLanguageChange,
   onApplyToAll,
@@ -374,8 +450,6 @@ function DetectedGroupCard({
   onToggle: () => void;
   expanded: boolean;
   onToggleExpand: () => void;
-  selectedLanguages?: string[];
-  onLanguagesChange?: (langs: string[]) => void;
   groupDefaultLanguage?: string;
   onDefaultLanguageChange?: (lang: string) => void;
   onApplyToAll?: () => void;
@@ -384,9 +458,10 @@ function DetectedGroupCard({
   onLanguageTextsChange?: (texts: Map<string, Record<string, string>>) => void;
 }) {
   const isLanguageGroup = group.type === 'language';
-  const hasLanguages = isLanguageGroup && selectedLanguages && selectedLanguages.length >= 2;
+  const langCount = languageTexts ? [...languageTexts.keys()].length : 0;
+  const hasLanguages = isLanguageGroup && langCount >= 2;
   const hasErrors = group.validationErrors.length > 0;
-  const languageIncomplete = isLanguageGroup && (!selectedLanguages || selectedLanguages.length < 2);
+  const languageIncomplete = isLanguageGroup && langCount < 2;
 
   return (
     <div className={cn(
@@ -417,7 +492,7 @@ function DetectedGroupCard({
             </Badge>
             {hasLanguages && (
               <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] shrink-0">
-                {selectedLanguages.length} langs
+                {langCount} langs
               </Badge>
             )}
           </div>
@@ -462,59 +537,23 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {isLanguageGroup && onLanguagesChange && (
+          {isLanguageGroup && languageTexts && onLanguageTextsChange && (
             <div className="space-y-3">
               <div>
-                <span className="text-xs font-medium text-muted-foreground">Select Target Languages</span>
+                <span className="text-xs font-medium text-muted-foreground">Language Text Assets</span>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Choose 2+ languages. The creative stays the same — text is swapped per language.
+                  Paste rows from Excel with columns: Language, Primary Text, Headline, Description, URL, CTA. Languages are auto-detected.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {SUPPORTED_LANGUAGES.map(lang => {
-                  const isChecked = selectedLanguages?.includes(lang.code) || false;
-                  return (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        const current = selectedLanguages || [];
-                        const updated = isChecked
-                          ? current.filter(c => c !== lang.code)
-                          : [...current, lang.code];
-                        onLanguagesChange(updated);
-                      }}
-                      className={cn(
-                        'px-2 py-1 rounded-md text-xs border transition-colors',
-                        isChecked
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
-                          : 'border-border hover:border-primary/50 text-muted-foreground',
-                      )}
-                    >
-                      {lang.label} ({lang.code.toUpperCase()})
-                    </button>
-                  );
-                })}
-              </div>
 
-              {selectedLanguages && selectedLanguages.length >= 2 && onDefaultLanguageChange && (
-                <div className="flex items-center gap-3">
-                  <Label className="text-xs shrink-0">Default Language</Label>
-                  <Select value={groupDefaultLanguage || selectedLanguages[0]} onValueChange={onDefaultLanguageChange}>
-                    <SelectTrigger className="h-7 w-36 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedLanguages.map(l => (
-                        <SelectItem key={l} value={l} className="text-xs">
-                          {SUPPORTED_LANGUAGES.find(sl => sl.code === l)?.label || l.toUpperCase()}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <LanguageTextInputs
+                languageTexts={languageTexts}
+                onLanguageTextsChange={onLanguageTextsChange}
+                defaultLanguage={groupDefaultLanguage}
+                onDefaultLanguageChange={onDefaultLanguageChange}
+              />
 
-              {selectedLanguages && selectedLanguages.length >= 2 && onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && (
+              {onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && [...languageTexts.keys()].length >= 2 && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -522,25 +561,8 @@ function DetectedGroupCard({
                   onClick={onApplyToAll}
                 >
                   <Globe className="h-3 w-3" />
-                  Apply these languages to all {totalLanguageGroups} language groups
+                  Apply text assets to all {totalLanguageGroups} language groups
                 </Button>
-              )}
-
-              {(!selectedLanguages || selectedLanguages.length < 2) && (
-                <Alert className="py-2">
-                  <AlertDescription className="text-xs">
-                    Select at least 2 languages to enable this customization.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {selectedLanguages && selectedLanguages.length >= 2 && languageTexts && onLanguageTextsChange && (
-                <LanguageTextInputs
-                  selectedLanguages={selectedLanguages}
-                  languageTexts={languageTexts}
-                  onLanguageTextsChange={onLanguageTextsChange}
-                  defaultLanguage={groupDefaultLanguage}
-                />
               )}
             </div>
           )}
@@ -761,8 +783,7 @@ export function AssetCustomizationBuilder({
   const [isCompiling, setIsCompiling] = useState(false);
   const [defaultLanguage, setDefaultLanguage] = useState<string>('en');
 
-  // Language selections per detected group (groupId -> selected language codes)
-  const [groupLanguageSelections, setGroupLanguageSelections] = useState<Map<string, string[]>>(new Map());
+  // Default language per detected group
   // Default language per detected group
   const [groupDefaultLanguages, setGroupDefaultLanguages] = useState<Map<string, string>>(new Map());
   // Text assets per language per group (groupId -> langCode -> { primaryText, headline, ... })
@@ -784,7 +805,6 @@ export function AssetCustomizationBuilder({
       setSelectedGroupIds(new Set());
       setExpandedGroupIds(new Set());
       setPreviewGroupId(null);
-      setGroupLanguageSelections(new Map());
       setGroupDefaultLanguages(new Map());
       setGroupLanguageTexts(new Map());
       if (selectedRowIds.size >= 2) {
@@ -919,28 +939,6 @@ export function AssetCustomizationBuilder({
     });
   }, []);
 
-  // Language selection for auto-detected language groups
-  const handleGroupLanguageChange = useCallback((groupId: string, langs: string[]) => {
-    setGroupLanguageSelections(prev => {
-      const next = new Map(prev);
-      next.set(groupId, langs);
-      return next;
-    });
-    // Auto-expand and auto-select when 2+ languages
-    if (langs.length >= 2) {
-      setSelectedGroupIds(prev => {
-        const next = new Set(prev);
-        next.add(groupId);
-        return next;
-      });
-    }
-    setExpandedGroupIds(prev => {
-      const next = new Set(prev);
-      next.add(groupId);
-      return next;
-    });
-  }, []);
-
   const handleGroupDefaultLanguageChange = useCallback((groupId: string, lang: string) => {
     setGroupDefaultLanguages(prev => {
       const next = new Map(prev);
@@ -949,17 +947,22 @@ export function AssetCustomizationBuilder({
     });
   }, []);
 
-  // Apply language selections from one group to all other language groups
+  // Apply language text assets from one group to all other language groups
   const handleApplyLanguagesToAll = useCallback((sourceGroupId: string) => {
-    const sourceLangs = groupLanguageSelections.get(sourceGroupId);
+    const sourceTexts = groupLanguageTexts.get(sourceGroupId);
     const sourceDefault = groupDefaultLanguages.get(sourceGroupId);
-    if (!sourceLangs || sourceLangs.length === 0) return;
+    if (!sourceTexts || [...sourceTexts.keys()].length === 0) return;
 
     const langGroups = detectedGroups.filter(g => g.type === 'language');
-    setGroupLanguageSelections(prev => {
+    setGroupLanguageTexts(prev => {
       const next = new Map(prev);
       for (const g of langGroups) {
-        next.set(g.id, [...sourceLangs]);
+        // Deep copy the texts map
+        const copied = new Map<string, Record<string, string>>();
+        for (const [lang, texts] of sourceTexts) {
+          copied.set(lang, { ...texts });
+        }
+        next.set(g.id, copied);
       }
       return next;
     });
@@ -980,8 +983,8 @@ export function AssetCustomizationBuilder({
       }
       return next;
     });
-    toast.success(`Applied languages to ${langGroups.length} language group(s)`);
-  }, [groupLanguageSelections, groupDefaultLanguages, detectedGroups]);
+    toast.success(`Applied text assets to ${langGroups.length} language group(s)`);
+  }, [groupLanguageTexts, groupDefaultLanguages, detectedGroups]);
 
   const handleGroupLanguageTextsChange = useCallback((groupId: string, texts: Map<string, Record<string, string>>) => {
     setGroupLanguageTexts(prev => {
@@ -989,6 +992,19 @@ export function AssetCustomizationBuilder({
       next.set(groupId, texts);
       return next;
     });
+    // Auto-select when 2+ languages are pasted
+    if ([...texts.keys()].length >= 2) {
+      setSelectedGroupIds(prev => {
+        const next = new Set(prev);
+        next.add(groupId);
+        return next;
+      });
+      setExpandedGroupIds(prev => {
+        const next = new Set(prev);
+        next.add(groupId);
+        return next;
+      });
+    }
   }, []);
 
   const handleConfirmDetected = useCallback(() => {
@@ -1002,10 +1018,11 @@ export function AssetCustomizationBuilder({
 
         // For language groups, inject selected languages into the group
         if (group.type === 'language') {
-          const langs = groupLanguageSelections.get(group.id);
-          if (!langs || langs.length < 2) continue;
+          const langTexts = groupLanguageTexts.get(group.id);
+          const langs = langTexts ? [...langTexts.keys()] : [];
+          if (langs.length < 2) continue;
           const defLang = groupDefaultLanguages.get(group.id) || langs[0];
-          // Build language map from selected languages
+          // Build language map from pasted languages
           const langMap = new Map<string, CreativeTextAssetRow[]>();
           for (const lang of langs) {
             langMap.set(lang, group.rows);
@@ -1015,7 +1032,6 @@ export function AssetCustomizationBuilder({
             languages: langMap,
             manualLanguages: new Map(group.rows.map(r => [r.id, langs[0]])),
           };
-          const langTexts = groupLanguageTexts.get(group.id);
           const compiled = compileAssetFeedSpec(enrichedGroup, { defaultLanguage: defLang, languageTexts: langTexts });
           if (compiled.success) {
             onCreateGroup(enrichedGroup, compiled);
@@ -1039,7 +1055,7 @@ export function AssetCustomizationBuilder({
     } finally {
       setIsCompiling(false);
     }
-  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupLanguageSelections, groupDefaultLanguages, groupLanguageTexts, onCreateGroup, handleOpenChange]);
+  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupDefaultLanguages, groupLanguageTexts, onCreateGroup, handleOpenChange]);
 
   const handleConfirmManual = useCallback(() => {
     if (!manualGroup || !manualSpec || !manualSpec.success) return;
@@ -1054,13 +1070,13 @@ export function AssetCustomizationBuilder({
     }
   }, [manualGroup, manualSpec, onCreateGroup, handleOpenChange]);
 
-  // Count valid selected: for language groups, require 2+ languages selected
+  // Count valid selected: for language groups, require 2+ languages from pasted texts
   const validSelectedCount = detectedGroups.filter(g => {
     if (!selectedGroupIds.has(g.id)) return false;
     if (g.validationErrors.length > 0) return false;
     if (g.type === 'language') {
-      const langs = groupLanguageSelections.get(g.id);
-      return langs && langs.length >= 2;
+      const langTexts = groupLanguageTexts.get(g.id);
+      return langTexts && [...langTexts.keys()].length >= 2;
     }
     return true;
   }).length;
@@ -1116,20 +1132,12 @@ export function AssetCustomizationBuilder({
                     onDefaultLanguageChange={setDefaultLanguage}
                   />
 
-                  {(() => {
-                    const uniqueLangs = [...new Set([...languageAssignments.values()].filter(Boolean))];
-                    if (uniqueLangs.length >= 2) {
-                      return (
-                        <LanguageTextInputs
-                          selectedLanguages={uniqueLangs}
-                          languageTexts={manualLanguageTexts}
-                          onLanguageTextsChange={setManualLanguageTexts}
-                          defaultLanguage={defaultLanguage}
-                        />
-                      );
-                    }
-                    return null;
-                  })()}
+                  <LanguageTextInputs
+                    languageTexts={manualLanguageTexts}
+                    onLanguageTextsChange={setManualLanguageTexts}
+                    defaultLanguage={defaultLanguage}
+                    onDefaultLanguageChange={setDefaultLanguage}
+                  />
 
                   {manualSpec && (
                     <>
@@ -1263,8 +1271,6 @@ export function AssetCustomizationBuilder({
                         onToggle={() => toggleGroupSelection(group.id)}
                         expanded={expandedGroupIds.has(group.id)}
                         onToggleExpand={() => toggleGroupExpand(group.id)}
-                        selectedLanguages={groupLanguageSelections.get(group.id)}
-                        onLanguagesChange={group.type === 'language' ? (langs) => handleGroupLanguageChange(group.id, langs) : undefined}
                         groupDefaultLanguage={groupDefaultLanguages.get(group.id)}
                         onDefaultLanguageChange={group.type === 'language' ? (lang) => handleGroupDefaultLanguageChange(group.id, lang) : undefined}
                         onApplyToAll={group.type === 'language' ? () => handleApplyLanguagesToAll(group.id) : undefined}
