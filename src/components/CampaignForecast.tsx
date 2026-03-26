@@ -1468,9 +1468,14 @@ export function CampaignForecast({
     }
   };
 
-  const handleFetchForecasts = async () => {
+  const handleFetchForecasts = async (options?: ForecastOptions) => {
     setLoading(true);
     setHasExistingForecast(false);
+    
+    // Extract date range from options for benchmark filtering
+    const benchmarkDateRange = options?.benchmarkDateRange?.preset !== "all" 
+      ? { startDate: options?.benchmarkDateRange?.startDate, endDate: options?.benchmarkDateRange?.endDate }
+      : undefined;
     
     try {
       // Step 1: Sync benchmarks for all selected ad accounts
@@ -1479,8 +1484,8 @@ export function CampaignForecast({
       
       try {
         await syncBenchmarksForSelectedAccounts();
-        // Reload benchmarks after sync completes
-        await reloadBenchmarks();
+        // Reload benchmarks after sync completes (with optional date range filter)
+        await reloadBenchmarks(benchmarkDateRange);
       } catch (syncError) {
         console.warn("Benchmark sync failed, continuing with existing data:", syncError);
         toast.warning("Could not sync latest benchmarks. Using cached data.", { duration: 3000 });
