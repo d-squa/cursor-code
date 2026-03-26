@@ -1253,6 +1253,8 @@ export function AssetCustomizationBuilder({
                         onDefaultLanguageChange={group.type === 'language' ? (lang) => handleGroupDefaultLanguageChange(group.id, lang) : undefined}
                         onApplyToAll={group.type === 'language' ? () => handleApplyLanguagesToAll(group.id) : undefined}
                         totalLanguageGroups={totalLanguageGroups}
+                        languageTexts={group.type === 'language' ? (groupLanguageTexts.get(group.id) || new Map()) : undefined}
+                        onLanguageTextsChange={group.type === 'language' ? (texts) => handleGroupLanguageTextsChange(group.id, texts) : undefined}
                       />
                     ))}
                   </div>
