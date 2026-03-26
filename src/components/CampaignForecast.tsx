@@ -540,7 +540,7 @@ export function CampaignForecast({
     if (!platforms || platforms.length === 0) return;
 
     // Trigger a single automatic fetch on first load of the Forecast step
-    handleFetchForecasts();
+    handleFetchForecasts(undefined);
   }, [existingLoadComplete, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
