@@ -173,26 +173,25 @@ export function detectLanguage(row: CreativeTextAssetRow): string | null {
 }
 
 /**
- * Check if a group of rows contains indicators that suggest multi-language content.
- * 
- * IMPORTANT: Only checks taxonomy-level fields (ad set name, folder path) for
- * explicit multi-language markers like "All Languages" or "Multi Language".
- * We do NOT scan individual creative filenames because they often contain
- * format abbreviations (PT = Portrait, SQ = Square) that get falsely matched
- * as language codes.
+ * Check if a group explicitly signals multi-language intent via taxonomy/path naming.
+ *
+ * IMPORTANT:
+ * - This only looks for explicit multi-language markers such as "All Languages",
+ *   "Multiple Language", or "Multi Language".
+ * - It intentionally does NOT infer language intent from creative filename tokens like
+ *   EN / FR / PT because those can collide with format abbreviations such as PT = Portrait.
  */
-function hasMultiLanguageTaxonomyHint(rows: CreativeTextAssetRow[]): boolean {
-  // Only check taxonomy-level fields — NOT individual creative filenames
-  const taxonomySearchables = rows.map(r => [
-    (r as any).taxonomyAdSetName || '',
-    (r as any).taxonomyAdName || '',
-    r.adSet || '',
+function hasExplicitMultiLanguageMarker(rows: CreativeTextAssetRow[]): boolean {
+  const searchables = rows.map((row) => [
+    row.folderPath || '',
+    (row as any).taxonomyAdSetName || '',
+    (row as any).taxonomyAdName || '',
+    row.adSet || '',
   ].join(' ')).join(' ').toLowerCase();
 
-  // Check for explicit multi-language markers in taxonomy/ad-set naming
-  if (/all[\s_-]?lang/i.test(taxonomySearchables)) return true;
-  if (/multi[\s_-]?lang/i.test(taxonomySearchables)) return true;
-  if (/multiple[\s_-]?lang/i.test(taxonomySearchables)) return true;
+  if (/all[\s_-]*languages?/i.test(searchables)) return true;
+  if (/multiple[\s_-]*languages?/i.test(searchables)) return true;
+  if (/multi[\s_-]*languages?/i.test(searchables)) return true;
 
   return false;
 }
@@ -232,13 +231,13 @@ export interface DetectedACGroup {
 
 /**
  * Core detection engine — scans assigned creatives and identifies grouping opportunities.
- * 
+ *
  * Auto-detection rules:
- * - Placement: Different delivery buckets in same ad set → auto-detected
- * - Language: Only if taxonomy/naming hints at multiple languages (e.g. "All Languages" or distinct lang tokens)
- * - Flexible: Same bucket, same language, 2+ assets → auto-detected
- * 
- * Language customization without taxonomy hints must be created manually.
+ * - Language: explicit multi-language taxonomy/path markers win, even if formats differ
+ * - Placement: different delivery buckets without multi-language markers
+ * - Flexible: fallback for 2+ same-ad-set variations without explicit language intent
+ *
+ * Language customization without explicit multi-language markers should be created manually.
  */
 export function detectAssetCustomizationGroups(
   rows: CreativeTextAssetRow[],
@@ -274,33 +273,36 @@ export function detectAssetCustomizationGroups(
       languageMap.get(lang)!.push(row);
     }
 
-    const uniqueBuckets = new Set([...bucketMap.keys()].filter(b => b !== 'other'));
-    const uniqueLanguages = new Set([...languageMap.keys()].filter(l => l !== 'unknown'));
+    const uniqueBuckets = new Set([...bucketMap.keys()].filter((bucket) => bucket !== 'other'));
+    const uniqueLanguages = new Set([...languageMap.keys()].filter((lang) => lang !== 'unknown'));
     const hasDifferentBuckets = uniqueBuckets.size >= 2;
-    const hasMultiLangHint = hasMultiLanguageTaxonomyHint(groupRows);
+    const hasExplicitMultiLanguageIntent = hasExplicitMultiLanguageMarker(groupRows);
 
-    // Priority 1: Different formats + multi-language hints = Flexible (both creative and text are dynamic)
-    if (hasDifferentBuckets && hasMultiLangHint) {
+    // Priority 1: Explicit multi-language intent should always become Language customization
+    if (hasExplicitMultiLanguageIntent) {
+      const errors = validateLanguageGroup(languageMap);
       detected.push({
-        id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
-        type: 'flexible_creative',
-        label: `Flexible Creative`,
-        description: `${groupRows.length} assets across ${uniqueBuckets.size} formats${uniqueLanguages.size >= 2 ? ` and ${uniqueLanguages.size} languages` : ''} — full AI optimization`,
+        id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
+        type: 'language',
+        label: `Language Customization`,
+        description: uniqueLanguages.size > 0
+          ? `${uniqueLanguages.size} languages detected`
+          : 'Multi-language taxonomy/path detected',
         rows: groupRows,
         taxonomyKey: taxKey,
         deliveryBuckets: bucketMap,
         languages: languageMap,
-        validationErrors: [],
+        validationErrors: errors,
       });
     }
-    // Priority 2: Different formats, no language hint = Placement (same message, different creative sizes)
+    // Priority 2: Different formats without explicit language intent = Placement
     else if (hasDifferentBuckets) {
       const errors = validatePlacementGroup(bucketMap);
       detected.push({
         id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
         type: 'placement',
         label: `Placement Customization`,
-        description: `${uniqueBuckets.size} delivery buckets: ${[...uniqueBuckets].map(b => DELIVERY_BUCKETS[b].label).join(', ')}`,
+        description: `${uniqueBuckets.size} delivery buckets: ${[...uniqueBuckets].map((bucket) => DELIVERY_BUCKETS[bucket].label).join(', ')}`,
         rows: groupRows,
         taxonomyKey: taxKey,
         deliveryBuckets: bucketMap,
@@ -308,34 +310,20 @@ export function detectAssetCustomizationGroups(
         validationErrors: errors,
       });
     }
-    // Priority 3: Same format + multi-language hint = Language (same creative, different text per locale)
-    else if (hasMultiLangHint && !hasDifferentBuckets) {
-      const errors = validateLanguageGroup(languageMap);
-      detected.push({
-        id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
-        type: 'language',
-        label: `Language Customization`,
-        description: `${uniqueLanguages.size || '?'} languages detected`,
-        rows: groupRows,
-        taxonomyKey: taxKey,
-        deliveryBuckets: bucketMap,
-        languages: languageMap,
-        validationErrors: errors,
-      });
-    }
-    // Priority 4: Same format, no language hint, 2+ variations = Flexible
+    // Priority 3: Same-ad-set creative pool fallback = Flexible
     else if (groupRows.length >= 2) {
-      const sameBucketRows = groupRows.filter(r => {
-        const b = classifyDeliveryBucket(r.width, r.height, r.aspectRatio);
-        return b !== 'other';
+      const supportedRows = groupRows.filter((row) => {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        return bucket !== 'other';
       });
-      if (sameBucketRows.length >= 2) {
+
+      if (supportedRows.length >= 2) {
         detected.push({
           id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
           type: 'flexible_creative',
           label: `Flexible Creative`,
-          description: `${sameBucketRows.length} creative variations for dynamic optimization`,
-          rows: sameBucketRows,
+          description: `${supportedRows.length} creative variations for dynamic optimization`,
+          rows: supportedRows,
           taxonomyKey: taxKey,
           deliveryBuckets: bucketMap,
           languages: languageMap,
