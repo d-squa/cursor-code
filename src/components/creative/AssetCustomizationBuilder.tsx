@@ -313,11 +313,6 @@ function LanguageTextInputs({
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
 
-    // Detect tab-separated (Excel paste)
-    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
-    const tsvLines = lines.filter(l => l.includes('\t'));
-    if (tsvLines.length === 0) return;
-
     e.preventDefault();
     setParseError(null);
 
@@ -325,28 +320,51 @@ function LanguageTextInputs({
     const errors: string[] = [];
     let parsed = 0;
 
-    for (const line of tsvLines) {
-      const cols = line.split('\t').map(c => c.trim());
-      if (cols.length < 2) continue;
+    // Try tab-separated lines first (standard Excel paste)
+    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
+    const tsvLines = lines.filter(l => l.includes('\t'));
 
-      const langInput = cols[0];
-      const langCode = resolveLanguageCode(langInput);
-      if (!langCode) {
-        errors.push(`Unknown language: "${langInput}"`);
-        continue;
+    if (tsvLines.length > 0) {
+      for (const line of tsvLines) {
+        const cols = line.split('\t').map(c => c.trim());
+        if (cols.length < 2) continue;
+
+        const langInput = cols[0];
+        const langCode = resolveLanguageCode(langInput);
+        if (!langCode) {
+          errors.push(`Unknown language/market: "${langInput}"`);
+          continue;
+        }
+
+        const row: Record<string, string> = {};
+        if (cols[1]) row.primaryText = cols[1];
+        if (cols[2]) row.headline = cols[2];
+        if (cols[3]) row.description = cols[3];
+        if (cols[4]) row.callToAction = cols[4];
+        if (cols[5]) row.destinationUrl = cols[5];
+
+        const existing = next.get(langCode) || {};
+        next.set(langCode, { ...existing, ...row });
+        parsed++;
       }
+    } else {
+      // Fallback: bulk paste without tabs — split by language/country tokens
+      const bulkRows = parseBulkPaste(pasted);
+      for (const { lang, fields } of bulkRows) {
+        const row: Record<string, string> = {};
+        if (fields[0]) row.primaryText = fields[0];
+        if (fields[1]) row.headline = fields[1];
+        if (fields[2]) row.description = fields[2];
+        if (fields[3]) row.callToAction = fields[3];
+        if (fields[4]) row.destinationUrl = fields[4];
 
-      const row: Record<string, string> = {};
-      if (cols[1]) row.primaryText = cols[1];
-      if (cols[2]) row.headline = cols[2];
-      if (cols[3]) row.description = cols[3];
-      if (cols[4]) row.destinationUrl = cols[4];
-      if (cols[5]) row.callToAction = cols[5];
-
-      // Merge with existing
-      const existing = next.get(langCode) || {};
-      next.set(langCode, { ...existing, ...row });
-      parsed++;
+        const existing = next.get(lang) || {};
+        next.set(lang, { ...existing, ...row });
+        parsed++;
+      }
+      if (bulkRows.length === 0) {
+        errors.push('No language/market tokens found in pasted text');
+      }
     }
 
     onLanguageTextsChange(next);
