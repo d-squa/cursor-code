@@ -99,6 +99,11 @@ function normalizeBenchmarkGoal(goal: string, platform: string): string {
   if (platform === 'meta') {
     const metaGoalMap: Record<string, string> = {
       'IMPRESSIONS': 'REACH',
+      'CPV': 'THRUPLAY',
+      'CPE': 'POST_ENGAGEMENT',
+      'ENGAGEMENT': 'POST_ENGAGEMENT',
+      'VIDEO_VIEW': 'VIDEO_VIEWS',
+      'THRUPLAYS': 'THRUPLAY',
     };
     return metaGoalMap[upper] || upper;
   }
