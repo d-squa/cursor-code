@@ -649,11 +649,13 @@ export function TextAssetExcelEditor({
 
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
-    // Set carouselGroupId on all cards
+    // Set carouselGroupId on all cards (also set processingGroupId/Type for consistency)
     onBulkUpdate(
       carousel.cardIds,
       {
         carouselGroupId: carousel.id,
+        processingGroupId: carousel.id,
+        processingGroupType: 'carousel',
       } as any
     );
 
