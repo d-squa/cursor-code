@@ -1116,7 +1116,7 @@ export function AssetCustomizationBuilder({
     const sourceDefault = groupDefaultLanguages.get(sourceGroupId);
     if (!sourceTexts || [...sourceTexts.keys()].length === 0) return;
 
-    const langGroups = detectedGroups.filter(g => g.type === 'language');
+    const langGroups = detectedGroups.filter(g => (g.type === 'language' || g.type === 'flexible_creative') && g.id !== sourceGroupId);
     setGroupLanguageTexts(prev => {
       const next = new Map(prev);
       for (const g of langGroups) {
