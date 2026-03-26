@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingDown, ArrowDown, DollarSign, Filter } from "lucide-react";
+import { TrendingDown, ArrowDown, DollarSign } from "lucide-react";
 
 // Unified standard events across all platforms, ordered top-of-funnel → bottom
 const UNIFIED_FUNNEL_STAGES = [
@@ -26,21 +26,12 @@ const UNIFIED_FUNNEL_STAGES = [
   },
   {
     id: "clicks",
-    label: "Clicks / Link Clicks",
-    metaEvents: ["link_clicks", "clicks"],
-    tiktokEvents: ["clicks"],
-    googleEvents: ["clicks"],
-    snapchatEvents: ["swipe_ups", "clicks"],
+    label: "Clicks",
+    metaEvents: ["link_clicks", "clicks", "landing_page_views"],
+    tiktokEvents: ["clicks", "view_content", "ViewContent"],
+    googleEvents: ["clicks", "landing_page_views"],
+    snapchatEvents: ["swipe_ups", "clicks", "page_views"],
     color: "hsl(200, 65%, 50%)",
-  },
-  {
-    id: "landing_page_views",
-    label: "Landing Page Views",
-    metaEvents: ["landing_page_views"],
-    tiktokEvents: ["view_content", "ViewContent"],
-    googleEvents: ["landing_page_views"],
-    snapchatEvents: ["page_views"],
-    color: "hsl(180, 60%, 45%)",
   },
   {
     id: "add_to_cart",
@@ -61,25 +52,15 @@ const UNIFIED_FUNNEL_STAGES = [
     color: "hsl(30, 75%, 50%)",
   },
   {
-    id: "purchase",
-    label: "Purchase / Conversion",
-    metaEvents: ["purchase", "offsite_conversion.fb_pixel_purchase", "complete_registration"],
-    tiktokEvents: ["CompletePayment", "complete_payment", "PlaceAnOrder"],
-    googleEvents: ["conversions", "purchase"],
-    snapchatEvents: ["purchase"],
+    id: "results",
+    label: "Results",
+    metaEvents: ["purchase", "offsite_conversion.fb_pixel_purchase", "complete_registration", "lead", "offsite_conversion.fb_pixel_lead", "submit_form"],
+    tiktokEvents: ["CompletePayment", "complete_payment", "PlaceAnOrder", "SubmitForm", "submit_form"],
+    googleEvents: ["conversions", "purchase", "submit_lead_form"],
+    snapchatEvents: ["purchase", "sign_up"],
     color: "hsl(145, 60%, 42%)",
   },
-  {
-    id: "lead",
-    label: "Lead / Submit Form",
-    metaEvents: ["lead", "offsite_conversion.fb_pixel_lead", "submit_form"],
-    tiktokEvents: ["SubmitForm", "submit_form"],
-    googleEvents: ["submit_lead_form"],
-    snapchatEvents: ["sign_up"],
-    color: "hsl(270, 55%, 50%)",
-  },
 ];
-
 interface FunnelStageData {
   id: string;
   label: string;
@@ -149,47 +130,6 @@ export default function FunnelAnalysisChart({
   insights,
   actualMetrics,
 }: FunnelAnalysisChartProps) {
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
-  const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
-  const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
-
-  // Extract available filters from campaign
-  const availablePlatforms = useMemo(() => {
-    return (campaign.platforms || []).map((p: any) => ({
-      id: (p.type || p.name || "").toLowerCase(),
-      label: p.name || p.type || "",
-    }));
-  }, [campaign.platforms]);
-
-  const availableMarkets = useMemo(() => {
-    const markets = new Set<string>();
-    const splits = campaign.market_splits as Record<string, any> | undefined;
-    if (splits) {
-      for (const [, platformMarkets] of Object.entries(splits)) {
-        const arr = Array.isArray(platformMarkets) ? platformMarkets : [];
-        arr.forEach((m: any) => {
-          if (m.market || m.country) markets.add(m.market || m.country);
-        });
-      }
-    }
-    return Array.from(markets);
-  }, [campaign.market_splits]);
-
-  const availablePhases = useMemo(() => {
-    const phases = new Set<string>();
-    const splits = campaign.market_splits as Record<string, any> | undefined;
-    if (splits) {
-      for (const [, platformMarkets] of Object.entries(splits)) {
-        const arr = Array.isArray(platformMarkets) ? platformMarkets : [];
-        arr.forEach((m: any) => {
-          (m.phases || []).forEach((p: any) => {
-            if (p.name || p.phase) phases.add(p.name || p.phase);
-          });
-        });
-      }
-    }
-    return Array.from(phases);
-  }, [campaign.market_splits]);
 
   // Build funnel data from insights + forecast
   const funnelData = useMemo((): FunnelStageData[] => {
@@ -204,12 +144,6 @@ export default function FunnelAnalysisChart({
     if (insights && insights.length > 0) {
       for (const insight of insights) {
         const platform = (insight.platform || "").toLowerCase();
-
-        // Filter by selected platforms
-        if (selectedPlatforms.length > 0 && !selectedPlatforms.includes(platform)) {
-          continue;
-        }
-
         const metrics = insight.metrics || {};
 
         for (const stage of UNIFIED_FUNNEL_STAGES) {
@@ -235,11 +169,9 @@ export default function FunnelAnalysisChart({
       impressions: 1,
       reach: baseReach / Math.max(baseImpressions, 1),
       clicks: baseClicks / Math.max(baseImpressions, 1),
-      landing_page_views: (baseClicks * 0.72) / Math.max(baseImpressions, 1),
       add_to_cart: (baseClicks * 0.15) / Math.max(baseImpressions, 1),
       initiate_checkout: (baseClicks * 0.08) / Math.max(baseImpressions, 1),
-      purchase: (baseClicks * 0.035) / Math.max(baseImpressions, 1),
-      lead: (baseClicks * 0.06) / Math.max(baseImpressions, 1),
+      results: (baseClicks * 0.05) / Math.max(baseImpressions, 1),
     };
 
     const stages: FunnelStageData[] = [];
@@ -282,32 +214,9 @@ export default function FunnelAnalysisChart({
     }
 
     return stages;
-  }, [campaign, insights, actualMetrics, selectedPlatforms]);
+  }, [campaign, insights, actualMetrics]);
 
   const maxVolume = funnelData.length > 0 ? funnelData[0].volume : 1;
-
-  const togglePlatform = (id: string) => {
-    setSelectedPlatforms((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
-
-  const toggleMarket = (id: string) => {
-    setSelectedMarkets((prev) =>
-      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
-    );
-  };
-
-  const togglePhase = (id: string) => {
-    setSelectedPhases((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
-
-  const hasFilters =
-    selectedPlatforms.length > 0 ||
-    selectedMarkets.length > 0 ||
-    selectedPhases.length > 0;
 
   const formatNumber = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -318,79 +227,14 @@ export default function FunnelAnalysisChart({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingDown className="h-5 w-5 text-primary" />
-              Funnel Analysis
-            </CardTitle>
-            <CardDescription>
-              Unified standard events across all platforms — volume, dropoff &amp; cost per event
-            </CardDescription>
-          </div>
-          {hasFilters && (
-            <Badge
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => {
-                setSelectedPlatforms([]);
-                setSelectedMarkets([]);
-                setSelectedPhases([]);
-              }}
-            >
-              Clear filters
-            </Badge>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          {availablePlatforms.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium text-muted-foreground">Platform:</span>
-              {availablePlatforms.map((p: any) => (
-                <Badge
-                  key={p.id}
-                  variant={selectedPlatforms.includes(p.id) ? "default" : "outline"}
-                  className="cursor-pointer text-xs capitalize"
-                  onClick={() => togglePlatform(p.id)}
-                >
-                  {p.label}
-                </Badge>
-              ))}
-            </div>
-          )}
-          {availableMarkets.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Market:</span>
-              {availableMarkets.map((m) => (
-                <Badge
-                  key={m}
-                  variant={selectedMarkets.includes(m) ? "default" : "outline"}
-                  className="cursor-pointer text-xs"
-                  onClick={() => toggleMarket(m)}
-                >
-                  {m}
-                </Badge>
-              ))}
-            </div>
-          )}
-          {availablePhases.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Phase:</span>
-              {availablePhases.map((p) => (
-                <Badge
-                  key={p}
-                  variant={selectedPhases.includes(p) ? "default" : "outline"}
-                  className="cursor-pointer text-xs capitalize"
-                  onClick={() => togglePhase(p)}
-                >
-                  {p}
-                </Badge>
-              ))}
-            </div>
-          )}
+        <div>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <TrendingDown className="h-5 w-5 text-primary" />
+            Funnel Analysis
+          </CardTitle>
+          <CardDescription>
+            Unified standard events across all platforms — volume, dropoff &amp; cost per event
+          </CardDescription>
         </div>
       </CardHeader>
 
