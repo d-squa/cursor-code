@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { TrendingDown, ArrowDown, DollarSign, Filter } from "lucide-react";
+import { TrendingDown, ArrowDown, DollarSign } from "lucide-react";
 
 // Unified standard events across all platforms, ordered top-of-funnel → bottom
 const UNIFIED_FUNNEL_STAGES = [
@@ -26,21 +26,12 @@ const UNIFIED_FUNNEL_STAGES = [
   },
   {
     id: "clicks",
-    label: "Clicks / Link Clicks",
-    metaEvents: ["link_clicks", "clicks"],
-    tiktokEvents: ["clicks"],
-    googleEvents: ["clicks"],
-    snapchatEvents: ["swipe_ups", "clicks"],
+    label: "Clicks",
+    metaEvents: ["link_clicks", "clicks", "landing_page_views"],
+    tiktokEvents: ["clicks", "view_content", "ViewContent"],
+    googleEvents: ["clicks", "landing_page_views"],
+    snapchatEvents: ["swipe_ups", "clicks", "page_views"],
     color: "hsl(200, 65%, 50%)",
-  },
-  {
-    id: "landing_page_views",
-    label: "Landing Page Views",
-    metaEvents: ["landing_page_views"],
-    tiktokEvents: ["view_content", "ViewContent"],
-    googleEvents: ["landing_page_views"],
-    snapchatEvents: ["page_views"],
-    color: "hsl(180, 60%, 45%)",
   },
   {
     id: "add_to_cart",
@@ -61,25 +52,15 @@ const UNIFIED_FUNNEL_STAGES = [
     color: "hsl(30, 75%, 50%)",
   },
   {
-    id: "purchase",
-    label: "Purchase / Conversion",
-    metaEvents: ["purchase", "offsite_conversion.fb_pixel_purchase", "complete_registration"],
-    tiktokEvents: ["CompletePayment", "complete_payment", "PlaceAnOrder"],
-    googleEvents: ["conversions", "purchase"],
-    snapchatEvents: ["purchase"],
+    id: "results",
+    label: "Results",
+    metaEvents: ["purchase", "offsite_conversion.fb_pixel_purchase", "complete_registration", "lead", "offsite_conversion.fb_pixel_lead", "submit_form"],
+    tiktokEvents: ["CompletePayment", "complete_payment", "PlaceAnOrder", "SubmitForm", "submit_form"],
+    googleEvents: ["conversions", "purchase", "submit_lead_form"],
+    snapchatEvents: ["purchase", "sign_up"],
     color: "hsl(145, 60%, 42%)",
   },
-  {
-    id: "lead",
-    label: "Lead / Submit Form",
-    metaEvents: ["lead", "offsite_conversion.fb_pixel_lead", "submit_form"],
-    tiktokEvents: ["SubmitForm", "submit_form"],
-    googleEvents: ["submit_lead_form"],
-    snapchatEvents: ["sign_up"],
-    color: "hsl(270, 55%, 50%)",
-  },
 ];
-
 interface FunnelStageData {
   id: string;
   label: string;
