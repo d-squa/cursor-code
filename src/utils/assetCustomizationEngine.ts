@@ -282,8 +282,66 @@ export function detectAssetCustomizationGroups(
     const autoLanguageRows = groupRows.filter(isExplicitMultiLanguageAsset);
     const nonLanguageRows = groupRows.filter((row) => !isExplicitMultiLanguageAsset(row));
 
-    // Priority 1: Explicit multi-language assets → each creative becomes its own Language group.
+    // Priority 1: Check if multi-language assets ALSO satisfy placement conditions (2+ buckets,
+    // 1 per bucket) → Flexible Creative. Group by base key first.
+    const flexFromLangBaseKeyMap = new Map<string, CreativeTextAssetRow[]>();
     for (const row of autoLanguageRows) {
+      const baseKey = extractCreativeBaseKey(row);
+      if (!flexFromLangBaseKeyMap.has(baseKey)) flexFromLangBaseKeyMap.set(baseKey, []);
+      flexFromLangBaseKeyMap.get(baseKey)!.push(row);
+    }
+
+    const claimedByFlexible = new Set<string>();
+
+    for (const [baseKey, baseRows] of flexFromLangBaseKeyMap) {
+      if (baseRows.length < 2) continue;
+
+      const bucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+      for (const row of baseRows) {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        if (!bucketMap.has(bucket)) bucketMap.set(bucket, []);
+        bucketMap.get(bucket)!.push(row);
+      }
+
+      const uniqueBuckets = new Set([...bucketMap.keys()].filter((b) => b !== 'other'));
+      if (uniqueBuckets.size < 2) continue;
+
+      const allSinglePerBucket = [...uniqueBuckets].every((b) => (bucketMap.get(b)?.length || 0) === 1);
+      if (!allSinglePerBucket) continue;
+
+      // These meet BOTH placement + language conditions → Flexible
+      const flexRows = [...uniqueBuckets].map((b) => bucketMap.get(b)![0]);
+      const languageMap = new Map<string, CreativeTextAssetRow[]>();
+      for (const row of flexRows) {
+        const lang = detectLanguage(row) || 'unknown';
+        if (!languageMap.has(lang)) languageMap.set(lang, []);
+        languageMap.get(lang)!.push(row);
+      }
+
+      const newBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+      for (const row of flexRows) {
+        const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
+        newBucketMap.set(bucket, [row]);
+      }
+
+      detected.push({
+        id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}-${baseKey.replace(/[^a-z0-9]/gi, '-')}`,
+        type: 'flexible_creative',
+        label: `Flexible Creative`,
+        description: `${uniqueBuckets.size} delivery buckets + multi-language — dynamic optimization per user`,
+        rows: flexRows,
+        taxonomyKey: taxKey,
+        deliveryBuckets: newBucketMap,
+        languages: languageMap,
+        validationErrors: [],
+      });
+
+      flexRows.forEach((r) => claimedByFlexible.add(r.id));
+    }
+
+    // Remaining multi-language assets that didn't form flexible groups → individual Language entries
+    const remainingLanguageRows = autoLanguageRows.filter((r) => !claimedByFlexible.has(r.id));
+    for (const row of remainingLanguageRows) {
       const bucket = classifyDeliveryBucket(row.width, row.height, row.aspectRatio);
       const singleBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
       singleBucketMap.set(bucket, [row]);
