@@ -101,9 +101,12 @@ function normalizeBenchmarkGoal(goal: string, platform: string): string {
       'IMPRESSIONS': 'REACH',
       'CPV': 'THRUPLAY',
       'CPE': 'POST_ENGAGEMENT',
+      'CPE-P': 'POST_ENGAGEMENT',
       'ENGAGEMENT': 'POST_ENGAGEMENT',
       'VIDEO_VIEW': 'VIDEO_VIEWS',
       'THRUPLAYS': 'THRUPLAY',
+      'CPFL': 'PAGE_LIKES',
+      'CPV2SC': 'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS',
     };
     return metaGoalMap[upper] || upper;
   }
