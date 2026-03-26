@@ -12,13 +12,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Combobox } from '@/components/ui/combobox';
-import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight } from 'lucide-react';
+import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight, ClipboardPaste } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { PLATFORM_CTAS } from '@/types/creativeTextAssets';
 import type { CarouselLink, CarouselCardData } from '@/types/carouselTypes';
 import { CAROUSEL_CARD_FIELDS } from '@/types/carouselTypes';
 import { validateCarouselCreatives, getPlacementBadges, CAROUSEL_PLATFORM_REQUIREMENTS } from '@/utils/placementCompatibility';
+
+const CARD_PASTE_COLUMNS = ['Headline', 'Description', 'Website URL', 'CTA'];
+
+/** Normalize a pasted CTA value */
+function normalizeCardCTA(input: string): string {
+  if (!input) return '';
+  const cleaned = input.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return cleaned;
+}
 
 interface CarouselCreatorProps {
   selectedRows: CreativeTextAssetRow[];
