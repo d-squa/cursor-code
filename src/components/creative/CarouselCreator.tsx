@@ -368,6 +368,28 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
             <Badge variant="secondary">{adSetName}</Badge>
           </div>
 
+          {/* Bulk paste area for card text assets */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Bulk Paste Card Text Assets</span>
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <ClipboardPaste className="h-3 w-3" />
+                Columns: {CARD_PASTE_COLUMNS.join(' | ')}
+              </div>
+            </div>
+            <Textarea
+              value={cardPasteValue}
+              onChange={(e) => setCardPasteValue(e.target.value)}
+              onPaste={handleCardBulkPaste}
+              placeholder={`Paste ${orderedCards.length} rows from Excel (one row per card):\nHeadline ⇥ Description ⇥ Website URL ⇥ CTA`}
+              className="text-xs min-h-[60px] font-mono"
+              rows={3}
+            />
+            {cardPasteError && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{cardPasteError}</p>
+            )}
+          </div>
+
           {/* Card ordering */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Card Order & Parameters</label>
