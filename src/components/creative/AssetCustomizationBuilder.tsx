@@ -496,7 +496,8 @@ export function AssetCustomizationBuilder({
       setSelectedGroupIds(new Set());
       setExpandedGroupIds(new Set());
       setPreviewGroupId(null);
-      // If user has selection, go to manual tab
+      setGroupLanguageSelections(new Map());
+      setGroupDefaultLanguages(new Map());
       if (selectedRowIds.size >= 2) {
         setTab('manual');
       } else {
