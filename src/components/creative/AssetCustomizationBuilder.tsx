@@ -588,10 +588,12 @@ function DetectedGroupCard({
   onLanguageTextsChange?: (texts: Map<string, Record<string, string>>) => void;
 }) {
   const isLanguageGroup = group.type === 'language';
+  const isFlexibleGroup = group.type === 'flexible_creative';
+  const needsLanguageInput = isLanguageGroup || isFlexibleGroup;
   const langCount = languageTexts ? [...languageTexts.keys()].length : 0;
-  const hasLanguages = isLanguageGroup && langCount >= 2;
+  const hasLanguages = needsLanguageInput && langCount >= 2;
   const hasErrors = group.validationErrors.length > 0;
-  const languageIncomplete = isLanguageGroup && langCount < 2;
+  const languageIncomplete = needsLanguageInput && langCount < 2;
 
   return (
     <div className={cn(
@@ -697,18 +699,49 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {group.type === 'flexible_creative' && (
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground">Asset Variations</span>
-              {group.rows.map((row) => (
-                <div key={row.id} className="flex items-center gap-2 pl-2 text-xs">
-                  {row.mediaType === 'video' ? <Video className="h-3 w-3" /> : <Image className="h-3 w-3" />}
-                  <span className="truncate">{row.creativeName}</span>
-                  {row.aspectRatio && (
-                    <Badge variant="outline" className="text-[9px] h-4">{row.aspectRatio}</Badge>
-                  )}
+          {isFlexibleGroup && (
+            <div className="space-y-2">
+              <span className="text-xs font-medium text-muted-foreground">Delivery Buckets</span>
+              {[...group.deliveryBuckets.entries()].filter(([b]) => b !== 'other').map(([bucket, rows]) => (
+                <div key={bucket} className="flex items-center gap-2 pl-2">
+                  {BUCKET_ICONS[bucket]}
+                  <span className="text-xs">{DELIVERY_BUCKETS[bucket].label}</span>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground truncate">
+                    {rows.map(r => r.creativeName).join(', ')}
+                  </span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {isFlexibleGroup && languageTexts && onLanguageTextsChange && (
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Language Text Assets</span>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Flexible = multi-format + multi-language. Paste rows from Excel: Language, Primary Text, Headline, Description, URL, CTA.
+                </p>
+              </div>
+
+              <LanguageTextInputs
+                languageTexts={languageTexts}
+                onLanguageTextsChange={onLanguageTextsChange}
+                defaultLanguage={groupDefaultLanguage}
+                onDefaultLanguageChange={onDefaultLanguageChange}
+              />
+
+              {onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && [...languageTexts.keys()].length >= 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 gap-1.5"
+                  onClick={onApplyToAll}
+                >
+                  <Globe className="h-3 w-3" />
+                  Apply text assets to all flexible groups
+                </Button>
+              )}
             </div>
           )}
 
