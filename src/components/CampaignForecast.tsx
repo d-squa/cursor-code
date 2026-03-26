@@ -678,9 +678,9 @@ export function CampaignForecast({
   };
 
   // Reload benchmarks after sync
-  const reloadBenchmarks = async () => {
-    console.log("📊 Reloading benchmarks for industry:", resolvedIndustry || "(none)");
-    const benchmarkData = await getAllBenchmarks(resolvedIndustry);
+  const reloadBenchmarks = async (dateRange?: { startDate?: string; endDate?: string }) => {
+    console.log("📊 Reloading benchmarks for industry:", resolvedIndustry || "(none)", "dateRange:", dateRange);
+    const benchmarkData = await getAllBenchmarks(resolvedIndustry, undefined, dateRange);
     setBenchmarks(benchmarkData);
     console.log(`✅ Loaded ${benchmarkData.size} benchmarks`);
     return benchmarkData;
