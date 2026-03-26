@@ -1116,6 +1116,21 @@ export function AssetCustomizationBuilder({
                     onDefaultLanguageChange={setDefaultLanguage}
                   />
 
+                  {(() => {
+                    const uniqueLangs = [...new Set([...languageAssignments.values()].filter(Boolean))];
+                    if (uniqueLangs.length >= 2) {
+                      return (
+                        <LanguageTextInputs
+                          selectedLanguages={uniqueLangs}
+                          languageTexts={manualLanguageTexts}
+                          onLanguageTextsChange={setManualLanguageTexts}
+                          defaultLanguage={defaultLanguage}
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
+
                   {manualSpec && (
                     <>
                       <Separator />
