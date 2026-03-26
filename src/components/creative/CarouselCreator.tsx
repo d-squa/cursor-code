@@ -156,6 +156,8 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
       // Order: Headline, Description, Website URL, CTA
       const [headline, description, websiteUrl, cta] = parts;
+      
+      // Update card-level parameters
       newCardData[cardId] = {
         ...newCardData[cardId],
         cardHeadline: headline || newCardData[cardId]?.cardHeadline || '',
@@ -163,6 +165,19 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
         cardWebsiteUrl: websiteUrl || newCardData[cardId]?.cardWebsiteUrl || '',
         cardCallToAction: cta ? normalizeCardCTA(cta) : (newCardData[cardId]?.cardCallToAction || ''),
       };
+      
+      // Also update the main row text assets so they show in the Text Assets section
+      if (onRowChange) {
+        const rowUpdates: Record<string, string> = {};
+        if (headline) rowUpdates.headline = headline;
+        if (description) rowUpdates.description = description;
+        if (websiteUrl) rowUpdates.destinationUrl = websiteUrl;
+        if (cta) rowUpdates.callToAction = normalizeCardCTA(cta);
+        if (Object.keys(rowUpdates).length > 0) {
+          onRowChange(cardId, rowUpdates);
+        }
+      }
+      
       filled++;
     }
 
