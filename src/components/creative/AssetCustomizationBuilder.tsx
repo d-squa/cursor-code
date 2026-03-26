@@ -888,8 +888,8 @@ export function AssetCustomizationBuilder({
 
   const manualSpec = useMemo(() => {
     if (!manualGroup || manualGroup.validationErrors.length > 0) return null;
-    return compileAssetFeedSpec(manualGroup, { defaultLanguage });
-  }, [manualGroup, defaultLanguage]);
+    return compileAssetFeedSpec(manualGroup, { defaultLanguage, languageTexts: manualLanguageTexts });
+  }, [manualGroup, defaultLanguage, manualLanguageTexts]);
 
   // Toggle handlers
   const toggleGroupSelection = useCallback((id: string) => {
