@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Combobox } from '@/components/ui/combobox';
-import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight, ClipboardPaste } from 'lucide-react';
+import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight, ClipboardPaste, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { PLATFORM_CTAS } from '@/types/creativeTextAssets';
