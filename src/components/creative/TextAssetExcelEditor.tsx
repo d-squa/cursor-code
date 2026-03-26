@@ -308,19 +308,15 @@ export function TextAssetExcelEditor({
   const hasCarouselSelection = selectedGroupTypes.has('carousel');
   const hasAssetCustomizationSelection = selectedGroupTypes.has('asset_customization');
 
-  // Create asset customization group from selected rows (defined after clearSelection)
+  // Create asset customization group from selected rows — opens the builder dialog with type selection
   const handleCreateAssetCustomization = useCallback(() => {
     if (selectedRows.some((row) => !!getProcessingGroupId(row, 'asset_customization'))) {
       toast.error('Selected creatives already belong to an asset customization group. Ungroup that first.');
       return;
     }
-
-    const groupId = `ac-manual-${Date.now()}`;
-    const ids = Array.from(selectedRowIds);
-    onBulkUpdate(ids, { assetCustomizationGroupId: groupId, processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
-    setSelectedRowIds(new Set());
-    toast.success(`Created Asset Customization group with ${ids.length} assets`);
-  }, [selectedRowIds, onBulkUpdate, selectedRows]);
+    // Open the builder dialog — it will show the type selector (Placement/Language/Flexible)
+    setShowAssetCustomizationBuilder(true);
+  }, [selectedRows]);
 
   // Handle AC Builder group creation
   const handleACBuilderCreateGroup = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
