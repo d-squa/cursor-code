@@ -247,7 +247,8 @@ Scale metrics proportionally to the $${budget} budget over ${durationDays} days.
       forecast.impressions = Math.round((budget / forecast.cpm) * 1000);
     }
     if (forecast.reach <= 0) {
-      forecast.reach = Math.round(forecast.impressions * 0.6);
+      const ratio = impressionToReachRatio > 0 ? impressionToReachRatio : 2.5;
+      forecast.reach = Math.round(forecast.impressions / ratio);
     }
     if (forecast.audienceSize <= 0) {
       forecast.audienceSize = forecast.reach * 10;
