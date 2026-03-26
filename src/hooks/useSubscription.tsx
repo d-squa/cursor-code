@@ -44,6 +44,9 @@ export function useSubscription() {
   const currentUserIdRef = useRef<string | null>(null);
   const lastSuccessfulUserIdRef = useRef<string | null>(null);
 
+  // Cache the session from onAuthStateChange so we never call getSession()/refreshSession
+  const cachedSessionRef = useRef<{ accessToken: string; userId: string } | null>(null);
+
   const checkSubscription = useCallback(
     async ({ showLoading, force }: { showLoading?: boolean; force?: boolean } = {}) => {
       const now = Date.now();
@@ -61,24 +64,23 @@ export function useSubscription() {
       // Never show loading if we already have subscription data - prevents UI unmounts on re-checks
       const shouldShowLoading = (showLoading ?? !hasCheckedOnceRef.current) && !hasDataRef.current;
 
-      let sessionUserId: string | null = null;
+      // Use cached session — never call supabase.auth.getSession() to avoid session refresh
+      const cached = cachedSessionRef.current;
+      if (!cached) {
+        // No session yet — mark as unauthenticated
+        setSubscription(null);
+        currentUserIdRef.current = null;
+        lastSuccessfulUserIdRef.current = null;
+        if (shouldShowLoading) setLoading(false);
+        hasCheckedOnceRef.current = true;
+        return;
+      }
+
+      const sessionUserId = cached.userId;
 
       try {
         if (shouldShowLoading) setLoading(true);
         setError(null);
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          setSubscription(null);
-          currentUserIdRef.current = null;
-          lastSuccessfulUserIdRef.current = null;
-          return;
-        }
-
-        sessionUserId = session.user.id;
 
         // If the authenticated user changed, immediately drop any prior subscription state.
         if (currentUserIdRef.current !== sessionUserId) {
@@ -102,7 +104,7 @@ export function useSubscription() {
           "check-subscription",
           {
             headers: {
-              Authorization: `Bearer ${session.access_token}`,
+              Authorization: `Bearer ${cached.accessToken}`,
             },
             body: { activeWorkspaceId },
           }
@@ -138,19 +140,40 @@ export function useSubscription() {
   );
 
   useEffect(() => {
-    checkSubscription({ showLoading: true, force: true });
+    // Bootstrap: read the initial session once without triggering a refresh.
+    // getSession() reads from the in-memory cache; Supabase-js only refreshes
+    // when the token is expired. We capture it here and then rely solely on
+    // onAuthStateChange for subsequent updates.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        cachedSessionRef.current = {
+          accessToken: session.access_token,
+          userId: session.user.id,
+        };
+        checkSubscription({ showLoading: true, force: true });
+      } else {
+        setLoading(false);
+        hasCheckedOnceRef.current = true;
+      }
+    });
 
-    // Listen for auth changes - only SIGNED_IN triggers full check
+    // Listen for auth changes — cache token, never call getSession again
     const {
       data: { subscription: authSub },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
-        // Force check on sign in
-        checkSubscription({ showLoading: true, force: true });
-      } else if (event === "TOKEN_REFRESHED") {
-        // Do NOT re-check on token refresh - this is what causes the window minimize issue
-        // Token refresh happens on visibility change and we don't need to re-check subscription
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (session) {
+          cachedSessionRef.current = {
+            accessToken: session.access_token,
+            userId: session.user.id,
+          };
+        }
+        if (event === "SIGNED_IN") {
+          checkSubscription({ showLoading: true, force: true });
+        }
+        // TOKEN_REFRESHED: update cached token but don't re-check subscription
       } else if (event === "SIGNED_OUT") {
+        cachedSessionRef.current = null;
         setSubscription(null);
         setError(null);
         setLoading(false);
