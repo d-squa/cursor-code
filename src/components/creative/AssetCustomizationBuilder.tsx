@@ -366,6 +366,8 @@ function DetectedGroupCard({
   onDefaultLanguageChange,
   onApplyToAll,
   totalLanguageGroups,
+  languageTexts,
+  onLanguageTextsChange,
 }: {
   group: DetectedACGroup;
   isSelected: boolean;
@@ -378,6 +380,8 @@ function DetectedGroupCard({
   onDefaultLanguageChange?: (lang: string) => void;
   onApplyToAll?: () => void;
   totalLanguageGroups?: number;
+  languageTexts?: Map<string, Record<string, string>>;
+  onLanguageTextsChange?: (texts: Map<string, Record<string, string>>) => void;
 }) {
   const isLanguageGroup = group.type === 'language';
   const hasLanguages = isLanguageGroup && selectedLanguages && selectedLanguages.length >= 2;
