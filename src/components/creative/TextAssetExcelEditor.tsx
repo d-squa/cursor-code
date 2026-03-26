@@ -426,10 +426,12 @@ export function TextAssetExcelEditor({
   const canCreateAssetCustomization = useMemo(() => {
     if (selectedRows.length < 2) return false;
     if (selectedRows.some((row) => !!getProcessingGroupId(row, 'asset_customization'))) return false;
+    // Must be same ad set
     const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
     if (adSets.size !== 1) return false;
-    const ratios = new Set(selectedRows.map(r => r.aspectRatio).filter(Boolean));
-    return ratios.size >= 2;
+    // Must be meta
+    if (selectedRows[0]?.platform?.toLowerCase() !== 'meta') return false;
+    return true;
   }, [selectedRows]);
 
   // Toggle row selection with shift+click support
