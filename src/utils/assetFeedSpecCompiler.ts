@@ -270,11 +270,11 @@ function compileLanguage(
     } else {
       rule.image_label = { name: label };
     }
-    if (row.primaryText) rule.body_label = { name: label };
-    if (row.headline) rule.title_label = { name: label };
-    if (row.description) rule.description_label = { name: label };
-    if (row.destinationUrl) rule.link_url_label = { name: label };
-    if (row.callToAction) rule.call_to_action_type_label = { name: label };
+    if (primaryText) rule.body_label = { name: label };
+    if (headline) rule.title_label = { name: label };
+    if (description) rule.description_label = { name: label };
+    if (destinationUrl) rule.link_url_label = { name: label };
+    if (callToAction) rule.call_to_action_type_label = { name: label };
 
     rules.push(rule);
   }
