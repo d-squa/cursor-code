@@ -2,7 +2,7 @@
 // Allows users to detect, create, edit, and manage asset customization groups
 // Supports Placement, Language, and Flexible Creative customization types
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -53,10 +54,13 @@ import {
   Smartphone,
   Tablet,
   FileJson,
+  Copy,
+  ClipboardPaste,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { PLATFORM_TEXT_FIELDS, PLATFORM_CTAS } from '@/types/creativeTextAssets';
 import {
   type DetectedACGroup,
   type CustomizationType,
