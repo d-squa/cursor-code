@@ -771,6 +771,7 @@ export function AssetCustomizationBuilder({
   // Manual mode state
   const [manualType, setManualType] = useState<CustomizationType | null>(forcedType || null);
   const [languageAssignments, setLanguageAssignments] = useState<Map<string, string>>(new Map());
+  const [manualLanguageTexts, setManualLanguageTexts] = useState<Map<string, Record<string, string>>>(new Map());
 
   // Determine if we're in manual mode (user selected creatives before opening)
   const isManualMode = selectedRowIds.size >= 2;
