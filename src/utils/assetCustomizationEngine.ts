@@ -283,8 +283,22 @@ export function detectAssetCustomizationGroups(
     const hasDifferentBuckets = uniqueBuckets.size >= 2;
     const hasMultiLangHint = hasMultiLanguageTaxonomyHint(groupRows);
 
-    // Priority 1: Placement (different formats in same ad set)
-    if (hasDifferentBuckets && !hasMultiLangHint) {
+    // Priority 1: Different formats + multi-language hints = Flexible (both creative and text are dynamic)
+    if (hasDifferentBuckets && hasMultiLangHint) {
+      detected.push({
+        id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
+        type: 'flexible_creative',
+        label: `Flexible Creative`,
+        description: `${groupRows.length} assets across ${uniqueBuckets.size} formats${uniqueLanguages.size >= 2 ? ` and ${uniqueLanguages.size} languages` : ''} — full AI optimization`,
+        rows: groupRows,
+        taxonomyKey: taxKey,
+        deliveryBuckets: bucketMap,
+        languages: languageMap,
+        validationErrors: [],
+      });
+    }
+    // Priority 2: Different formats, no language hint = Placement (same message, different creative sizes)
+    else if (hasDifferentBuckets) {
       const errors = validatePlacementGroup(bucketMap);
       detected.push({
         id: `ac-placement-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
@@ -298,14 +312,14 @@ export function detectAssetCustomizationGroups(
         validationErrors: errors,
       });
     }
-    // Priority 2: Language — only auto-detect if taxonomy hints exist
-    else if (hasMultiLangHint && uniqueLanguages.size >= 2) {
+    // Priority 3: Same format + multi-language hint = Language (same creative, different text per locale)
+    else if (hasMultiLangHint && !hasDifferentBuckets) {
       const errors = validateLanguageGroup(languageMap);
       detected.push({
         id: `ac-language-${taxKey.replace(/[^a-z0-9]/gi, '-')}`,
         type: 'language',
         label: `Language Customization`,
-        description: `${uniqueLanguages.size} languages: ${[...uniqueLanguages].join(', ').toUpperCase()}`,
+        description: `${uniqueLanguages.size || '?'} languages detected`,
         rows: groupRows,
         taxonomyKey: taxKey,
         deliveryBuckets: bucketMap,
@@ -313,8 +327,8 @@ export function detectAssetCustomizationGroups(
         validationErrors: errors,
       });
     }
-    // Priority 3: Flexible — same bucket, 2+ variations
-    else if (!hasDifferentBuckets && !hasMultiLangHint && groupRows.length >= 2) {
+    // Priority 4: Same format, no language hint, 2+ variations = Flexible
+    else if (groupRows.length >= 2) {
       const sameBucketRows = groupRows.filter(r => {
         const b = classifyDeliveryBucket(r.width, r.height, r.aspectRatio);
         return b !== 'other';
