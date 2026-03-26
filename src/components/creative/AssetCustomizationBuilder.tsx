@@ -164,8 +164,8 @@ function TypeSelector({
 
 // ─── Language Text Inputs via Bulk Excel Paste ──────────────────────────────
 
-const LANG_PASTE_COLUMNS = ['Language', 'Primary Text', 'Headline', 'Description', 'Destination URL', 'CTA'];
-const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', 'destinationUrl', 'callToAction'] as const;
+const LANG_PASTE_COLUMNS = ['Market/Language', 'Primary Text', 'Headline', 'Description', 'CTA', 'Destination URL'];
+const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', 'callToAction', 'destinationUrl'] as const;
 
 const META_CTAS = PLATFORM_CTAS.meta;
 
@@ -179,6 +179,24 @@ interface ParsedLangRow {
   callToAction: string;
 }
 
+// Country/market aliases → language code
+const COUNTRY_LANG_MAP: Record<string, string> = {
+  uae: 'ar', ksa: 'ar', qatar: 'ar', bahrain: 'ar', oman: 'ar', kuwait: 'ar', egypt: 'ar', jordan: 'ar', lebanon: 'ar', iraq: 'ar',
+  us: 'en', usa: 'en', uk: 'en', canada: 'en', australia: 'en', 'united states': 'en', 'united kingdom': 'en',
+  germany: 'de', deutschland: 'de',
+  france: 'fr',
+  spain: 'es', españa: 'es',
+  italy: 'it', italia: 'it',
+  portugal: 'pt', brazil: 'pt', brasil: 'pt',
+  netherlands: 'nl', holland: 'nl',
+  turkey: 'tr', türkiye: 'tr',
+  russia: 'ru',
+  japan: 'ja',
+  korea: 'ko', 'south korea': 'ko',
+  china: 'zh',
+  india: 'hi',
+};
+
 function resolveLanguageCode(input: string): string | null {
   const cleaned = input.trim().toLowerCase();
   // Direct code match
@@ -187,12 +205,89 @@ function resolveLanguageCode(input: string): string | null {
   // Label match
   const byLabel = SUPPORTED_LANGUAGES.find(l => l.label.toLowerCase() === cleaned);
   if (byLabel) return byLabel.code;
+  // Country/market match
+  if (COUNTRY_LANG_MAP[cleaned]) return COUNTRY_LANG_MAP[cleaned];
   // Partial match
   const partial = SUPPORTED_LANGUAGES.find(l =>
     l.label.toLowerCase().startsWith(cleaned) || cleaned.startsWith(l.code)
   );
   if (partial) return partial.code;
   return null;
+}
+
+/** Build a regex that matches any known language/country token as a word boundary */
+function buildLangTokenRegex(): RegExp {
+  const allTokens: string[] = [];
+  for (const l of SUPPORTED_LANGUAGES) {
+    allTokens.push(l.label);
+    allTokens.push(l.code.toUpperCase());
+  }
+  for (const key of Object.keys(COUNTRY_LANG_MAP)) {
+    allTokens.push(key);
+  }
+  // Sort longest first to avoid partial matches
+  allTokens.sort((a, b) => b.length - a.length);
+  const escaped = allTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`(?:^|[\\s,;])(?=${escaped.join('|')})`, 'gi');
+}
+
+/**
+ * Parse bulk pasted text that may not have tabs or newlines.
+ * Splits on known language/country tokens, then splits each segment into fields.
+ */
+function parseBulkPaste(text: string): Array<{ lang: string; fields: string[] }> {
+  const allTokens: string[] = [];
+  for (const l of SUPPORTED_LANGUAGES) {
+    allTokens.push(l.label.toLowerCase());
+    allTokens.push(l.code.toLowerCase());
+  }
+  for (const key of Object.keys(COUNTRY_LANG_MAP)) {
+    allTokens.push(key.toLowerCase());
+  }
+  allTokens.sort((a, b) => b.length - a.length);
+
+  // Find positions of all language tokens in the text
+  const lower = text.toLowerCase();
+  const segments: Array<{ token: string; start: number }> = [];
+
+  for (const token of allTokens) {
+    let searchFrom = 0;
+    while (searchFrom < lower.length) {
+      const idx = lower.indexOf(token, searchFrom);
+      if (idx === -1) break;
+      // Must be at start or preceded by whitespace/comma
+      const before = idx === 0 || /[\s,;]/.test(lower[idx - 1]);
+      // Must be followed by whitespace or end
+      const afterIdx = idx + token.length;
+      const after = afterIdx >= lower.length || /[\s,;\t]/.test(lower[afterIdx]);
+      if (before && after) {
+        // Avoid duplicates at same position
+        if (!segments.some(s => Math.abs(s.start - idx) < 3)) {
+          segments.push({ token, start: idx });
+        }
+      }
+      searchFrom = idx + token.length;
+    }
+  }
+
+  segments.sort((a, b) => a.start - b.start);
+  if (segments.length === 0) return [];
+
+  const results: Array<{ lang: string; fields: string[] }> = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const langCode = resolveLanguageCode(seg.token);
+    if (!langCode) continue;
+    const contentStart = seg.start + seg.token.length;
+    const contentEnd = i + 1 < segments.length ? segments[i + 1].start : text.length;
+    const content = text.substring(contentStart, contentEnd).trim();
+    // Split content by tabs first, then by 2+ spaces if no tabs
+    const fields = content.includes('\t')
+      ? content.split('\t').map(f => f.trim()).filter(Boolean)
+      : content.split(/\s{2,}/).map(f => f.trim()).filter(Boolean);
+    results.push({ lang: langCode, fields });
+  }
+  return results;
 }
 
 function LanguageTextInputs({
@@ -218,11 +313,6 @@ function LanguageTextInputs({
     const pasted = e.clipboardData.getData('text/plain');
     if (!pasted) return;
 
-    // Detect tab-separated (Excel paste)
-    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
-    const tsvLines = lines.filter(l => l.includes('\t'));
-    if (tsvLines.length === 0) return;
-
     e.preventDefault();
     setParseError(null);
 
@@ -230,28 +320,51 @@ function LanguageTextInputs({
     const errors: string[] = [];
     let parsed = 0;
 
-    for (const line of tsvLines) {
-      const cols = line.split('\t').map(c => c.trim());
-      if (cols.length < 2) continue;
+    // Try tab-separated lines first (standard Excel paste)
+    const lines = pasted.split('\n').map(l => l.trim()).filter(Boolean);
+    const tsvLines = lines.filter(l => l.includes('\t'));
 
-      const langInput = cols[0];
-      const langCode = resolveLanguageCode(langInput);
-      if (!langCode) {
-        errors.push(`Unknown language: "${langInput}"`);
-        continue;
+    if (tsvLines.length > 0) {
+      for (const line of tsvLines) {
+        const cols = line.split('\t').map(c => c.trim());
+        if (cols.length < 2) continue;
+
+        const langInput = cols[0];
+        const langCode = resolveLanguageCode(langInput);
+        if (!langCode) {
+          errors.push(`Unknown language/market: "${langInput}"`);
+          continue;
+        }
+
+        const row: Record<string, string> = {};
+        if (cols[1]) row.primaryText = cols[1];
+        if (cols[2]) row.headline = cols[2];
+        if (cols[3]) row.description = cols[3];
+        if (cols[4]) row.callToAction = cols[4];
+        if (cols[5]) row.destinationUrl = cols[5];
+
+        const existing = next.get(langCode) || {};
+        next.set(langCode, { ...existing, ...row });
+        parsed++;
       }
+    } else {
+      // Fallback: bulk paste without tabs — split by language/country tokens
+      const bulkRows = parseBulkPaste(pasted);
+      for (const { lang, fields } of bulkRows) {
+        const row: Record<string, string> = {};
+        if (fields[0]) row.primaryText = fields[0];
+        if (fields[1]) row.headline = fields[1];
+        if (fields[2]) row.description = fields[2];
+        if (fields[3]) row.callToAction = fields[3];
+        if (fields[4]) row.destinationUrl = fields[4];
 
-      const row: Record<string, string> = {};
-      if (cols[1]) row.primaryText = cols[1];
-      if (cols[2]) row.headline = cols[2];
-      if (cols[3]) row.description = cols[3];
-      if (cols[4]) row.destinationUrl = cols[4];
-      if (cols[5]) row.callToAction = cols[5];
-
-      // Merge with existing
-      const existing = next.get(langCode) || {};
-      next.set(langCode, { ...existing, ...row });
-      parsed++;
+        const existing = next.get(lang) || {};
+        next.set(lang, { ...existing, ...row });
+        parsed++;
+      }
+      if (bulkRows.length === 0) {
+        errors.push('No language/market tokens found in pasted text');
+      }
     }
 
     onLanguageTextsChange(next);
@@ -303,7 +416,7 @@ function LanguageTextInputs({
           value={pasteValue}
           onChange={(e) => setPasteValue(e.target.value)}
           onPaste={handlePaste}
-          placeholder={`Paste rows from Excel here...\ne.g.:\nEnglish\tCheck out our deals\tBig Sale\tSave up to 50%\thttps://example.com\tSHOP_NOW\nArabic\tتحقق من عروضنا\tتخفيضات كبيرة\tوفر حتى 50%\thttps://example.com/ar\tSHOP_NOW`}
+          placeholder={`Paste bulk data here (tabs or plain text)...\ne.g.: UAE Primary Text1 Caption 1 Learn_More https://example.com KSA نص أساسي عنوان Learn_More https://example.com/ar\n\nOr tab-separated rows from Excel:\nUAE\tPrimary Text\tHeadline\tLearn_More\thttps://example.com`}
           className="text-xs min-h-[80px] resize-none font-mono"
         />
         {parseError && (
