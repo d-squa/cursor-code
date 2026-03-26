@@ -104,8 +104,27 @@ function normalizeBenchmarkGoal(goal: string, platform: string): string {
   }
   
   if (platform === 'google') {
-    // Google Ads UI goals → DB stored goals mapping
+    // Google Ads UI/bidding strategy goals → DB stored goals mapping
     const googleGoalMap: Record<string, string> = {
+      // Bidding strategies (used in forecast)
+      'MAXIMIZE_CLICKS': 'CLICK',
+      'MAXIMIZE CLICKS': 'CLICK',
+      'MANUAL_CPC': 'CLICK',
+      'MANUAL CPC': 'CLICK',
+      'MAXIMUM_CPC': 'CLICK',
+      'MAXIMUM CPC': 'CLICK',
+      'CPM': 'CLICK',
+      'VIEWABLE_IMPRESSIONS': 'CLICK',
+      'MAXIMIZE_CONVERSIONS': 'CONVERSION',
+      'MAXIMIZE CONVERSIONS': 'CONVERSION',
+      'TARGET_CPA': 'CONVERSION',
+      'TARGET CPA': 'CONVERSION',
+      'MAXIMIZE_CONVERSION_VALUE': 'CONVERSION',
+      'MAXIMIZE CONVERSION VALUE': 'CONVERSION',
+      'TARGET_ROAS': 'CONVERSION',
+      'TARGET ROAS': 'CONVERSION',
+      'TARGET_IMPRESSION_SHARE': 'CLICK',
+      // Campaign type / objective mappings
       'REACH': 'CLICK',
       'VIDEO VIEWS': 'CLICK',
       'VIDEO_VIEWS': 'CLICK',
@@ -118,6 +137,8 @@ function normalizeBenchmarkGoal(goal: string, platform: string): string {
       'PERFORMANCE_MAX': 'PMAX_CONVERSIONS',
       'CONVERSIONS': 'CONVERSION',
       'SHOPPING': 'SHOPPING_CONVERSIONS',
+      'STANDARD SHOPPING': 'SHOPPING_CONVERSIONS',
+      'STANDARD_SHOPPING': 'SHOPPING_CONVERSIONS',
       'APP INSTALLS': 'CONVERSION',
       'APP_INSTALLS': 'CONVERSION',
       'APP ENGAGEMENT': 'CONVERSION',
