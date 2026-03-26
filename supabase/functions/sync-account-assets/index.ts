@@ -664,7 +664,18 @@ async function syncGoogleAdsAssets(
     };
 
     const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
-    const managerAccountId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID");
+    
+    // Resolve manager account ID from DB first, then env var, then fall back to client ID
+    const cleanAccountId_pre = accountId.replace("customers/", "").replace(/-/g, "");
+    const { data: googleAccountData } = await supabase
+      .from("google_ad_accounts")
+      .select("manager_customer_id")
+      .eq("customer_id", cleanAccountId_pre)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    
+    const managerAccountId = (googleAccountData?.manager_customer_id || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID") || "")?.replace(/-/g, "");
+    console.log(`[SYNC-ACCOUNT-ASSETS] Resolved login-customer-id: ${managerAccountId || cleanAccountId_pre} for customer ${cleanAccountId_pre}`);
     
     if (!developerToken) {
       console.warn("[SYNC-ACCOUNT-ASSETS] Google Ads developer token not configured");
