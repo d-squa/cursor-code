@@ -118,7 +118,9 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
     } else {
       setCarouselName('');
       setCardData(seededCardData);
-      setOrderedIds(selectedRows.map(r => r.id));
+      // Deduplicate IDs to prevent duplicate cards on re-group
+      const uniqueIds = [...new Set(selectedRows.map(r => r.id))];
+      setOrderedIds(uniqueIds);
     }
     setExpandedCards(new Set());
   }, [open, selectedRows, existingCarousel]);

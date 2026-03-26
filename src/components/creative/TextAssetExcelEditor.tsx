@@ -334,7 +334,7 @@ export function TextAssetExcelEditor({
     const group = processingGroups.get(`${groupType}:${groupId}`);
     if (!group) return;
     onBulkUpdate(group.rowIds, groupType === 'carousel'
-      ? { carouselGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any
+      ? { carouselGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined, carouselCardHeadline: undefined, carouselCardDescription: undefined, carouselCardWebsiteUrl: undefined, carouselCardCta: undefined } as any
       : { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
     toast.success('Group dissolved');
   }, [processingGroups, onBulkUpdate]);
