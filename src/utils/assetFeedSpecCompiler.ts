@@ -208,7 +208,8 @@ function compilePlacement(
  */
 function compileLanguage(
   group: DetectedACGroup,
-  defaultLanguage?: string
+  defaultLanguage?: string,
+  languageTexts?: Map<string, Record<string, string>>
 ): CompilationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -244,12 +245,19 @@ function compileLanguage(
       images.push({ adlabels });
     }
 
-    // Text
-    if (row.primaryText) bodies.push({ text: row.primaryText, adlabels });
-    if (row.headline) titles.push({ text: row.headline, adlabels });
-    if (row.description) descriptions.push({ text: row.description, adlabels });
-    if (row.destinationUrl) linkUrls.push({ website_url: row.destinationUrl, adlabels });
-    if (row.callToAction) ctaTypes.push({ value: String(row.callToAction), adlabels });
+    // Use per-language text overrides if available, otherwise fall back to row data
+    const langText = languageTexts?.get(lang);
+    const primaryText = langText?.primaryText || row.primaryText;
+    const headline = langText?.headline || row.headline;
+    const description = langText?.description || row.description;
+    const destinationUrl = langText?.destinationUrl || row.destinationUrl;
+    const callToAction = langText?.callToAction || row.callToAction;
+
+    if (primaryText) bodies.push({ text: primaryText, adlabels });
+    if (headline) titles.push({ text: headline, adlabels });
+    if (description) descriptions.push({ text: description, adlabels });
+    if (destinationUrl) linkUrls.push({ website_url: destinationUrl, adlabels });
+    if (callToAction) ctaTypes.push({ value: String(callToAction), adlabels });
 
     const rule: AssetCustomizationRule = {
       customization_spec: {
@@ -262,11 +270,11 @@ function compileLanguage(
     } else {
       rule.image_label = { name: label };
     }
-    if (row.primaryText) rule.body_label = { name: label };
-    if (row.headline) rule.title_label = { name: label };
-    if (row.description) rule.description_label = { name: label };
-    if (row.destinationUrl) rule.link_url_label = { name: label };
-    if (row.callToAction) rule.call_to_action_type_label = { name: label };
+    if (primaryText) rule.body_label = { name: label };
+    if (headline) rule.title_label = { name: label };
+    if (description) rule.description_label = { name: label };
+    if (destinationUrl) rule.link_url_label = { name: label };
+    if (callToAction) rule.call_to_action_type_label = { name: label };
 
     rules.push(rule);
   }
@@ -380,13 +388,13 @@ function compileFlexible(group: DetectedACGroup): CompilationResult {
  */
 export function compileAssetFeedSpec(
   group: DetectedACGroup,
-  options?: { defaultLanguage?: string }
+  options?: { defaultLanguage?: string; languageTexts?: Map<string, Record<string, string>> }
 ): CompilationResult {
   switch (group.type) {
     case 'placement':
       return compilePlacement(group);
     case 'language':
-      return compileLanguage(group, options?.defaultLanguage);
+      return compileLanguage(group, options?.defaultLanguage, options?.languageTexts);
     case 'flexible_creative':
       return compileFlexible(group);
     default:
