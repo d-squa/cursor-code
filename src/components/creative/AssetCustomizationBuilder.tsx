@@ -166,26 +166,41 @@ function DetectedGroupCard({
   onToggle,
   expanded,
   onToggleExpand,
+  selectedLanguages,
+  onLanguagesChange,
+  groupDefaultLanguage,
+  onDefaultLanguageChange,
+  onApplyToAll,
+  totalLanguageGroups,
 }: {
   group: DetectedACGroup;
   isSelected: boolean;
   onToggle: () => void;
   expanded: boolean;
   onToggleExpand: () => void;
+  selectedLanguages?: string[];
+  onLanguagesChange?: (langs: string[]) => void;
+  groupDefaultLanguage?: string;
+  onDefaultLanguageChange?: (lang: string) => void;
+  onApplyToAll?: () => void;
+  totalLanguageGroups?: number;
 }) {
+  const isLanguageGroup = group.type === 'language';
+  const hasLanguages = isLanguageGroup && selectedLanguages && selectedLanguages.length >= 2;
   const hasErrors = group.validationErrors.length > 0;
+  const languageIncomplete = isLanguageGroup && (!selectedLanguages || selectedLanguages.length < 2);
 
   return (
     <div className={cn(
       'border rounded-lg transition-colors',
-      isSelected && !hasErrors ? 'border-primary bg-primary/5' : '',
+      isSelected && !hasErrors && !languageIncomplete ? 'border-primary bg-primary/5' : '',
       hasErrors ? 'border-destructive/50 bg-destructive/5' : '',
     )}>
       <div className="flex items-center gap-3 p-3">
         <Checkbox
           checked={isSelected}
           onCheckedChange={onToggle}
-          disabled={hasErrors}
+          disabled={hasErrors || languageIncomplete}
         />
         <button
           onClick={onToggleExpand}
@@ -202,6 +217,11 @@ function DetectedGroupCard({
             <Badge variant="secondary" className="text-[10px] shrink-0">
               {group.rows.length} assets
             </Badge>
+            {hasLanguages && (
+              <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] shrink-0">
+                {selectedLanguages.length} langs
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground truncate">{group.description}</p>
         </div>
@@ -244,19 +264,77 @@ function DetectedGroupCard({
             </div>
           )}
 
-          {group.type === 'language' && (
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium text-muted-foreground">Languages</span>
-              {[...group.languages.entries()].filter(([l]) => l !== 'unknown').map(([lang, rows]) => (
-                <div key={lang} className="flex items-center gap-2 pl-2">
-                  <Globe className="h-3.5 w-3.5" />
-                  <span className="text-xs font-medium uppercase">{lang}</span>
-                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground truncate">
-                    {rows.map(r => r.creativeName).join(', ')}
-                  </span>
+          {isLanguageGroup && onLanguagesChange && (
+            <div className="space-y-3">
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Select Target Languages</span>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Choose 2+ languages. The creative stays the same — text is swapped per language.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {SUPPORTED_LANGUAGES.map(lang => {
+                  const isChecked = selectedLanguages?.includes(lang.code) || false;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        const current = selectedLanguages || [];
+                        const updated = isChecked
+                          ? current.filter(c => c !== lang.code)
+                          : [...current, lang.code];
+                        onLanguagesChange(updated);
+                      }}
+                      className={cn(
+                        'px-2 py-1 rounded-md text-xs border transition-colors',
+                        isChecked
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'border-border hover:border-primary/50 text-muted-foreground',
+                      )}
+                    >
+                      {lang.label} ({lang.code.toUpperCase()})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedLanguages && selectedLanguages.length >= 2 && onDefaultLanguageChange && (
+                <div className="flex items-center gap-3">
+                  <Label className="text-xs shrink-0">Default Language</Label>
+                  <Select value={groupDefaultLanguage || selectedLanguages[0]} onValueChange={onDefaultLanguageChange}>
+                    <SelectTrigger className="h-7 w-36 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedLanguages.map(l => (
+                        <SelectItem key={l} value={l} className="text-xs">
+                          {SUPPORTED_LANGUAGES.find(sl => sl.code === l)?.label || l.toUpperCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
+              )}
+
+              {selectedLanguages && selectedLanguages.length >= 2 && onApplyToAll && totalLanguageGroups && totalLanguageGroups > 1 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 gap-1.5"
+                  onClick={onApplyToAll}
+                >
+                  <Globe className="h-3 w-3" />
+                  Apply these languages to all {totalLanguageGroups} language groups
+                </Button>
+              )}
+
+              {(!selectedLanguages || selectedLanguages.length < 2) && (
+                <Alert className="py-2">
+                  <AlertDescription className="text-xs">
+                    Select at least 2 languages to enable this customization.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
