@@ -805,7 +805,7 @@ export function AssetCustomizationBuilder({
       setSelectedGroupIds(new Set());
       setExpandedGroupIds(new Set());
       setPreviewGroupId(null);
-      setGroupLanguageSelections(new Map());
+      setGroupDefaultLanguages(new Map());
       setGroupDefaultLanguages(new Map());
       setGroupLanguageTexts(new Map());
       if (selectedRowIds.size >= 2) {
@@ -1043,7 +1043,7 @@ export function AssetCustomizationBuilder({
     } finally {
       setIsCompiling(false);
     }
-  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupLanguageSelections, groupDefaultLanguages, groupLanguageTexts, onCreateGroup, handleOpenChange]);
+  }, [detectedGroups, selectedGroupIds, defaultLanguage, groupDefaultLanguages, groupLanguageTexts, onCreateGroup, handleOpenChange]);
 
   const handleConfirmManual = useCallback(() => {
     if (!manualGroup || !manualSpec || !manualSpec.success) return;
