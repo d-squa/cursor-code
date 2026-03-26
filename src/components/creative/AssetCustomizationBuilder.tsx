@@ -164,8 +164,8 @@ function TypeSelector({
 
 // ─── Language Text Inputs via Bulk Excel Paste ──────────────────────────────
 
-const LANG_PASTE_COLUMNS = ['Language', 'Primary Text', 'Headline', 'Description', 'Destination URL', 'CTA'];
-const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', 'destinationUrl', 'callToAction'] as const;
+const LANG_PASTE_COLUMNS = ['Market/Language', 'Primary Text', 'Headline', 'Description', 'CTA', 'Destination URL'];
+const LANG_FIELD_KEYS = ['language', 'primaryText', 'headline', 'description', 'callToAction', 'destinationUrl'] as const;
 
 const META_CTAS = PLATFORM_CTAS.meta;
 
