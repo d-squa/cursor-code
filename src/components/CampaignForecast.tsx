@@ -2064,6 +2064,51 @@ export function CampaignForecast({
         };
       };
 
+      // Helper: build granular comparison rows from before/after platform forecasts
+      const buildGranularRows = (
+        beforePfs: PlatformForecast[],
+        afterPfs: PlatformForecast[],
+        bmks: Map<string, BenchmarkData>
+      ) => {
+        const rows: Array<{
+          platform: string; market: string; phase: string; optimizationGoal: string; kpi: string;
+          beforeCPR: number; afterCPR: number; beforeResult: number; afterResult: number;
+          beforeImpressions: number; afterImpressions: number; beforeCPM: number; afterCPM: number;
+          budget: number; campaignCount: number; isBenchmarkBased: boolean;
+        }> = [];
+
+        for (const afterPf of afterPfs) {
+          const beforePf = beforePfs.find(p => p.platformId === afterPf.platformId || p.platformName === afterPf.platformName);
+          for (const afterMkt of afterPf.markets) {
+            const beforeMkt = beforePf?.markets.find(m => m.marketName === afterMkt.marketName);
+            for (const afterPhase of afterMkt.phases) {
+              const beforePhase = beforeMkt?.phases?.find(p => p.phaseName === afterPhase.phaseName && p.optimizationGoal === afterPhase.optimizationGoal);
+              const platformKey = getPlatformKeyFromId(afterPf.platformId || afterPf.platformName);
+              const bm = lookupBenchmark(bmks, platformKey, afterMkt.marketName, afterPhase.optimizationGoal);
+              rows.push({
+                platform: afterPf.platformName,
+                market: afterMkt.marketName,
+                phase: afterPhase.phaseName,
+                optimizationGoal: afterPhase.optimizationGoal,
+                kpi: afterPhase.kpi,
+                beforeCPR: beforePhase?.costPerResult || 0,
+                afterCPR: afterPhase.costPerResult,
+                beforeResult: beforePhase?.result || 0,
+                afterResult: afterPhase.result,
+                beforeImpressions: 0, // phase doesn't store impressions directly
+                afterImpressions: 0,
+                beforeCPM: beforeMkt?.cpm || 0,
+                afterCPM: afterMkt.cpm,
+                budget: afterPhase.budget,
+                campaignCount: bm?.campaign_count || 0,
+                isBenchmarkBased: afterPhase.isBenchmarkBased || false,
+              });
+            }
+          }
+        }
+        return rows;
+      };
+
       // Helper: apply markup to platform forecasts + newForecasts (mutates in place)
       const applyMarkupToData = (pfs: PlatformForecast[], fcs: Record<string, CampaignForecast[]>, opts: ForecastOptions) => {
         const cpmMultiplier = opts.markupDirection === "up"
@@ -2150,27 +2195,14 @@ export function CampaignForecast({
           { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
-        const platformComparisons = clonedPlatforms.map((pf, idx) => {
-          const afterResults = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
-          const afterCPR = afterResults > 0 ? pf.totalBudget / afterResults : 0;
-          return {
-            platformName: pf.platformName,
-            metrics: [
-              { label: "Avg. CPM", before: beforePlatformTotals[idx].cpm, after: pf.avgCPM, format: "currency" as const, inverted: true },
-              { label: "Impressions", before: beforePlatformTotals[idx].impressions, after: pf.totalImpressions, format: "number" as const },
-              { label: "Results", before: beforePlatformTotals[idx].results, after: afterResults, format: "number" as const },
-              { label: "Avg. Cost/Result", before: beforePlatformTotals[idx].costPerResult, after: afterCPR, format: "currency" as const, inverted: true },
-              { label: "Reach", before: beforePlatformTotals[idx].reach, after: pf.totalReach, format: "number" as const },
-              { label: "Frequency", before: beforePlatformTotals[idx].frequency, after: pf.frequency, format: "number" as const },
-            ],
-          };
-        });
+        // Build granular rows from before/after phase data
+        const granularRows = buildGranularRows(platformForecasts, clonedPlatforms, benchmarks);
 
         setMarkupPreviewData({
           markupDirection: options.markupDirection,
           markupPercentage: options.markupPercentage,
           totalComparison,
-          platformComparisons,
+          granularRows,
         });
 
         // Show base forecast (without markup)
@@ -2227,27 +2259,14 @@ export function CampaignForecast({
           { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
-        const platformComparisons = platformForecasts.map((pf, idx) => {
-          const afterResults = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
-          const afterCPR = afterResults > 0 ? pf.totalBudget / afterResults : 0;
-          return {
-            platformName: pf.platformName,
-            metrics: [
-              { label: "Avg. CPM", before: beforePlatformTotals[idx]?.cpm || 0, after: pf.avgCPM, format: "currency" as const, inverted: true },
-              { label: "Impressions", before: beforePlatformTotals[idx]?.impressions || 0, after: pf.totalImpressions, format: "number" as const },
-              { label: "Results", before: beforePlatformTotals[idx]?.results || 0, after: afterResults, format: "number" as const },
-              { label: "Avg. Cost/Result", before: beforePlatformTotals[idx]?.costPerResult || 0, after: afterCPR, format: "currency" as const, inverted: true },
-              { label: "Reach", before: beforePlatformTotals[idx]?.reach || 0, after: pf.totalReach, format: "number" as const },
-              { label: "Frequency", before: beforePlatformTotals[idx]?.frequency || 0, after: pf.frequency, format: "number" as const },
-            ],
-          };
-        });
+        // Build granular rows: for dateRange mode, before = existing actiplan platforms, after = new platformForecasts
+        const granularRows = buildGranularRows(beforeActiplan.platforms, platformForecasts, benchmarks);
 
         setMarkupPreviewData({
           markupDirection: "up",
           markupPercentage: 0,
           totalComparison,
-          platformComparisons,
+          granularRows,
           mode: "dateRange",
           dateRangeLabel,
         });
