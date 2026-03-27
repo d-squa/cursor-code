@@ -2074,6 +2074,27 @@ export function CampaignForecast({
         toast.info(`${direction}${options.markupPercentage}% CPM markup applied — all metrics recalculated`);
       }
 
+      // Aggregate platform deliverables AFTER markup is applied
+      const platformDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
+      platformForecasts.forEach(platform => {
+        if (!platformDeliverables[platform.platformName]) {
+          platformDeliverables[platform.platformName] = [];
+        }
+        platform.markets.forEach(market => {
+          market.resultsByGoal.forEach(r => {
+            const existing = platformDeliverables[platform.platformName].find(d => d.kpi === r.kpi);
+            if (existing) {
+              existing.result += r.result;
+            } else {
+              platformDeliverables[platform.platformName].push({
+                kpi: r.kpi,
+                result: r.result,
+              });
+            }
+          });
+        });
+      });
+
       setForecasts(newForecasts);
       
       // Re-derive actiplan numbers from (potentially marked-up) platform forecasts
