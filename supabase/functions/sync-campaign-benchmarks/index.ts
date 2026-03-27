@@ -207,6 +207,27 @@ async function processCampaignsBatch(
   }
 }
 
+/**
+ * Map campaign objective to the PRIMARY result action type.
+ * Spend is attributed ONLY to this goal — no double-counting.
+ */
+const objectiveToPrimary: Record<string, { actionTypes: string[]; goal: string }> = {
+  "OUTCOME_TRAFFIC": { actionTypes: ["link_click", "landing_page_view"], goal: "LINK_CLICKS" },
+  "OUTCOME_ENGAGEMENT": { actionTypes: ["post_engagement", "page_engagement", "post", "comment", "like", "onsite_conversion.post_save", "photo_view"], goal: "POST_ENGAGEMENT" },
+  "OUTCOME_AWARENESS": { actionTypes: ["__reach__"], goal: "REACH" },
+  "OUTCOME_LEADS": { actionTypes: ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped", "leadgen_grouped"], goal: "LEAD_GENERATION" },
+  "OUTCOME_SALES": { actionTypes: ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "complete_registration", "offsite_conversion.fb_pixel_complete_registration"], goal: "PURCHASE" },
+  "OUTCOME_APP_PROMOTION": { actionTypes: ["app_install", "mobile_app_install"], goal: "APP_INSTALLS" },
+  "LINK_CLICKS": { actionTypes: ["link_click", "landing_page_view"], goal: "LINK_CLICKS" },
+  "POST_ENGAGEMENT": { actionTypes: ["post_engagement", "page_engagement"], goal: "POST_ENGAGEMENT" },
+  "BRAND_AWARENESS": { actionTypes: ["__reach__"], goal: "REACH" },
+  "REACH": { actionTypes: ["__reach__"], goal: "REACH" },
+  "VIDEO_VIEWS": { actionTypes: ["video_view", "thruplay"], goal: "THRUPLAY" },
+  "CONVERSIONS": { actionTypes: ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.fb_pixel_lead", "lead", "complete_registration"], goal: "OFFSITE_CONVERSIONS" },
+  "LEAD_GENERATION": { actionTypes: ["lead", "offsite_conversion.fb_pixel_lead", "leadgen_grouped"], goal: "LEAD_GENERATION" },
+  "APP_INSTALLS": { actionTypes: ["app_install", "mobile_app_install"], goal: "APP_INSTALLS" },
+};
+
 async function processCampaignInsights(
   campaign: any,
   accessToken: string,
@@ -218,7 +239,7 @@ async function processCampaignInsights(
   try {
     const insightsUrl = `https://graph.facebook.com/v21.0/${campaign.id}/insights?` +
       `time_range={'since':'${startDate}','until':'${endDate}'}` +
-      `&fields=spend,impressions,clicks,actions,action_values,country` +
+      `&fields=spend,impressions,clicks,reach,actions,action_values` +
       `&level=campaign` +
       `&breakdowns=country` +
       `&access_token=${accessToken}`;
@@ -231,32 +252,24 @@ async function processCampaignInsights(
     if (insights.length === 0) return;
 
     const objective = campaign.objective || "UNKNOWN";
-    const actionTypeMap: { [key: string]: string } = {
-      "link_click": "LINK_CLICKS",
-      "post_engagement": "POST_ENGAGEMENT",
-      "page_engagement": "PAGE_LIKES",
-      "video_view": "VIDEO_VIEWS",
-      "offsite_conversion.fb_pixel_purchase": "OFFSITE_CONVERSIONS",
-      "offsite_conversion.fb_pixel_lead": "LEAD_GENERATION",
-      "omni_purchase": "PURCHASE",
-      "app_install": "APP_INSTALLS",
-      "landing_page_view": "LANDING_PAGE_VIEWS",
-      "thruplay": "THRUPLAY",
-    };
+    const primaryConfig = objectiveToPrimary[objective];
 
     for (const insight of insights) {
       const country = insight.country || "UNKNOWN";
       const spend = parseFloat(insight.spend || "0");
       const impressions = parseFloat(insight.impressions || "0");
       const totalClicks = parseFloat(insight.clicks || "0");
+      const reach = parseFloat(insight.reach || "0");
       const actions = insight.actions || [];
       const actionValues = insight.action_values || [];
-      
+
+      if (spend <= 0) continue;
+
       const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
       const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
       const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
       const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
-      
+
       let revenue = 0;
       for (const av of actionValues) {
         if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
@@ -264,47 +277,55 @@ async function processCampaignInsights(
         }
       }
 
-      for (const action of actions) {
-        const optimizationGoal = actionTypeMap[action.action_type] || objective;
-        const results = parseFloat(action.value || "0");
-        const key = `${country}_${optimizationGoal}`;
-        
-        if (!benchmarkMap.has(key)) {
-          benchmarkMap.set(key, {
-            market: country, optimization_goal: optimizationGoal,
-            total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
-            link_clicks: 0, landing_page_views: 0, revenue: 0,
-            campaign_count: 0, industry,
-          });
-        }
+      // Determine primary optimization goal and result count from campaign objective
+      let optimizationGoal = primaryConfig?.goal || objective;
+      let results = 0;
 
-        const benchmark = benchmarkMap.get(key)!;
-        benchmark.total_spend += spend;
-        benchmark.total_results += results;
-        benchmark.impressions += impressions;
-        benchmark.clicks += totalClicks;
-        benchmark.link_clicks += linkClicks;
-        benchmark.landing_page_views += landingPageViews;
-        benchmark.revenue += revenue;
-        benchmark.campaign_count += 1;
+      if (primaryConfig) {
+        if (primaryConfig.actionTypes.includes("__reach__")) {
+          // REACH/AWARENESS objective: result = reach
+          results = reach;
+        } else {
+          // Find the first matching action for the primary goal
+          for (const actionType of primaryConfig.actionTypes) {
+            const action = actions.find((a: any) => a.action_type === actionType);
+            if (action) {
+              results = parseFloat(action.value || "0");
+              break;
+            }
+          }
+        }
       }
 
-      if (actions.length === 0 && spend > 0) {
-        const key = `${country}_${objective}`;
-        if (!benchmarkMap.has(key)) {
-          benchmarkMap.set(key, {
-            market: country, optimization_goal: objective,
-            total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
-            link_clicks: 0, landing_page_views: 0, revenue: 0,
-            campaign_count: 0, industry,
-          });
-        }
-        const benchmark = benchmarkMap.get(key)!;
-        benchmark.total_spend += spend;
-        benchmark.impressions += impressions;
-        benchmark.clicks += totalClicks;
-        benchmark.campaign_count += 1;
+      // Fallback: if no primary results found, use clicks
+      if (results <= 0 && totalClicks > 0) {
+        results = totalClicks;
+        if (!primaryConfig) optimizationGoal = "CLICK";
       }
+
+      // Skip if no measurable results at all
+      if (results <= 0) continue;
+
+      // Attribute spend to the PRIMARY goal only
+      const key = `${country}_${optimizationGoal}`;
+      if (!benchmarkMap.has(key)) {
+        benchmarkMap.set(key, {
+          market: country, optimization_goal: optimizationGoal,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0,
+          campaign_count: 0, industry,
+        });
+      }
+
+      const benchmark = benchmarkMap.get(key)!;
+      benchmark.total_spend += spend;
+      benchmark.total_results += results;
+      benchmark.impressions += impressions;
+      benchmark.clicks += totalClicks;
+      benchmark.link_clicks += linkClicks;
+      benchmark.landing_page_views += landingPageViews;
+      benchmark.revenue += revenue;
+      benchmark.campaign_count += 1;
     }
   } catch (error) {
     console.error(`Error processing campaign ${campaign.id}:`, error);
