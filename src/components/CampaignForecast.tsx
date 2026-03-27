@@ -2016,64 +2016,90 @@ export function CampaignForecast({
       const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
       // platformDeliverables will be computed after markup is applied
 
-      // Apply markup/markdown to CPM only — all other metrics are derived from it
+      // Apply markup/markdown to market CPM only — all downstream metrics are derived from it
       if (options?.applyMarkup && options.markupPercentage > 0) {
-        const cpmMultiplier = options.markupDirection === "up" 
+        const cpmMultiplier = options.markupDirection === "up"
           ? 1 + (options.markupPercentage / 100)
           : 1 - (options.markupPercentage / 100);
-        
+
         const direction = options.markupDirection === "up" ? "+" : "−";
-        console.log(`📈 Applying ${direction}${options.markupPercentage}% CPM markup (CPM × ${cpmMultiplier})`);
-        
-        // Apply CPM markup to all market-level forecasts — derive everything else
-        for (const platformId of Object.keys(newForecasts)) {
-          for (const forecast of newForecasts[platformId]) {
-            const oldCPM = forecast.metrics.cpm;
-            const newCPM = oldCPM * cpmMultiplier;
-            forecast.metrics.cpm = newCPM;
-            // Recalculate impressions from new CPM: impressions = (budget / CPM) * 1000
-            const oldFrequency = forecast.metrics.reach > 0 ? forecast.metrics.impressions / forecast.metrics.reach : 2;
-            const oldResultRate = forecast.metrics.impressions > 0 ? forecast.metrics.result / forecast.metrics.impressions : 0;
-            forecast.metrics.impressions = newCPM > 0 ? Math.round((forecast.budget / newCPM) * 1000) : 0;
-            forecast.metrics.reach = oldFrequency > 0 ? Math.round(forecast.metrics.impressions / oldFrequency) : 0;
-            forecast.metrics.result = Math.max(1, Math.round(forecast.metrics.impressions * oldResultRate));
-            forecast.metrics.costPerResult = forecast.metrics.result > 0 ? parseFloat((forecast.budget / forecast.metrics.result).toFixed(2)) : 0;
-            forecast.metrics.resultRate = forecast.metrics.impressions > 0 ? (forecast.metrics.result / forecast.metrics.impressions) * 100 : 0;
-          }
-        }
-        
-        // Recalculate platform-level aggregations from CPM-driven changes
+        console.log(`📈 Applying ${direction}${options.markupPercentage}% market CPM markup (CPM × ${cpmMultiplier})`);
+
         for (const pf of platformForecasts) {
+          const platformPhaseForecasts = newForecasts[pf.platformId] ?? [];
+
           for (const mf of pf.markets) {
-            const oldFreq = mf.reach > 0 ? mf.impressions / mf.reach : 2;
-            // CPM already adjusted in newForecasts loop above — apply multiplier only once
-            const newMarketCPM = mf.cpm * cpmMultiplier;
-            mf.cpm = newMarketCPM;
-            mf.impressions = mf.cpm > 0 ? Math.round((mf.budget / mf.cpm) * 1000) : 0;
-            mf.reach = oldFreq > 0 ? Math.round(mf.impressions / oldFreq) : 0;
-            mf.frequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
-            mf.sov = mf.audienceSize > 0 ? (mf.reach / mf.audienceSize) * 100 : 0;
-            for (const r of mf.resultsByGoal) {
-              const oldRate = mf.impressions > 0 ? r.result / (mf.impressions / (1 / cpmMultiplier)) : 0;
-              r.result = Math.max(1, Math.round(mf.impressions * (r.resultRate / 100 || oldRate)));
-              r.costPerResult = r.result > 0 ? mf.budget / r.result : 0;
-              r.resultRate = mf.impressions > 0 ? (r.result / mf.impressions) * 100 : 0;
+            const oldMarketCPM = mf.cpm;
+            const oldMarketImpressions = mf.impressions;
+            const oldMarketFrequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
+            const nextMarketCPM = oldMarketCPM * cpmMultiplier;
+            const nextMarketImpressions = nextMarketCPM > 0 ? Math.round((mf.budget / nextMarketCPM) * 1000) : 0;
+            const nextMarketReach = oldMarketFrequency > 0 ? Math.round(nextMarketImpressions / oldMarketFrequency) : 0;
+
+            mf.cpm = nextMarketCPM;
+            mf.impressions = nextMarketImpressions;
+            mf.reach = nextMarketReach;
+            mf.frequency = nextMarketReach > 0 ? nextMarketImpressions / nextMarketReach : 0;
+            mf.sov = mf.audienceSize > 0 ? (nextMarketReach / mf.audienceSize) * 100 : 0;
+
+            for (const resultGoal of mf.resultsByGoal) {
+              const preservedRate = oldMarketImpressions > 0 ? resultGoal.result / oldMarketImpressions : 0;
+              resultGoal.result = Math.max(1, Math.round(nextMarketImpressions * preservedRate));
+              resultGoal.costPerResult = resultGoal.result > 0 ? mf.budget / resultGoal.result : 0;
+              resultGoal.resultRate = nextMarketImpressions > 0 ? (resultGoal.result / nextMarketImpressions) * 100 : 0;
             }
-            for (const ph of mf.phases) {
-              const phaseImp = mf.cpm > 0 ? Math.round((ph.budget / mf.cpm) * 1000) : 0;
-              const oldPhRate = ph.resultRate / 100 || 0;
-              ph.result = Math.max(1, Math.round(phaseImp * oldPhRate));
-              ph.costPerResult = ph.result > 0 ? ph.budget / ph.result : 0;
+
+            for (const phase of mf.phases) {
+              const oldPhaseImpressions = oldMarketCPM > 0 ? Math.round((phase.budget / oldMarketCPM) * 1000) : 0;
+              const preservedPhaseRate = oldPhaseImpressions > 0 ? phase.result / oldPhaseImpressions : 0;
+              const nextPhaseImpressions = nextMarketCPM > 0 ? Math.round((phase.budget / nextMarketCPM) * 1000) : 0;
+              phase.result = Math.max(1, Math.round(nextPhaseImpressions * preservedPhaseRate));
+              phase.costPerResult = phase.result > 0 ? phase.budget / phase.result : 0;
+              phase.resultRate = nextPhaseImpressions > 0 ? (phase.result / nextPhaseImpressions) * 100 : 0;
+
+              phase.adSets?.forEach((adSet) => {
+                const oldAdSetFrequency = adSet.reach > 0 ? adSet.impressions / adSet.reach : 0;
+                const oldAdSetRate = adSet.impressions > 0 ? adSet.result / adSet.impressions : 0;
+                adSet.impressions = nextMarketCPM > 0 ? Math.round((adSet.budget / nextMarketCPM) * 1000) : 0;
+                adSet.reach = oldAdSetFrequency > 0 ? Math.round(adSet.impressions / oldAdSetFrequency) : 0;
+                adSet.result = Math.max(1, Math.round(adSet.impressions * oldAdSetRate));
+                adSet.costPerResult = adSet.result > 0 ? adSet.budget / adSet.result : 0;
+              });
+
+              phase.strategyCampaigns?.forEach((campaign) => {
+                const oldStrategyImpressions = oldMarketCPM > 0 ? Math.round((campaign.budget / oldMarketCPM) * 1000) : 0;
+                const oldStrategyFrequency = campaign.reach > 0 ? campaign.impressions / campaign.reach : 0;
+                const oldStrategyRate = oldStrategyImpressions > 0 ? campaign.result / oldStrategyImpressions : 0;
+                campaign.impressions = nextMarketCPM > 0 ? Math.round((campaign.budget / nextMarketCPM) * 1000) : 0;
+                campaign.reach = oldStrategyFrequency > 0 ? Math.round(campaign.impressions / oldStrategyFrequency) : 0;
+                campaign.result = Math.max(1, Math.round(campaign.impressions * oldStrategyRate));
+                campaign.costPerResult = campaign.result > 0 ? campaign.budget / campaign.result : 0;
+                campaign.resultRate = campaign.impressions > 0 ? (campaign.result / campaign.impressions) * 100 : 0;
+              });
             }
+
+            platformPhaseForecasts
+              .filter((forecast) => forecast.market === mf.marketName || forecast.market.startsWith(`${mf.marketName} - `))
+              .forEach((forecast) => {
+                const oldForecastFrequency = forecast.metrics.reach > 0 ? forecast.metrics.impressions / forecast.metrics.reach : 0;
+                const oldForecastRate = forecast.metrics.impressions > 0 ? forecast.metrics.result / forecast.metrics.impressions : 0;
+                forecast.metrics.cpm = nextMarketCPM;
+                forecast.metrics.impressions = nextMarketCPM > 0 ? Math.round((forecast.budget / nextMarketCPM) * 1000) : 0;
+                forecast.metrics.reach = oldForecastFrequency > 0 ? Math.round(forecast.metrics.impressions / oldForecastFrequency) : 0;
+                forecast.metrics.result = Math.max(1, Math.round(forecast.metrics.impressions * oldForecastRate));
+                forecast.metrics.costPerResult = forecast.metrics.result > 0 ? parseFloat((forecast.budget / forecast.metrics.result).toFixed(2)) : 0;
+                forecast.metrics.resultRate = forecast.metrics.impressions > 0 ? (forecast.metrics.result / forecast.metrics.impressions) * 100 : 0;
+              });
           }
-          pf.totalImpressions = pf.markets.reduce((s, m) => s + m.impressions, 0);
-          pf.totalReach = pf.markets.reduce((s, m) => s + m.reach, 0);
+
+          pf.totalImpressions = pf.markets.reduce((sum, market) => sum + market.impressions, 0);
+          pf.totalReach = pf.markets.reduce((sum, market) => sum + market.reach, 0);
           pf.avgCPM = pf.totalImpressions > 0 ? (pf.totalBudget / pf.totalImpressions) * 1000 : 0;
           pf.frequency = pf.totalReach > 0 ? pf.totalImpressions / pf.totalReach : 0;
           pf.sov = pf.totalAudienceSize > 0 ? (pf.totalReach / pf.totalAudienceSize) * 100 : 0;
         }
-        
-        toast.info(`${direction}${options.markupPercentage}% CPM markup applied — all metrics recalculated`);
+
+        toast.info(`${direction}${options.markupPercentage}% market CPM markup applied — all metrics recalculated`);
       }
 
       // Aggregate platform deliverables AFTER markup is applied
