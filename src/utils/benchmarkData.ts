@@ -14,6 +14,8 @@ export interface BenchmarkData {
   landing_page_views: number;
   revenue: number;
   campaign_count: number;
+  date_range_start?: string;
+  date_range_end?: string;
 }
 
 /**
@@ -187,58 +189,57 @@ export async function getBenchmarkCostPerResult(
   try {
     const platformKey = platform || 'meta';
     const normalizedGoal = normalizeBenchmarkGoal(optimizationGoal, platformKey);
-    
-    let query = supabase
-      .from("campaign_performance_benchmarks")
-      .select("avg_cost_per_result")
-      .ilike("market", market)
-      .eq("platform", platformKey);
-    
-    // Try normalized goal first
-    query = query.ilike("optimization_goal", normalizedGoal);
-    
-    // Industry is a HARD condition
-    if (industry) {
-      query = query.ilike("industry", industry);
-    } else {
-      console.log(`No industry provided, skipping benchmark for ${platformKey}/${market}/${normalizedGoal}`);
-      return null;
-    }
-    
-    const { data, error } = await query
-      .order("date_range_end", { ascending: false })
-      .limit(1)
-      .single();
 
-    if (error || !data?.avg_cost_per_result) {
-      // If normalized goal didn't match, try original goal
-      if (normalizedGoal !== optimizationGoal.toUpperCase()) {
-        let fallbackQuery = supabase
-          .from("campaign_performance_benchmarks")
-          .select("avg_cost_per_result")
-          .ilike("market", market)
-          .eq("platform", platformKey)
-          .ilike("optimization_goal", optimizationGoal);
-        
-        if (industry) {
-          fallbackQuery = fallbackQuery.ilike("industry", industry);
-        }
-        
-        const { data: fbData } = await fallbackQuery
-          .order("date_range_end", { ascending: false })
-          .limit(1)
-          .single();
-        
-        if (fbData?.avg_cost_per_result) {
-          return fbData.avg_cost_per_result;
-        }
+    const runQuery = async (goal: string) => {
+      let query = supabase
+        .from("campaign_performance_benchmarks")
+        .select("total_spend,total_results,avg_cost_per_result")
+        .ilike("market", market)
+        .eq("platform", platformKey)
+        .ilike("optimization_goal", goal);
+
+      if (industry) {
+        query = query.ilike("industry", industry);
+      } else {
+        console.log(`No industry provided, skipping benchmark for ${platformKey}/${market}/${goal}`);
+        return null;
       }
-      
-      console.log(`No benchmark found for ${platformKey}/${industry}/${market}/${normalizedGoal}`);
-      return null;
+
+      const { data, error } = await query;
+      if (error || !data || data.length === 0) {
+        return null;
+      }
+
+      const totals = data.reduce(
+        (acc, row) => ({
+          spend: acc.spend + Number(row.total_spend || 0),
+          results: acc.results + Number(row.total_results || 0),
+        }),
+        { spend: 0, results: 0 },
+      );
+
+      if (totals.results > 0) {
+        return totals.spend / totals.results;
+      }
+
+      const latestWithAvg = data.find((row) => typeof row.avg_cost_per_result === "number" && row.avg_cost_per_result > 0);
+      return latestWithAvg?.avg_cost_per_result ?? null;
+    };
+
+    const normalizedMatch = await runQuery(normalizedGoal);
+    if (normalizedMatch && normalizedMatch > 0) {
+      return normalizedMatch;
     }
 
-    return data.avg_cost_per_result;
+    if (normalizedGoal !== optimizationGoal.toUpperCase()) {
+      const fallbackMatch = await runQuery(optimizationGoal);
+      if (fallbackMatch && fallbackMatch > 0) {
+        return fallbackMatch;
+      }
+    }
+
+    console.log(`No benchmark found for ${platformKey}/${industry}/${market}/${normalizedGoal}`);
+    return null;
   } catch (error) {
     console.error("Error fetching benchmark:", error);
     return null;
@@ -260,14 +261,12 @@ export async function getAllBenchmarks(
     let query = supabase
       .from("campaign_performance_benchmarks")
       .select("*");
-    
-    // Filter by platform if provided
+
     if (platform) {
       query = query.eq("platform", platform);
       console.log(`📊 Fetching benchmarks for platform: ${platform}`);
     }
-    
-    // Industry is a HARD condition when provided
+
     if (industry) {
       query = query.ilike("industry", industry);
       console.log(`📊 Fetching benchmarks filtered by industry (case-insensitive): ${industry}`);
@@ -275,16 +274,13 @@ export async function getAllBenchmarks(
       console.log(`⚠️ No industry provided - benchmarks will not be used (hard requirement)`);
       return new Map();
     }
-    
-    // Apply date range filter if provided
+
     if (dateRange?.startDate) {
-      // Convert YYYY-MM to YYYY-MM-01
       const startISO = dateRange.startDate.length === 7 ? `${dateRange.startDate}-01` : dateRange.startDate;
       query = query.gte("date_range_start", startISO);
       console.log(`📊 Benchmark date filter: start >= ${startISO}`);
     }
     if (dateRange?.endDate) {
-      // Convert YYYY-MM to last day of month
       const [y, m] = dateRange.endDate.split("-").map(Number);
       const lastDay = new Date(y, m, 0).getDate();
       const endISO = `${dateRange.endDate}-${String(lastDay).padStart(2, "0")}`;
@@ -300,23 +296,56 @@ export async function getAllBenchmarks(
     }
 
     const benchmarkMap = new Map<string, BenchmarkData>();
-    
-    // Group by market and optimization goal, keeping only the most recent
-    // Use uppercase keys for case-insensitive lookup
-    const seen = new Set<string>();
+
     for (const item of data || []) {
-      const normalizedPlatform = (item.platform || 'meta').toLowerCase();
-      const normalizedMarket = item.market?.toUpperCase() || '';
-      const normalizedGoal = item.optimization_goal?.toUpperCase() || '';
-      // Key includes platform to prevent cross-platform collisions
+      const normalizedPlatform = (item.platform || "meta").toLowerCase();
+      const normalizedMarket = item.market?.toUpperCase() || "";
+      const normalizedGoal = item.optimization_goal?.toUpperCase() || "";
       const key = `${normalizedPlatform}_${normalizedMarket}_${normalizedGoal}`;
-      if (!seen.has(key)) {
-        benchmarkMap.set(key, item as BenchmarkData);
-        seen.add(key);
-        console.log(`  📌 Benchmark loaded: ${key} → CPR: $${item.avg_cost_per_result?.toFixed(2)}`);
+      const existing = benchmarkMap.get(key);
+
+      if (!existing) {
+        benchmarkMap.set(key, {
+          ...(item as BenchmarkData),
+          platform: normalizedPlatform,
+          total_spend: Number(item.total_spend || 0),
+          total_results: Number(item.total_results || 0),
+          impressions: Number(item.impressions || 0),
+          clicks: Number(item.clicks || 0),
+          link_clicks: Number(item.link_clicks || 0),
+          landing_page_views: Number(item.landing_page_views || 0),
+          revenue: Number(item.revenue || 0),
+          campaign_count: Number(item.campaign_count || 0),
+          avg_cost_per_result: Number(item.total_results || 0) > 0
+            ? Number(item.total_spend || 0) / Number(item.total_results || 0)
+            : item.avg_cost_per_result,
+        });
+        continue;
       }
+
+      existing.total_spend += Number(item.total_spend || 0);
+      existing.total_results += Number(item.total_results || 0);
+      existing.impressions += Number(item.impressions || 0);
+      existing.clicks += Number(item.clicks || 0);
+      existing.link_clicks += Number(item.link_clicks || 0);
+      existing.landing_page_views += Number(item.landing_page_views || 0);
+      existing.revenue += Number(item.revenue || 0);
+      existing.campaign_count += Number(item.campaign_count || 0);
+      existing.date_range_start = existing.date_range_start && item.date_range_start
+        ? (existing.date_range_start < item.date_range_start ? existing.date_range_start : item.date_range_start)
+        : existing.date_range_start || item.date_range_start;
+      existing.date_range_end = existing.date_range_end && item.date_range_end
+        ? (existing.date_range_end > item.date_range_end ? existing.date_range_end : item.date_range_end)
+        : existing.date_range_end || item.date_range_end;
+      existing.avg_cost_per_result = existing.total_results > 0
+        ? existing.total_spend / existing.total_results
+        : existing.avg_cost_per_result;
     }
-    
+
+    benchmarkMap.forEach((item, key) => {
+      console.log(`  📌 Benchmark loaded: ${key} → CPR: $${item.avg_cost_per_result?.toFixed(2) || "N/A"}`);
+    });
+
     console.log(`✅ Loaded ${benchmarkMap.size} benchmarks for industry: ${industry}${platform ? `, platform: ${platform}` : ''}`);
 
     return benchmarkMap;
