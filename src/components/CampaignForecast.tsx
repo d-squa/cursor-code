@@ -2029,50 +2029,40 @@ export function CampaignForecast({
           const platformPhaseForecasts = newForecasts[pf.platformId] ?? [];
 
           for (const mf of pf.markets) {
-            const oldMarketCPM = mf.cpm;
+            // Use a uniform scale factor: impressions scale inversely with CPM
+            // If CPM goes up 10%, impressions go down by 1/1.1 ≈ 9.09%
+            const impressionScale = 1 / cpmMultiplier;
             const oldMarketImpressions = mf.impressions;
-            const oldMarketFrequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
-            const nextMarketCPM = oldMarketCPM * cpmMultiplier;
-            const nextMarketImpressions = nextMarketCPM > 0 ? Math.round((mf.budget / nextMarketCPM) * 1000) : 0;
-            const nextMarketReach = oldMarketFrequency > 0 ? Math.round(nextMarketImpressions / oldMarketFrequency) : 0;
+            const oldMarketReach = mf.reach;
 
-            mf.cpm = nextMarketCPM;
-            mf.impressions = nextMarketImpressions;
-            mf.reach = nextMarketReach;
-            mf.frequency = nextMarketReach > 0 ? nextMarketImpressions / nextMarketReach : 0;
-            mf.sov = mf.audienceSize > 0 ? (nextMarketReach / mf.audienceSize) * 100 : 0;
+            mf.cpm = mf.cpm * cpmMultiplier;
+            mf.impressions = Math.round(oldMarketImpressions * impressionScale);
+            mf.reach = Math.round(oldMarketReach * impressionScale);
+            mf.frequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
+            mf.sov = mf.audienceSize > 0 ? (mf.reach / mf.audienceSize) * 100 : 0;
 
             for (const resultGoal of mf.resultsByGoal) {
-              const preservedRate = oldMarketImpressions > 0 ? resultGoal.result / oldMarketImpressions : 0;
-              resultGoal.result = Math.max(1, Math.round(nextMarketImpressions * preservedRate));
+              resultGoal.result = Math.max(1, Math.round(resultGoal.result * impressionScale));
               resultGoal.costPerResult = resultGoal.result > 0 ? mf.budget / resultGoal.result : 0;
-              resultGoal.resultRate = nextMarketImpressions > 0 ? (resultGoal.result / nextMarketImpressions) * 100 : 0;
+              resultGoal.resultRate = mf.impressions > 0 ? (resultGoal.result / mf.impressions) * 100 : 0;
             }
 
             for (const phase of mf.phases) {
-              const oldPhaseImpressions = oldMarketCPM > 0 ? Math.round((phase.budget / oldMarketCPM) * 1000) : 0;
-              const preservedPhaseRate = oldPhaseImpressions > 0 ? phase.result / oldPhaseImpressions : 0;
-              const nextPhaseImpressions = nextMarketCPM > 0 ? Math.round((phase.budget / nextMarketCPM) * 1000) : 0;
-              phase.result = Math.max(1, Math.round(nextPhaseImpressions * preservedPhaseRate));
+              phase.result = Math.max(1, Math.round(phase.result * impressionScale));
               phase.costPerResult = phase.result > 0 ? phase.budget / phase.result : 0;
-              phase.resultRate = nextPhaseImpressions > 0 ? (phase.result / nextPhaseImpressions) * 100 : 0;
+              phase.resultRate = phase.result > 0 && mf.impressions > 0 ? (phase.result / (mf.impressions * (phase.budget / mf.budget))) * 100 : 0;
 
               phase.adSets?.forEach((adSet) => {
-                const oldAdSetFrequency = adSet.reach > 0 ? adSet.impressions / adSet.reach : 0;
-                const oldAdSetRate = adSet.impressions > 0 ? adSet.result / adSet.impressions : 0;
-                adSet.impressions = nextMarketCPM > 0 ? Math.round((adSet.budget / nextMarketCPM) * 1000) : 0;
-                adSet.reach = oldAdSetFrequency > 0 ? Math.round(adSet.impressions / oldAdSetFrequency) : 0;
-                adSet.result = Math.max(1, Math.round(adSet.impressions * oldAdSetRate));
+                adSet.impressions = Math.round(adSet.impressions * impressionScale);
+                adSet.reach = Math.round(adSet.reach * impressionScale);
+                adSet.result = Math.max(1, Math.round(adSet.result * impressionScale));
                 adSet.costPerResult = adSet.result > 0 ? adSet.budget / adSet.result : 0;
               });
 
               phase.strategyCampaigns?.forEach((campaign) => {
-                const oldStrategyImpressions = oldMarketCPM > 0 ? Math.round((campaign.budget / oldMarketCPM) * 1000) : 0;
-                const oldStrategyFrequency = campaign.reach > 0 ? campaign.impressions / campaign.reach : 0;
-                const oldStrategyRate = oldStrategyImpressions > 0 ? campaign.result / oldStrategyImpressions : 0;
-                campaign.impressions = nextMarketCPM > 0 ? Math.round((campaign.budget / nextMarketCPM) * 1000) : 0;
-                campaign.reach = oldStrategyFrequency > 0 ? Math.round(campaign.impressions / oldStrategyFrequency) : 0;
-                campaign.result = Math.max(1, Math.round(campaign.impressions * oldStrategyRate));
+                campaign.impressions = Math.round(campaign.impressions * impressionScale);
+                campaign.reach = Math.round(campaign.reach * impressionScale);
+                campaign.result = Math.max(1, Math.round(campaign.result * impressionScale));
                 campaign.costPerResult = campaign.result > 0 ? campaign.budget / campaign.result : 0;
                 campaign.resultRate = campaign.impressions > 0 ? (campaign.result / campaign.impressions) * 100 : 0;
               });
@@ -2081,12 +2071,10 @@ export function CampaignForecast({
             platformPhaseForecasts
               .filter((forecast) => forecast.market === mf.marketName || forecast.market.startsWith(`${mf.marketName} - `))
               .forEach((forecast) => {
-                const oldForecastFrequency = forecast.metrics.reach > 0 ? forecast.metrics.impressions / forecast.metrics.reach : 0;
-                const oldForecastRate = forecast.metrics.impressions > 0 ? forecast.metrics.result / forecast.metrics.impressions : 0;
-                forecast.metrics.cpm = nextMarketCPM;
-                forecast.metrics.impressions = nextMarketCPM > 0 ? Math.round((forecast.budget / nextMarketCPM) * 1000) : 0;
-                forecast.metrics.reach = oldForecastFrequency > 0 ? Math.round(forecast.metrics.impressions / oldForecastFrequency) : 0;
-                forecast.metrics.result = Math.max(1, Math.round(forecast.metrics.impressions * oldForecastRate));
+                forecast.metrics.cpm = forecast.metrics.cpm * cpmMultiplier;
+                forecast.metrics.impressions = Math.round(forecast.metrics.impressions * impressionScale);
+                forecast.metrics.reach = Math.round(forecast.metrics.reach * impressionScale);
+                forecast.metrics.result = Math.max(1, Math.round(forecast.metrics.result * impressionScale));
                 forecast.metrics.costPerResult = forecast.metrics.result > 0 ? parseFloat((forecast.budget / forecast.metrics.result).toFixed(2)) : 0;
                 forecast.metrics.resultRate = forecast.metrics.impressions > 0 ? (forecast.metrics.result / forecast.metrics.impressions) * 100 : 0;
               });
