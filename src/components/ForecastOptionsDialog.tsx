@@ -91,6 +91,24 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
+  const isDateRangeActive = datePreset !== "all";
+
+  const handleToggleMarkup = (checked: boolean) => {
+    setApplyMarkup(checked);
+    if (checked) {
+      setDatePreset("all");
+      setCustomStart("");
+      setCustomEnd("");
+    }
+  };
+
+  const handleDatePresetChange = (value: string) => {
+    setDatePreset(value);
+    if (value !== "all") {
+      setApplyMarkup(false);
+    }
+  };
+
   const handleConfirm = () => {
     let benchmarkDateRange: BenchmarkDateRange = { preset: datePreset };
 
