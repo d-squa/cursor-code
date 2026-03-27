@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TrendingUp, TrendingDown, Check, X, ArrowRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Check, X, ArrowRight, Calendar } from "lucide-react";
 
 interface MetricComparison {
   label: string;
@@ -23,6 +23,8 @@ export interface MarkupPreviewData {
   markupPercentage: number;
   totalComparison: MetricComparison[];
   platformComparisons: PlatformComparison[];
+  mode?: "markup" | "dateRange";
+  dateRangeLabel?: string;
 }
 
 interface MarkupPreviewDialogProps {
@@ -89,24 +91,35 @@ function MetricRow({ metric }: { metric: MetricComparison }) {
 export function MarkupPreviewDialog({ open, onOpenChange, data, onAccept, onReject }: MarkupPreviewDialogProps) {
   if (!data) return null;
 
+  const isDateRange = data.mode === "dateRange";
   const directionLabel = data.markupDirection === "up" ? "Markup" : "Markdown";
   const directionSign = data.markupDirection === "up" ? "+" : "−";
+
+  const title = isDateRange
+    ? `Benchmark Date Range Change`
+    : `CPM ${directionLabel} Preview — ${directionSign}${data.markupPercentage}%`;
+
+  const description = isDateRange
+    ? `Review how switching benchmarks to "${data.dateRangeLabel}" affects your plan before applying.`
+    : `Review the impact of the ${directionSign}${data.markupPercentage}% CPM ${directionLabel.toLowerCase()} on your plan before applying.`;
+
+  const acceptLabel = isDateRange ? "Apply New Benchmarks" : `Apply ${directionLabel}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {data.markupDirection === "up" ? (
+            {isDateRange ? (
+              <Calendar className="h-5 w-5 text-primary" />
+            ) : data.markupDirection === "up" ? (
               <TrendingUp className="h-5 w-5 text-amber-500" />
             ) : (
               <TrendingDown className="h-5 w-5 text-blue-500" />
             )}
-            CPM {directionLabel} Preview — {directionSign}{data.markupPercentage}%
+            {title}
           </DialogTitle>
-          <DialogDescription>
-            Review the impact of the {directionSign}{data.markupPercentage}% CPM {directionLabel.toLowerCase()} on your plan before applying.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[50vh]">
@@ -166,7 +179,7 @@ export function MarkupPreviewDialog({ open, onOpenChange, data, onAccept, onReje
           </Button>
           <Button onClick={onAccept}>
             <Check className="h-4 w-4 mr-1" />
-            Apply {directionLabel}
+            {acceptLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
