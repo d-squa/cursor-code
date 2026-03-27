@@ -10,6 +10,7 @@ export interface ForecastVersion {
   platforms_snapshot: any;
   total_budget: number;
   label: string | null;
+  description: string | null;
   created_at: string;
   user_id: string;
 }
@@ -46,6 +47,7 @@ export function useForecastVersions(campaignId: string | undefined) {
     platformsSnapshot: any,
     totalBudget: number,
     label?: string,
+    description?: string,
   ) => {
     if (!campaignId) return null;
     try {
