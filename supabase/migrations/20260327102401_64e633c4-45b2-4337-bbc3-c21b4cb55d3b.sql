@@ -1,0 +1,1 @@
+ALTER TABLE public.forecast_versions ADD COLUMN IF NOT EXISTS description text DEFAULT null;

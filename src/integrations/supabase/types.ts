@@ -1961,6 +1961,7 @@ export type Database = {
         Row: {
           campaign_id: string
           created_at: string
+          description: string | null
           forecast_data: Json
           id: string
           label: string | null
@@ -1972,6 +1973,7 @@ export type Database = {
         Insert: {
           campaign_id: string
           created_at?: string
+          description?: string | null
           forecast_data: Json
           id?: string
           label?: string | null
@@ -1983,6 +1985,7 @@ export type Database = {
         Update: {
           campaign_id?: string
           created_at?: string
+          description?: string | null
           forecast_data?: Json
           id?: string
           label?: string | null
