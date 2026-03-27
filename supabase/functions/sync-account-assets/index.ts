@@ -997,23 +997,28 @@ async function syncGoogleBenchmarksForPeriod(
   }>();
 
   for (const row of allResults) {
-    const geoId = String(row.geographicView?.countryCriterionId || "");
-    const country = geoIdToCountry[geoId] || `GEO_${geoId}`;
+    // New query uses segments.geo_target_country (returns country name like "US")
+    const geoTarget = row.segments?.geoTargetCountry || "";
+    // Extract country code from geo target resource name: "geoTargetConstants/XXXX"
+    const geoId = String(geoTarget).replace("geoTargetConstants/", "");
+    const country = geoIdToCountry[geoId] || geoId || "UNKNOWN";
     const costMicros = parseInt(row.metrics?.costMicros || "0");
     const spend = costMicros / 1_000_000;
     const impressions = parseInt(row.metrics?.impressions || "0");
     const clicks = parseInt(row.metrics?.clicks || "0");
     const conversions = parseFloat(row.metrics?.conversions || "0");
+    const videoViews = parseInt(row.metrics?.videoViews || "0");
     const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
 
     const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
 
+    // Use the correct result metric per channel type
     let results = 0;
     if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
       results = clicks;
     } else if (channelType === "VIDEO") {
-      results = clicks; // video_views excluded from geographic_view
+      results = videoViews > 0 ? videoViews : clicks;
     } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
       results = conversions > 0 ? conversions : clicks;
     } else if (channelType === "DISPLAY") {
