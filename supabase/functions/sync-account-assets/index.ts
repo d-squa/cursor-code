@@ -573,12 +573,6 @@ async function syncMetaBenchmarksForPeriod(
     benchmark.landing_page_views += landingPageViews;
     benchmark.revenue += revenue;
     benchmark.campaign_count += 1;
-          impressions, clicks, link_clicks: linkClicks,
-          landing_page_views: landingPageViews, revenue,
-          campaign_count: 1, industry,
-        });
-      }
-    }
   }
 
   // Store benchmarks
