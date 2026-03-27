@@ -27,6 +27,7 @@ import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 import { ForecastOptionsDialog, ForecastOptions } from "./ForecastOptionsDialog";
+import { MarkupPreviewDialog, MarkupPreviewData } from "./MarkupPreviewDialog";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
@@ -244,6 +245,13 @@ export function CampaignForecast({
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [forecastOptionsOpen, setForecastOptionsOpen] = useState(false);
   const [pendingForecastOptions, setPendingForecastOptions] = useState<ForecastOptions | null>(null);
+  const [markupPreviewData, setMarkupPreviewData] = useState<MarkupPreviewData | null>(null);
+  const [markupPreviewOpen, setMarkupPreviewOpen] = useState(false);
+  const [pendingMarkupState, setPendingMarkupState] = useState<{
+    forecasts: Record<string, CampaignForecast[]>;
+    actiplan: ActiplanForecast;
+    options: ForecastOptions;
+  } | null>(null);
   const { versions, saveVersion, loadVersions } = useForecastVersions(campaignId);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
@@ -2016,141 +2024,160 @@ export function CampaignForecast({
       const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
       // platformDeliverables will be computed after markup is applied
 
-      // Apply markup/markdown to market CPM only — all downstream metrics are derived from it
-      if (options?.applyMarkup && options.markupPercentage > 0) {
-        const cpmMultiplier = options.markupDirection === "up"
-          ? 1 + (options.markupPercentage / 100)
-          : 1 - (options.markupPercentage / 100);
+      // Helper: aggregate platform deliverables from platform forecasts
+      const aggregateDeliverables = (pfs: PlatformForecast[]) => {
+        const deliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
+        pfs.forEach(platform => {
+          if (!deliverables[platform.platformName]) deliverables[platform.platformName] = [];
+          platform.markets.forEach(market => {
+            market.resultsByGoal.forEach(r => {
+              const existing = deliverables[platform.platformName].find(d => d.kpi === r.kpi);
+              if (existing) existing.result += r.result;
+              else deliverables[platform.platformName].push({ kpi: r.kpi, result: r.result });
+            });
+          });
+        });
+        return deliverables;
+      };
 
-        const direction = options.markupDirection === "up" ? "+" : "−";
-        console.log(`📈 Applying ${direction}${options.markupPercentage}% market CPM markup (CPM × ${cpmMultiplier})`);
+      // Helper: build actiplan from platform forecasts
+      const buildActiplan = (pfs: PlatformForecast[]): ActiplanForecast => {
+        const b = pfs.reduce((s, p) => s + p.totalBudget, 0);
+        const a = pfs.reduce((s, p) => s + p.totalAudienceSize, 0);
+        const imp = pfs.reduce((s, p) => s + p.totalImpressions, 0);
+        const r = pfs.reduce((s, p) => s + p.totalReach, 0);
+        return {
+          totalBudget: b,
+          totalAudienceSize: a,
+          totalImpressions: imp,
+          totalReach: r,
+          avgCPM: imp > 0 ? (b / imp) * 1000 : 0,
+          frequency: r > 0 ? imp / r : 0,
+          sov: a > 0 ? (r / a) * 100 : 0,
+          platformDeliverables: aggregateDeliverables(pfs),
+          platforms: pfs,
+        };
+      };
 
-        for (const pf of platformForecasts) {
-          const platformPhaseForecasts = newForecasts[pf.platformId] ?? [];
+      // Helper: apply markup to platform forecasts + newForecasts (mutates in place)
+      const applyMarkupToData = (pfs: PlatformForecast[], fcs: Record<string, CampaignForecast[]>, opts: ForecastOptions) => {
+        const cpmMultiplier = opts.markupDirection === "up"
+          ? 1 + (opts.markupPercentage / 100)
+          : 1 - (opts.markupPercentage / 100);
+        const impressionScale = 1 / cpmMultiplier;
 
+        for (const pf of pfs) {
+          const platformPhaseForecasts = fcs[pf.platformId] ?? [];
           for (const mf of pf.markets) {
-            // CPM markup: budget is fixed, CPM increases → impressions decrease
-            // Audience size and reach stay the SAME — only impressions change
-            const impressionScale = 1 / cpmMultiplier;
-
             mf.cpm = mf.cpm * cpmMultiplier;
             mf.impressions = Math.round(mf.impressions * impressionScale);
-            // Reach and audience size are UNCHANGED — they represent addressable people
-            // Frequency decreases because fewer impressions serve the same audience
             mf.frequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
             mf.sov = mf.audienceSize > 0 ? (mf.reach / mf.audienceSize) * 100 : 0;
-
-            for (const resultGoal of mf.resultsByGoal) {
-              resultGoal.result = Math.max(1, Math.round(resultGoal.result * impressionScale));
-              resultGoal.costPerResult = resultGoal.result > 0 ? mf.budget / resultGoal.result : 0;
-              resultGoal.resultRate = mf.impressions > 0 ? (resultGoal.result / mf.impressions) * 100 : 0;
+            for (const rg of mf.resultsByGoal) {
+              rg.result = Math.max(1, Math.round(rg.result * impressionScale));
+              rg.costPerResult = rg.result > 0 ? mf.budget / rg.result : 0;
+              rg.resultRate = mf.impressions > 0 ? (rg.result / mf.impressions) * 100 : 0;
             }
-
             for (const phase of mf.phases) {
               phase.result = Math.max(1, Math.round(phase.result * impressionScale));
               phase.costPerResult = phase.result > 0 ? phase.budget / phase.result : 0;
               phase.resultRate = phase.result > 0 && mf.impressions > 0 ? (phase.result / (mf.impressions * (phase.budget / mf.budget))) * 100 : 0;
-
-              phase.adSets?.forEach((adSet) => {
-                adSet.impressions = Math.round(adSet.impressions * impressionScale);
-                // reach unchanged for ad sets too
-                adSet.result = Math.max(1, Math.round(adSet.result * impressionScale));
-                adSet.costPerResult = adSet.result > 0 ? adSet.budget / adSet.result : 0;
+              phase.adSets?.forEach(as => {
+                as.impressions = Math.round(as.impressions * impressionScale);
+                as.result = Math.max(1, Math.round(as.result * impressionScale));
+                as.costPerResult = as.result > 0 ? as.budget / as.result : 0;
               });
-
-              phase.strategyCampaigns?.forEach((campaign) => {
-                campaign.impressions = Math.round(campaign.impressions * impressionScale);
-                // reach unchanged for strategy campaigns too
-                campaign.result = Math.max(1, Math.round(campaign.result * impressionScale));
-                campaign.costPerResult = campaign.result > 0 ? campaign.budget / campaign.result : 0;
-                campaign.resultRate = campaign.impressions > 0 ? (campaign.result / campaign.impressions) * 100 : 0;
+              phase.strategyCampaigns?.forEach(sc => {
+                sc.impressions = Math.round(sc.impressions * impressionScale);
+                sc.result = Math.max(1, Math.round(sc.result * impressionScale));
+                sc.costPerResult = sc.result > 0 ? sc.budget / sc.result : 0;
+                sc.resultRate = sc.impressions > 0 ? (sc.result / sc.impressions) * 100 : 0;
               });
             }
-
             platformPhaseForecasts
-              .filter((forecast) => forecast.market === mf.marketName || forecast.market.startsWith(`${mf.marketName} - `))
-              .forEach((forecast) => {
-                forecast.metrics.cpm = forecast.metrics.cpm * cpmMultiplier;
-                forecast.metrics.impressions = Math.round(forecast.metrics.impressions * impressionScale);
-                // reach unchanged in phase forecasts
-                forecast.metrics.result = Math.max(1, Math.round(forecast.metrics.result * impressionScale));
-                forecast.metrics.costPerResult = forecast.metrics.result > 0 ? parseFloat((forecast.budget / forecast.metrics.result).toFixed(2)) : 0;
-                forecast.metrics.resultRate = forecast.metrics.impressions > 0 ? (forecast.metrics.result / forecast.metrics.impressions) * 100 : 0;
+              .filter(f => f.market === mf.marketName || f.market.startsWith(`${mf.marketName} - `))
+              .forEach(f => {
+                f.metrics.cpm = f.metrics.cpm * cpmMultiplier;
+                f.metrics.impressions = Math.round(f.metrics.impressions * impressionScale);
+                f.metrics.result = Math.max(1, Math.round(f.metrics.result * impressionScale));
+                f.metrics.costPerResult = f.metrics.result > 0 ? parseFloat((f.budget / f.metrics.result).toFixed(2)) : 0;
+                f.metrics.resultRate = f.metrics.impressions > 0 ? (f.metrics.result / f.metrics.impressions) * 100 : 0;
               });
           }
-
-          pf.totalImpressions = pf.markets.reduce((sum, market) => sum + market.impressions, 0);
-          // totalReach stays the same — audience doesn't shrink with CPM markup
+          pf.totalImpressions = pf.markets.reduce((s, m) => s + m.impressions, 0);
           pf.avgCPM = pf.totalImpressions > 0 ? (pf.totalBudget / pf.totalImpressions) * 1000 : 0;
           pf.frequency = pf.totalReach > 0 ? pf.totalImpressions / pf.totalReach : 0;
           pf.sov = pf.totalAudienceSize > 0 ? (pf.totalReach / pf.totalAudienceSize) * 100 : 0;
         }
-
-        toast.info(`${direction}${options.markupPercentage}% market CPM markup applied — all metrics recalculated`);
-      }
-
-      // Aggregate platform deliverables AFTER markup is applied
-      const platformDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
-      platformForecasts.forEach(platform => {
-        if (!platformDeliverables[platform.platformName]) {
-          platformDeliverables[platform.platformName] = [];
-        }
-        platform.markets.forEach(market => {
-          market.resultsByGoal.forEach(r => {
-            const existing = platformDeliverables[platform.platformName].find(d => d.kpi === r.kpi);
-            if (existing) {
-              existing.result += r.result;
-            } else {
-              platformDeliverables[platform.platformName].push({
-                kpi: r.kpi,
-                result: r.result,
-              });
-            }
-          });
-        });
-      });
-
-      setForecasts(newForecasts);
-      
-      // Re-derive actiplan numbers from (potentially marked-up) platform forecasts
-      const finalActiplanBudget = platformForecasts.reduce((sum, p) => sum + p.totalBudget, 0);
-      const finalActiplanAudience = platformForecasts.reduce((sum, p) => sum + p.totalAudienceSize, 0);
-      const finalActiplanImp = platformForecasts.reduce((sum, p) => sum + p.totalImpressions, 0);
-      const finalActiplanReach = platformForecasts.reduce((sum, p) => sum + p.totalReach, 0);
-      const finalActiplanCPM = finalActiplanImp > 0 ? (finalActiplanBudget / finalActiplanImp) * 1000 : 0;
-      const finalActiplanFreq = finalActiplanReach > 0 ? finalActiplanImp / finalActiplanReach : 0;
-      const finalActiplanSOV = finalActiplanAudience > 0 ? (finalActiplanReach / finalActiplanAudience) * 100 : 0;
-      
-      setActiplanForecast({
-        totalBudget: finalActiplanBudget,
-        totalAudienceSize: finalActiplanAudience,
-        totalImpressions: finalActiplanImp,
-        totalReach: finalActiplanReach,
-        avgCPM: finalActiplanCPM,
-        frequency: finalActiplanFreq,
-        sov: finalActiplanSOV,
-        platformDeliverables,
-        platforms: platformForecasts,
-      });
-      toast.success("Forecasts fetched successfully!");
-
-      // Save forecast version
-      const forecastPayload = {
-        generatedAt: new Date().toISOString(),
-        forecasts: newForecasts,
-        actiplanForecast: {
-          totalBudget: finalActiplanBudget,
-          totalAudienceSize: finalActiplanAudience,
-          totalImpressions: finalActiplanImp,
-          totalReach: finalActiplanReach,
-          avgCPM: finalActiplanCPM,
-          frequency: finalActiplanFreq,
-          sov: finalActiplanSOV,
-          platformDeliverables,
-          platforms: platformForecasts,
-        },
       };
-      saveVersion(forecastPayload, platforms, totalBudget);
+
+      // If markup requested → show preview dialog instead of applying immediately
+      if (options?.applyMarkup && options.markupPercentage > 0) {
+        const beforeActiplan = buildActiplan(platformForecasts);
+        const beforePlatformTotals = platformForecasts.map(pf => ({
+          name: pf.platformName,
+          budget: pf.totalBudget,
+          impressions: pf.totalImpressions,
+          reach: pf.totalReach,
+          cpm: pf.avgCPM,
+          frequency: pf.frequency,
+        }));
+
+        // Deep clone and apply markup for "after" preview
+        const clonedPlatforms: PlatformForecast[] = JSON.parse(JSON.stringify(platformForecasts));
+        const clonedForecasts: Record<string, CampaignForecast[]> = JSON.parse(JSON.stringify(newForecasts));
+        applyMarkupToData(clonedPlatforms, clonedForecasts, options);
+        const afterActiplan = buildActiplan(clonedPlatforms);
+
+        const totalComparison = [
+          { label: "Budget", before: beforeActiplan.totalBudget, after: afterActiplan.totalBudget, format: "currency" as const },
+          { label: "Avg. CPM", before: beforeActiplan.avgCPM, after: afterActiplan.avgCPM, format: "currency" as const, inverted: true },
+          { label: "Impressions", before: beforeActiplan.totalImpressions, after: afterActiplan.totalImpressions, format: "number" as const },
+          { label: "Reach", before: beforeActiplan.totalReach, after: afterActiplan.totalReach, format: "number" as const },
+          { label: "Frequency", before: beforeActiplan.frequency, after: afterActiplan.frequency, format: "number" as const },
+          { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
+        ];
+
+        const platformComparisons = clonedPlatforms.map((pf, idx) => ({
+          platformName: pf.platformName,
+          metrics: [
+            { label: "Avg. CPM", before: beforePlatformTotals[idx].cpm, after: pf.avgCPM, format: "currency" as const, inverted: true },
+            { label: "Impressions", before: beforePlatformTotals[idx].impressions, after: pf.totalImpressions, format: "number" as const },
+            { label: "Reach", before: beforePlatformTotals[idx].reach, after: pf.totalReach, format: "number" as const },
+            { label: "Frequency", before: beforePlatformTotals[idx].frequency, after: pf.frequency, format: "number" as const },
+          ],
+        }));
+
+        setMarkupPreviewData({
+          markupDirection: options.markupDirection,
+          markupPercentage: options.markupPercentage,
+          totalComparison,
+          platformComparisons,
+        });
+
+        // Show base forecast (without markup)
+        setForecasts(newForecasts);
+        setActiplanForecast(beforeActiplan);
+
+        // Save base version
+        const basePayload = { generatedAt: new Date().toISOString(), forecasts: newForecasts, actiplanForecast: beforeActiplan };
+        saveVersion(basePayload, platforms, totalBudget, undefined, "Base forecast (before markup)");
+
+        // Store the markup-applied state for when user accepts
+        setPendingMarkupState({ forecasts: clonedForecasts, actiplan: afterActiplan, options });
+        setMarkupPreviewOpen(true);
+
+        toast.success("Forecasts fetched — review markup impact before applying.");
+      } else {
+        // No markup — apply directly
+        const actiplan = buildActiplan(platformForecasts);
+        setForecasts(newForecasts);
+        setActiplanForecast(actiplan);
+        toast.success("Forecasts fetched successfully!");
+
+        const forecastPayload = { generatedAt: new Date().toISOString(), forecasts: newForecasts, actiplanForecast: actiplan };
+        saveVersion(forecastPayload, platforms, totalBudget);
+      }
 
       // Generate a unique ID for this forecast run
       const forecastRunId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -2565,14 +2592,21 @@ export function CampaignForecast({
                   <div className="rounded-lg border p-3 space-y-2 max-h-48 overflow-y-auto">
                     {versions.map((v) => (
                       <div key={v.id} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] h-5">v{v.version_number}</Badge>
-                          <span className="text-muted-foreground">
-                            {v.label || `Forecast v${v.version_number}`}
-                          </span>
-                          <span className="text-muted-foreground">
-                            · {new Date(v.created_at).toLocaleString()}
-                          </span>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] h-5">v{v.version_number}</Badge>
+                            <span className="text-muted-foreground">
+                              {v.label || `Forecast v${v.version_number}`}
+                            </span>
+                            <span className="text-muted-foreground">
+                              · {new Date(v.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          {v.description && (
+                            <span className="text-[10px] text-muted-foreground pl-7 italic">
+                              {v.description}
+                            </span>
+                          )}
                         </div>
                         {v.version_number !== versions[0]?.version_number && (
                           <Button
@@ -2716,6 +2750,35 @@ export function CampaignForecast({
         onConfirm={(options) => {
           setForecastOptionsOpen(false);
           handleFetchForecasts(options);
+        }}
+      />
+
+      <MarkupPreviewDialog
+        open={markupPreviewOpen}
+        onOpenChange={setMarkupPreviewOpen}
+        data={markupPreviewData}
+        onAccept={() => {
+          if (pendingMarkupState) {
+            setForecasts(pendingMarkupState.forecasts);
+            setActiplanForecast(pendingMarkupState.actiplan);
+            const dir = pendingMarkupState.options.markupDirection === "up" ? "+" : "−";
+            const pct = pendingMarkupState.options.markupPercentage;
+            const description = `CPM ${dir}${pct}% ${pendingMarkupState.options.markupDirection === "up" ? "markup" : "markdown"} applied`;
+            const payload = {
+              generatedAt: new Date().toISOString(),
+              forecasts: pendingMarkupState.forecasts,
+              actiplanForecast: pendingMarkupState.actiplan,
+            };
+            saveVersion(payload, platforms, totalBudget, `Forecast (${dir}${pct}% CPM)`, description);
+            toast.success(`${dir}${pct}% CPM markup applied successfully`);
+          }
+          setPendingMarkupState(null);
+          setMarkupPreviewOpen(false);
+        }}
+        onReject={() => {
+          toast.info("Markup rejected — keeping base forecast");
+          setPendingMarkupState(null);
+          setMarkupPreviewOpen(false);
         }}
       />
     </Card>
