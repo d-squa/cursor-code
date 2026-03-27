@@ -221,7 +221,11 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
             <p className="text-xs text-muted-foreground">
               Select which historical period to use for benchmark data.
             </p>
-            <Select value={datePreset} onValueChange={setDatePreset}>
+            <Select
+              value={datePreset}
+              onValueChange={handleDatePresetChange}
+              disabled={applyMarkup}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select period" />
               </SelectTrigger>
@@ -231,6 +235,15 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
                 ))}
               </SelectContent>
             </Select>
+
+            {applyMarkup && (
+              <Alert variant="default" className="py-2">
+                <Info className="h-3.5 w-3.5" />
+                <AlertDescription className="text-xs">
+                  Benchmark date range is disabled while CPM markup is active. Disable markup to change the date range.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {datePreset === "custom" && (
               <div className="flex items-center gap-3 pl-2">
