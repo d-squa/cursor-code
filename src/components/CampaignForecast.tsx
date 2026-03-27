@@ -2064,6 +2064,51 @@ export function CampaignForecast({
         };
       };
 
+      // Helper: build granular comparison rows from before/after platform forecasts
+      const buildGranularRows = (
+        beforePfs: PlatformForecast[],
+        afterPfs: PlatformForecast[],
+        bmks: Map<string, BenchmarkData>
+      ) => {
+        const rows: Array<{
+          platform: string; market: string; phase: string; optimizationGoal: string; kpi: string;
+          beforeCPR: number; afterCPR: number; beforeResult: number; afterResult: number;
+          beforeImpressions: number; afterImpressions: number; beforeCPM: number; afterCPM: number;
+          budget: number; campaignCount: number; isBenchmarkBased: boolean;
+        }> = [];
+
+        for (const afterPf of afterPfs) {
+          const beforePf = beforePfs.find(p => p.platformId === afterPf.platformId || p.platformName === afterPf.platformName);
+          for (const afterMkt of afterPf.markets) {
+            const beforeMkt = beforePf?.markets.find(m => m.marketName === afterMkt.marketName);
+            for (const afterPhase of afterMkt.phases) {
+              const beforePhase = beforeMkt?.phases?.find(p => p.phaseName === afterPhase.phaseName && p.optimizationGoal === afterPhase.optimizationGoal);
+              const platformKey = getPlatformKeyFromId(afterPf.platformId || afterPf.platformName);
+              const bm = lookupBenchmark(bmks, platformKey, afterMkt.marketName, afterPhase.optimizationGoal);
+              rows.push({
+                platform: afterPf.platformName,
+                market: afterMkt.marketName,
+                phase: afterPhase.phaseName,
+                optimizationGoal: afterPhase.optimizationGoal,
+                kpi: afterPhase.kpi,
+                beforeCPR: beforePhase?.costPerResult || 0,
+                afterCPR: afterPhase.costPerResult,
+                beforeResult: beforePhase?.result || 0,
+                afterResult: afterPhase.result,
+                beforeImpressions: 0, // phase doesn't store impressions directly
+                afterImpressions: 0,
+                beforeCPM: beforeMkt?.cpm || 0,
+                afterCPM: afterMkt.cpm,
+                budget: afterPhase.budget,
+                campaignCount: bm?.campaign_count || 0,
+                isBenchmarkBased: afterPhase.isBenchmarkBased || false,
+              });
+            }
+          }
+        }
+        return rows;
+      };
+
       // Helper: apply markup to platform forecasts + newForecasts (mutates in place)
       const applyMarkupToData = (pfs: PlatformForecast[], fcs: Record<string, CampaignForecast[]>, opts: ForecastOptions) => {
         const cpmMultiplier = opts.markupDirection === "up"
