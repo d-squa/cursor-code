@@ -381,16 +381,6 @@ async function syncAccountBenchmarks(
   accountId: string,
   accessToken: string
 ): Promise<{ synced: number; error: string | null }> {
-  // Calculate date range (last 3 months)
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - 3);
-
-  const dateRangeStart = startDate.toISOString().split("T")[0];
-  const dateRangeEnd = endDate.toISOString().split("T")[0];
-
-  console.log(`[BENCHMARK] Date range: ${dateRangeStart} to ${dateRangeEnd}`);
-
   // Get client industry for this account
   let industry: string | null = null;
   
@@ -401,7 +391,6 @@ async function syncAccountBenchmarks(
     .eq("user_id", userId)
     .maybeSingle();
 
-  // If client_id is set, fetch the industry from the clients table
   if (accountData?.client_id) {
     const { data: clientData } = await supabase
       .from("clients")
@@ -411,11 +400,59 @@ async function syncAccountBenchmarks(
     
     industry = clientData?.industry || null;
     console.log(`[BENCHMARK] Found client industry: ${industry}`);
-  } else {
-    console.log(`[BENCHMARK] No client linked to account ${accountId}, industry will be null`);
   }
 
-  // Fetch campaign insights with country breakdown
+  // Generate 12 monthly date ranges (last 12 full months)
+  const monthlyRanges = generateMonthlyRanges(12);
+  console.log(`[BENCHMARK] Will sync ${monthlyRanges.length} monthly segments`);
+
+  let totalStored = 0;
+
+  for (const { start, end } of monthlyRanges) {
+    console.log(`[BENCHMARK] Processing month: ${start} to ${end}`);
+    
+    const monthCount = await syncMetaBenchmarksForPeriod(
+      supabase, userId, accountId, accessToken, industry, start, end
+    );
+    totalStored += monthCount;
+  }
+
+  console.log(`[BENCHMARK] ✅ Total Meta benchmarks stored: ${totalStored}`);
+  return { synced: totalStored, error: null };
+}
+
+/**
+ * Generate monthly date ranges for the last N full months (excluding current partial month)
+ */
+function generateMonthlyRanges(months: number): Array<{ start: string; end: string }> {
+  const ranges: Array<{ start: string; end: string }> = [];
+  const now = new Date();
+  
+  for (let i = 1; i <= months; i++) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0); // last day of month
+    
+    ranges.push({
+      start: monthStart.toISOString().split("T")[0],
+      end: monthEnd.toISOString().split("T")[0],
+    });
+  }
+  
+  return ranges.reverse(); // oldest first
+}
+
+/**
+ * Sync Meta benchmarks for a single month period
+ */
+async function syncMetaBenchmarksForPeriod(
+  supabase: any,
+  userId: string,
+  accountId: string,
+  accessToken: string,
+  industry: string | null,
+  dateRangeStart: string,
+  dateRangeEnd: string
+): Promise<number> {
   const benchmarkMap = new Map<string, {
     market: string;
     optimization_goal: string;
@@ -439,19 +476,17 @@ async function syncAccountBenchmarks(
     `&limit=500` +
     `&access_token=${accessToken}`;
 
-  console.log(`[BENCHMARK] Fetching account-level insights...`);
-  
   const insightsResponse = await fetch(insightsUrl);
   if (!insightsResponse.ok) {
     const errorText = await insightsResponse.text();
-    console.warn(`[BENCHMARK] Skipping benchmarks for ${accountId} - API error (likely permissions): ${errorText}`);
-    return { synced: 0, error: `API error: ${errorText}` };
+    console.warn(`[BENCHMARK] Skipping ${accountId} for ${dateRangeStart} - API error: ${errorText}`);
+    return 0;
   }
 
   const insightsData = await insightsResponse.json();
   const insights = insightsData.data || [];
 
-  console.log(`[BENCHMARK] Retrieved ${insights.length} insight rows`);
+  if (insights.length === 0) return 0;
 
   // Map action types to optimization goals
   const actionTypeMap: { [key: string]: string } = {
@@ -481,7 +516,6 @@ async function syncAccountBenchmarks(
     const clicks = parseFloat(insight.clicks || "0");
     const reach = parseFloat(insight.reach || "0");
     
-    // Extract specific action counts
     const actions = insight.actions || [];
     const actionValues = insight.action_values || [];
     
@@ -490,7 +524,6 @@ async function syncAccountBenchmarks(
     const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
     const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
     
-    // Extract revenue from action_values
     let revenue = 0;
     for (const av of actionValues) {
       if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
@@ -498,7 +531,6 @@ async function syncAccountBenchmarks(
       }
     }
 
-    // Process actions
     for (const action of actions) {
       const optimizationGoal = actionTypeMap[action.action_type];
       if (!optimizationGoal) continue;
@@ -510,17 +542,10 @@ async function syncAccountBenchmarks(
       
       if (!benchmarkMap.has(key)) {
         benchmarkMap.set(key, {
-          market: country,
-          optimization_goal: optimizationGoal,
-          total_spend: 0,
-          total_results: 0,
-          impressions: 0,
-          clicks: 0,
-          link_clicks: 0,
-          landing_page_views: 0,
-          revenue: 0,
-          campaign_count: 1,
-          industry: industry,
+          market: country, optimization_goal: optimizationGoal,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0,
+          campaign_count: 1, industry,
         });
       }
 
@@ -534,53 +559,35 @@ async function syncAccountBenchmarks(
       benchmark.revenue = revenue;
     }
 
-    // Also add REACH and IMPRESSIONS benchmarks
     if (reach > 0) {
       const reachKey = `${country}_REACH`;
       if (!benchmarkMap.has(reachKey)) {
         benchmarkMap.set(reachKey, {
-          market: country,
-          optimization_goal: "REACH",
-          total_spend: spend,
-          total_results: reach,
-          impressions: impressions,
-          clicks: clicks,
-          link_clicks: linkClicks,
-          landing_page_views: landingPageViews,
-          revenue: revenue,
-          campaign_count: 1,
-          industry: industry,
+          market: country, optimization_goal: "REACH",
+          total_spend: spend, total_results: reach, impressions,
+          clicks, link_clicks: linkClicks, landing_page_views: landingPageViews,
+          revenue, campaign_count: 1, industry,
         });
       }
     }
 
-    // ThruPlay (video views >=15s or completed if shorter)
     const thruplayAction = actions.find((a: any) => a.action_type === "video_view" || a.action_type === "thruplay");
     if (thruplayAction) {
       const thruplayKey = `${country}_THRUPLAY`;
       if (!benchmarkMap.has(thruplayKey)) {
         benchmarkMap.set(thruplayKey, {
-          market: country,
-          optimization_goal: "THRUPLAY",
-          total_spend: spend,
-          total_results: parseFloat(thruplayAction.value || "0"),
-          impressions: impressions,
-          clicks: clicks,
-          link_clicks: linkClicks,
-          landing_page_views: landingPageViews,
-          revenue: revenue,
-          campaign_count: 1,
-          industry: industry,
+          market: country, optimization_goal: "THRUPLAY",
+          total_spend: spend, total_results: parseFloat(thruplayAction.value || "0"),
+          impressions, clicks, link_clicks: linkClicks,
+          landing_page_views: landingPageViews, revenue,
+          campaign_count: 1, industry,
         });
       }
     }
   }
 
-  console.log(`[BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
-
-  // Store benchmarks in database
+  // Store benchmarks
   let storedCount = 0;
-  
   for (const [key, benchmark] of benchmarkMap.entries()) {
     const avgCostPerResult = benchmark.total_results > 0
       ? benchmark.total_spend / benchmark.total_results
@@ -612,12 +619,12 @@ async function syncAccountBenchmarks(
     if (error) {
       console.error(`[BENCHMARK] Error storing ${key}:`, error);
     } else {
-      console.log(`[BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.total_results.toFixed(0)} results)`);
       storedCount++;
     }
   }
 
-  return { synced: storedCount, error: null };
+  console.log(`[BENCHMARK] Month ${dateRangeStart}: ${storedCount} benchmarks stored`);
+  return storedCount;
 }
 
 /**
@@ -863,16 +870,6 @@ async function syncGoogleAdsBenchmarks(
   developerToken: string,
   loginCustomerId: string
 ): Promise<{ synced: number }> {
-  // Calculate date range (last 3 months)
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - 3);
-
-  const dateRangeStart = startDate.toISOString().split("T")[0];
-  const dateRangeEnd = endDate.toISOString().split("T")[0];
-
-  console.log(`[GOOGLE-BENCHMARK] Date range: ${dateRangeStart} to ${dateRangeEnd}`);
-
   // Get client industry
   let industry: string | null = null;
   const { data: accountData } = await supabase
@@ -890,15 +887,41 @@ async function syncGoogleAdsBenchmarks(
       .maybeSingle();
     industry = clientData?.industry || null;
     console.log(`[GOOGLE-BENCHMARK] Found client industry: ${industry}`);
-  } else {
-    console.log(`[GOOGLE-BENCHMARK] No client linked to account ${customerId}, industry will be null`);
   }
 
-  // Strip dashes from IDs for the API
   const cleanCustomerId = customerId.replace(/-/g, "");
   const cleanLoginCustomerId = loginCustomerId.replace(/-/g, "");
 
-  // Fetch campaign metrics with geo breakdown using regular search (not searchStream)
+  // Generate 12 monthly date ranges
+  const monthlyRanges = generateMonthlyRanges(12);
+  console.log(`[GOOGLE-BENCHMARK] Will sync ${monthlyRanges.length} monthly segments`);
+
+  let totalStored = 0;
+
+  for (const { start, end } of monthlyRanges) {
+    console.log(`[GOOGLE-BENCHMARK] Processing month: ${start} to ${end}`);
+    const monthCount = await syncGoogleBenchmarksForPeriod(
+      supabase, userId, cleanCustomerId, accessToken, developerToken,
+      cleanLoginCustomerId, industry, start, end
+    );
+    totalStored += monthCount;
+  }
+
+  console.log(`[GOOGLE-BENCHMARK] ✅ Total stored: ${totalStored} benchmarks`);
+  return { synced: totalStored };
+}
+
+async function syncGoogleBenchmarksForPeriod(
+  supabase: any,
+  userId: string,
+  cleanCustomerId: string,
+  accessToken: string,
+  developerToken: string,
+  cleanLoginCustomerId: string,
+  industry: string | null,
+  dateRangeStart: string,
+  dateRangeEnd: string
+): Promise<number> {
   const query = `
     SELECT
       campaign.id,
@@ -917,17 +940,12 @@ async function syncGoogleAdsBenchmarks(
       AND metrics.cost_micros > 0
   `;
 
-  console.log(`[GOOGLE-BENCHMARK] Fetching performance data for customer ${cleanCustomerId} (login: ${cleanLoginCustomerId})...`);
-
   let allResults: any[] = [];
   let nextPageToken: string | undefined;
 
-  // Paginate through results using regular search endpoint
   do {
     const requestBody: any = { query };
-    if (nextPageToken) {
-      requestBody.pageToken = nextPageToken;
-    }
+    if (nextPageToken) requestBody.pageToken = nextPageToken;
 
     const response = await fetch(
       `https://googleads.googleapis.com/v23/customers/${cleanCustomerId}/googleAds:search`,
@@ -945,25 +963,18 @@ async function syncGoogleAdsBenchmarks(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[GOOGLE-BENCHMARK] Error fetching performance data: ${errorText}`);
-      return { synced: 0 };
+      console.error(`[GOOGLE-BENCHMARK] Error for ${dateRangeStart}: ${errorText}`);
+      return 0;
     }
 
     const responseData = await response.json();
     const results = responseData.results || [];
     allResults.push(...results);
     nextPageToken = responseData.nextPageToken;
-    console.log(`[GOOGLE-BENCHMARK] Fetched ${results.length} rows (total: ${allResults.length})`);
   } while (nextPageToken);
 
-  console.log(`[GOOGLE-BENCHMARK] Total rows fetched: ${allResults.length}`);
+  if (allResults.length === 0) return 0;
 
-  if (allResults.length === 0) {
-    console.log(`[GOOGLE-BENCHMARK] No performance data found for customer ${cleanCustomerId}`);
-    return { synced: 0 };
-  }
-
-  // Map Google Ads geo criterion IDs to ISO country codes
   const geoIdToCountry: Record<string, string> = {
     "2784": "AE", "2682": "SA", "2414": "KW", "2634": "QA",
     "2512": "OM", "2048": "BH", "2840": "US", "2826": "GB",
@@ -976,7 +987,6 @@ async function syncGoogleAdsBenchmarks(
     "2400": "JO", "2422": "LB", "2368": "IQ",
   };
 
-  // Map channel types to optimization goals
   const channelTypeGoalMap: Record<string, string> = {
     "SEARCH": "SEARCH_CLICKS",
     "DISPLAY": "DISPLAY_IMPRESSIONS",
@@ -987,17 +997,10 @@ async function syncGoogleAdsBenchmarks(
   };
 
   const benchmarkMap = new Map<string, {
-    market: string;
-    optimization_goal: string;
-    total_spend: number;
-    total_results: number;
-    impressions: number;
-    clicks: number;
-    link_clicks: number;
-    landing_page_views: number;
-    revenue: number;
-    campaign_count: number;
-    industry: string | null;
+    market: string; optimization_goal: string;
+    total_spend: number; total_results: number; impressions: number;
+    clicks: number; link_clicks: number; landing_page_views: number;
+    revenue: number; campaign_count: number; industry: string | null;
   }>();
 
   for (const row of allResults) {
@@ -1008,18 +1011,16 @@ async function syncGoogleAdsBenchmarks(
     const impressions = parseInt(row.metrics?.impressions || "0");
     const clicks = parseInt(row.metrics?.clicks || "0");
     const conversions = parseFloat(row.metrics?.conversions || "0");
-    const videoViews = parseInt(row.metrics?.videoViews || "0");
     const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
 
     const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
 
-    // Determine primary result based on channel type
     let results = 0;
     if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
       results = clicks;
     } else if (channelType === "VIDEO") {
-      results = videoViews > 0 ? videoViews : clicks;
+      results = clicks; // video_views excluded from geographic_view
     } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
       results = conversions > 0 ? conversions : clicks;
     } else if (channelType === "DISPLAY") {
@@ -1031,17 +1032,10 @@ async function syncGoogleAdsBenchmarks(
     const key = `${country}_${optimizationGoal}`;
     if (!benchmarkMap.has(key)) {
       benchmarkMap.set(key, {
-        market: country,
-        optimization_goal: optimizationGoal,
-        total_spend: 0,
-        total_results: 0,
-        impressions: 0,
-        clicks: 0,
-        link_clicks: 0,
-        landing_page_views: 0,
-        revenue: 0,
-        campaign_count: 0,
-        industry,
+        market: country, optimization_goal: optimizationGoal,
+        total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+        link_clicks: 0, landing_page_views: 0, revenue: 0,
+        campaign_count: 0, industry,
       });
     }
 
@@ -1053,7 +1047,7 @@ async function syncGoogleAdsBenchmarks(
     benchmark.revenue += revenue;
     benchmark.campaign_count += 1;
 
-    // Also add generic CLICK and CONVERSION benchmarks
+    // Generic CLICK benchmark
     if (clicks > 0) {
       const clickKey = `${country}_CLICK`;
       if (!benchmarkMap.has(clickKey)) {
@@ -1072,6 +1066,7 @@ async function syncGoogleAdsBenchmarks(
       clickBm.campaign_count += 1;
     }
 
+    // Generic CONVERSION benchmark
     if (conversions > 0) {
       const convKey = `${country}_CONVERSION`;
       if (!benchmarkMap.has(convKey)) {
@@ -1090,8 +1085,6 @@ async function syncGoogleAdsBenchmarks(
       convBm.campaign_count += 1;
     }
   }
-
-  console.log(`[GOOGLE-BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
 
   // Store benchmarks
   let storedCount = 0;
@@ -1126,11 +1119,10 @@ async function syncGoogleAdsBenchmarks(
     if (error) {
       console.error(`[GOOGLE-BENCHMARK] Error storing ${key}:`, error);
     } else {
-      console.log(`[GOOGLE-BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.total_results.toFixed(0)} results)`);
       storedCount++;
     }
   }
 
-  console.log(`[GOOGLE-BENCHMARK] ✅ Stored ${storedCount} benchmarks`);
-  return { synced: storedCount };
+  console.log(`[GOOGLE-BENCHMARK] Month ${dateRangeStart}: ${storedCount} benchmarks stored`);
+  return storedCount;
 }
