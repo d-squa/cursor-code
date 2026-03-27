@@ -6,7 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Percent, Calendar } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TrendingUp, Percent, Calendar, Info } from "lucide-react";
 
 export interface ForecastOptions {
   applyMarkup: boolean;
@@ -90,6 +91,24 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
+  const isDateRangeActive = datePreset !== "all";
+
+  const handleToggleMarkup = (checked: boolean) => {
+    setApplyMarkup(checked);
+    if (checked) {
+      setDatePreset("all");
+      setCustomStart("");
+      setCustomEnd("");
+    }
+  };
+
+  const handleDatePresetChange = (value: string) => {
+    setDatePreset(value);
+    if (value !== "all") {
+      setApplyMarkup(false);
+    }
+  };
+
   const handleConfirm = () => {
     let benchmarkDateRange: BenchmarkDateRange = { preset: datePreset };
 
@@ -148,8 +167,21 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
                   Adjusts CPM — impressions, reach, and results recalculate accordingly.
                 </p>
               </div>
-              <Switch checked={applyMarkup} onCheckedChange={setApplyMarkup} />
+              <Switch
+                checked={applyMarkup}
+                onCheckedChange={handleToggleMarkup}
+                disabled={isDateRangeActive}
+              />
             </div>
+
+            {isDateRangeActive && !applyMarkup && (
+              <Alert variant="default" className="py-2">
+                <Info className="h-3.5 w-3.5" />
+                <AlertDescription className="text-xs">
+                  Markup is disabled while a custom benchmark date range is active. Set the date range to "All time" to enable markup.
+                </AlertDescription>
+              </Alert>
+            )}
             
             {applyMarkup && (
               <div className="flex items-center gap-3 pl-6">
@@ -189,7 +221,11 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
             <p className="text-xs text-muted-foreground">
               Select which historical period to use for benchmark data.
             </p>
-            <Select value={datePreset} onValueChange={setDatePreset}>
+            <Select
+              value={datePreset}
+              onValueChange={handleDatePresetChange}
+              disabled={applyMarkup}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select period" />
               </SelectTrigger>
@@ -199,6 +235,15 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
                 ))}
               </SelectContent>
             </Select>
+
+            {applyMarkup && (
+              <Alert variant="default" className="py-2">
+                <Info className="h-3.5 w-3.5" />
+                <AlertDescription className="text-xs">
+                  Benchmark date range is disabled while CPM markup is active. Disable markup to change the date range.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {datePreset === "custom" && (
               <div className="flex items-center gap-3 pl-2">
