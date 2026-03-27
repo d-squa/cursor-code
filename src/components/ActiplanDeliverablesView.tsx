@@ -10,9 +10,12 @@ import { useState, useCallback } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
+import type { BenchmarkData } from "@/utils/benchmarkData";
+import { getPlatformKeyFromId } from "@/utils/benchmarkData";
 
 interface ActiplanDeliverablesViewProps {
   selectedKeywords?: KeywordItem[];
+  benchmarks?: Map<string, BenchmarkData>;
   actiplanForecast: {
     totalBudget: number;
     totalAudienceSize: number;
@@ -100,7 +103,7 @@ interface ActiplanDeliverablesViewProps {
 
 const formatNumber = (num: number) => num.toLocaleString();
 
-export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }: ActiplanDeliverablesViewProps) {
+export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, benchmarks }: ActiplanDeliverablesViewProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
 
@@ -391,7 +394,15 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords }:
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         {phase.isBenchmarkBased 
-                                          ? "Based on actual historical performance data (industry + market + optimization goal)"
+                                          ? (() => {
+                                              const platformKey = getPlatformKeyFromId(platform.platformId || platform.platformName);
+                                              const goalKey = `${platformKey}_${market.marketName.toUpperCase()}_${phase.optimizationGoal.toUpperCase()}`;
+                                              const bm = benchmarks?.get(goalKey);
+                                              const dateInfo = bm?.date_range_start && bm?.date_range_end
+                                                ? ` (${bm.date_range_start} → ${bm.date_range_end})`
+                                                : '';
+                                              return `Based on ${bm?.campaign_count || 0} campaigns${dateInfo}`;
+                                            })()
                                           : "Estimated using industry averages - no matching benchmark found"
                                         }
                                       </TooltipContent>
