@@ -2592,14 +2592,21 @@ export function CampaignForecast({
                   <div className="rounded-lg border p-3 space-y-2 max-h-48 overflow-y-auto">
                     {versions.map((v) => (
                       <div key={v.id} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] h-5">v{v.version_number}</Badge>
-                          <span className="text-muted-foreground">
-                            {v.label || `Forecast v${v.version_number}`}
-                          </span>
-                          <span className="text-muted-foreground">
-                            · {new Date(v.created_at).toLocaleString()}
-                          </span>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] h-5">v{v.version_number}</Badge>
+                            <span className="text-muted-foreground">
+                              {v.label || `Forecast v${v.version_number}`}
+                            </span>
+                            <span className="text-muted-foreground">
+                              · {new Date(v.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          {v.description && (
+                            <span className="text-[10px] text-muted-foreground pl-7 italic">
+                              {v.description}
+                            </span>
+                          )}
                         </div>
                         {v.version_number !== versions[0]?.version_number && (
                           <Button
