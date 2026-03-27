@@ -196,6 +196,8 @@ interface ActiplanForecast {
   avgCPM: number;
   frequency: number;
   sov: number;
+  totalResults: number;
+  avgCostPerResult: number;
   platformDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
   platforms: PlatformForecast[];
 }
@@ -2046,6 +2048,7 @@ export function CampaignForecast({
         const a = pfs.reduce((s, p) => s + p.totalAudienceSize, 0);
         const imp = pfs.reduce((s, p) => s + p.totalImpressions, 0);
         const r = pfs.reduce((s, p) => s + p.totalReach, 0);
+        const totalResults = pfs.reduce((s, p) => s + p.markets.reduce((ms, m) => ms + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0), 0);
         return {
           totalBudget: b,
           totalAudienceSize: a,
@@ -2054,6 +2057,8 @@ export function CampaignForecast({
           avgCPM: imp > 0 ? (b / imp) * 1000 : 0,
           frequency: r > 0 ? imp / r : 0,
           sov: a > 0 ? (r / a) * 100 : 0,
+          totalResults,
+          avgCostPerResult: totalResults > 0 ? b / totalResults : 0,
           platformDeliverables: aggregateDeliverables(pfs),
           platforms: pfs,
         };
@@ -2114,14 +2119,19 @@ export function CampaignForecast({
       // If markup requested → show preview dialog instead of applying immediately
       if (options?.applyMarkup && options.markupPercentage > 0) {
         const beforeActiplan = buildActiplan(platformForecasts);
-        const beforePlatformTotals = platformForecasts.map(pf => ({
-          name: pf.platformName,
-          budget: pf.totalBudget,
-          impressions: pf.totalImpressions,
-          reach: pf.totalReach,
-          cpm: pf.avgCPM,
-          frequency: pf.frequency,
-        }));
+        const beforePlatformTotals = platformForecasts.map(pf => {
+          const results = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
+          return {
+            name: pf.platformName,
+            budget: pf.totalBudget,
+            impressions: pf.totalImpressions,
+            reach: pf.totalReach,
+            cpm: pf.avgCPM,
+            frequency: pf.frequency,
+            results,
+            costPerResult: results > 0 ? pf.totalBudget / results : 0,
+          };
+        });
 
         // Deep clone and apply markup for "after" preview
         const clonedPlatforms: PlatformForecast[] = JSON.parse(JSON.stringify(platformForecasts));
@@ -2133,20 +2143,28 @@ export function CampaignForecast({
           { label: "Budget", before: beforeActiplan.totalBudget, after: afterActiplan.totalBudget, format: "currency" as const },
           { label: "Avg. CPM", before: beforeActiplan.avgCPM, after: afterActiplan.avgCPM, format: "currency" as const, inverted: true },
           { label: "Impressions", before: beforeActiplan.totalImpressions, after: afterActiplan.totalImpressions, format: "number" as const },
+          { label: "Results", before: beforeActiplan.totalResults, after: afterActiplan.totalResults, format: "number" as const },
+          { label: "Avg. Cost/Result", before: beforeActiplan.avgCostPerResult, after: afterActiplan.avgCostPerResult, format: "currency" as const, inverted: true },
           { label: "Reach", before: beforeActiplan.totalReach, after: afterActiplan.totalReach, format: "number" as const },
           { label: "Frequency", before: beforeActiplan.frequency, after: afterActiplan.frequency, format: "number" as const },
           { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
-        const platformComparisons = clonedPlatforms.map((pf, idx) => ({
-          platformName: pf.platformName,
-          metrics: [
-            { label: "Avg. CPM", before: beforePlatformTotals[idx].cpm, after: pf.avgCPM, format: "currency" as const, inverted: true },
-            { label: "Impressions", before: beforePlatformTotals[idx].impressions, after: pf.totalImpressions, format: "number" as const },
-            { label: "Reach", before: beforePlatformTotals[idx].reach, after: pf.totalReach, format: "number" as const },
-            { label: "Frequency", before: beforePlatformTotals[idx].frequency, after: pf.frequency, format: "number" as const },
-          ],
-        }));
+        const platformComparisons = clonedPlatforms.map((pf, idx) => {
+          const afterResults = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
+          const afterCPR = afterResults > 0 ? pf.totalBudget / afterResults : 0;
+          return {
+            platformName: pf.platformName,
+            metrics: [
+              { label: "Avg. CPM", before: beforePlatformTotals[idx].cpm, after: pf.avgCPM, format: "currency" as const, inverted: true },
+              { label: "Impressions", before: beforePlatformTotals[idx].impressions, after: pf.totalImpressions, format: "number" as const },
+              { label: "Results", before: beforePlatformTotals[idx].results, after: afterResults, format: "number" as const },
+              { label: "Avg. Cost/Result", before: beforePlatformTotals[idx].costPerResult, after: afterCPR, format: "currency" as const, inverted: true },
+              { label: "Reach", before: beforePlatformTotals[idx].reach, after: pf.totalReach, format: "number" as const },
+              { label: "Frequency", before: beforePlatformTotals[idx].frequency, after: pf.frequency, format: "number" as const },
+            ],
+          };
+        });
 
         setMarkupPreviewData({
           markupDirection: options.markupDirection,
@@ -2171,14 +2189,19 @@ export function CampaignForecast({
       } else if (actiplanForecast && options?.benchmarkDateRange?.preset && options.benchmarkDateRange.preset !== "all") {
         // Non-default date range with existing forecast → show preview
         const beforeActiplan = actiplanForecast;
-        const beforePlatformTotals = beforeActiplan.platforms.map(pf => ({
-          name: pf.platformName,
-          budget: pf.totalBudget,
-          impressions: pf.totalImpressions,
-          reach: pf.totalReach,
-          cpm: pf.avgCPM,
-          frequency: pf.frequency,
-        }));
+        const beforePlatformTotals = beforeActiplan.platforms.map(pf => {
+          const results = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
+          return {
+            name: pf.platformName,
+            budget: pf.totalBudget,
+            impressions: pf.totalImpressions,
+            reach: pf.totalReach,
+            cpm: pf.avgCPM,
+            frequency: pf.frequency,
+            results,
+            costPerResult: results > 0 ? pf.totalBudget / results : 0,
+          };
+        });
 
         const afterActiplan = buildActiplan(platformForecasts);
 
@@ -2197,20 +2220,28 @@ export function CampaignForecast({
           { label: "Budget", before: beforeActiplan.totalBudget, after: afterActiplan.totalBudget, format: "currency" as const },
           { label: "Avg. CPM", before: beforeActiplan.avgCPM, after: afterActiplan.avgCPM, format: "currency" as const, inverted: true },
           { label: "Impressions", before: beforeActiplan.totalImpressions, after: afterActiplan.totalImpressions, format: "number" as const },
+          { label: "Results", before: beforeActiplan.totalResults, after: afterActiplan.totalResults, format: "number" as const },
+          { label: "Avg. Cost/Result", before: beforeActiplan.avgCostPerResult, after: afterActiplan.avgCostPerResult, format: "currency" as const, inverted: true },
           { label: "Reach", before: beforeActiplan.totalReach, after: afterActiplan.totalReach, format: "number" as const },
           { label: "Frequency", before: beforeActiplan.frequency, after: afterActiplan.frequency, format: "number" as const },
           { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
-        const platformComparisons = platformForecasts.map((pf, idx) => ({
-          platformName: pf.platformName,
-          metrics: [
-            { label: "Avg. CPM", before: beforePlatformTotals[idx]?.cpm || 0, after: pf.avgCPM, format: "currency" as const, inverted: true },
-            { label: "Impressions", before: beforePlatformTotals[idx]?.impressions || 0, after: pf.totalImpressions, format: "number" as const },
-            { label: "Reach", before: beforePlatformTotals[idx]?.reach || 0, after: pf.totalReach, format: "number" as const },
-            { label: "Frequency", before: beforePlatformTotals[idx]?.frequency || 0, after: pf.frequency, format: "number" as const },
-          ],
-        }));
+        const platformComparisons = platformForecasts.map((pf, idx) => {
+          const afterResults = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
+          const afterCPR = afterResults > 0 ? pf.totalBudget / afterResults : 0;
+          return {
+            platformName: pf.platformName,
+            metrics: [
+              { label: "Avg. CPM", before: beforePlatformTotals[idx]?.cpm || 0, after: pf.avgCPM, format: "currency" as const, inverted: true },
+              { label: "Impressions", before: beforePlatformTotals[idx]?.impressions || 0, after: pf.totalImpressions, format: "number" as const },
+              { label: "Results", before: beforePlatformTotals[idx]?.results || 0, after: afterResults, format: "number" as const },
+              { label: "Avg. Cost/Result", before: beforePlatformTotals[idx]?.costPerResult || 0, after: afterCPR, format: "currency" as const, inverted: true },
+              { label: "Reach", before: beforePlatformTotals[idx]?.reach || 0, after: pf.totalReach, format: "number" as const },
+              { label: "Frequency", before: beforePlatformTotals[idx]?.frequency || 0, after: pf.frequency, format: "number" as const },
+            ],
+          };
+        });
 
         setMarkupPreviewData({
           markupDirection: "up",
