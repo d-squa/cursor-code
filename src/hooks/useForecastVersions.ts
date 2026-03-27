@@ -65,6 +65,7 @@ export function useForecastVersions(campaignId: string | undefined) {
           platforms_snapshot: platformsSnapshot,
           total_budget: totalBudget,
           label: label || `Forecast v${nextVersion}`,
+          description: description || null,
           user_id: userData.user.id,
         })
         .select()
