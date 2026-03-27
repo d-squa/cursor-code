@@ -2150,27 +2150,14 @@ export function CampaignForecast({
           { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
-        const platformComparisons = clonedPlatforms.map((pf, idx) => {
-          const afterResults = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
-          const afterCPR = afterResults > 0 ? pf.totalBudget / afterResults : 0;
-          return {
-            platformName: pf.platformName,
-            metrics: [
-              { label: "Avg. CPM", before: beforePlatformTotals[idx].cpm, after: pf.avgCPM, format: "currency" as const, inverted: true },
-              { label: "Impressions", before: beforePlatformTotals[idx].impressions, after: pf.totalImpressions, format: "number" as const },
-              { label: "Results", before: beforePlatformTotals[idx].results, after: afterResults, format: "number" as const },
-              { label: "Avg. Cost/Result", before: beforePlatformTotals[idx].costPerResult, after: afterCPR, format: "currency" as const, inverted: true },
-              { label: "Reach", before: beforePlatformTotals[idx].reach, after: pf.totalReach, format: "number" as const },
-              { label: "Frequency", before: beforePlatformTotals[idx].frequency, after: pf.frequency, format: "number" as const },
-            ],
-          };
-        });
+        // Build granular rows from before/after phase data
+        const granularRows = buildGranularRows(platformForecasts, clonedPlatforms, benchmarks);
 
         setMarkupPreviewData({
           markupDirection: options.markupDirection,
           markupPercentage: options.markupPercentage,
           totalComparison,
-          platformComparisons,
+          granularRows,
         });
 
         // Show base forecast (without markup)
@@ -2227,27 +2214,14 @@ export function CampaignForecast({
           { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
-        const platformComparisons = platformForecasts.map((pf, idx) => {
-          const afterResults = pf.markets.reduce((s, m) => s + m.resultsByGoal.reduce((rs, rg) => rs + rg.result, 0), 0);
-          const afterCPR = afterResults > 0 ? pf.totalBudget / afterResults : 0;
-          return {
-            platformName: pf.platformName,
-            metrics: [
-              { label: "Avg. CPM", before: beforePlatformTotals[idx]?.cpm || 0, after: pf.avgCPM, format: "currency" as const, inverted: true },
-              { label: "Impressions", before: beforePlatformTotals[idx]?.impressions || 0, after: pf.totalImpressions, format: "number" as const },
-              { label: "Results", before: beforePlatformTotals[idx]?.results || 0, after: afterResults, format: "number" as const },
-              { label: "Avg. Cost/Result", before: beforePlatformTotals[idx]?.costPerResult || 0, after: afterCPR, format: "currency" as const, inverted: true },
-              { label: "Reach", before: beforePlatformTotals[idx]?.reach || 0, after: pf.totalReach, format: "number" as const },
-              { label: "Frequency", before: beforePlatformTotals[idx]?.frequency || 0, after: pf.frequency, format: "number" as const },
-            ],
-          };
-        });
+        // Build granular rows: for dateRange mode, before = existing actiplan platforms, after = new platformForecasts
+        const granularRows = buildGranularRows(beforeActiplan.platforms, platformForecasts, benchmarks);
 
         setMarkupPreviewData({
           markupDirection: "up",
           markupPercentage: 0,
           totalComparison,
-          platformComparisons,
+          granularRows,
           mode: "dateRange",
           dateRangeLabel,
         });
