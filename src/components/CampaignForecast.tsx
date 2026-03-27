@@ -27,6 +27,7 @@ import { KeywordItem } from "./KeywordTargeting";
 import { ShieldCheck, Target as TargetIcon, Swords, Ban } from "lucide-react";
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 import { ForecastOptionsDialog, ForecastOptions } from "./ForecastOptionsDialog";
+import { MarkupPreviewDialog, MarkupPreviewData } from "./MarkupPreviewDialog";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
