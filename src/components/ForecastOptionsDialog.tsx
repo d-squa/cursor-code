@@ -167,8 +167,21 @@ export function ForecastOptionsDialog({ open, onOpenChange, onConfirm }: Forecas
                   Adjusts CPM — impressions, reach, and results recalculate accordingly.
                 </p>
               </div>
-              <Switch checked={applyMarkup} onCheckedChange={setApplyMarkup} />
+              <Switch
+                checked={applyMarkup}
+                onCheckedChange={handleToggleMarkup}
+                disabled={isDateRangeActive}
+              />
             </div>
+
+            {isDateRangeActive && !applyMarkup && (
+              <Alert variant="default" className="py-2">
+                <Info className="h-3.5 w-3.5" />
+                <AlertDescription className="text-xs">
+                  Markup is disabled while a custom benchmark date range is active. Set the date range to "All time" to enable markup.
+                </AlertDescription>
+              </Alert>
+            )}
             
             {applyMarkup && (
               <div className="flex items-center gap-3 pl-6">
