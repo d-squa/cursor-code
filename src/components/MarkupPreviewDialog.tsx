@@ -249,7 +249,9 @@ export function MarkupPreviewDialog({ open, onOpenChange, data, onAccept, onReje
                                             {row.campaignCount}
                                           </Badge>
                                         ) : (
-                                          <span className="text-muted-foreground text-[10px]">est.</span>
+                                          <Badge variant="outline" className="text-[9px] text-muted-foreground border-dashed">
+                                            0 campaigns
+                                          </Badge>
                                         )}
                                       </TableCell>
                                     </TableRow>
