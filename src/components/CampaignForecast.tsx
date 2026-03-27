@@ -2085,6 +2085,10 @@ export function CampaignForecast({
               const beforePhase = beforeMkt?.phases?.find(p => p.phaseName === afterPhase.phaseName && p.optimizationGoal === afterPhase.optimizationGoal);
               const platformKey = getPlatformKeyFromId(afterPf.platformId || afterPf.platformName);
               const bm = lookupBenchmark(bmks, platformKey, afterMkt.marketName, afterPhase.optimizationGoal);
+              const hasBenchmarkData = afterPhase.isBenchmarkBased || false;
+              const campCount = bm?.campaign_count || 0;
+              
+              // If no benchmark data exists, keep before === after (no estimated changes)
               rows.push({
                 platform: afterPf.platformName,
                 market: afterMkt.marketName,
@@ -2092,16 +2096,16 @@ export function CampaignForecast({
                 optimizationGoal: afterPhase.optimizationGoal,
                 kpi: afterPhase.kpi,
                 beforeCPR: beforePhase?.costPerResult || 0,
-                afterCPR: afterPhase.costPerResult,
+                afterCPR: hasBenchmarkData ? afterPhase.costPerResult : (beforePhase?.costPerResult || 0),
                 beforeResult: beforePhase?.result || 0,
-                afterResult: afterPhase.result,
-                beforeImpressions: 0, // phase doesn't store impressions directly
+                afterResult: hasBenchmarkData ? afterPhase.result : (beforePhase?.result || 0),
+                beforeImpressions: 0,
                 afterImpressions: 0,
                 beforeCPM: beforeMkt?.cpm || 0,
-                afterCPM: afterMkt.cpm,
+                afterCPM: hasBenchmarkData ? afterMkt.cpm : (beforeMkt?.cpm || 0),
                 budget: afterPhase.budget,
-                campaignCount: bm?.campaign_count || 0,
-                isBenchmarkBased: afterPhase.isBenchmarkBased || false,
+                campaignCount: campCount,
+                isBenchmarkBased: hasBenchmarkData,
               });
             }
           }
