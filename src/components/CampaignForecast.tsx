@@ -1608,15 +1608,16 @@ export function CampaignForecast({
               const benchmark = lookupBenchmark(benchmarks, platformKey, market.name || '', optimizationGoal || '');
               
               const benchmarkROAS = benchmark ? calculateBenchmarkROAS(benchmark) : null;
+              const benchmarkHasCampaigns = benchmark && benchmark.campaign_count > 0;
               if (isRevenueBasedGoal(optimizationGoal) && benchmarkROAS && benchmarkROAS > 0 && benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
-                isBenchmarkBased = true;
-                console.log(`✓ Using benchmark ROAS (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: ROAS=${benchmarkROAS.toFixed(2)}x, CPR=$${costPerResult.toFixed(2)}`);
+                isBenchmarkBased = !!benchmarkHasCampaigns;
+                console.log(`✓ Using benchmark ROAS (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: ROAS=${benchmarkROAS.toFixed(2)}x, CPR=$${costPerResult.toFixed(2)}, campaigns=${benchmark.campaign_count}`);
               } else if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
-                isBenchmarkBased = true;
+                isBenchmarkBased = !!benchmarkHasCampaigns;
                 console.log(`✓ Using benchmark CPR (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
               } else if (marketMetrics.dataSource === 'ai_predicted' && marketMetrics.costPerResult && marketMetrics.costPerResult > 0) {
                 // AI-predicted: scale the market-level CPR by the relative cost ratio
