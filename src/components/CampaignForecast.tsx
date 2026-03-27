@@ -2029,15 +2029,14 @@ export function CampaignForecast({
           const platformPhaseForecasts = newForecasts[pf.platformId] ?? [];
 
           for (const mf of pf.markets) {
-            // Use a uniform scale factor: impressions scale inversely with CPM
-            // If CPM goes up 10%, impressions go down by 1/1.1 ≈ 9.09%
+            // CPM markup: budget is fixed, CPM increases → impressions decrease
+            // Audience size and reach stay the SAME — only impressions change
             const impressionScale = 1 / cpmMultiplier;
-            const oldMarketImpressions = mf.impressions;
-            const oldMarketReach = mf.reach;
 
             mf.cpm = mf.cpm * cpmMultiplier;
-            mf.impressions = Math.round(oldMarketImpressions * impressionScale);
-            mf.reach = Math.round(oldMarketReach * impressionScale);
+            mf.impressions = Math.round(mf.impressions * impressionScale);
+            // Reach and audience size are UNCHANGED — they represent addressable people
+            // Frequency decreases because fewer impressions serve the same audience
             mf.frequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
             mf.sov = mf.audienceSize > 0 ? (mf.reach / mf.audienceSize) * 100 : 0;
 
@@ -2054,14 +2053,14 @@ export function CampaignForecast({
 
               phase.adSets?.forEach((adSet) => {
                 adSet.impressions = Math.round(adSet.impressions * impressionScale);
-                adSet.reach = Math.round(adSet.reach * impressionScale);
+                // reach unchanged for ad sets too
                 adSet.result = Math.max(1, Math.round(adSet.result * impressionScale));
                 adSet.costPerResult = adSet.result > 0 ? adSet.budget / adSet.result : 0;
               });
 
               phase.strategyCampaigns?.forEach((campaign) => {
                 campaign.impressions = Math.round(campaign.impressions * impressionScale);
-                campaign.reach = Math.round(campaign.reach * impressionScale);
+                // reach unchanged for strategy campaigns too
                 campaign.result = Math.max(1, Math.round(campaign.result * impressionScale));
                 campaign.costPerResult = campaign.result > 0 ? campaign.budget / campaign.result : 0;
                 campaign.resultRate = campaign.impressions > 0 ? (campaign.result / campaign.impressions) * 100 : 0;
@@ -2073,7 +2072,7 @@ export function CampaignForecast({
               .forEach((forecast) => {
                 forecast.metrics.cpm = forecast.metrics.cpm * cpmMultiplier;
                 forecast.metrics.impressions = Math.round(forecast.metrics.impressions * impressionScale);
-                forecast.metrics.reach = Math.round(forecast.metrics.reach * impressionScale);
+                // reach unchanged in phase forecasts
                 forecast.metrics.result = Math.max(1, Math.round(forecast.metrics.result * impressionScale));
                 forecast.metrics.costPerResult = forecast.metrics.result > 0 ? parseFloat((forecast.budget / forecast.metrics.result).toFixed(2)) : 0;
                 forecast.metrics.resultRate = forecast.metrics.impressions > 0 ? (forecast.metrics.result / forecast.metrics.impressions) * 100 : 0;
@@ -2081,7 +2080,7 @@ export function CampaignForecast({
           }
 
           pf.totalImpressions = pf.markets.reduce((sum, market) => sum + market.impressions, 0);
-          pf.totalReach = pf.markets.reduce((sum, market) => sum + market.reach, 0);
+          // totalReach stays the same — audience doesn't shrink with CPM markup
           pf.avgCPM = pf.totalImpressions > 0 ? (pf.totalBudget / pf.totalImpressions) * 1000 : 0;
           pf.frequency = pf.totalReach > 0 ? pf.totalImpressions / pf.totalReach : 0;
           pf.sov = pf.totalAudienceSize > 0 ? (pf.totalReach / pf.totalAudienceSize) * 100 : 0;
