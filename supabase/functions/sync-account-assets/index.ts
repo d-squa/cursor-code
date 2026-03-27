@@ -444,6 +444,27 @@ function generateMonthlyRanges(months: number): Array<{ start: string; end: stri
 /**
  * Sync Meta benchmarks for a single month period
  */
+/**
+ * Map campaign objective to PRIMARY result action type.
+ * Spend is attributed ONLY to this goal — no double-counting across action types.
+ */
+const metaObjectiveToPrimary: Record<string, { actionTypes: string[]; goal: string }> = {
+  "OUTCOME_TRAFFIC": { actionTypes: ["link_click", "landing_page_view"], goal: "LINK_CLICKS" },
+  "OUTCOME_ENGAGEMENT": { actionTypes: ["post_engagement", "page_engagement", "post", "comment", "like"], goal: "POST_ENGAGEMENT" },
+  "OUTCOME_AWARENESS": { actionTypes: ["__reach__"], goal: "REACH" },
+  "OUTCOME_LEADS": { actionTypes: ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped", "leadgen_grouped"], goal: "LEAD_GENERATION" },
+  "OUTCOME_SALES": { actionTypes: ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "complete_registration"], goal: "PURCHASE" },
+  "OUTCOME_APP_PROMOTION": { actionTypes: ["app_install", "mobile_app_install"], goal: "APP_INSTALLS" },
+  "LINK_CLICKS": { actionTypes: ["link_click", "landing_page_view"], goal: "LINK_CLICKS" },
+  "POST_ENGAGEMENT": { actionTypes: ["post_engagement", "page_engagement"], goal: "POST_ENGAGEMENT" },
+  "BRAND_AWARENESS": { actionTypes: ["__reach__"], goal: "REACH" },
+  "REACH": { actionTypes: ["__reach__"], goal: "REACH" },
+  "VIDEO_VIEWS": { actionTypes: ["video_view", "thruplay"], goal: "THRUPLAY" },
+  "CONVERSIONS": { actionTypes: ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.fb_pixel_lead", "lead", "complete_registration"], goal: "OFFSITE_CONVERSIONS" },
+  "LEAD_GENERATION": { actionTypes: ["lead", "offsite_conversion.fb_pixel_lead", "leadgen_grouped"], goal: "LEAD_GENERATION" },
+  "APP_INSTALLS": { actionTypes: ["app_install", "mobile_app_install"], goal: "APP_INSTALLS" },
+};
+
 async function syncMetaBenchmarksForPeriod(
   supabase: any,
   userId: string,
@@ -454,25 +475,19 @@ async function syncMetaBenchmarksForPeriod(
   dateRangeEnd: string
 ): Promise<number> {
   const benchmarkMap = new Map<string, {
-    market: string;
-    optimization_goal: string;
-    total_spend: number;
-    total_results: number;
-    impressions: number;
-    clicks: number;
-    link_clicks: number;
-    landing_page_views: number;
-    revenue: number;
-    campaign_count: number;
-    industry: string | null;
+    market: string; optimization_goal: string;
+    total_spend: number; total_results: number;
+    impressions: number; clicks: number;
+    link_clicks: number; landing_page_views: number;
+    revenue: number; campaign_count: number; industry: string | null;
   }>();
 
-  // Fetch insights at ad account level with country breakdown
+  // Fetch at CAMPAIGN level with objective so we can properly attribute spend
   const insightsUrl = `https://graph.facebook.com/v21.0/${accountId}/insights?` +
     `time_range={'since':'${dateRangeStart}','until':'${dateRangeEnd}'}` +
-    `&fields=spend,impressions,actions,action_values,clicks,reach` +
+    `&fields=campaign_id,campaign_name,objective,spend,impressions,actions,action_values,clicks,reach` +
     `&breakdowns=country` +
-    `&level=account` +
+    `&level=campaign` +
     `&limit=500` +
     `&access_token=${accessToken}`;
 
@@ -485,29 +500,7 @@ async function syncMetaBenchmarksForPeriod(
 
   const insightsData = await insightsResponse.json();
   const insights = insightsData.data || [];
-
   if (insights.length === 0) return 0;
-
-  // Map action types to optimization goals
-  const actionTypeMap: { [key: string]: string } = {
-    "link_click": "LINK_CLICKS",
-    "post_engagement": "POST_ENGAGEMENT",
-    "page_engagement": "PAGE_LIKES",
-    "video_view": "VIDEO_VIEWS",
-    "offsite_conversion.fb_pixel_purchase": "OFFSITE_CONVERSIONS",
-    "offsite_conversion.fb_pixel_lead": "LEAD_GENERATION",
-    "omni_purchase": "PURCHASE",
-    "app_install": "APP_INSTALLS",
-    "landing_page_view": "LANDING_PAGE_VIEWS",
-    "onsite_conversion.post_save": "POST_ENGAGEMENT",
-    "comment": "POST_ENGAGEMENT",
-    "like": "POST_ENGAGEMENT",
-    "post": "POST_ENGAGEMENT",
-    "photo_view": "POST_ENGAGEMENT",
-    "complete_registration": "COMPLETE_REGISTRATION",
-    "lead": "LEAD_GENERATION",
-    "purchase": "PURCHASE",
-  };
 
   for (const insight of insights) {
     const country = insight.country || "UNKNOWN";
@@ -515,15 +508,17 @@ async function syncMetaBenchmarksForPeriod(
     const impressions = parseFloat(insight.impressions || "0");
     const clicks = parseFloat(insight.clicks || "0");
     const reach = parseFloat(insight.reach || "0");
-    
     const actions = insight.actions || [];
     const actionValues = insight.action_values || [];
-    
+    const objective = insight.objective || "UNKNOWN";
+
+    if (spend <= 0) continue;
+
     const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
     const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
     const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
     const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
-    
+
     let revenue = 0;
     for (const av of actionValues) {
       if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
@@ -531,59 +526,53 @@ async function syncMetaBenchmarksForPeriod(
       }
     }
 
-    for (const action of actions) {
-      const optimizationGoal = actionTypeMap[action.action_type];
-      if (!optimizationGoal) continue;
-      
-      const results = parseFloat(action.value || "0");
-      if (results <= 0) continue;
+    // Determine primary optimization goal from campaign objective
+    const primaryConfig = metaObjectiveToPrimary[objective];
+    let optimizationGoal = primaryConfig?.goal || objective;
+    let results = 0;
 
-      const key = `${country}_${optimizationGoal}`;
-      
-      if (!benchmarkMap.has(key)) {
-        benchmarkMap.set(key, {
-          market: country, optimization_goal: optimizationGoal,
-          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
-          link_clicks: 0, landing_page_views: 0, revenue: 0,
-          campaign_count: 1, industry,
-        });
-      }
-
-      const benchmark = benchmarkMap.get(key)!;
-      benchmark.total_spend = spend;
-      benchmark.total_results += results;
-      benchmark.impressions = impressions;
-      benchmark.clicks = clicks;
-      benchmark.link_clicks = linkClicks;
-      benchmark.landing_page_views = landingPageViews;
-      benchmark.revenue = revenue;
-    }
-
-    if (reach > 0) {
-      const reachKey = `${country}_REACH`;
-      if (!benchmarkMap.has(reachKey)) {
-        benchmarkMap.set(reachKey, {
-          market: country, optimization_goal: "REACH",
-          total_spend: spend, total_results: reach, impressions,
-          clicks, link_clicks: linkClicks, landing_page_views: landingPageViews,
-          revenue, campaign_count: 1, industry,
-        });
+    if (primaryConfig) {
+      if (primaryConfig.actionTypes.includes("__reach__")) {
+        results = reach;
+      } else {
+        for (const actionType of primaryConfig.actionTypes) {
+          const action = actions.find((a: any) => a.action_type === actionType);
+          if (action) {
+            results = parseFloat(action.value || "0");
+            break;
+          }
+        }
       }
     }
 
-    const thruplayAction = actions.find((a: any) => a.action_type === "video_view" || a.action_type === "thruplay");
-    if (thruplayAction) {
-      const thruplayKey = `${country}_THRUPLAY`;
-      if (!benchmarkMap.has(thruplayKey)) {
-        benchmarkMap.set(thruplayKey, {
-          market: country, optimization_goal: "THRUPLAY",
-          total_spend: spend, total_results: parseFloat(thruplayAction.value || "0"),
-          impressions, clicks, link_clicks: linkClicks,
-          landing_page_views: landingPageViews, revenue,
-          campaign_count: 1, industry,
-        });
-      }
+    // Fallback to clicks if no primary results
+    if (results <= 0 && clicks > 0) {
+      results = clicks;
+      if (!primaryConfig) optimizationGoal = "CLICK";
     }
+
+    if (results <= 0) continue;
+
+    // Attribute spend to PRIMARY goal only
+    const key = `${country}_${optimizationGoal}`;
+    if (!benchmarkMap.has(key)) {
+      benchmarkMap.set(key, {
+        market: country, optimization_goal: optimizationGoal,
+        total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+        link_clicks: 0, landing_page_views: 0, revenue: 0,
+        campaign_count: 0, industry,
+      });
+    }
+
+    const benchmark = benchmarkMap.get(key)!;
+    benchmark.total_spend += spend;
+    benchmark.total_results += results;
+    benchmark.impressions += impressions;
+    benchmark.clicks += clicks;
+    benchmark.link_clicks += linkClicks;
+    benchmark.landing_page_views += landingPageViews;
+    benchmark.revenue += revenue;
+    benchmark.campaign_count += 1;
   }
 
   // Store benchmarks
@@ -922,20 +911,24 @@ async function syncGoogleBenchmarksForPeriod(
   dateRangeStart: string,
   dateRangeEnd: string
 ): Promise<number> {
+  // Use campaign-level query to get video_views alongside other metrics
+  // geographic_view doesn't support video_views, so we use campaign with geo segments
   const query = `
     SELECT
       campaign.id,
       campaign.name,
       campaign.advertising_channel_type,
-      geographic_view.country_criterion_id,
+      campaign.bidding_strategy_type,
+      segments.geo_target_country,
       metrics.cost_micros,
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
       metrics.all_conversions,
       metrics.conversions_value,
-      metrics.all_conversions_value
-    FROM geographic_view
+      metrics.all_conversions_value,
+      metrics.video_views
+    FROM campaign
     WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
       AND metrics.cost_micros > 0
   `;
@@ -1004,23 +997,28 @@ async function syncGoogleBenchmarksForPeriod(
   }>();
 
   for (const row of allResults) {
-    const geoId = String(row.geographicView?.countryCriterionId || "");
-    const country = geoIdToCountry[geoId] || `GEO_${geoId}`;
+    // New query uses segments.geo_target_country (returns country name like "US")
+    const geoTarget = row.segments?.geoTargetCountry || "";
+    // Extract country code from geo target resource name: "geoTargetConstants/XXXX"
+    const geoId = String(geoTarget).replace("geoTargetConstants/", "");
+    const country = geoIdToCountry[geoId] || geoId || "UNKNOWN";
     const costMicros = parseInt(row.metrics?.costMicros || "0");
     const spend = costMicros / 1_000_000;
     const impressions = parseInt(row.metrics?.impressions || "0");
     const clicks = parseInt(row.metrics?.clicks || "0");
     const conversions = parseFloat(row.metrics?.conversions || "0");
+    const videoViews = parseInt(row.metrics?.videoViews || "0");
     const revenue = Number(row.metrics?.conversionsValue || row.metrics?.allConversionsValue || 0);
     const channelType = row.campaign?.advertisingChannelType || "UNKNOWN";
 
     const optimizationGoal = channelTypeGoalMap[channelType] || channelType;
 
+    // Use the correct result metric per channel type
     let results = 0;
     if (channelType === "SEARCH" || channelType === "DEMAND_GEN") {
       results = clicks;
     } else if (channelType === "VIDEO") {
-      results = clicks; // video_views excluded from geographic_view
+      results = videoViews > 0 ? videoViews : clicks;
     } else if (channelType === "SHOPPING" || channelType === "PERFORMANCE_MAX") {
       results = conversions > 0 ? conversions : clicks;
     } else if (channelType === "DISPLAY") {
