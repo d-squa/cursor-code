@@ -911,20 +911,24 @@ async function syncGoogleBenchmarksForPeriod(
   dateRangeStart: string,
   dateRangeEnd: string
 ): Promise<number> {
+  // Use campaign-level query to get video_views alongside other metrics
+  // geographic_view doesn't support video_views, so we use campaign with geo segments
   const query = `
     SELECT
       campaign.id,
       campaign.name,
       campaign.advertising_channel_type,
-      geographic_view.country_criterion_id,
+      campaign.bidding_strategy_type,
+      segments.geo_target_country,
       metrics.cost_micros,
       metrics.impressions,
       metrics.clicks,
       metrics.conversions,
       metrics.all_conversions,
       metrics.conversions_value,
-      metrics.all_conversions_value
-    FROM geographic_view
+      metrics.all_conversions_value,
+      metrics.video_views
+    FROM campaign
     WHERE segments.date BETWEEN '${dateRangeStart}' AND '${dateRangeEnd}'
       AND metrics.cost_micros > 0
   `;
