@@ -2252,15 +2252,10 @@ export function CampaignForecast({
         };
         const dateRangeLabel = presetLabels[options.benchmarkDateRange.preset] || options.benchmarkDateRange.preset;
 
+        // For dateRange mode, only show benchmark-affected metrics (Results & Cost/Result)
         const totalComparison = [
-          { label: "Budget", before: beforeActiplan.totalBudget, after: afterActiplan.totalBudget, format: "currency" as const },
-          { label: "Avg. CPM", before: beforeActiplan.avgCPM, after: afterActiplan.avgCPM, format: "currency" as const, inverted: true },
-          { label: "Impressions", before: beforeActiplan.totalImpressions, after: afterActiplan.totalImpressions, format: "number" as const },
           { label: "Results", before: beforeActiplan.totalResults, after: afterActiplan.totalResults, format: "number" as const },
           { label: "Avg. Cost/Result", before: beforeActiplan.avgCostPerResult, after: afterActiplan.avgCostPerResult, format: "currency" as const, inverted: true },
-          { label: "Reach", before: beforeActiplan.totalReach, after: afterActiplan.totalReach, format: "number" as const },
-          { label: "Frequency", before: beforeActiplan.frequency, after: afterActiplan.frequency, format: "number" as const },
-          { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
         ];
 
         // Build granular rows: for dateRange mode, before = existing actiplan platforms, after = new platformForecasts
@@ -2668,6 +2663,7 @@ export function CampaignForecast({
               <ActiplanDeliverablesView 
                 actiplanForecast={actiplanForecast} 
                 selectedKeywords={selectedKeywords}
+                benchmarks={benchmarks}
               />
             )}
             {/* Budget Optimization Recommendation Banner */}
