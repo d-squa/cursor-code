@@ -2014,29 +2014,7 @@ export function CampaignForecast({
         : 0;
       const actiplanFrequency = actiplanTotalReach > 0 ? actiplanTotalImpressions / actiplanTotalReach : 0;
       const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
-
-      // Aggregate platform deliverables
-      const platformDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
-      platformForecasts.forEach(platform => {
-        if (!platformDeliverables[platform.platformName]) {
-          platformDeliverables[platform.platformName] = [];
-        }
-        // Aggregate all KPIs from all markets in this platform
-        platform.markets.forEach(market => {
-          market.resultsByGoal.forEach(r => {
-            // Check if this KPI already exists for this platform
-            const existing = platformDeliverables[platform.platformName].find(d => d.kpi === r.kpi);
-            if (existing) {
-              existing.result += r.result;
-            } else {
-              platformDeliverables[platform.platformName].push({
-                kpi: r.kpi,
-                result: r.result,
-              });
-            }
-          });
-        });
-      });
+      // platformDeliverables will be computed after markup is applied
 
       // Apply markup/markdown to CPM only — all other metrics are derived from it
       if (options?.applyMarkup && options.markupPercentage > 0) {
@@ -2095,6 +2073,27 @@ export function CampaignForecast({
         
         toast.info(`${direction}${options.markupPercentage}% CPM markup applied — all metrics recalculated`);
       }
+
+      // Aggregate platform deliverables AFTER markup is applied
+      const platformDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
+      platformForecasts.forEach(platform => {
+        if (!platformDeliverables[platform.platformName]) {
+          platformDeliverables[platform.platformName] = [];
+        }
+        platform.markets.forEach(market => {
+          market.resultsByGoal.forEach(r => {
+            const existing = platformDeliverables[platform.platformName].find(d => d.kpi === r.kpi);
+            if (existing) {
+              existing.result += r.result;
+            } else {
+              platformDeliverables[platform.platformName].push({
+                kpi: r.kpi,
+                result: r.result,
+              });
+            }
+          });
+        });
+      });
 
       setForecasts(newForecasts);
       
