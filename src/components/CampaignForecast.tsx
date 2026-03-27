@@ -2171,14 +2171,14 @@ export function CampaignForecast({
       } else if (actiplanForecast && options?.benchmarkDateRange?.preset && options.benchmarkDateRange.preset !== "all") {
         // Non-default date range with existing forecast → show preview
         const beforeActiplan = actiplanForecast;
-        const beforePlatformTotals = (actiplanForecast as any).platforms?.map((pf: any) => ({
+        const beforePlatformTotals = beforeActiplan.platforms.map(pf => ({
           name: pf.platformName,
           budget: pf.totalBudget,
           impressions: pf.totalImpressions,
           reach: pf.totalReach,
           cpm: pf.avgCPM,
           frequency: pf.frequency,
-        })) || [];
+        }));
 
         const afterActiplan = buildActiplan(platformForecasts);
 
