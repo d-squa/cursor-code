@@ -2046,7 +2046,9 @@ export function CampaignForecast({
         for (const pf of platformForecasts) {
           for (const mf of pf.markets) {
             const oldFreq = mf.reach > 0 ? mf.impressions / mf.reach : 2;
-            mf.cpm = mf.cpm * cpmMultiplier;
+            // CPM already adjusted in newForecasts loop above — apply multiplier only once
+            const newMarketCPM = mf.cpm * cpmMultiplier;
+            mf.cpm = newMarketCPM;
             mf.impressions = mf.cpm > 0 ? Math.round((mf.budget / mf.cpm) * 1000) : 0;
             mf.reach = oldFreq > 0 ? Math.round(mf.impressions / oldFreq) : 0;
             mf.frequency = mf.reach > 0 ? mf.impressions / mf.reach : 0;
