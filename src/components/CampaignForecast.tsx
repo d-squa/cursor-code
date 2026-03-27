@@ -245,6 +245,13 @@ export function CampaignForecast({
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [forecastOptionsOpen, setForecastOptionsOpen] = useState(false);
   const [pendingForecastOptions, setPendingForecastOptions] = useState<ForecastOptions | null>(null);
+  const [markupPreviewData, setMarkupPreviewData] = useState<MarkupPreviewData | null>(null);
+  const [markupPreviewOpen, setMarkupPreviewOpen] = useState(false);
+  const [pendingMarkupState, setPendingMarkupState] = useState<{
+    forecasts: Record<string, CampaignForecast[]>;
+    actiplan: ActiplanForecast;
+    options: ForecastOptions;
+  } | null>(null);
   const { versions, saveVersion, loadVersions } = useForecastVersions(campaignId);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
