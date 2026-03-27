@@ -2818,22 +2818,37 @@ export function CampaignForecast({
           if (pendingMarkupState) {
             setForecasts(pendingMarkupState.forecasts);
             setActiplanForecast(pendingMarkupState.actiplan);
-            const dir = pendingMarkupState.options.markupDirection === "up" ? "+" : "−";
-            const pct = pendingMarkupState.options.markupPercentage;
-            const description = `CPM ${dir}${pct}% ${pendingMarkupState.options.markupDirection === "up" ? "markup" : "markdown"} applied`;
+
+            const isDateRange = markupPreviewData?.mode === "dateRange";
+            let description: string;
+            let versionLabel: string;
+
+            if (isDateRange) {
+              const rangeLabel = markupPreviewData?.dateRangeLabel || "custom range";
+              description = `Benchmark date range changed to "${rangeLabel}"`;
+              versionLabel = `Forecast (${rangeLabel})`;
+              toast.success(`Benchmarks updated to "${rangeLabel}"`);
+            } else {
+              const dir = pendingMarkupState.options.markupDirection === "up" ? "+" : "−";
+              const pct = pendingMarkupState.options.markupPercentage;
+              description = `CPM ${dir}${pct}% ${pendingMarkupState.options.markupDirection === "up" ? "markup" : "markdown"} applied`;
+              versionLabel = `Forecast (${dir}${pct}% CPM)`;
+              toast.success(`${dir}${pct}% CPM markup applied successfully`);
+            }
+
             const payload = {
               generatedAt: new Date().toISOString(),
               forecasts: pendingMarkupState.forecasts,
               actiplanForecast: pendingMarkupState.actiplan,
             };
-            saveVersion(payload, platforms, totalBudget, `Forecast (${dir}${pct}% CPM)`, description);
-            toast.success(`${dir}${pct}% CPM markup applied successfully`);
+            saveVersion(payload, platforms, totalBudget, versionLabel, description);
           }
           setPendingMarkupState(null);
           setMarkupPreviewOpen(false);
         }}
         onReject={() => {
-          toast.info("Markup rejected — keeping base forecast");
+          const isDateRange = markupPreviewData?.mode === "dateRange";
+          toast.info(isDateRange ? "Benchmark change rejected — keeping current forecast" : "Markup rejected — keeping base forecast");
           setPendingMarkupState(null);
           setMarkupPreviewOpen(false);
         }}
