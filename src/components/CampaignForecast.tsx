@@ -2168,8 +2168,65 @@ export function CampaignForecast({
         setMarkupPreviewOpen(true);
 
         toast.success("Forecasts fetched — review markup impact before applying.");
+      } else if (actiplanForecast && options?.benchmarkDateRange?.preset && options.benchmarkDateRange.preset !== "all") {
+        // Non-default date range with existing forecast → show preview
+        const beforeActiplan = actiplanForecast;
+        const beforePlatformTotals = (actiplanForecast as any).platforms?.map((pf: any) => ({
+          name: pf.platformName,
+          budget: pf.totalBudget,
+          impressions: pf.totalImpressions,
+          reach: pf.totalReach,
+          cpm: pf.avgCPM,
+          frequency: pf.frequency,
+        })) || [];
+
+        const afterActiplan = buildActiplan(platformForecasts);
+
+        const presetLabels: Record<string, string> = {
+          last_month: "Last month",
+          last_3_months: "Last 3 months",
+          last_quarter: "Last quarter",
+          same_month_last_year: "Same month last year",
+          same_quarter_last_year: "Same quarter last year",
+          same_period_last_year: "Same period last year",
+          custom: "Custom range",
+        };
+        const dateRangeLabel = presetLabels[options.benchmarkDateRange.preset] || options.benchmarkDateRange.preset;
+
+        const totalComparison = [
+          { label: "Budget", before: beforeActiplan.totalBudget, after: afterActiplan.totalBudget, format: "currency" as const },
+          { label: "Avg. CPM", before: beforeActiplan.avgCPM, after: afterActiplan.avgCPM, format: "currency" as const, inverted: true },
+          { label: "Impressions", before: beforeActiplan.totalImpressions, after: afterActiplan.totalImpressions, format: "number" as const },
+          { label: "Reach", before: beforeActiplan.totalReach, after: afterActiplan.totalReach, format: "number" as const },
+          { label: "Frequency", before: beforeActiplan.frequency, after: afterActiplan.frequency, format: "number" as const },
+          { label: "SOV", before: beforeActiplan.sov, after: afterActiplan.sov, format: "percent" as const },
+        ];
+
+        const platformComparisons = platformForecasts.map((pf, idx) => ({
+          platformName: pf.platformName,
+          metrics: [
+            { label: "Avg. CPM", before: beforePlatformTotals[idx]?.cpm || 0, after: pf.avgCPM, format: "currency" as const, inverted: true },
+            { label: "Impressions", before: beforePlatformTotals[idx]?.impressions || 0, after: pf.totalImpressions, format: "number" as const },
+            { label: "Reach", before: beforePlatformTotals[idx]?.reach || 0, after: pf.totalReach, format: "number" as const },
+            { label: "Frequency", before: beforePlatformTotals[idx]?.frequency || 0, after: pf.frequency, format: "number" as const },
+          ],
+        }));
+
+        setMarkupPreviewData({
+          markupDirection: "up",
+          markupPercentage: 0,
+          totalComparison,
+          platformComparisons,
+          mode: "dateRange",
+          dateRangeLabel,
+        });
+
+        setPendingMarkupState({ forecasts: newForecasts, actiplan: afterActiplan, options: options! });
+        setMarkupPreviewOpen(true);
+
+        toast.success("Forecasts fetched — review benchmark change impact before applying.");
       } else {
-        // No markup — apply directly
+        // No markup, default date range — apply directly
         const actiplan = buildActiplan(platformForecasts);
         setForecasts(newForecasts);
         setActiplanForecast(actiplan);
