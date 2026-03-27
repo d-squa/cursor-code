@@ -11,7 +11,7 @@ import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
 import type { BenchmarkData } from "@/utils/benchmarkData";
-import { getPlatformKeyFromId } from "@/utils/benchmarkData";
+import { getPlatformKeyFromId, lookupBenchmark } from "@/utils/benchmarkData";
 
 interface ActiplanDeliverablesViewProps {
   selectedKeywords?: KeywordItem[];
@@ -380,31 +380,50 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
                                    <TooltipProvider delayDuration={0}>
                                      <Tooltip>
                                        <TooltipTrigger asChild>
-                                         <span className="inline-flex cursor-pointer">
-                                           {phase.isBenchmarkBased ? (
-                                             <Badge className="gap-1 text-xs bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600">
-                                               <Database className="h-3 w-3" />
-                                               Benchmark
-                                             </Badge>
-                                           ) : (
-                                             <Badge variant="secondary" className="gap-1 text-xs">
-                                               <Calculator className="h-3 w-3" />
-                                               Estimated
-                                             </Badge>
-                                           )}
-                                         </span>
+                                          <span className="inline-flex cursor-pointer">
+                                            {(() => {
+                                              const platformKey = getPlatformKeyFromId(platform.platformId || platform.platformName);
+                                              const bm = lookupBenchmark(
+                                                benchmarks || new Map<string, BenchmarkData>(),
+                                                platformKey,
+                                                market.marketName,
+                                                phase.optimizationGoal,
+                                              );
+                                              const showBenchmark = !!phase.isBenchmarkBased && (bm?.campaign_count || 0) > 0;
+
+                                              return showBenchmark ? (
+                                                <Badge className="gap-1 text-xs bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600">
+                                                  <Database className="h-3 w-3" />
+                                                  Benchmark
+                                                </Badge>
+                                              ) : (
+                                                <Badge variant="secondary" className="gap-1 text-xs">
+                                                  <Calculator className="h-3 w-3" />
+                                                  Estimated
+                                                </Badge>
+                                              );
+                                            })()}
+                                          </span>
                                        </TooltipTrigger>
                                        <TooltipContent side="top" className="max-w-xs">
-                                         {phase.isBenchmarkBased 
+                                          {!!phase.isBenchmarkBased
                                            ? (() => {
                                                const platformKey = getPlatformKeyFromId(platform.platformId || platform.platformName);
-                                               const goalKey = `${platformKey}_${market.marketName.toUpperCase()}_${phase.optimizationGoal.toUpperCase()}`;
-                                               const bm = benchmarks?.get(goalKey);
-                                               const dateInfo = bm?.date_range_start && bm?.date_range_end
-                                                 ? ` (${bm.date_range_start} → ${bm.date_range_end})`
-                                                 : '';
-                                               return `Based on ${bm?.campaign_count || 0} campaigns${dateInfo}`;
-                                             })()
+                                              const bm = lookupBenchmark(
+                                                benchmarks || new Map<string, BenchmarkData>(),
+                                                platformKey,
+                                                market.marketName,
+                                                phase.optimizationGoal,
+                                              );
+                                              const hasCampaigns = (bm?.campaign_count || 0) > 0;
+                                              const dateInfo = bm?.date_range_start && bm?.date_range_end
+                                                ? ` (${bm.date_range_start} → ${bm.date_range_end})`
+                                                : '';
+
+                                              return hasCampaigns
+                                                ? `Based on ${bm?.campaign_count || 0} campaigns${dateInfo}`
+                                                : "Estimated using industry averages - no matching benchmark found";
+                                            })()
                                            : "Estimated using industry averages - no matching benchmark found"
                                          }
                                        </TooltipContent>
