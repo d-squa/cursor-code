@@ -2752,6 +2752,35 @@ export function CampaignForecast({
           handleFetchForecasts(options);
         }}
       />
+
+      <MarkupPreviewDialog
+        open={markupPreviewOpen}
+        onOpenChange={setMarkupPreviewOpen}
+        data={markupPreviewData}
+        onAccept={() => {
+          if (pendingMarkupState) {
+            setForecasts(pendingMarkupState.forecasts);
+            setActiplanForecast(pendingMarkupState.actiplan);
+            const dir = pendingMarkupState.options.markupDirection === "up" ? "+" : "−";
+            const pct = pendingMarkupState.options.markupPercentage;
+            const description = `CPM ${dir}${pct}% ${pendingMarkupState.options.markupDirection === "up" ? "markup" : "markdown"} applied`;
+            const payload = {
+              generatedAt: new Date().toISOString(),
+              forecasts: pendingMarkupState.forecasts,
+              actiplanForecast: pendingMarkupState.actiplan,
+            };
+            saveVersion(payload, platforms, totalBudget, `Forecast (${dir}${pct}% CPM)`, description);
+            toast.success(`${dir}${pct}% CPM markup applied successfully`);
+          }
+          setPendingMarkupState(null);
+          setMarkupPreviewOpen(false);
+        }}
+        onReject={() => {
+          toast.info("Markup rejected — keeping base forecast");
+          setPendingMarkupState(null);
+          setMarkupPreviewOpen(false);
+        }}
+      />
     </Card>
   );
 }
