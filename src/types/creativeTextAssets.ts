@@ -262,8 +262,43 @@ export function getCharacterStatus(value: string, field: TextAssetFieldConfig): 
   return 'ok';
 }
 
+// Carousel card-level required fields per platform
+// Carousel cards only need card-level metadata; ad-level fields like primary text
+// are set once on the carousel wrapper, not per card.
+const CAROUSEL_CARD_FIELDS: Record<Platform, TextAssetFieldConfig[]> = {
+  meta: [
+    { id: 'headline', label: 'Card Headline', required: false, maxLength: 255, recommendedLength: 40, placeholder: 'Headline' },
+    { id: 'description', label: 'Card Description', required: false, maxLength: 125, placeholder: 'Description' },
+    { id: 'destinationUrl', label: 'Card Website URL', required: false, maxLength: 2000, placeholder: 'https://' },
+    { id: 'callToAction', label: 'Card CTA', required: false, placeholder: 'Select CTA' },
+  ],
+  tiktok: [
+    { id: 'destinationUrl', label: 'Card URL', required: false, maxLength: 2000, placeholder: 'https://' },
+  ],
+  google: [
+    { id: 'headline', label: 'Card Headline', required: false, maxLength: 30, placeholder: 'Headline' },
+    { id: 'destinationUrl', label: 'Card URL', required: false, maxLength: 2000, placeholder: 'https://' },
+  ],
+  linkedin: [
+    { id: 'headline', label: 'Card Headline', required: false, maxLength: 200, placeholder: 'Headline' },
+    { id: 'destinationUrl', label: 'Card URL', required: true, maxLength: 2000, placeholder: 'https://' },
+  ],
+  snapchat: [
+    { id: 'headline', label: 'Card Headline', required: false, maxLength: 34, placeholder: 'Headline' },
+    { id: 'destinationUrl', label: 'Card URL', required: false, maxLength: 2000, placeholder: 'https://' },
+  ],
+  pinterest: [
+    { id: 'destinationUrl', label: 'Card URL', required: false, maxLength: 2000, placeholder: 'https://' },
+  ],
+  x: [
+    { id: 'headline', label: 'Card Title', required: false, maxLength: 70, placeholder: 'Title' },
+    { id: 'destinationUrl', label: 'Card URL', required: false, maxLength: 2000, placeholder: 'https://' },
+  ],
+};
+
 // Validate a text asset row based on platform requirements
 // Organic posts bypass validation since their content comes from the platform
+// Carousel cards use a reduced set of card-level requirements
 export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
   // Skip validation for organic posts - they are read-only and use platform content
   if (row.isOrganic || row.externalPostId) {
@@ -272,8 +307,17 @@ export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
 
   const errors: string[] = [];
   const platform = row.platform.toLowerCase() as Platform;
-  const fields = PLATFORM_TEXT_FIELDS[platform] || PLATFORM_TEXT_FIELDS.meta;
-  
+
+  // Carousel cards have different requirements — only card-level fields matter.
+  // Ad-level fields (primary text, etc.) are set on the carousel wrapper.
+  const isCarouselCard = !!row.carouselGroupId;
+  // Asset customization group members are validated at the group level
+  const isAssetCustomizationMember = !!row.assetCustomizationGroupId;
+
+  const fields = isCarouselCard
+    ? (CAROUSEL_CARD_FIELDS[platform] || CAROUSEL_CARD_FIELDS.meta)
+    : (PLATFORM_TEXT_FIELDS[platform] || PLATFORM_TEXT_FIELDS.meta);
+
   for (const field of fields) {
     const value = (row as any)[field.id];
     
@@ -286,7 +330,7 @@ export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
     }
   }
   
-  // URL validation
+  // URL validation (only when URLs are provided)
   if (row.destinationUrl && !row.destinationUrl.startsWith('http')) {
     errors.push('Destination URL must start with http:// or https://');
   }
