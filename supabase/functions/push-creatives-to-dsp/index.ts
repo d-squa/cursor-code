@@ -446,6 +446,77 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE} (filtered from ${assignments?.length || 0} total, excluding ${(assignments || []).filter((a: any) => a.dsp_creative_id).length} already pushed to DSP)`);
 
+      // ========== PRE-FLIGHT: ENSURE AD SET HAS PROMOTED_OBJECT ==========
+      // Meta requires promoted_object on the ad set for most objectives.
+      // Ad sets pushed before this fix may lack it. We patch them before creating ads.
+      if (platformKey === "meta" && entry.dsp_entity_id && pendingAssignments.length > 0) {
+        try {
+          const pfAccessToken = platform.access_token;
+          // Read the ad set to check if promoted_object exists
+          const adSetCheckUrl = `https://graph.facebook.com/v22.0/${entry.dsp_entity_id}?fields=promoted_object&access_token=${pfAccessToken}`;
+          const adSetCheckResp = await fetch(adSetCheckUrl);
+          const adSetCheckData = await adSetCheckResp.json();
+
+          if (!adSetCheckData.promoted_object || Object.keys(adSetCheckData.promoted_object).length === 0) {
+            // Resolve page ID for this market/phase
+            let patchPageId =
+              (phase as any)?.metaPageId ||
+              (market as any)?.metaPageId;
+
+            if (!patchPageId) {
+              // Try ad account defaults
+              const patchAdAccountId = (market as any)?.adAccountId || (market as any)?.ad_account_id || platform.ad_account_id;
+              if (patchAdAccountId) {
+                const rawId = String(patchAdAccountId).replace(/^act_/, "");
+                const { data: adAccRows } = await supabase
+                  .from("meta_ad_accounts")
+                  .select("default_page_id")
+                  .or(`account_id.eq.${rawId},account_id.eq.act_${rawId}`)
+                  .order("synced_at", { ascending: false })
+                  .limit(1);
+                patchPageId = adAccRows?.[0]?.default_page_id;
+              }
+            }
+
+            if (!patchPageId) {
+              // Final fallback: latest synced page
+              const { data: latestPage } = await supabase
+                .from("meta_pages")
+                .select("page_id")
+                .eq("user_id", campaign.user_id)
+                .order("synced_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              patchPageId = latestPage?.page_id;
+            }
+
+            if (patchPageId) {
+              console.log(`[push-creatives] Patching ad set ${entry.dsp_entity_id} with promoted_object.page_id=${patchPageId}`);
+              const patchResp = await fetch(`https://graph.facebook.com/v22.0/${entry.dsp_entity_id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  promoted_object: { page_id: String(patchPageId) },
+                  access_token: pfAccessToken,
+                }),
+              });
+              const patchData = await patchResp.json();
+              if (patchData.error) {
+                console.warn(`[push-creatives] Failed to patch ad set promoted_object:`, JSON.stringify(patchData.error));
+              } else {
+                console.log(`[push-creatives] Successfully patched ad set ${entry.dsp_entity_id} with promoted_object`);
+              }
+            } else {
+              console.warn(`[push-creatives] No page ID available to patch ad set ${entry.dsp_entity_id} promoted_object`);
+            }
+          } else {
+            console.log(`[push-creatives] Ad set ${entry.dsp_entity_id} already has promoted_object`);
+          }
+        } catch (patchErr) {
+          console.warn(`[push-creatives] promoted_object pre-flight check failed:`, patchErr);
+        }
+      }
+
       // ========== CAROUSEL GROUPING ==========
       // Separate carousel assignments from standalone assignments.
       // Carousel assignments share the same carousel_group_id and must be pushed as a single ad.
