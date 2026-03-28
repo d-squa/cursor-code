@@ -193,30 +193,45 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     return Array.from(allCTAs);
   }, [rows, selectedRowIds, platforms, applyScope]);
 
-  // Get target rows based on scope
+  // Exclude rows that belong to carousel or asset customization groups
+  // These grouped creatives have their own dedicated editors and should not be modified via bulk actions
+  const isGroupedRow = useCallback((row: CreativeTextAssetRow): boolean => {
+    return !!(row.carouselGroupId || row.assetCustomizationGroupId);
+  }, []);
+
+  // Get target rows based on scope (excluding grouped creatives)
   const getTargetRows = useCallback((): CreativeTextAssetRow[] => {
+    let candidates: CreativeTextAssetRow[];
     switch (applyScope) {
       case 'selection':
-        return rows.filter(r => selectedRowIds.has(r.id));
+        candidates = rows.filter(r => selectedRowIds.has(r.id));
+        break;
       case 'all':
-        return rows;
+        candidates = rows;
+        break;
       case 'platform':
-        return rows.filter(r => r.platform.toLowerCase() === scopeFilter.toLowerCase());
+        candidates = rows.filter(r => r.platform.toLowerCase() === scopeFilter.toLowerCase());
+        break;
       case 'market':
-        return rows.filter(r => r.market.toLowerCase() === scopeFilter.toLowerCase());
+        candidates = rows.filter(r => r.market.toLowerCase() === scopeFilter.toLowerCase());
+        break;
       case 'phase':
-        return rows.filter(r => r.phase.toLowerCase() === scopeFilter.toLowerCase());
+        candidates = rows.filter(r => r.phase.toLowerCase() === scopeFilter.toLowerCase());
+        break;
       case 'contains':
         const searchLower = scopeFilter.toLowerCase();
-        return rows.filter(r => 
+        candidates = rows.filter(r => 
           r.creativeName.toLowerCase().includes(searchLower) ||
           r.adSet.toLowerCase().includes(searchLower) ||
           r.phase.toLowerCase().includes(searchLower)
         );
+        break;
       default:
-        return [];
+        candidates = [];
     }
-  }, [rows, selectedRowIds, applyScope, scopeFilter]);
+    // Filter out creatives in carousel or asset customization groups
+    return candidates.filter(r => !isGroupedRow(r));
+  }, [rows, selectedRowIds, applyScope, scopeFilter, isGroupedRow]);
 
   // Check if field is supported for a platform
   const isFieldSupported = (platform: string, field: ParameterType): boolean => {
@@ -243,8 +258,22 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     }
 
     const targetRows = getTargetRows();
+    
+    // Count how many were excluded due to grouping
+    let rawCandidateCount: number;
+    switch (applyScope) {
+      case 'selection': rawCandidateCount = rows.filter(r => selectedRowIds.has(r.id)).length; break;
+      case 'all': rawCandidateCount = rows.length; break;
+      default: rawCandidateCount = targetRows.length; break;
+    }
+    const groupedSkipCount = rawCandidateCount - targetRows.length;
+
     if (targetRows.length === 0) {
-      toast.error('No matching rows found');
+      if (groupedSkipCount > 0) {
+        toast.error(`All ${groupedSkipCount} matching creative(s) are part of a carousel or asset customization group. Use their dedicated editors instead.`);
+      } else {
+        toast.error('No matching rows found');
+      }
       return;
     }
 
@@ -283,12 +312,13 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     onBulkUpdate(ids, updates);
 
     // Show results
+    const groupedNote = groupedSkipCount > 0 ? ` (${groupedSkipCount} in carousel/customization groups skipped)` : '';
     if (skipped.length > 0) {
       setSkippedEntities(skipped);
       setAppliedCount(supportedRows.length);
       setShowSkippedDialog(true);
     } else {
-      toast.success(`Applied to ${supportedRows.length} creatives`);
+      toast.success(`Applied to ${supportedRows.length} creatives${groupedNote}`);
     }
 
     setIsApplyOpen(false);
