@@ -312,12 +312,13 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     onBulkUpdate(ids, updates);
 
     // Show results
+    const groupedNote = groupedSkipCount > 0 ? ` (${groupedSkipCount} in carousel/customization groups skipped)` : '';
     if (skipped.length > 0) {
       setSkippedEntities(skipped);
       setAppliedCount(supportedRows.length);
       setShowSkippedDialog(true);
     } else {
-      toast.success(`Applied to ${supportedRows.length} creatives`);
+      toast.success(`Applied to ${supportedRows.length} creatives${groupedNote}`);
     }
 
     setIsApplyOpen(false);
