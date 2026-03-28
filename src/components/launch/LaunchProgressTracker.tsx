@@ -845,13 +845,13 @@ export function LaunchProgressTracker({
                   onCollapseLevel={collapseShellLevel}
                 />
               </div>
-              <ScrollArea className="h-auto max-h-[600px]">
+              <div className="max-h-[600px] overflow-auto">
                 <CampaignsShellTree
                   adSetStatuses={filteredAdSetStatuses}
                   expandedState={shellExpanded}
                   onToggle={toggleShellNode}
                 />
-              </ScrollArea>
+              </div>
             </CardContent>
           </CollapsibleContent>
         </Card>
@@ -944,7 +944,7 @@ export function LaunchProgressTracker({
                       onCollapseLevel={collapseCreativesLevel}
                     />
                   </div>
-                  <ScrollArea className="h-auto max-h-[600px]">
+                  <div className="max-h-[600px] overflow-auto">
                     <MeshedCreativesTree
                       creativeAssignments={filteredCreativeAssignments}
                       expandedState={creativesExpanded}
@@ -952,7 +952,7 @@ export function LaunchProgressTracker({
                       onDelete={onDeleteCreativeAssignment ? handleDeleteCreative : undefined}
                       deletingId={deletingId}
                     />
-                  </ScrollArea>
+                  </div>
                 </>
               )}
             </CardContent>
