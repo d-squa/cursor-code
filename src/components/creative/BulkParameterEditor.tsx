@@ -258,8 +258,22 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     }
 
     const targetRows = getTargetRows();
+    
+    // Count how many were excluded due to grouping
+    let rawCandidateCount: number;
+    switch (applyScope) {
+      case 'selection': rawCandidateCount = rows.filter(r => selectedRowIds.has(r.id)).length; break;
+      case 'all': rawCandidateCount = rows.length; break;
+      default: rawCandidateCount = targetRows.length; break;
+    }
+    const groupedSkipCount = rawCandidateCount - targetRows.length;
+
     if (targetRows.length === 0) {
-      toast.error('No matching rows found');
+      if (groupedSkipCount > 0) {
+        toast.error(`All ${groupedSkipCount} matching creative(s) are part of a carousel or asset customization group. Use their dedicated editors instead.`);
+      } else {
+        toast.error('No matching rows found');
+      }
       return;
     }
 
