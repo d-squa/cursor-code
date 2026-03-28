@@ -314,7 +314,9 @@ export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
   // Asset customization group members are validated at the group level
   const isAssetCustomizationMember = !!row.assetCustomizationGroupId;
 
-  const fields = isCarouselCard
+  // Asset customization members and carousel cards skip ad-level validation —
+  // their text assets are managed inside the group editor.
+  const fields = (isCarouselCard || isAssetCustomizationMember)
     ? (CAROUSEL_CARD_FIELDS[platform] || CAROUSEL_CARD_FIELDS.meta)
     : (PLATFORM_TEXT_FIELDS[platform] || PLATFORM_TEXT_FIELDS.meta);
 
