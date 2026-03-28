@@ -2988,6 +2988,24 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             adSetPayload.promoted_object = { pixel_id: effectivePixel, custom_event_type: eventType };
           }
 
+          // ============= PROMOTED OBJECT: PAGE_ID FALLBACK =============
+          // Meta requires promoted_object for most objectives. If not already set by conversion tracking
+          // or Advantage+ Shopping, we must set it with the Facebook Page ID.
+          // Objectives that require promoted_object with page_id:
+          // LEAD_GENERATION, LINK_CLICKS, LANDING_PAGE_VIEWS, POST_ENGAGEMENT, PAGE_LIKES,
+          // CONVERSATIONS, REACH, IMPRESSIONS, BRAND_AWARENESS, THRUPLAY, APP_INSTALLS, etc.
+          if (!adSetPayload.promoted_object) {
+            const adSetPageId = (market as any).metaPageId || (market as any).defaultPageId;
+            if (adSetPageId) {
+              // For LEAD_GENERATION, just page_id is needed
+              // For most other objectives, page_id in promoted_object tells Meta which page to use
+              adSetPayload.promoted_object = { page_id: String(adSetPageId) };
+              console.log(`📄 promoted_object.page_id set to ${adSetPageId} (from market config)`);
+            } else {
+              console.warn(`⚠️ No Facebook Page ID available for promoted_object - ad set may fail for objective ${adSetPayload.optimization_goal}`);
+            }
+          }
+
           // Set budget (only if not CBO - when CBO is on, budget is at campaign level)
           if (!useCBO) {
             // CRITICAL: Meta requires either daily_budget OR lifetime_budget for non-CBO ad sets
