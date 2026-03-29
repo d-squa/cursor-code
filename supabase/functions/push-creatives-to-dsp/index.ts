@@ -1517,6 +1517,10 @@ const handler = async (req: Request): Promise<Response> => {
 
             const creativePayload: any = {
               name: creative.name,
+              // Use url_tags for tracking parameters instead of appending to URLs
+              ...(finalUrlParameters ? { url_tags: finalUrlParameters } : {}),
+              // Explicitly control Advantage+ enhancements
+              ...buildMetaCreativeFeaturesSpec(advantagePlusFeatures),
             };
             
             // For organic posts (existing_post), determine if it's Facebook or Instagram
@@ -1660,12 +1664,8 @@ const handler = async (req: Request): Promise<Response> => {
                   continue;
                 }
 
-                // Build destination URL with optional URL parameters
+                // Build destination URL - URL params handled via url_tags at creative level
                 let ctaLink = baseDestinationUrl;
-                if (finalUrlParameters) {
-                  const separator = ctaLink.includes("?") ? "&" : "?";
-                  ctaLink = `${ctaLink}${separator}${finalUrlParameters}`;
-                }
 
                 // For uploaded Instagram videos, CTA goes inside video_data
                 // For other organic posts (FB posts, IG images), CTA goes at root level
@@ -1693,12 +1693,8 @@ const handler = async (req: Request): Promise<Response> => {
               };
             }
 
-            // Build destination URL with optional URL parameters
+            // URL parameters are handled via url_tags at the creative level, NOT appended to URLs
             let finalDestinationUrl = baseDestinationUrl;
-            if (finalDestinationUrl && finalUrlParameters) {
-              const separator = finalDestinationUrl.includes("?") ? "&" : "?";
-              finalDestinationUrl = `${finalDestinationUrl}${separator}${finalUrlParameters}`;
-            }
 
             // Only build video_data/link_data for dark posts (not organic posts)
             // Organic posts use object_story_id which already contains all the creative content
@@ -1804,12 +1800,7 @@ const handler = async (req: Request): Promise<Response> => {
                   creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
                 }
                 
-                // Add URL parameters to the CTA link if specified
-                if (finalUrlParameters && creativePayload.object_story_spec.video_data.call_to_action?.value?.link) {
-                  const ctaLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
-                  const separator = ctaLink.includes("?") ? "&" : "?";
-                  creativePayload.object_story_spec.video_data.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
-                }
+                // URL parameters are handled via url_tags at the creative level
               } else {
                 creativePayload.object_story_spec.link_data = {
                   image_hash: creative.platform_image_hash,
