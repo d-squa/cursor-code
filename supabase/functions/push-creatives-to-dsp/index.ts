@@ -61,6 +61,42 @@ function normalizeHttpUrl(input: unknown): string | null {
   return `https://${raw}`;
 }
 
+/**
+ * Build Meta creative_features_spec from Advantage+ feature flags.
+ * This explicitly tells Meta which enhancements to enable/disable,
+ * preventing account-level defaults from being silently auto-applied.
+ */
+function buildMetaCreativeFeaturesSpec(features: {
+  videoTouchups: boolean;
+  textImprovements: boolean;
+  productTags: boolean;
+  videoEffects: boolean;
+  relevantComments: boolean;
+  enhanceCta: boolean;
+  revealDetails: boolean;
+  showSpotlights: boolean;
+  optimizeTextPerPerson: boolean;
+  sitelinks: boolean;
+  products: boolean;
+}): Record<string, any> {
+  const opt = (flag: boolean) => flag ? "OPT_IN" : "OPT_OUT";
+
+  return {
+    creative_features_spec: {
+      standard_enhancements: {
+        enroll_status: (features.videoTouchups || features.videoEffects || features.textImprovements || features.enhanceCta) ? "OPT_IN" : "OPT_OUT",
+      },
+    },
+    degrees_of_freedom_spec: {
+      creative_features_spec: {
+        standard_enhancements: {
+          enroll_status: (features.videoTouchups || features.videoEffects || features.textImprovements || features.enhanceCta) ? "OPT_IN" : "OPT_OUT",
+        },
+      },
+    },
+  };
+}
+
 function findMarketAndPhaseConfig(
   campaign: any,
   platformKey: PlatformKey,
@@ -919,11 +955,8 @@ const handler = async (req: Request): Promise<Response> => {
               const cardUrl = normalizeHttpUrl(
                 (card as any).carousel_card_website_url || card.destination_url || creative.destination_url || defaultLandingPage
               );
+              // Don't append URL params to card links - use url_tags at creative level
               let cardLink = cardUrl;
-              if (cardLink && globalUrlParams) {
-                const sep = cardLink.includes("?") ? "&" : "?";
-                cardLink = `${cardLink}${sep}${globalUrlParams}`;
-              }
 
               const isVideo = !!creative.platform_video_id;
               const childAttachment: any = {
@@ -959,6 +992,8 @@ const handler = async (req: Request): Promise<Response> => {
 
             const carouselCreativePayload: any = {
               name: `Carousel - ${firstCreative.name}`,
+              // Use url_tags for tracking parameters instead of appending to URLs
+              ...(globalUrlParams ? { url_tags: globalUrlParams } : {}),
               object_story_spec: {
                 page_id: pageId,
                 link_data: {
@@ -1159,6 +1194,187 @@ const handler = async (req: Request): Promise<Response> => {
             await supabase.from("creative_assignments").update({ status: "error", error_message: `Carousel push failed: ${(carouselError as any).message}` }).eq("id", card.id);
           }
           localFailed += carouselCards.length;
+        }
+      }
+
+      // ========== PUSH ASSET CUSTOMIZATION GROUPS ==========
+      // Asset customization groups (flexible, language, placement) use Meta's asset_feed_spec
+      // to push multiple creatives as a single ad with customization rules.
+      if (platformKey === "meta") {
+        try {
+          // Fetch asset customization groups for this campaign/market/phase
+          const { data: customGroups, error: cgError } = await supabase
+            .from("asset_customization_groups")
+            .select(`
+              id, group_name, customization_type, asset_feed_spec, customization_rules,
+              ad_set_name, market, phase_name, platform, status, language_mappings, default_language,
+              asset_customization_group_members(
+                id, creative_id, delivery_bucket, aspect_ratio, language, mapped_placements, position, assignment_id
+              )
+            `)
+            .eq("campaign_id", campaign.id)
+            .eq("platform", "meta")
+            .eq("market", entry.market)
+            .eq("phase_name", entry.phase_name)
+            .in("status", ["ready", "pending"]);
+
+          if (!cgError && customGroups && customGroups.length > 0) {
+            console.log(`[push-creatives] Found ${customGroups.length} asset customization group(s) for ${entry.market}/${entry.phase_name}`);
+
+            // Collect assignment IDs that belong to groups so we can skip them in standalone processing
+            const groupAssignmentIds = new Set<string>();
+
+            for (const group of customGroups) {
+              if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
+                timedOut = true;
+                hasMoreWork = true;
+                break;
+              }
+
+              const members = (group as any).asset_customization_group_members || [];
+              if (members.length === 0) {
+                console.log(`[push-creatives] Skipping empty customization group ${group.group_name}`);
+                continue;
+              }
+
+              // Track assignment IDs for exclusion from standalone
+              for (const member of members) {
+                if (member.assignment_id) groupAssignmentIds.add(member.assignment_id);
+              }
+
+              // Use the pre-compiled asset_feed_spec from the database
+              const assetFeedSpec = group.asset_feed_spec;
+              if (!assetFeedSpec) {
+                console.warn(`[push-creatives] Group ${group.group_name} has no compiled asset_feed_spec, skipping`);
+                continue;
+              }
+
+              // Resolve ad account and page
+              const resolvedAdAccount =
+                (market as any)?.adAccountId || (market as any)?.ad_account_id ||
+                platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+              const adAccountPath = resolvedAdAccount
+                ? String(resolvedAdAccount).startsWith("act_")
+                  ? String(resolvedAdAccount)
+                  : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`
+                : null;
+
+              if (!adAccountPath) {
+                console.error(`[push-creatives] No ad account for asset customization group ${group.group_name}`);
+                await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing ad account" }] }).eq("id", group.id);
+                continue;
+              }
+
+              let pageId = resolveConfiguredMetaPageId(null, phase, market);
+              if (!pageId) {
+                const adAccountIdRaw = String(resolvedAdAccount).replace(/^act_/, "");
+                const { data: adAccRows } = await supabase
+                  .from("meta_ad_accounts").select("default_page_id")
+                  .or(`account_id.eq.${adAccountIdRaw},account_id.eq.act_${adAccountIdRaw}`)
+                  .order("synced_at", { ascending: false }).limit(1);
+                pageId = adAccRows?.[0]?.default_page_id;
+              }
+              if (!pageId) {
+                const { data: latestPage } = await supabase.from("meta_pages").select("page_id")
+                  .eq("user_id", campaign.user_id).order("synced_at", { ascending: false }).limit(1).maybeSingle();
+                pageId = latestPage?.page_id || null;
+              }
+
+              if (!pageId) {
+                console.error(`[push-creatives] No page ID for asset customization group ${group.group_name}`);
+                await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing Facebook page ID" }] }).eq("id", group.id);
+                continue;
+              }
+
+              // Build the creative payload with asset_feed_spec
+              const groupCreativePayload: any = {
+                name: group.group_name,
+                object_story_spec: {
+                  page_id: pageId,
+                },
+                asset_feed_spec: assetFeedSpec,
+              };
+
+              console.log(`[push-creatives] Creating Meta asset customization ad creative for group "${group.group_name}":`, JSON.stringify(groupCreativePayload, null, 2));
+
+              const creativeResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
+                { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(groupCreativePayload) },
+              );
+              const creativeData = await creativeResponse.json();
+              console.log(`[push-creatives] Asset customization creative response:`, JSON.stringify(creativeData));
+
+              if (!creativeData.id) {
+                const errMsg = creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create asset customization creative";
+                console.error(`[push-creatives] Asset customization group "${group.group_name}" creative creation failed:`, errMsg);
+                await supabase.from("asset_customization_groups").update({
+                  status: "error",
+                  validation_errors: [{ message: errMsg, raw: creativeData?.error }],
+                }).eq("id", group.id);
+
+                // Mark member assignments as error
+                for (const member of members) {
+                  if (member.assignment_id) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                    localFailed++;
+                  }
+                }
+                continue;
+              }
+
+              // Create the ad
+              const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId;
+              const adPayload = {
+                name: `${group.group_name} - Ad`,
+                adset_id: targetEntityId,
+                creative: { creative_id: creativeData.id },
+                status: "PAUSED",
+                tracking_specs: pixelId ? [{ "action.type": ["offsite_conversion"], fb_pixel: [pixelId] }] : undefined,
+              };
+
+              const adResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${adAccountPath}/ads?access_token=${platform.access_token}`,
+                { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adPayload) },
+              );
+              const adData = await adResponse.json();
+              console.log(`[push-creatives] Asset customization ad response:`, JSON.stringify(adData));
+
+              if (!adData.id) {
+                const errMsg = adData?.error?.error_user_msg || adData?.error?.message || "Failed to create asset customization ad";
+                await supabase.from("asset_customization_groups").update({
+                  status: "error",
+                  validation_errors: [{ message: errMsg, raw: adData?.error }],
+                }).eq("id", group.id);
+                for (const member of members) {
+                  if (member.assignment_id) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                    localFailed++;
+                  }
+                }
+                continue;
+              }
+
+              // Success - mark group and assignments
+              await supabase.from("asset_customization_groups").update({ status: "pushed" }).eq("id", group.id);
+              for (const member of members) {
+                if (member.assignment_id) {
+                  await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).eq("id", member.assignment_id);
+                  localPushed++;
+                }
+              }
+              console.log(`[push-creatives] ✅ Asset customization group "${group.group_name}" pushed: ${members.length} members, ad_id=${adData.id}`);
+            }
+
+            // Remove group assignments from standalone processing
+            if (groupAssignmentIds.size > 0) {
+              const filteredStandalone = standaloneAssignments.filter((a: any) => !groupAssignmentIds.has(a.id));
+              console.log(`[push-creatives] Filtered out ${standaloneAssignments.length - filteredStandalone.length} assignments belonging to customization groups`);
+              standaloneAssignments.length = 0;
+              standaloneAssignments.push(...filteredStandalone);
+            }
+          }
+        } catch (cgGroupError) {
+          console.error(`[push-creatives] Asset customization group processing error:`, cgGroupError);
         }
       }
 
@@ -1481,6 +1697,10 @@ const handler = async (req: Request): Promise<Response> => {
 
             const creativePayload: any = {
               name: creative.name,
+              // Use url_tags for tracking parameters instead of appending to URLs
+              ...(finalUrlParameters ? { url_tags: finalUrlParameters } : {}),
+              // Explicitly control Advantage+ enhancements
+              ...buildMetaCreativeFeaturesSpec(advantagePlusFeatures),
             };
             
             // For organic posts (existing_post), determine if it's Facebook or Instagram
@@ -1624,12 +1844,8 @@ const handler = async (req: Request): Promise<Response> => {
                   continue;
                 }
 
-                // Build destination URL with optional URL parameters
+                // Build destination URL - URL params handled via url_tags at creative level
                 let ctaLink = baseDestinationUrl;
-                if (finalUrlParameters) {
-                  const separator = ctaLink.includes("?") ? "&" : "?";
-                  ctaLink = `${ctaLink}${separator}${finalUrlParameters}`;
-                }
 
                 // For uploaded Instagram videos, CTA goes inside video_data
                 // For other organic posts (FB posts, IG images), CTA goes at root level
@@ -1657,12 +1873,8 @@ const handler = async (req: Request): Promise<Response> => {
               };
             }
 
-            // Build destination URL with optional URL parameters
+            // URL parameters are handled via url_tags at the creative level, NOT appended to URLs
             let finalDestinationUrl = baseDestinationUrl;
-            if (finalDestinationUrl && finalUrlParameters) {
-              const separator = finalDestinationUrl.includes("?") ? "&" : "?";
-              finalDestinationUrl = `${finalDestinationUrl}${separator}${finalUrlParameters}`;
-            }
 
             // Only build video_data/link_data for dark posts (not organic posts)
             // Organic posts use object_story_id which already contains all the creative content
@@ -1768,12 +1980,7 @@ const handler = async (req: Request): Promise<Response> => {
                   creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
                 }
                 
-                // Add URL parameters to the CTA link if specified
-                if (finalUrlParameters && creativePayload.object_story_spec.video_data.call_to_action?.value?.link) {
-                  const ctaLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
-                  const separator = ctaLink.includes("?") ? "&" : "?";
-                  creativePayload.object_story_spec.video_data.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
-                }
+                // URL parameters are handled via url_tags at the creative level
               } else {
                 creativePayload.object_story_spec.link_data = {
                   image_hash: creative.platform_image_hash,
