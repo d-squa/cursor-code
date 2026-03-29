@@ -955,11 +955,8 @@ const handler = async (req: Request): Promise<Response> => {
               const cardUrl = normalizeHttpUrl(
                 (card as any).carousel_card_website_url || card.destination_url || creative.destination_url || defaultLandingPage
               );
+              // Don't append URL params to card links - use url_tags at creative level
               let cardLink = cardUrl;
-              if (cardLink && globalUrlParams) {
-                const sep = cardLink.includes("?") ? "&" : "?";
-                cardLink = `${cardLink}${sep}${globalUrlParams}`;
-              }
 
               const isVideo = !!creative.platform_video_id;
               const childAttachment: any = {
@@ -995,6 +992,8 @@ const handler = async (req: Request): Promise<Response> => {
 
             const carouselCreativePayload: any = {
               name: `Carousel - ${firstCreative.name}`,
+              // Use url_tags for tracking parameters instead of appending to URLs
+              ...(globalUrlParams ? { url_tags: globalUrlParams } : {}),
               object_story_spec: {
                 page_id: pageId,
                 link_data: {
