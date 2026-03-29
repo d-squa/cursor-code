@@ -1779,6 +1779,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
       pixel: market.pixel,
       conversionEvent: market.conversionEvent,
       adAccountId: market.adAccountId,
+      pageId: market.pageId,
+      page: market.page,
+      metaPageId: market.metaPageId,
+      defaultPageId: market.defaultPageId,
     });
 
     // Validate required fields for conversion campaigns
