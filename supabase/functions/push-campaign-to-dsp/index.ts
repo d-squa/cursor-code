@@ -1779,6 +1779,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
       pixel: market.pixel,
       conversionEvent: market.conversionEvent,
       adAccountId: market.adAccountId,
+      pageId: market.pageId,
+      page: market.page,
+      metaPageId: market.metaPageId,
+      defaultPageId: market.defaultPageId,
     });
 
     // Validate required fields for conversion campaigns
@@ -3019,12 +3023,45 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // LEAD_GENERATION, LINK_CLICKS, LANDING_PAGE_VIEWS, POST_ENGAGEMENT, PAGE_LIKES,
           // CONVERSATIONS, REACH, IMPRESSIONS, BRAND_AWARENESS, THRUPLAY, APP_INSTALLS, etc.
           if (!adSetPayload.promoted_object) {
-            const adSetPageId = phase.metaPageId || (market as any).metaPageId || (market as any).pageId || (market as any).page || (market as any).defaultPageId;
+            console.log(`🔍 PAGE ID DEBUG: phase.metaPageId=${phase.metaPageId}, market.metaPageId=${(market as any).metaPageId}, market.pageId=${(market as any).pageId}, market.page=${(market as any).page}, market.defaultPageId=${(market as any).defaultPageId}`);
+            let adSetPageId = phase.metaPageId || (market as any).metaPageId || (market as any).pageId || (market as any).page || (market as any).defaultPageId;
+            
+            // Fallback: query ad account defaults for page_id
+            if (!adSetPageId) {
+              const resolvedAdAccountForPage = (market as any).adAccountId || (market as any).ad_account_id || platform.ad_account_id;
+              if (resolvedAdAccountForPage) {
+                const rawAccId = String(resolvedAdAccountForPage).replace(/^act_/, "");
+                const { data: adAccDefaults } = await supabase
+                  .from("meta_ad_accounts")
+                  .select("default_page_id")
+                  .or(`account_id.eq.${rawAccId},account_id.eq.act_${rawAccId}`)
+                  .order("synced_at", { ascending: false })
+                  .limit(1);
+                if (adAccDefaults?.[0]?.default_page_id) {
+                  adSetPageId = adAccDefaults[0].default_page_id;
+                  console.log(`📄 promoted_object.page_id resolved from ad account defaults: ${adSetPageId}`);
+                }
+              }
+            }
+            
+            // Final fallback: latest synced page for this user
+            if (!adSetPageId) {
+              const { data: latestPage } = await supabase
+                .from("meta_pages")
+                .select("page_id")
+                .eq("user_id", campaign.user_id)
+                .order("synced_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latestPage?.page_id) {
+                adSetPageId = latestPage.page_id;
+                console.log(`📄 promoted_object.page_id resolved from latest synced page: ${adSetPageId}`);
+              }
+            }
+
             if (adSetPageId) {
-              // For LEAD_GENERATION, just page_id is needed
-              // For most other objectives, page_id in promoted_object tells Meta which page to use
               adSetPayload.promoted_object = { page_id: String(adSetPageId) };
-              console.log(`📄 promoted_object.page_id set to ${adSetPageId} (from market config)`);
+              console.log(`📄 promoted_object.page_id set to ${adSetPageId}`);
             } else {
               console.warn(`⚠️ No Facebook Page ID available for promoted_object - ad set may fail for objective ${adSetPayload.optimization_goal}`);
             }
