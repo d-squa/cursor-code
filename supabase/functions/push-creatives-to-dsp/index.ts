@@ -71,7 +71,7 @@ function findMarketAndPhaseConfig(
   const campaignPlatforms: Array<{ id: string; name: string }> = campaign.platforms || [];
 
   for (const [platformId, marketsObj] of Object.entries(splits) as [string, any][]) {
-    const platformName = campaignPlatforms.find((p) => p.id === platformId)?.name || "";
+    const platformName = campaignPlatforms.find((p) => p.id === platformId)?.name || String(platformId);
     const thisKey = toPlatformKey(platformName);
     if (thisKey !== platformKey) continue;
 
@@ -90,6 +90,29 @@ function findMarketAndPhaseConfig(
   }
 
   return { market: null, phase: null };
+}
+
+function resolveConfiguredMetaPageId(
+  creative: { external_page_id?: string | null } | null | undefined,
+  phase: any,
+  market: any,
+): string | null {
+  const candidates = [
+    creative?.external_page_id,
+    phase?.metaPageId,
+    market?.metaPageId,
+    market?.pageId,
+    market?.page,
+    market?.defaultPageId,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) continue;
+    const normalized = String(candidate).trim();
+    if (normalized.length > 0) return normalized;
+  }
+
+  return null;
 }
 
 // Function to trigger auto-retry in background
@@ -149,6 +172,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const { campaignId, jobId: existingJobId, isAutoRetry } = parsed.data;
+    const requestAuthHeader = req.headers.get("authorization");
     
     // For auto-retry, we use service role auth
     // For user-initiated, we validate the auth header
@@ -214,15 +238,14 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`[push-creatives] Auto-retry #${job.retry_count + 1} for job ${existingJobId}`);
     } else {
       // User-initiated: validate auth header
-      const authHeader = req.headers.get("authorization");
-      if (!authHeader) {
+      if (!requestAuthHeader) {
         return new Response(JSON.stringify({ error: "Authentication required" }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       
-      const token = authHeader.replace("Bearer ", "");
+      const token = requestAuthHeader.replace("Bearer ", "");
       const {
         data: { user },
         error: authError,
@@ -434,6 +457,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       let localPushed = 0;
       let localFailed = 0;
+      let targetEntityId = entry.dsp_entity_id;
 
       // Filter to only pending assignments:
       // - Not already pushed (status !== "pushed")
@@ -449,20 +473,17 @@ const handler = async (req: Request): Promise<Response> => {
       // ========== PRE-FLIGHT: ENSURE AD SET HAS PROMOTED_OBJECT ==========
       // Meta requires promoted_object on the ad set for most objectives.
       // Ad sets pushed before this fix may lack it. We patch them before creating ads.
-      if (platformKey === "meta" && entry.dsp_entity_id && pendingAssignments.length > 0) {
+      if (platformKey === "meta" && targetEntityId && pendingAssignments.length > 0) {
         try {
           const pfAccessToken = platform.access_token;
           // Read the ad set to check if promoted_object exists
-          const adSetCheckUrl = `https://graph.facebook.com/v22.0/${entry.dsp_entity_id}?fields=promoted_object&access_token=${pfAccessToken}`;
+          const adSetCheckUrl = `https://graph.facebook.com/v22.0/${targetEntityId}?fields=promoted_object&access_token=${pfAccessToken}`;
           const adSetCheckResp = await fetch(adSetCheckUrl);
           const adSetCheckData = await adSetCheckResp.json();
 
           if (!adSetCheckData.promoted_object || Object.keys(adSetCheckData.promoted_object).length === 0) {
             // Resolve page ID for this market/phase
-            let patchPageId =
-              (phase as any)?.metaPageId ||
-              (market as any)?.metaPageId ||
-              (market as any)?.pageId;
+            let patchPageId = resolveConfiguredMetaPageId(null, phase, market);
 
             if (!patchPageId) {
               // Try ad account defaults
@@ -491,9 +512,11 @@ const handler = async (req: Request): Promise<Response> => {
               patchPageId = latestPage?.page_id;
             }
 
+            let shouldInvalidateAdSet = !patchPageId;
+
             if (patchPageId) {
-              console.log(`[push-creatives] Patching ad set ${entry.dsp_entity_id} with promoted_object.page_id=${patchPageId}`);
-              const patchResp = await fetch(`https://graph.facebook.com/v22.0/${entry.dsp_entity_id}`, {
+              console.log(`[push-creatives] Patching ad set ${targetEntityId} with promoted_object.page_id=${patchPageId}`);
+              const patchResp = await fetch(`https://graph.facebook.com/v22.0/${targetEntityId}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -504,14 +527,73 @@ const handler = async (req: Request): Promise<Response> => {
               const patchData = await patchResp.json();
               if (patchData.error) {
                 console.warn(`[push-creatives] Failed to patch ad set promoted_object:`, JSON.stringify(patchData.error));
+                const patchErrorBlob = JSON.stringify(patchData.error);
+                shouldInvalidateAdSet =
+                  patchData.error?.error_subcode === 1885090 ||
+                  patchData.error?.error_subcode === 1885154 ||
+                  /immutable|promoted object is required|required/i.test(patchErrorBlob);
               } else {
-                console.log(`[push-creatives] Successfully patched ad set ${entry.dsp_entity_id} with promoted_object`);
+                console.log(`[push-creatives] Successfully patched ad set ${targetEntityId} with promoted_object`);
               }
-            } else {
-              console.warn(`[push-creatives] No page ID available to patch ad set ${entry.dsp_entity_id} promoted_object`);
+            }
+
+            if (shouldInvalidateAdSet) {
+              const rebuildMessage = patchPageId
+                ? "This Meta ad set was created without the required promoted object and cannot be updated in place. It has been invalidated; re-push the campaign/phase to recreate it with the selected Facebook page."
+                : "This Meta ad set was created without the required promoted object and no Facebook page ID could be resolved. It has been invalidated; set the Facebook page and re-push the campaign/phase.";
+
+              const pendingAssignmentIds = pendingAssignments.map((assignment: any) => assignment.id);
+              const rebuildErrorDetails = [{
+                message: rebuildMessage,
+                type: "stale_meta_adset",
+                adset_id: targetEntityId,
+                page_id: patchPageId,
+                requires_campaign_repush: true,
+              }];
+
+              console.warn(`[push-creatives] Invalidating stale ad set ${targetEntityId}: ${rebuildMessage}`);
+
+              await supabase
+                .from("campaign_launch_status")
+                .update({
+                  status: "push_failed",
+                  dsp_entity_id: null,
+                  error_message: rebuildMessage,
+                  error_details: rebuildErrorDetails,
+                  updated_at: new Date().toISOString(),
+                })
+                .in("platform", ["Meta", "meta"])
+                .eq("campaign_id", campaign.id)
+                .eq("market", entry.market)
+                .eq("phase_name", entry.phase_name)
+                .eq("entity_type", "adset");
+
+              if (pendingAssignmentIds.length > 0) {
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: rebuildMessage,
+                  })
+                  .in("id", pendingAssignmentIds);
+              }
+
+              failedCount += pendingAssignmentIds.length;
+              results.push({
+                platform: entry.platform,
+                market: entry.market,
+                phase: entry.phase_name,
+                pushed: 0,
+                failed: pendingAssignmentIds.length,
+                success: false,
+                error: rebuildMessage,
+                requiresCampaignRepush: true,
+                hasUserAuth: !!requestAuthHeader,
+              });
+              continue;
             }
           } else {
-            console.log(`[push-creatives] Ad set ${entry.dsp_entity_id} already has promoted_object`);
+            console.log(`[push-creatives] Ad set ${targetEntityId} already has promoted_object`);
           }
         } catch (patchErr) {
           console.warn(`[push-creatives] promoted_object pre-flight check failed:`, patchErr);
@@ -598,11 +680,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Resolve page ID
-            let pageId =
-              firstCreative.external_page_id ||
-              (phase as any)?.metaPageId ||
-              (market as any)?.metaPageId ||
-              (market as any)?.pageId;
+            let pageId = resolveConfiguredMetaPageId(firstCreative, phase, market);
 
             const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
@@ -783,7 +861,7 @@ const handler = async (req: Request): Promise<Response> => {
 
             const adPayload = {
               name: `Carousel - ${firstCreative.name} - Ad`,
-              adset_id: entry.dsp_entity_id,
+              adset_id: targetEntityId,
               creative: { creative_id: creativeData.id },
               status: "PAUSED",
               tracking_specs: pixelId ? [{ "action.type": ["offsite_conversion"], fb_pixel: [pixelId] }] : undefined,
@@ -1242,11 +1320,7 @@ const handler = async (req: Request): Promise<Response> => {
             const isVideo = !!creative.platform_video_id;
 
             // Resolve Meta page ID with fallbacks
-            let pageId =
-              creative.external_page_id ||
-              (phase as any)?.metaPageId ||
-              (market as any)?.metaPageId ||
-              metaAdAccountDefaults?.default_page_id;
+            let pageId = resolveConfiguredMetaPageId(creative, phase, market) || metaAdAccountDefaults?.default_page_id;
 
             // Final fallback: use the latest synced page for the campaign owner
             if (!pageId) {
@@ -1618,7 +1692,7 @@ const handler = async (req: Request): Promise<Response> => {
             // Step 2: Create ad using the creative
             const adPayload = {
               name: `${creative.name} - Ad`,
-              adset_id: entry.dsp_entity_id,
+              adset_id: targetEntityId,
               creative: { creative_id: creativeData.id },
               status: "PAUSED",
               tracking_specs: pixelId
