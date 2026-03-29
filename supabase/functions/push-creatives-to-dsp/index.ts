@@ -61,6 +61,42 @@ function normalizeHttpUrl(input: unknown): string | null {
   return `https://${raw}`;
 }
 
+/**
+ * Build Meta creative_features_spec from Advantage+ feature flags.
+ * This explicitly tells Meta which enhancements to enable/disable,
+ * preventing account-level defaults from being silently auto-applied.
+ */
+function buildMetaCreativeFeaturesSpec(features: {
+  videoTouchups: boolean;
+  textImprovements: boolean;
+  productTags: boolean;
+  videoEffects: boolean;
+  relevantComments: boolean;
+  enhanceCta: boolean;
+  revealDetails: boolean;
+  showSpotlights: boolean;
+  optimizeTextPerPerson: boolean;
+  sitelinks: boolean;
+  products: boolean;
+}): Record<string, any> {
+  const opt = (flag: boolean) => flag ? "OPT_IN" : "OPT_OUT";
+
+  return {
+    creative_features_spec: {
+      standard_enhancements: {
+        enroll_status: (features.videoTouchups || features.videoEffects || features.textImprovements || features.enhanceCta) ? "OPT_IN" : "OPT_OUT",
+      },
+    },
+    degrees_of_freedom_spec: {
+      creative_features_spec: {
+        standard_enhancements: {
+          enroll_status: (features.videoTouchups || features.videoEffects || features.textImprovements || features.enhanceCta) ? "OPT_IN" : "OPT_OUT",
+        },
+      },
+    },
+  };
+}
+
 function findMarketAndPhaseConfig(
   campaign: any,
   platformKey: PlatformKey,
