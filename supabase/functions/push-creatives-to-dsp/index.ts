@@ -461,7 +461,8 @@ const handler = async (req: Request): Promise<Response> => {
             // Resolve page ID for this market/phase
             let patchPageId =
               (phase as any)?.metaPageId ||
-              (market as any)?.metaPageId;
+              (market as any)?.metaPageId ||
+              (market as any)?.pageId;
 
             if (!patchPageId) {
               // Try ad account defaults
