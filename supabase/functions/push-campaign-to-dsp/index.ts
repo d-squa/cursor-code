@@ -2995,7 +2995,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // LEAD_GENERATION, LINK_CLICKS, LANDING_PAGE_VIEWS, POST_ENGAGEMENT, PAGE_LIKES,
           // CONVERSATIONS, REACH, IMPRESSIONS, BRAND_AWARENESS, THRUPLAY, APP_INSTALLS, etc.
           if (!adSetPayload.promoted_object) {
-            const adSetPageId = (market as any).metaPageId || (market as any).defaultPageId;
+            const adSetPageId = phase.metaPageId || (market as any).metaPageId || (market as any).pageId || (market as any).defaultPageId;
             if (adSetPageId) {
               // For LEAD_GENERATION, just page_id is needed
               // For most other objectives, page_id in promoted_object tells Meta which page to use
@@ -3338,7 +3338,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
                 // Build ad creative payload
                 const adName = `${creative.name}_${generateTimestampSuffix()}`;
-                const pageId = creative.external_page_id || (market as any).metaPageId || (market as any).defaultPageId;
+                const pageId = creative.external_page_id || phase.metaPageId || (market as any).metaPageId || (market as any).pageId || (market as any).defaultPageId;
 
                 if (!pageId) {
                   console.warn(`⚠️ No Facebook Page ID configured for creative ${creative.name}`);

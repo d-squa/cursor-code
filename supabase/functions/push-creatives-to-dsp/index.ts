@@ -461,7 +461,8 @@ const handler = async (req: Request): Promise<Response> => {
             // Resolve page ID for this market/phase
             let patchPageId =
               (phase as any)?.metaPageId ||
-              (market as any)?.metaPageId;
+              (market as any)?.metaPageId ||
+              (market as any)?.pageId;
 
             if (!patchPageId) {
               // Try ad account defaults
@@ -600,7 +601,8 @@ const handler = async (req: Request): Promise<Response> => {
             let pageId =
               firstCreative.external_page_id ||
               (phase as any)?.metaPageId ||
-              (market as any)?.metaPageId;
+              (market as any)?.metaPageId ||
+              (market as any)?.pageId;
 
             const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
