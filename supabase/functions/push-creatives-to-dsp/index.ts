@@ -115,6 +115,65 @@ function resolveConfiguredMetaPageId(
   return null;
 }
 
+function normalizeComparableLabel(value: unknown): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function getEffectiveAdSetConfigs(
+  campaign: any,
+  platformKey: PlatformKey,
+  market: any,
+  phase: any,
+): any[] {
+  const genericConfig = campaign?.generic_config || {};
+  const targetingPreset = genericConfig.targetingPreset || genericConfig.basicTargeting || {};
+  const defaultAdSetsPerPlatform = targetingPreset.defaultAdSetsPerPlatform || genericConfig.defaultAdSetsPerPlatform || {};
+
+  const phaseAdSets = Array.isArray(phase?.adSets) ? phase.adSets : [];
+  const marketAdSets = Array.isArray(market?.adSets) ? market.adSets : [];
+  const defaultPlatformAdSets = Array.isArray(defaultAdSetsPerPlatform?.[platformKey])
+    ? defaultAdSetsPerPlatform[platformKey]
+    : [];
+
+  if (phaseAdSets.length > 0) return phaseAdSets;
+  if (marketAdSets.length > 0) return marketAdSets;
+  return defaultPlatformAdSets;
+}
+
+function resolveLaunchAdSetConfig(entryEntityName: string | null | undefined, adSetConfigs: any[]): any | null {
+  const normalizedEntryName = normalizeComparableLabel(entryEntityName);
+  if (!normalizedEntryName || adSetConfigs.length === 0) return null;
+
+  for (const adSetConfig of adSetConfigs) {
+    const configName = normalizeComparableLabel(adSetConfig?.name);
+    const configId = normalizeComparableLabel(adSetConfig?.id);
+
+    if (configName && (normalizedEntryName === configName || normalizedEntryName.endsWith(` - ${configName}`) || normalizedEntryName.includes(configName))) {
+      return adSetConfig;
+    }
+
+    if (configId && normalizedEntryName.includes(configId)) {
+      return adSetConfig;
+    }
+  }
+
+  return null;
+}
+
+function assignmentMatchesAdSetConfig(assignment: any, adSetConfig: any): boolean {
+  if (!adSetConfig) return true;
+
+  const assignmentAdSetId = normalizeComparableLabel(assignment?.ad_set_id);
+  const assignmentAdSetName = normalizeComparableLabel(assignment?.ad_set_name);
+  const configId = normalizeComparableLabel(adSetConfig?.id);
+  const configName = normalizeComparableLabel(adSetConfig?.name);
+
+  if (configId && assignmentAdSetId === configId) return true;
+  if (configName && (assignmentAdSetName === configName || assignmentAdSetName.endsWith(configName))) return true;
+
+  return false;
+}
+
 // Function to trigger auto-retry in background
 async function triggerAutoRetry(
   supabaseUrl: string,
@@ -328,7 +387,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: adsetStatuses, error: statusError } = await supabase
       .from("campaign_launch_status")
-      .select("platform, market, phase_name, dsp_entity_id, status")
+      .select("id, platform, market, phase_name, entity_name, dsp_entity_id, status")
       .eq("campaign_id", campaignId)
       .eq("entity_type", "adset")
       .not("dsp_entity_id", "is", null);
@@ -372,6 +431,16 @@ const handler = async (req: Request): Promise<Response> => {
 
       const platform = { ...platformRow, access_token: accessToken };
       const { market, phase } = findMarketAndPhaseConfig(campaign, platformKey, entry.market, entry.phase_name);
+      const resolvedAdSetConfigs = platformKey === "meta"
+        ? getEffectiveAdSetConfigs(campaign, platformKey, market, phase)
+        : [];
+      const resolvedLaunchAdSetConfig = platformKey === "meta"
+        ? resolveLaunchAdSetConfig(entry.entity_name, resolvedAdSetConfigs)
+        : null;
+
+      if (platformKey === "meta" && entry.entity_name && !resolvedLaunchAdSetConfig && resolvedAdSetConfigs.length > 1) {
+        console.warn(`[push-creatives] Could not map launch row "${entry.entity_name}" to a split ad set config`);
+      }
 
       // Query with case-insensitive platform matching using ilike
       // Include dsp_creative_id to detect already-pushed ads and avoid duplicates
@@ -381,6 +450,7 @@ const handler = async (req: Request): Promise<Response> => {
           `
           id,
           creative_id,
+          ad_set_id,
           position,
           status,
           dsp_creative_id,
@@ -455,6 +525,10 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
+      const scopedAssignments = platformKey === "meta" && resolvedLaunchAdSetConfig
+        ? (assignments || []).filter((assignment: any) => assignmentMatchesAdSetConfig(assignment, resolvedLaunchAdSetConfig))
+        : (assignments || []);
+
       let localPushed = 0;
       let localFailed = 0;
       let targetEntityId = entry.dsp_entity_id;
@@ -464,11 +538,70 @@ const handler = async (req: Request): Promise<Response> => {
       // - Not already has a DSP creative ID (prevents duplicates on retry)
       // - Include "pushing" status for retry (these were interrupted mid-push)
       // - Has an associated creative
-      const pendingAssignments = (assignments || []).filter(
+      const pendingAssignments = scopedAssignments.filter(
         (a: any) => a.status !== "pushed" && !a.dsp_creative_id && (a as any).creative
       );
 
-      console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE} (filtered from ${assignments?.length || 0} total, excluding ${(assignments || []).filter((a: any) => a.dsp_creative_id).length} already pushed to DSP)`);
+      console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE} (filtered from ${scopedAssignments.length} scoped assignments, excluding ${scopedAssignments.filter((a: any) => a.dsp_creative_id).length} already pushed to DSP)`);
+
+      if (platformKey === "meta" && pendingAssignments.length > 0) {
+        const targetAdSetNames = Array.from(
+          new Set(
+            pendingAssignments
+              .map((assignment: any) => String(assignment.ad_set_name || "").trim())
+              .filter(Boolean),
+          ),
+        );
+
+        if (targetAdSetNames.length === 1) {
+          const desiredAdSetName = targetAdSetNames[0];
+          const { data: phaseCampaignStatus } = await supabase
+            .from("campaign_launch_status")
+            .select("dsp_entity_id")
+            .eq("campaign_id", campaign.id)
+            .in("platform", ["Meta", "meta"])
+            .eq("market", entry.market)
+            .eq("phase_name", entry.phase_name)
+            .eq("entity_type", "campaign")
+            .not("dsp_entity_id", "is", null)
+            .limit(1)
+            .maybeSingle();
+
+          if (phaseCampaignStatus?.dsp_entity_id) {
+            try {
+              const lookupResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${phaseCampaignStatus.dsp_entity_id}/adsets?fields=id,name,promoted_object&limit=500&access_token=${platform.access_token}`,
+              );
+              const lookupData = await lookupResponse.json();
+
+              if (!lookupData.error && Array.isArray(lookupData.data)) {
+                const matchedAdSet = lookupData.data.find(
+                  (adSet: any) => normalizeComparableLabel(adSet?.name) === normalizeComparableLabel(desiredAdSetName),
+                );
+
+                if (matchedAdSet?.id && matchedAdSet.id !== targetEntityId) {
+                  console.log(
+                    `[push-creatives] Resolved split ad set ${desiredAdSetName} to ${matchedAdSet.id} (replacing ${targetEntityId || "none"})`,
+                  );
+                  targetEntityId = matchedAdSet.id;
+
+                  await supabase
+                    .from("campaign_launch_status")
+                    .update({
+                      dsp_entity_id: matchedAdSet.id,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", entry.id);
+                }
+              } else if (lookupData.error) {
+                console.warn(`[push-creatives] Failed to resolve Meta ad set by name:`, JSON.stringify(lookupData.error));
+              }
+            } catch (lookupError) {
+              console.warn(`[push-creatives] Meta ad set lookup failed for ${desiredAdSetName}:`, lookupError);
+            }
+          }
+        }
+      }
 
       // ========== PRE-FLIGHT: ENSURE AD SET HAS PROMOTED_OBJECT ==========
       // Meta requires promoted_object on the ad set for most objectives.
@@ -562,11 +695,7 @@ const handler = async (req: Request): Promise<Response> => {
                   error_details: rebuildErrorDetails,
                   updated_at: new Date().toISOString(),
                 })
-                .in("platform", ["Meta", "meta"])
-                .eq("campaign_id", campaign.id)
-                .eq("market", entry.market)
-                .eq("phase_name", entry.phase_name)
-                .eq("entity_type", "adset");
+                .eq("id", entry.id);
 
               if (pendingAssignmentIds.length > 0) {
                 await supabase

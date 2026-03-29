@@ -764,7 +764,15 @@ async function updateLaunchStatuses(
 
     // Update successful entities
     for (const successItem of successResults) {
-      const { market, phase, campaignId: dspCampaignId, adSetId, adGroupId } = successItem;
+      const {
+        market,
+        phase,
+        campaignId: dspCampaignId,
+        adSetId,
+        adGroupId,
+        campaignEntityName,
+        adSetEntityName,
+      } = successItem;
 
       console.log(
         `📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}`,
@@ -773,7 +781,8 @@ async function updateLaunchStatuses(
       // Update campaign entry - try each platform variant until one works
       if (dspCampaignId) {
         for (const platformName of platformVariants) {
-          let campaignQuery = supabase
+          const buildCampaignQuery = (exactEntityName?: string | null) => {
+            let campaignQuery = supabase
             .from("campaign_launch_status")
             .update({
               status: "pushed_to_dsp",
@@ -788,9 +797,16 @@ async function updateLaunchStatuses(
             .eq("market", market)
             .eq("entity_type", "campaign");
 
-          campaignQuery = phase ? campaignQuery.eq("phase_name", phase) : campaignQuery.is("phase_name", null);
+            campaignQuery = phase ? campaignQuery.eq("phase_name", phase) : campaignQuery.is("phase_name", null);
+            if (exactEntityName) campaignQuery = campaignQuery.eq("entity_name", exactEntityName);
+            return campaignQuery;
+          };
 
-          const { data: campaignUpdateResult, error: campaignUpdateError } = await campaignQuery.select();
+          let { data: campaignUpdateResult, error: campaignUpdateError } = await buildCampaignQuery(campaignEntityName).select();
+
+          if ((!campaignUpdateResult || campaignUpdateResult.length === 0) && campaignEntityName) {
+            ({ data: campaignUpdateResult, error: campaignUpdateError } = await buildCampaignQuery().select());
+          }
 
           if (campaignUpdateResult && campaignUpdateResult.length > 0) {
             console.log(
@@ -807,7 +823,8 @@ async function updateLaunchStatuses(
       const adEntityId = adSetId || adGroupId;
       if (adEntityId) {
         for (const platformName of platformVariants) {
-          let adSetQuery = supabase
+          const buildAdSetQuery = (exactEntityName?: string | null) => {
+            let adSetQuery = supabase
             .from("campaign_launch_status")
             .update({
               status: "pushed_to_dsp",
@@ -822,9 +839,16 @@ async function updateLaunchStatuses(
             .eq("market", market)
             .eq("entity_type", "adset");
 
-          adSetQuery = phase ? adSetQuery.eq("phase_name", phase) : adSetQuery.is("phase_name", null);
+            adSetQuery = phase ? adSetQuery.eq("phase_name", phase) : adSetQuery.is("phase_name", null);
+            if (exactEntityName) adSetQuery = adSetQuery.eq("entity_name", exactEntityName);
+            return adSetQuery;
+          };
 
-          const { data: adsetUpdateResult, error: adsetUpdateError } = await adSetQuery.select();
+          let { data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery(adSetEntityName).select();
+
+          if ((!adsetUpdateResult || adsetUpdateResult.length === 0) && adSetEntityName) {
+            ({ data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery().select());
+          }
 
           if (adsetUpdateResult && adsetUpdateResult.length > 0) {
             console.log(
@@ -3515,7 +3539,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             market: market.name,
             phase: phase.name,
             campaignId: campaignData.id,
+            campaignEntityName: `${campaign.name} - ${market.name} - ${phase.name}`,
             adSetId: adSetData.id,
+            adSetEntityName: `${campaign.name} - ${market.name} - ${phase.name} - ${adSetConfig.name || `Ad Set ${adSetConfig.id?.substring(0, 6) || "Unknown"}`}`,
             adSetName: adSetPayload.name,
             budget: adSetConfig.adSetBudget,
             budgetType: budgetType,
