@@ -13,9 +13,10 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, differenceInHours, differenceInMinutes } from "date-fns";
-import { Loader2, CalendarIcon, Clock, Users, TrendingUp, ArrowLeft } from "lucide-react";
+import { Loader2, CalendarIcon, Clock, Users, TrendingUp, ArrowLeft, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
+import { QCAnalyticsTab } from "@/components/QCAnalyticsTab";
 import {
   BarChart,
   Bar,
