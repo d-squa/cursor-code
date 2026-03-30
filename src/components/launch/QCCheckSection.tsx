@@ -246,6 +246,7 @@ function EntityRow({
   onUpdateState,
 }: EntityRowProps) {
   const nextState = getNextState(item.current_state);
+  const prevState = getPreviousState(item.current_state);
   const canAdvance = item.current_state === 'waiting_for_final_qc' ? allChecked : true;
 
   return (
