@@ -38,6 +38,7 @@ import {
   ChevronsDownUp,
   FastForward,
   Rewind,
+  Mail,
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
