@@ -51,8 +51,9 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  const fetchData = useCallback(async () => {
-    if (!campaignId || !enabled || !user) return;
+  const fetchData = useCallback(async (force = false) => {
+    if (!campaignId || !user) return;
+    if (!force && !enabled) return;
 
     try {
       setLoading(true);
@@ -199,11 +200,17 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       }
 
       if (newEntries.length > 0) {
-        await supabase.from("qc_tracking").insert(newEntries);
-        await fetchData();
-      } else if ((existingTracking?.length || 0) > 0) {
-        // Already has tracking entries, just refresh
-        await fetchData();
+        console.log(`[QC] Inserting ${newEntries.length} new tracking entries`);
+        const { error: insertError, data: insertData } = await supabase.from("qc_tracking").insert(newEntries).select();
+        if (insertError) {
+          console.error("[QC] Insert failed:", insertError);
+        } else {
+          console.log(`[QC] Successfully inserted ${insertData?.length || 0} entries`);
+        }
+        await fetchData(true);
+      } else {
+        console.log(`[QC] No new entries needed. Existing: ${existingTracking?.length || 0}, Launch statuses: ${launchStatuses?.length || 0}, Assignments: ${assignments?.length || 0}`);
+        await fetchData(true);
       }
     } catch (error) {
       console.error("Error initializing QC tracking:", error);
