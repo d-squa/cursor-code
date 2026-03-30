@@ -3069,6 +3069,150 @@ export type Database = {
         }
         Relationships: []
       }
+      qc_state_transitions: {
+        Row: {
+          campaign_id: string
+          detected_via: string | null
+          from_state: Database["public"]["Enums"]["qc_state"] | null
+          id: string
+          impressions_at_transition: number | null
+          metadata: Json | null
+          qc_tracking_id: string
+          to_state: Database["public"]["Enums"]["qc_state"]
+          transitioned_at: string | null
+        }
+        Insert: {
+          campaign_id: string
+          detected_via?: string | null
+          from_state?: Database["public"]["Enums"]["qc_state"] | null
+          id?: string
+          impressions_at_transition?: number | null
+          metadata?: Json | null
+          qc_tracking_id: string
+          to_state: Database["public"]["Enums"]["qc_state"]
+          transitioned_at?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          detected_via?: string | null
+          from_state?: Database["public"]["Enums"]["qc_state"] | null
+          id?: string
+          impressions_at_transition?: number | null
+          metadata?: Json | null
+          qc_tracking_id?: string
+          to_state?: Database["public"]["Enums"]["qc_state"]
+          transitioned_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qc_state_transitions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qc_state_transitions_qc_tracking_id_fkey"
+            columns: ["qc_tracking_id"]
+            isOneToOne: false
+            referencedRelation: "qc_tracking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      qc_tracking: {
+        Row: {
+          auto_completed: boolean | null
+          auto_completed_at: string | null
+          campaign_id: string
+          created_at: string | null
+          current_state: Database["public"]["Enums"]["qc_state"]
+          dsp_entity_id: string | null
+          entity_name: string | null
+          entity_type: string
+          id: string
+          impressions_count: number | null
+          is_valid: boolean | null
+          market: string | null
+          phase_name: string | null
+          platform: string
+          previous_state: Database["public"]["Enums"]["qc_state"] | null
+          qc_parameter_raw: string | null
+          qc_removed_at: string | null
+          qc_removed_from_dsp: boolean | null
+          state_history: Json | null
+          team_id: string | null
+          updated_at: string | null
+          user_id: string
+          validation_error: string | null
+        }
+        Insert: {
+          auto_completed?: boolean | null
+          auto_completed_at?: string | null
+          campaign_id: string
+          created_at?: string | null
+          current_state?: Database["public"]["Enums"]["qc_state"]
+          dsp_entity_id?: string | null
+          entity_name?: string | null
+          entity_type: string
+          id?: string
+          impressions_count?: number | null
+          is_valid?: boolean | null
+          market?: string | null
+          phase_name?: string | null
+          platform: string
+          previous_state?: Database["public"]["Enums"]["qc_state"] | null
+          qc_parameter_raw?: string | null
+          qc_removed_at?: string | null
+          qc_removed_from_dsp?: boolean | null
+          state_history?: Json | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id: string
+          validation_error?: string | null
+        }
+        Update: {
+          auto_completed?: boolean | null
+          auto_completed_at?: string | null
+          campaign_id?: string
+          created_at?: string | null
+          current_state?: Database["public"]["Enums"]["qc_state"]
+          dsp_entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string
+          id?: string
+          impressions_count?: number | null
+          is_valid?: boolean | null
+          market?: string | null
+          phase_name?: string | null
+          platform?: string
+          previous_state?: Database["public"]["Enums"]["qc_state"] | null
+          qc_parameter_raw?: string | null
+          qc_removed_at?: string | null
+          qc_removed_from_dsp?: boolean | null
+          state_history?: Json | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+          validation_error?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qc_tracking_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qc_tracking_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       request_comments: {
         Row: {
           content: string
@@ -4144,6 +4288,7 @@ export type Database = {
         | "carousel"
         | "collection"
         | "instant_experience"
+      qc_state: "waiting_for_final_qc" | "qc" | "pushed_live" | "delivering"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4289,6 +4434,7 @@ export const Constants = {
         "collection",
         "instant_experience",
       ],
+      qc_state: ["waiting_for_final_qc", "qc", "pushed_live", "delivering"],
     },
   },
 } as const
