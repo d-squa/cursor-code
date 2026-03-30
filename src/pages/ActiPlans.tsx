@@ -243,6 +243,7 @@ export default function ActiPlans() {
           Object.keys(latestStatusChanges).forEach((campaignId) => {
             latestStatusChanges[campaignId].user_email = profilesMap[latestStatusChanges[campaignId].user_id];
           });
+        }
       }
 
       // Fetch QC tracking summary per campaign
