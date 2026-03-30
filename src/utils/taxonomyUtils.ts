@@ -78,6 +78,8 @@ export interface TaxonomyContext {
   keywordStrategy?: string;
   matchType?: string;
   campaignType?: string;
+  // QC State
+  qcState?: string;
 }
 
 // Value shortening mappings - comprehensive list
@@ -336,6 +338,17 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'All': 'ALL',
     'Male': 'M',
     'Female': 'F',
+  },
+  // QC State mappings
+  qcState: {
+    'waiting_for_final_qc': 'WF',
+    'qc': 'QC',
+    'pushed_live': 'PL',
+    'delivering': 'DLV',
+    'WF': 'WF',
+    'QC': 'QC',
+    'PL': 'PL',
+    'DLV': 'DLV',
   },
 };
 
