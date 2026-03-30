@@ -841,6 +841,8 @@ export function TextAssetsStep({
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
           onDeleteAssignments={handleDeleteAssignments}
+          onACGroupCreated={handleACGroupCreated}
+          onACGroupRemoved={handleACGroupRemoved}
         />
       </div>
       
