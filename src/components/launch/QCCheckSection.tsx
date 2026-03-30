@@ -357,6 +357,31 @@ export function QCCheckSection({
 
         <Separator />
 
+        {/* Live Confirmation Dialog */}
+        <AlertDialog open={liveConfirmOpen} onOpenChange={setLiveConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-purple-500" />
+                Set ActiPlan Status to Live?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Setting the status to <strong>Pushed Live</strong> will send an email confirmation to all stakeholders notifying them that the campaign is now live. Are you sure you want to proceed?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingLiveAction(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                pendingLiveAction?.();
+                setPendingLiveAction(null);
+                setLiveConfirmOpen(false);
+              }}>
+                Yes, Set as Live
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Tree View */}
         <TooltipProvider>
           <div className="space-y-1">
