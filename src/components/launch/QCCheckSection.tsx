@@ -381,6 +381,52 @@ function EntityRow({
   );
 }
 
+// ─── Bulk Check All Button with Confirmation ───────────────────────────────
+
+interface BulkCheckAllButtonProps {
+  entityItems: QCTrackingItem[];
+  entityType: string;
+  getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
+  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
+}
+
+function BulkCheckAllButton({ entityItems, entityType, getChecklist, onToggleAll }: BulkCheckAllButtonProps) {
+  const label = entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns';
+
+  const handleBulkCheck = () => {
+    for (const item of entityItems) {
+      const checklist = getChecklist(item.platform, item.entity_type);
+      onToggleAll(item.id, checklist, true);
+    }
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={(e) => e.stopPropagation()}>
+          <CheckCheck className="h-3 w-3 mr-0.5" />
+          Check All {label}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Bulk Check All {label}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You are about to mark all checklist items as checked for {entityItems.length} {label.toLowerCase()}. 
+            This action is your responsibility — please ensure all items have been properly reviewed before confirming.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleBulkCheck}>
+            Yes, Check All
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getStateDotColor(state: QCState): string {
