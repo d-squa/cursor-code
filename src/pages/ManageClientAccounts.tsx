@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import ClientForm from "@/components/ClientForm";
 import AccountDefaultsTab from "@/components/AccountDefaultsTab";
 import { OperationsMeasurementsTab } from "@/components/OperationsMeasurementsTab";
+import { ClientQCChecklistEditor } from "@/components/settings/ClientQCChecklistEditor";
 import { FeatureGate } from "@/components/FeatureGate";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
