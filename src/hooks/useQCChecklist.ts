@@ -164,7 +164,8 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
               is_checked: checked,
               checked_by: checked ? user.id : null,
               checked_at: checked ? new Date().toISOString() : null,
-            })
+              check_method: 'bulk',
+            } as any)
             .eq("id", existing.id);
         } else {
           await supabase
@@ -175,7 +176,8 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
               is_checked: checked,
               checked_by: checked ? user.id : null,
               checked_at: checked ? new Date().toISOString() : null,
-            });
+              check_method: 'bulk',
+            } as any);
         }
       }
 
