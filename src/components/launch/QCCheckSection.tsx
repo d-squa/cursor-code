@@ -201,27 +201,57 @@ export function QCCheckSection({
   };
 
   const handleMoveAllForward = () => {
-    for (const item of items) {
+    // Check if any items will move to pushed_live
+    const willMoveToPushedLive = items.some(item => {
       const nextState = getNextState(item.current_state);
-      if (nextState) {
-        if (item.current_state === 'waiting_for_final_qc') {
-          const checklist = getChecklist(item.platform, item.entity_type);
-          if (isAllChecked(item.id, checklist)) {
+      return nextState === 'pushed_live';
+    });
+
+    const doMove = () => {
+      for (const item of items) {
+        const nextState = getNextState(item.current_state);
+        if (nextState) {
+          if (item.current_state === 'waiting_for_final_qc') {
+            const checklist = getChecklist(item.platform, item.entity_type);
+            if (isAllChecked(item.id, checklist)) {
+              onUpdateState(item.id, nextState);
+            }
+          } else {
             onUpdateState(item.id, nextState);
           }
-        } else {
-          onUpdateState(item.id, nextState);
         }
       }
+    };
+
+    if (willMoveToPushedLive) {
+      setPendingLiveAction(() => doMove);
+      setLiveConfirmOpen(true);
+    } else {
+      doMove();
     }
   };
 
   const handleMoveAllBack = () => {
-    for (const item of items) {
+    // Check if any items will move to pushed_live (from delivering → pushed_live)
+    const willMoveToPushedLive = items.some(item => {
       const prevState = getPreviousState(item.current_state);
-      if (prevState) {
-        onUpdateState(item.id, prevState);
+      return prevState === 'pushed_live';
+    });
+
+    const doMove = () => {
+      for (const item of items) {
+        const prevState = getPreviousState(item.current_state);
+        if (prevState) {
+          onUpdateState(item.id, prevState);
+        }
       }
+    };
+
+    if (willMoveToPushedLive) {
+      setPendingLiveAction(() => doMove);
+      setLiveConfirmOpen(true);
+    } else {
+      doMove();
     }
   };
 
