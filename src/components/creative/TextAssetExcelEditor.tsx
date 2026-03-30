@@ -349,8 +349,11 @@ export function TextAssetExcelEditor({
     onBulkUpdate(group.rowIds, groupType === 'carousel'
       ? { carouselGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined, carouselCardHeadline: undefined, carouselCardDescription: undefined, carouselCardWebsiteUrl: undefined, carouselCardCta: undefined } as any
       : { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
+    if (groupType === 'asset_customization') {
+      onACGroupRemoved?.(groupId);
+    }
     toast.success('Group dissolved');
-  }, [processingGroups, onBulkUpdate]);
+  }, [processingGroups, onBulkUpdate, onACGroupRemoved]);
 
   // For asset customization groups: sync text changes across all members
   const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
