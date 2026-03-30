@@ -20,12 +20,13 @@ import {
   ShieldCheck,
   Loader2,
   ArrowRight,
+  ArrowLeft,
   CheckCheck,
   Zap,
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
-import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass, getQCIconColor, getNextState } from "@/utils/qcUtils";
+import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass, getQCIconColor, getNextState, getPreviousState } from "@/utils/qcUtils";
 import type { QCState } from "@/utils/qcUtils";
 
 interface QCCheckSectionProps {
@@ -245,6 +246,7 @@ function EntityRow({
   onUpdateState,
 }: EntityRowProps) {
   const nextState = getNextState(item.current_state);
+  const prevState = getPreviousState(item.current_state);
   const canAdvance = item.current_state === 'waiting_for_final_qc' ? allChecked : true;
 
   return (
@@ -275,34 +277,54 @@ function EntityRow({
         <div className="ml-7 mr-2 mb-2 p-3 bg-muted/20 rounded-md border space-y-3">
           {/* Check All / Uncheck All */}
           <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs px-2"
-              onClick={(e) => { e.stopPropagation(); onToggleAll(!allChecked); }}
-            >
-              <CheckCheck className="h-3 w-3 mr-1" />
-              {allChecked ? 'Uncheck All' : 'Check All'}
-            </Button>
-            {nextState && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant={canAdvance ? "default" : "outline"}
-                    className="h-6 text-xs px-2"
-                    disabled={!canAdvance}
-                    onClick={(e) => { e.stopPropagation(); onUpdateState(nextState); }}
-                  >
-                    <ArrowRight className="h-3 w-3 mr-1" />
-                    Move to {QC_STATE_LABELS[nextState]}
-                  </Button>
-                </TooltipTrigger>
-                {!canAdvance && (
-                  <TooltipContent>Complete all checklist items first</TooltipContent>
-                )}
-              </Tooltip>
-            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={(e) => { e.stopPropagation(); onToggleAll(!allChecked); }}
+              >
+                <CheckCheck className="h-3 w-3 mr-1" />
+                {allChecked ? 'Uncheck All' : 'Check All'}
+              </Button>
+            </div>
+            <div className="flex items-center gap-1">
+              {prevState && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-xs px-2"
+                      onClick={(e) => { e.stopPropagation(); onUpdateState(prevState); }}
+                    >
+                      <ArrowLeft className="h-3 w-3 mr-1" />
+                      Back to {QC_STATE_LABELS[prevState]}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Move back to previous state</TooltipContent>
+                </Tooltip>
+              )}
+              {nextState && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant={canAdvance ? "default" : "outline"}
+                      className="h-6 text-xs px-2"
+                      disabled={!canAdvance}
+                      onClick={(e) => { e.stopPropagation(); onUpdateState(nextState); }}
+                    >
+                      <ArrowRight className="h-3 w-3 mr-1" />
+                      Move to {QC_STATE_LABELS[nextState]}
+                    </Button>
+                  </TooltipTrigger>
+                  {!canAdvance && (
+                    <TooltipContent>Complete all checklist items first</TooltipContent>
+                  )}
+                </Tooltip>
+              )}
+            </div>
           </div>
 
           {/* Checklist Items */}

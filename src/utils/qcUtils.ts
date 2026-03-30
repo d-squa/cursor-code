@@ -53,6 +53,15 @@ export function getNextState(currentState: QCState): QCState | null {
 }
 
 /**
+ * Get the previous QC state (for undo/rollback)
+ */
+export function getPreviousState(currentState: QCState): QCState | null {
+  const idx = QC_STAGE_ORDER.indexOf(currentState);
+  if (idx <= 0) return null;
+  return QC_STAGE_ORDER[idx - 1];
+}
+
+/**
  * Get QC badge color class
  */
 export function getQCColorClass(state: QCState): string {
