@@ -818,6 +818,8 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok' | 'google')
       { id: 'matchType', key: 'MT', label: 'Match Type', type: 'options' as TaxonomyParamType, options: ['BRD', 'PHR', 'EXT'], system: true, required: false, description: 'Auto-filled for Search campaigns. BRD=Broad, PHR=Phrase, EXT=Exact match type.' },
       { id: 'campaignType', key: 'CTYP', label: 'Campaign Type', type: 'options' as TaxonomyParamType, options: platform === 'google' ? ['SRC', 'DSP', 'PMAX', 'VID', 'DGEN', 'SHOP', 'APP'] : ['SRC', 'VID', 'APP'], system: true, required: false, description: 'Auto-filled from Phase Config → Campaign Type. SRC=Search, DSP=Display, PMAX=Performance Max, VID=Video, DGEN=Demand Gen.' },
     ] : []),
+    // QC State parameter - must always be last
+    { id: 'qcState', key: 'QC', label: 'QC State', type: 'options' as TaxonomyParamType, options: ['WF', 'QC', 'PL', 'DLV'], system: true, required: true, description: 'Quality Control state. WF=Waiting for Final QC, QC=In QC, PL=Pushed Live, DLV=Delivering. Must always be the last parameter in the naming convention.' },
   ];
 }
 
@@ -957,6 +959,8 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok' | 'google'): T
       required: true,
       description: 'Auto-filled from Targeting → Languages. Shows abbreviated language codes (e.g., EN, ES, DE). Uses phase override if active.',
     },
+    // QC State parameter - must always be last
+    { id: 'qcState', key: 'QC', label: 'QC State', type: 'options', options: ['WF', 'QC', 'PL', 'DLV'], system: true, required: true, description: 'Quality Control state. WF=Waiting for Final QC, QC=In QC, PL=Pushed Live, DLV=Delivering. Must always be the last parameter in the naming convention.' },
   ];
 }
 
@@ -1058,6 +1062,8 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       required: false,
       description: 'Auto-filled from Content Calendar → Priority. HI=High priority, MD=Medium priority, LO=Low priority.',
     },
+    // QC State parameter - must always be last
+    { id: 'qcState', key: 'QC', label: 'QC State', type: 'options', options: ['WF', 'QC', 'PL', 'DLV'], system: true, required: true, description: 'Quality Control state. WF=Waiting for Final QC, QC=In QC, PL=Pushed Live, DLV=Delivering. Must always be the last parameter in the naming convention.' },
   ];
 }
 
