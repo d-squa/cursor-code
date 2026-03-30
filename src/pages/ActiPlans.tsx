@@ -86,6 +86,7 @@ interface Campaign {
   team_id?: string | null;
   objective?: string;
   market_splits?: any;
+  qc_status?: string | null;
   creator?: {
     email: string;
     company_name?: string;
