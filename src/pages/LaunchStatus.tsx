@@ -37,10 +37,11 @@ import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/Launch
 import { DspConfigChangesView } from "@/components/launch/DspConfigChangesView";
 import { useDspConfigSync } from "@/hooks/useDspConfigSync";
 import { useQCTracking } from "@/hooks/useQCTracking";
+import { useQCChecklist } from "@/hooks/useQCChecklist";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
 import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
-import { QCStatusPanel } from "@/components/launch/QCStatusPanel";
+import { QCCheckSection } from "@/components/launch/QCCheckSection";
 
 interface LaunchStatusEntry {
   id: string;

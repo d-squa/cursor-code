@@ -178,9 +178,10 @@ export default function ManageClientAccounts() {
 
         {selectedClient && selectedClientData && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={cn("grid w-full", canAccessOperations ? "grid-cols-3" : "grid-cols-2")}>
+            <TabsList className={cn("grid w-full", canAccessOperations ? "grid-cols-4" : "grid-cols-3")}>
               <TabsTrigger value="info">Client Info</TabsTrigger>
               <TabsTrigger value="defaults">Client Defaults</TabsTrigger>
+              <TabsTrigger value="qc_checklists">QC Checklists</TabsTrigger>
               {canAccessOperations && (
                 <TabsTrigger value="operations">Operations Measurements</TabsTrigger>
               )}
