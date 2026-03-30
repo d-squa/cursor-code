@@ -1276,6 +1276,10 @@ export default function ActiPlans() {
           <TabsTrigger value="push_failed">Push Failed</TabsTrigger>
           <TabsTrigger value="under_modification">Under Modification</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          <TabsTrigger value="waiting_for_final_qc" className="text-amber-700">Waiting for Final Check</TabsTrigger>
+          <TabsTrigger value="qc" className="text-blue-700">Checked</TabsTrigger>
+          <TabsTrigger value="pushed_live" className="text-purple-700">Pushed Live</TabsTrigger>
+          <TabsTrigger value="delivering" className="text-green-700">Delivering</TabsTrigger>
         </TabsList>
 
         {[
@@ -1289,6 +1293,10 @@ export default function ActiPlans() {
           "push_failed",
           "under_modification",
           "rejected",
+          "waiting_for_final_qc",
+          "qc",
+          "pushed_live",
+          "delivering",
         ].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
             {filterCampaigns(status).length === 0 ? (
