@@ -488,190 +488,214 @@ export default function OperationsAnalytics() {
           </CardContent>
         </Card>
 
-        {/* Scorecards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Operations</p>
-                  <p className="text-2xl font-bold">{stats.totalOperations}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Clock className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Estimated Hours</p>
-                  <p className="text-2xl font-bold">{stats.totalEstimatedHours.toFixed(1)}h</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Clock className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Actual Hours</p>
-                  <p className="text-2xl font-bold">{stats.totalActualHours.toFixed(1)}h</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg. Completion Time</p>
-                  <p className="text-2xl font-bold">{stats.avgTimeToComplete.toFixed(1)}h</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Tabs for Operations vs QC Analytics */}
+        <Tabs defaultValue="operations" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="operations">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Operations
+            </TabsTrigger>
+            <TabsTrigger value="qc">
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              QC Tracking
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Hours by {dimensionFilter === 'user' ? 'User' : dimensionFilter === 'type' ? 'Type' : 'Subtype'}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={groupedData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="estimated" fill="hsl(var(--primary))" name="Estimated Hours" />
-                    <Bar dataKey="actual" fill="hsl(var(--accent))" name="Actual Hours" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="operations" className="space-y-6">
+            {/* Scorecards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Operations</p>
+                      <p className="text-2xl font-bold">{stats.totalOperations}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Clock className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Estimated Hours</p>
+                      <p className="text-2xl font-bold">{stats.totalEstimatedHours.toFixed(1)}h</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Clock className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Actual Hours</p>
+                      <p className="text-2xl font-bold">{stats.totalActualHours.toFixed(1)}h</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Users className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg. Completion Time</p>
+                      <p className="text-2xl font-bold">{stats.avgTimeToComplete.toFixed(1)}h</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Operations by Type</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={typeDistribution}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {typeDistribution.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Hours by {dimensionFilter === 'user' ? 'User' : dimensionFilter === 'type' ? 'Type' : 'Subtype'}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={groupedData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" />
+                        <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="estimated" fill="hsl(var(--primary))" name="Estimated Hours" />
+                        <Bar dataKey="actual" fill="hsl(var(--accent))" name="Actual Hours" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-        {/* Detailed Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Operations Details</CardTitle>
-            <CardDescription>
-              All change requests and logged actions with time tracking
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Subtype</TableHead>
-                  <TableHead>Campaign</TableHead>
-                  <TableHead>Requester</TableHead>
-                  <TableHead>Completed By</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Est. Hours</TableHead>
-                  <TableHead>Actual Hours</TableHead>
-                  <TableHead>Time to Complete</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredOperations.slice(0, 50).map((op) => (
-                  <TableRow key={`${op.type}-${op.id}`}>
-                    <TableCell>
-                      <Badge variant={op.type === 'change_request' ? 'default' : 'secondary'}>
-                        {op.type === 'change_request' ? 'Request' : 'Action'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="capitalize">{op.subtype}</TableCell>
-                    <TableCell className="max-w-[150px] truncate">{op.campaign_name}</TableCell>
-                    <TableCell className="text-sm">{op.requester_email}</TableCell>
-                    <TableCell className="text-sm">{op.completed_by_email || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={op.status === 'completed' || op.status === 'logged' ? 'default' : 'outline'}>
-                        {op.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{op.estimated_hours ? `${op.estimated_hours}h` : '-'}</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        className="w-20 h-8"
-                        value={op.actual_hours || ''}
-                        placeholder="-"
-                        onChange={(e) => {
-                          const value = parseFloat(e.target.value);
-                          if (!isNaN(value)) {
-                            handleActualHoursUpdate(op, value);
-                          }
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {op.time_to_complete ? `${op.time_to_complete.toFixed(1)}h` : '-'}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(op.created_at), "MMM dd, yyyy")}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {filteredOperations.length > 50 && (
-              <p className="text-sm text-muted-foreground text-center mt-4">
-                Showing 50 of {filteredOperations.length} operations
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Operations by Type</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={typeDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {typeDistribution.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Detailed Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Operations Details</CardTitle>
+                <CardDescription>
+                  All change requests and logged actions with time tracking
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Subtype</TableHead>
+                      <TableHead>Campaign</TableHead>
+                      <TableHead>Requester</TableHead>
+                      <TableHead>Completed By</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Est. Hours</TableHead>
+                      <TableHead>Actual Hours</TableHead>
+                      <TableHead>Time to Complete</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredOperations.slice(0, 50).map((op) => (
+                      <TableRow key={`${op.type}-${op.id}`}>
+                        <TableCell>
+                          <Badge variant={op.type === 'change_request' ? 'default' : 'secondary'}>
+                            {op.type === 'change_request' ? 'Request' : 'Action'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="capitalize">{op.subtype}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{op.campaign_name}</TableCell>
+                        <TableCell className="text-sm">{op.requester_email}</TableCell>
+                        <TableCell className="text-sm">{op.completed_by_email || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={op.status === 'completed' || op.status === 'logged' ? 'default' : 'outline'}>
+                            {op.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{op.estimated_hours ? `${op.estimated_hours}h` : '-'}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            className="w-20 h-8"
+                            value={op.actual_hours || ''}
+                            placeholder="-"
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              if (!isNaN(value)) {
+                                handleActualHoursUpdate(op, value);
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {op.time_to_complete ? `${op.time_to_complete.toFixed(1)}h` : '-'}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(op.created_at), "MMM dd, yyyy")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {filteredOperations.length > 50 && (
+                  <p className="text-sm text-muted-foreground text-center mt-4">
+                    Showing 50 of {filteredOperations.length} operations
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="qc">
+            <QCAnalyticsTab
+              userId={user?.id || ''}
+              selectedCampaign={selectedCampaign}
+              dateRange={dateRange}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </FeatureGate>
   );
