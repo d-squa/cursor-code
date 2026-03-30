@@ -30,6 +30,10 @@ const statusOptions = [
   { value: 'pushed_to_dsp', label: 'Pushed' },
   { value: 'partially_pushed', label: 'Partial' },
   { value: 'ended', label: 'Ended' },
+  { value: 'waiting_for_final_qc', label: 'Waiting for Final Check' },
+  { value: 'qc', label: 'Checked' },
+  { value: 'pushed_live', label: 'Pushed Live' },
+  { value: 'delivering', label: 'Delivering' },
 ];
 
 const pacingStatusOptions = [

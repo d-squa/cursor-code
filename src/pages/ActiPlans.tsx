@@ -86,6 +86,7 @@ interface Campaign {
   team_id?: string | null;
   objective?: string;
   market_splits?: any;
+  qc_status?: string | null;
   creator?: {
     email: string;
     company_name?: string;
@@ -245,6 +246,36 @@ export default function ActiPlans() {
         }
       }
 
+      // Fetch QC tracking summary per campaign
+      const qcStatusMap: Record<string, string> = {};
+      if (campaignIds.length > 0) {
+        const { data: qcData } = await supabase
+          .from("qc_tracking")
+          .select("campaign_id, current_state")
+          .in("campaign_id", campaignIds);
+
+        if (qcData && qcData.length > 0) {
+          // Group by campaign_id
+          const grouped: Record<string, string[]> = {};
+          qcData.forEach((row: any) => {
+            if (!grouped[row.campaign_id]) grouped[row.campaign_id] = [];
+            grouped[row.campaign_id].push(row.current_state);
+          });
+
+          // Derive campaign-level QC status based on lowest common state
+          const stateOrder = ['waiting_for_final_qc', 'qc', 'pushed_live', 'delivering'];
+          Object.entries(grouped).forEach(([campaignId, states]) => {
+            // Find the minimum state across all entities
+            let minIndex = stateOrder.length - 1;
+            states.forEach(s => {
+              const idx = stateOrder.indexOf(s);
+              if (idx >= 0 && idx < minIndex) minIndex = idx;
+            });
+            qcStatusMap[campaignId] = stateOrder[minIndex];
+          });
+        }
+      }
+
       // Map the data with permissions and last status change
       const enrichedCampaigns = campaignsData?.map((campaign: any) => {
         // Find user's role for this campaign's team
@@ -267,6 +298,7 @@ export default function ActiPlans() {
           user_role: userRole?.role,
           can_edit: canEdit,
           is_admin_or_owner: isAdminOrOwner,
+          qc_status: qcStatusMap[campaign.id] || null,
           last_status_change: latestChange
             ? {
                 user_email: latestChange.user_email,
@@ -491,8 +523,8 @@ export default function ActiPlans() {
     return "Agency";
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: any; label: string }> = {
+  const getStatusBadge = (status: string, qcStatus?: string | null) => {
+    const variants: Record<string, { variant: any; label: string; className?: string }> = {
       draft: { variant: "secondary", label: "Draft" },
       awaiting_approval: { variant: "outline", label: "Awaiting Approval" },
       approved: { variant: "default", label: "Approved" },
@@ -503,8 +535,27 @@ export default function ActiPlans() {
       under_modification: { variant: "outline", label: "Under Modification" },
       rejected: { variant: "destructive", label: "Rejected" },
     };
+
+    const qcVariants: Record<string, { label: string; className: string }> = {
+      waiting_for_final_qc: { label: "Waiting for Final Check", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" },
+      qc: { label: "Checked", className: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
+      pushed_live: { label: "Pushed Live", className: "bg-purple-500/10 text-purple-700 border-purple-500/30" },
+      delivering: { label: "Delivering", className: "bg-green-500/10 text-green-700 border-green-500/30" },
+    };
+
     const config = variants[status] || variants.draft;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const qcConfig = qcStatus ? qcVariants[qcStatus] : null;
+
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <Badge variant={config.variant}>{config.label}</Badge>
+        {qcConfig && (
+          <Badge variant="outline" className={qcConfig.className}>
+            {qcConfig.label}
+          </Badge>
+        )}
+      </div>
+    );
   };
 
   const canEdit = (campaign: Campaign) => {
@@ -545,8 +596,17 @@ export default function ActiPlans() {
     return (isCreator || isTeamOwnerOrAdmin) && isNotLive;
   };
 
+  const qcStatuses = ['waiting_for_final_qc', 'qc', 'pushed_live', 'delivering'];
+
   const filterCampaigns = (status: string) => {
-    const list = status === "all" ? campaigns : campaigns.filter((c) => c.status === status);
+    let list: Campaign[];
+    if (status === "all") {
+      list = campaigns;
+    } else if (qcStatuses.includes(status)) {
+      list = campaigns.filter((c) => c.qc_status === status);
+    } else {
+      list = campaigns.filter((c) => c.status === status);
+    }
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((c) => {
@@ -605,7 +665,7 @@ export default function ActiPlans() {
               </CardDescription>
             </div>
             <div className="flex flex-col items-end gap-1">
-              {getStatusBadge(campaign.status)}
+              {getStatusBadge(campaign.status, campaign.qc_status)}
               {campaign.last_status_change && campaign.last_status_change.user_email && (
                 <span className="text-xs text-muted-foreground">
                   by {campaign.last_status_change.user_email.split("@")[0]}
@@ -1216,6 +1276,10 @@ export default function ActiPlans() {
           <TabsTrigger value="push_failed">Push Failed</TabsTrigger>
           <TabsTrigger value="under_modification">Under Modification</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          <TabsTrigger value="waiting_for_final_qc" className="text-amber-700">Waiting for Final Check</TabsTrigger>
+          <TabsTrigger value="qc" className="text-blue-700">Checked</TabsTrigger>
+          <TabsTrigger value="pushed_live" className="text-purple-700">Pushed Live</TabsTrigger>
+          <TabsTrigger value="delivering" className="text-green-700">Delivering</TabsTrigger>
         </TabsList>
 
         {[
@@ -1229,6 +1293,10 @@ export default function ActiPlans() {
           "push_failed",
           "under_modification",
           "rejected",
+          "waiting_for_final_qc",
+          "qc",
+          "pushed_live",
+          "delivering",
         ].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
             {filterCampaigns(status).length === 0 ? (
