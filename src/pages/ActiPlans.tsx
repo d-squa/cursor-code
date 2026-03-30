@@ -665,7 +665,7 @@ export default function ActiPlans() {
               </CardDescription>
             </div>
             <div className="flex flex-col items-end gap-1">
-              {getStatusBadge(campaign.status)}
+              {getStatusBadge(campaign.status, campaign.qc_status)}
               {campaign.last_status_change && campaign.last_status_change.user_email && (
                 <span className="text-xs text-muted-foreground">
                   by {campaign.last_status_change.user_email.split("@")[0]}
