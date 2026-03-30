@@ -183,6 +183,12 @@ export default function LaunchStatus() {
     autoSyncOnMount: hasPushedEntities,
   });
 
+  // QC Tracking
+  const { items: qcItems, transitions: qcTransitions, loading: qcLoading, summary: qcSummary } = useQCTracking({
+    campaignId,
+    enabled: !!campaignId && !!user && hasPushedEntities,
+  });
+
   const getNextTierName = (): string => {
     const tierOrder: SubscriptionTier[] = ["trial", "basic", "freelancer", "enterprise", "agency"];
     const currentIndex = tierOrder.indexOf(tier);
