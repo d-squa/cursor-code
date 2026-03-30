@@ -79,6 +79,10 @@ export function TextAssetsStep({
   // Track if we've attempted to load (to distinguish "loading" from "empty result")
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
 
+  // Track AC group compiled specs for persistence
+  const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
+  const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
+
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
     const loadAssignments = async () => {
