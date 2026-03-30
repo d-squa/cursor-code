@@ -440,7 +440,7 @@ export function QCCheckSection({
                                             isAllChecked={isAllChecked}
                                             onToggleItem={onToggleItem}
                                             onToggleAll={onToggleAll}
-                                            onUpdateState={onUpdateState}
+                                            onUpdateState={handleUpdateStateWithLiveCheck}
                                             onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
                                           />
                                         </CollapsibleContent>
