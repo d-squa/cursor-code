@@ -585,6 +585,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             onImportRows={handleImportRows}
             onSave={handleSave}
             isSaving={isSaving}
+            onACGroupCreated={handleACGroupCreated}
+            onACGroupRemoved={handleACGroupRemoved}
           />
         </div>
       ) : null}
