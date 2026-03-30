@@ -199,10 +199,17 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       }
 
       if (newEntries.length > 0) {
-        await supabase.from("qc_tracking").insert(newEntries);
+        console.log(`[QC] Inserting ${newEntries.length} new tracking entries`);
+        const { error: insertError, data: insertData } = await supabase.from("qc_tracking").insert(newEntries).select();
+        if (insertError) {
+          console.error("[QC] Insert failed:", insertError);
+        } else {
+          console.log(`[QC] Successfully inserted ${insertData?.length || 0} entries`);
+        }
         await fetchData();
-      } else if ((existingTracking?.length || 0) > 0) {
-        // Already has tracking entries, just refresh
+      } else {
+        console.log(`[QC] No new entries needed. Existing: ${existingTracking?.length || 0}, Launch statuses: ${launchStatuses?.length || 0}, Assignments: ${assignments?.length || 0}`);
+        // Always refresh to show existing entries
         await fetchData();
       }
     } catch (error) {
