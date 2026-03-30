@@ -1,5 +1,5 @@
 // Text Assets Tab - Page/editor for editing text assets for a specific ActiPlan
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import type { CreativeTextAssetRow, CreativeFormat } from '@/types/creativeTextA
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
 import { detectAdFormat } from '@/utils/adFormatDetection';
+import type { DetectedACGroup } from '@/utils/assetCustomizationEngine';
+import type { CompilationResult } from '@/utils/assetFeedSpecCompiler';
 
 interface Campaign {
   id: string;
