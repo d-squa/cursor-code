@@ -788,6 +788,10 @@ export function extractTaxonomyValues(
           values[param.id] = 'AUTO';
         }
         break;
+      case 'qcState':
+        rawValue = context.qcState;
+        values[param.id] = rawValue ? shortenValue('qcState', rawValue) : 'WF';
+        break;
       default:
         // For fixed values, use the param's value
         if (param.type === 'fixed' && param.value) {
