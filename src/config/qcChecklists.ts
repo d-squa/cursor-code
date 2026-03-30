@@ -620,12 +620,6 @@ export const CROSS_PLATFORM_CHECKLIST: QCChecklistItem[] = [
   },
   { key: "xp_dataroma", label: "New accounts linked to Dataroma", description: "Send to Ghadeer", category: "ACCOUNT" },
   {
-    key: "xp_grasp_label",
-    label: "New accounts labeled on Grasp",
-    description: "Send to manager",
-    category: "ACCOUNT",
-  },
-  {
     key: "xp_country_exclusions",
     label: "Country exclusions applied",
     description: "Exclude Austria, France, Italy, Spain, Türkiye, United Kingdom if not targeting",
@@ -636,12 +630,6 @@ export const CROSS_PLATFORM_CHECKLIST: QCChecklistItem[] = [
     key: "xp_post_launch_check",
     label: "Campaigns checked after live",
     description: "Check for rejected ads, disapprovals, etc.",
-    category: "POST-LAUNCH",
-  },
-  {
-    key: "xp_grasp_active",
-    label: "Grasp is on during execution",
-    description: "Ensure Grasp tool is active",
     category: "POST-LAUNCH",
   },
   {
