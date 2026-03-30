@@ -274,7 +274,6 @@ export default function ActiPlans() {
           });
         }
       }
-      }
 
       // Map the data with permissions and last status change
       const enrichedCampaigns = campaignsData?.map((campaign: any) => {
