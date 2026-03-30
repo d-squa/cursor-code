@@ -278,10 +278,38 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           };
         });
 
-        // Validate all rows
+        // Load existing AC groups from DB and restore assetCustomizationGroupId on rows
+        const { data: existingACGroups } = await supabase
+          .from('asset_customization_groups')
+          .select(`
+            id, group_name, customization_type, asset_feed_spec, customization_rules,
+            asset_customization_group_members(id, creative_id, assignment_id, delivery_bucket, aspect_ratio, language, position)
+          `)
+          .eq('campaign_id', effectiveCampaignId)
+          .in('status', ['ready', 'pending']);
+
+        // Build a map of assignment_id → group_id from existing AC groups
+        const assignmentToGroupMap = new Map<string, string>();
+        if (existingACGroups) {
+          for (const group of existingACGroups) {
+            const members = (group as any).asset_customization_group_members || [];
+            for (const member of members) {
+              if (member.assignment_id) {
+                assignmentToGroupMap.set(member.assignment_id, group.id);
+              }
+            }
+          }
+        }
+
+        // Validate all rows and restore AC group IDs
         const validatedRows = transformedRows.map((row) => {
-          const errors = validateTextAssetRow(row);
-          return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+          const assignmentId = row.assignmentId;
+          const acGroupId = assignmentId ? assignmentToGroupMap.get(assignmentId) : undefined;
+          const updatedRow = acGroupId
+            ? { ...row, assetCustomizationGroupId: acGroupId, processingGroupId: acGroupId, processingGroupType: 'asset_customization' as const }
+            : row;
+          const errors = validateTextAssetRow(updatedRow);
+          return { ...updatedRow, validationErrors: errors, isValid: errors.length === 0 };
         });
 
         setRows(validatedRows);
