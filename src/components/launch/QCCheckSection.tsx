@@ -65,13 +65,15 @@ export function QCCheckSection({
 }: QCCheckSectionProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedEntities, setExpandedEntities] = useState<Record<string, boolean>>({});
+  const [initAttempts, setInitAttempts] = useState(0);
 
-  // Auto-initialize tracking entries when first mounted or when items are empty
+  // Auto-initialize tracking entries when first mounted or when items are empty (max 2 attempts)
   useEffect(() => {
-    if (!loading && items.length === 0) {
+    if (!loading && items.length === 0 && initAttempts < 2) {
+      setInitAttempts(prev => prev + 1);
       onInitialize();
     }
-  }, [loading, items.length, onInitialize]);
+  }, [loading, items.length, onInitialize, initAttempts]);
 
   if (loading) {
     return (
