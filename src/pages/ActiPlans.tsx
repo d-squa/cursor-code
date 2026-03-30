@@ -596,8 +596,17 @@ export default function ActiPlans() {
     return (isCreator || isTeamOwnerOrAdmin) && isNotLive;
   };
 
+  const qcStatuses = ['waiting_for_final_qc', 'qc', 'pushed_live', 'delivering'];
+
   const filterCampaigns = (status: string) => {
-    const list = status === "all" ? campaigns : campaigns.filter((c) => c.status === status);
+    let list: Campaign[];
+    if (status === "all") {
+      list = campaigns;
+    } else if (qcStatuses.includes(status)) {
+      list = campaigns.filter((c) => c.qc_status === status);
+    } else {
+      list = campaigns.filter((c) => c.status === status);
+    }
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((c) => {
