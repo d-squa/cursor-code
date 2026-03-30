@@ -170,7 +170,16 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
 
       const campaign = campaignRes.data;
       const existingKeys = new Set(
-        (existingTrackingRes.data || []).map((item) => buildTrackingKey(item))
+        (existingTrackingRes.data || []).map((item) =>
+          buildTrackingKey({
+            platform: item.platform,
+            market: item.market,
+            phase_name: item.phase_name,
+            entity_type: item.entity_type,
+            entity_name: null,
+            dsp_entity_id: item.dsp_entity_id,
+          })
+        )
       );
       const candidateSeeds = new Map<string, TrackingSeed>();
 
