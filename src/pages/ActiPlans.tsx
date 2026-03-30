@@ -523,8 +523,8 @@ export default function ActiPlans() {
     return "Agency";
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: any; label: string }> = {
+  const getStatusBadge = (status: string, qcStatus?: string | null) => {
+    const variants: Record<string, { variant: any; label: string; className?: string }> = {
       draft: { variant: "secondary", label: "Draft" },
       awaiting_approval: { variant: "outline", label: "Awaiting Approval" },
       approved: { variant: "default", label: "Approved" },
@@ -535,8 +535,27 @@ export default function ActiPlans() {
       under_modification: { variant: "outline", label: "Under Modification" },
       rejected: { variant: "destructive", label: "Rejected" },
     };
+
+    const qcVariants: Record<string, { label: string; className: string }> = {
+      waiting_for_final_qc: { label: "Waiting for Final Check", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" },
+      qc: { label: "Checked", className: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
+      pushed_live: { label: "Pushed Live", className: "bg-purple-500/10 text-purple-700 border-purple-500/30" },
+      delivering: { label: "Delivering", className: "bg-green-500/10 text-green-700 border-green-500/30" },
+    };
+
     const config = variants[status] || variants.draft;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const qcConfig = qcStatus ? qcVariants[qcStatus] : null;
+
+    return (
+      <div className="flex flex-col items-end gap-1">
+        <Badge variant={config.variant}>{config.label}</Badge>
+        {qcConfig && (
+          <Badge variant="outline" className={qcConfig.className}>
+            {qcConfig.label}
+          </Badge>
+        )}
+      </div>
+    );
   };
 
   const canEdit = (campaign: Campaign) => {
