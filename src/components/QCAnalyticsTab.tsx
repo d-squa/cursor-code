@@ -96,8 +96,22 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
         transitionsQuery.order("transitioned_at", { ascending: true }),
       ]);
 
-      setTracking((trackingRes.data || []) as unknown as QCTrackingRow[]);
+      const trackingData = (trackingRes.data || []) as unknown as QCTrackingRow[];
+      setTracking(trackingData);
       setTransitions((transitionsRes.data || []) as unknown as QCTransitionRow[]);
+
+      // Fetch check completions for PWR calculation
+      if (trackingData.length > 0) {
+        const trackingIds = trackingData.map(t => t.id);
+        const { data: completionsData } = await supabase
+          .from("qc_checklist_completions")
+          .select("id, qc_tracking_id, item_key, is_checked, check_method")
+          .in("qc_tracking_id", trackingIds)
+          .eq("is_checked", true);
+        setCheckCompletions((completionsData || []) as unknown as QCCheckCompletionRow[]);
+      } else {
+        setCheckCompletions([]);
+      }
     } catch (error) {
       console.error("Error loading QC analytics:", error);
     } finally {
