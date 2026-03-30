@@ -1261,16 +1261,16 @@ export default function ActiPlans() {
           <TabsTrigger value="draft">Draft</TabsTrigger>
           <TabsTrigger value="awaiting_approval">Awaiting Approval</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
-          <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="pushed_to_dsp">Pushed to DSP</TabsTrigger>
           <TabsTrigger value="partially_pushed">Partially Pushed</TabsTrigger>
+          <TabsTrigger value="waiting_for_final_qc">Waiting for Final Check</TabsTrigger>
+          <TabsTrigger value="qc">Checked</TabsTrigger>
+          <TabsTrigger value="pushed_live">Pushed Live</TabsTrigger>
+          <TabsTrigger value="delivering">Delivering</TabsTrigger>
+          <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="push_failed">Push Failed</TabsTrigger>
           <TabsTrigger value="under_modification">Under Modification</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          <TabsTrigger value="waiting_for_final_qc" className="text-amber-700">Waiting for Final Check</TabsTrigger>
-          <TabsTrigger value="qc" className="text-blue-700">Checked</TabsTrigger>
-          <TabsTrigger value="pushed_live" className="text-purple-700">Pushed Live</TabsTrigger>
-          <TabsTrigger value="delivering" className="text-green-700">Delivering</TabsTrigger>
         </TabsList>
 
         {[
@@ -1278,16 +1278,16 @@ export default function ActiPlans() {
           "draft",
           "awaiting_approval",
           "approved",
-          "live",
           "pushed_to_dsp",
           "partially_pushed",
-          "push_failed",
-          "under_modification",
-          "rejected",
           "waiting_for_final_qc",
           "qc",
           "pushed_live",
           "delivering",
+          "live",
+          "push_failed",
+          "under_modification",
+          "rejected",
         ].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
             {filterCampaigns(status).length === 0 ? (
