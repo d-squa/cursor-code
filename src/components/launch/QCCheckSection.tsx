@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ import {
   ChevronsDownUp,
   FastForward,
   Rewind,
+  Mail,
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
@@ -84,6 +85,8 @@ export function QCCheckSection({
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
   const [expandedEntities, setExpandedEntities] = useState<Record<string, boolean>>({});
   const [initAttempts, setInitAttempts] = useState(0);
+  const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
+  const [pendingLiveAction, setPendingLiveAction] = useState<(() => void) | null>(null);
 
   // Auto-initialize tracking entries when first mounted or when items are empty (max 2 attempts)
   useEffect(() => {
@@ -92,6 +95,16 @@ export function QCCheckSection({
       onInitialize();
     }
   }, [loading, items.length, onInitialize, initAttempts]);
+
+  // Wraps onUpdateState to intercept pushed_live transitions with confirmation
+  const handleUpdateStateWithLiveCheck = useCallback((trackingId: string, newState: QCState) => {
+    if (newState === 'pushed_live') {
+      setPendingLiveAction(() => () => onUpdateState(trackingId, newState));
+      setLiveConfirmOpen(true);
+    } else {
+      onUpdateState(trackingId, newState);
+    }
+  }, [onUpdateState]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
@@ -188,27 +201,57 @@ export function QCCheckSection({
   };
 
   const handleMoveAllForward = () => {
-    for (const item of items) {
+    // Check if any items will move to pushed_live
+    const willMoveToPushedLive = items.some(item => {
       const nextState = getNextState(item.current_state);
-      if (nextState) {
-        if (item.current_state === 'waiting_for_final_qc') {
-          const checklist = getChecklist(item.platform, item.entity_type);
-          if (isAllChecked(item.id, checklist)) {
+      return nextState === 'pushed_live';
+    });
+
+    const doMove = () => {
+      for (const item of items) {
+        const nextState = getNextState(item.current_state);
+        if (nextState) {
+          if (item.current_state === 'waiting_for_final_qc') {
+            const checklist = getChecklist(item.platform, item.entity_type);
+            if (isAllChecked(item.id, checklist)) {
+              onUpdateState(item.id, nextState);
+            }
+          } else {
             onUpdateState(item.id, nextState);
           }
-        } else {
-          onUpdateState(item.id, nextState);
         }
       }
+    };
+
+    if (willMoveToPushedLive) {
+      setPendingLiveAction(() => doMove);
+      setLiveConfirmOpen(true);
+    } else {
+      doMove();
     }
   };
 
   const handleMoveAllBack = () => {
-    for (const item of items) {
+    // Check if any items will move to pushed_live (from delivering → pushed_live)
+    const willMoveToPushedLive = items.some(item => {
       const prevState = getPreviousState(item.current_state);
-      if (prevState) {
-        onUpdateState(item.id, prevState);
+      return prevState === 'pushed_live';
+    });
+
+    const doMove = () => {
+      for (const item of items) {
+        const prevState = getPreviousState(item.current_state);
+        if (prevState) {
+          onUpdateState(item.id, prevState);
+        }
       }
+    };
+
+    if (willMoveToPushedLive) {
+      setPendingLiveAction(() => doMove);
+      setLiveConfirmOpen(true);
+    } else {
+      doMove();
     }
   };
 
@@ -314,6 +357,31 @@ export function QCCheckSection({
 
         <Separator />
 
+        {/* Live Confirmation Dialog */}
+        <AlertDialog open={liveConfirmOpen} onOpenChange={setLiveConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-purple-500" />
+                Set ActiPlan Status to Live?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Setting the status to <strong>Pushed Live</strong> will send an email confirmation to all stakeholders notifying them that the campaign is now live. Are you sure you want to proceed?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setPendingLiveAction(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                pendingLiveAction?.();
+                setPendingLiveAction(null);
+                setLiveConfirmOpen(false);
+              }}>
+                Yes, Set as Live
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Tree View */}
         <TooltipProvider>
           <div className="space-y-1">
@@ -372,7 +440,7 @@ export function QCCheckSection({
                                             isAllChecked={isAllChecked}
                                             onToggleItem={onToggleItem}
                                             onToggleAll={onToggleAll}
-                                            onUpdateState={onUpdateState}
+                                            onUpdateState={handleUpdateStateWithLiveCheck}
                                             onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
                                           />
                                         </CollapsibleContent>
@@ -388,7 +456,7 @@ export function QCCheckSection({
                                         isAllChecked={isAllChecked}
                                         onToggleItem={onToggleItem}
                                         onToggleAll={onToggleAll}
-                                        onUpdateState={onUpdateState}
+                                        onUpdateState={handleUpdateStateWithLiveCheck}
                                         onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
                                       />
                                     )}
