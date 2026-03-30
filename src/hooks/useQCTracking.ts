@@ -116,17 +116,16 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
   }, [campaignId, enabled, user, fetchData]);
 
   // Initialize QC tracking from launch statuses (creates entries for entities that don't have tracking yet)
+  // Works at individual entity level - any entity with a launch status gets a QC entry
   const initializeTracking = useCallback(async () => {
     if (!campaignId || !user) return;
 
     try {
-      // Get launch statuses
+      // Get ALL launch statuses for this campaign (any status, not just fully pushed)
       const { data: launchStatuses } = await supabase
         .from("campaign_launch_status")
         .select("*")
         .eq("campaign_id", campaignId);
-
-      if (!launchStatuses || launchStatuses.length === 0) return;
 
       // Get campaign team_id
       const { data: campaign } = await supabase
@@ -135,29 +134,40 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         .eq("id", campaignId)
         .single();
 
-      // Get existing tracking
+      // Get existing tracking entries fresh from DB to avoid stale state
+      const { data: existingTracking } = await supabase
+        .from("qc_tracking")
+        .select("platform, entity_type, market, phase_name, dsp_entity_id")
+        .eq("campaign_id", campaignId);
+
       const existingKeys = new Set(
-        items.map(i => `${i.platform}-${i.entity_type}-${i.market}-${i.phase_name || ''}`)
+        (existingTracking || []).map((i: any) => `${i.platform}-${i.entity_type}-${i.market}-${i.phase_name || ''}`)
+      );
+      const existingAdKeys = new Set(
+        (existingTracking || []).filter((i: any) => i.entity_type === 'ad').map((i: any) => `${i.platform}-${i.market}-${i.dsp_entity_id}`)
       );
 
-      // Create tracking entries for missing entities
       const newEntries: any[] = [];
-      for (const ls of launchStatuses) {
-        const key = `${ls.platform}-${ls.entity_type}-${ls.market}-${ls.phase_name || ''}`;
-        if (!existingKeys.has(key)) {
-          newEntries.push({
-            campaign_id: campaignId,
-            platform: ls.platform,
-            market: ls.market,
-            phase_name: ls.phase_name,
-            entity_type: ls.entity_type,
-            entity_name: ls.entity_name,
-            dsp_entity_id: ls.dsp_entity_id,
-            current_state: 'waiting_for_final_qc',
-            is_valid: true,
-            user_id: user.id,
-            team_id: campaign?.team_id,
-          });
+
+      // Create tracking entries for each launch status entity (campaign, adset levels)
+      if (launchStatuses) {
+        for (const ls of launchStatuses) {
+          const key = `${ls.platform}-${ls.entity_type}-${ls.market}-${ls.phase_name || ''}`;
+          if (!existingKeys.has(key)) {
+            newEntries.push({
+              campaign_id: campaignId,
+              platform: ls.platform,
+              market: ls.market,
+              phase_name: ls.phase_name,
+              entity_type: ls.entity_type,
+              entity_name: ls.entity_name,
+              dsp_entity_id: ls.dsp_entity_id,
+              current_state: 'waiting_for_final_qc',
+              is_valid: true,
+              user_id: user.id,
+              team_id: campaign?.team_id,
+            });
+          }
         }
       }
 
@@ -169,14 +179,8 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
 
       if (assignments) {
         for (const a of assignments) {
-          const key = `${a.platform}-ad-${a.market}-${a.phase_name || ''}-${a.id}`;
-          const existingAd = items.find(i => 
-            i.platform === a.platform && 
-            i.entity_type === 'ad' && 
-            i.market === a.market &&
-            i.dsp_entity_id === a.id
-          );
-          if (!existingAd) {
+          const adKey = `${a.platform}-${a.market}-${a.id}`;
+          if (!existingAdKeys.has(adKey)) {
             newEntries.push({
               campaign_id: campaignId,
               platform: a.platform,
@@ -197,11 +201,14 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       if (newEntries.length > 0) {
         await supabase.from("qc_tracking").insert(newEntries);
         await fetchData();
+      } else if ((existingTracking?.length || 0) > 0) {
+        // Already has tracking entries, just refresh
+        await fetchData();
       }
     } catch (error) {
       console.error("Error initializing QC tracking:", error);
     }
-  }, [campaignId, user, items, fetchData]);
+  }, [campaignId, user, fetchData]);
 
   // Update QC state for a tracking item
   const updateState = useCallback(async (trackingId: string, newState: QCState) => {
