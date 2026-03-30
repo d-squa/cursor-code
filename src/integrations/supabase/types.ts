@@ -981,6 +981,57 @@ export type Database = {
           },
         ]
       }
+      client_qc_checklists: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          entity_type: string
+          id: string
+          items: Json
+          platform: string
+          team_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          entity_type: string
+          id?: string
+          items?: Json
+          platform: string
+          team_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          entity_type?: string
+          id?: string
+          items?: Json
+          platform?: string
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_qc_checklists_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_qc_checklists_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           app_name: string | null
@@ -3068,6 +3119,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      qc_checklist_completions: {
+        Row: {
+          checked_at: string | null
+          checked_by: string | null
+          created_at: string | null
+          id: string
+          is_checked: boolean | null
+          item_key: string
+          notes: string | null
+          qc_tracking_id: string
+        }
+        Insert: {
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string | null
+          id?: string
+          is_checked?: boolean | null
+          item_key: string
+          notes?: string | null
+          qc_tracking_id: string
+        }
+        Update: {
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string | null
+          id?: string
+          is_checked?: boolean | null
+          item_key?: string
+          notes?: string | null
+          qc_tracking_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qc_checklist_completions_qc_tracking_id_fkey"
+            columns: ["qc_tracking_id"]
+            isOneToOne: false
+            referencedRelation: "qc_tracking"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       qc_state_transitions: {
         Row: {

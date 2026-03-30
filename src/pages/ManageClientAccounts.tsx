@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import ClientForm from "@/components/ClientForm";
 import AccountDefaultsTab from "@/components/AccountDefaultsTab";
 import { OperationsMeasurementsTab } from "@/components/OperationsMeasurementsTab";
+import { ClientQCChecklistEditor } from "@/components/settings/ClientQCChecklistEditor";
 import { FeatureGate } from "@/components/FeatureGate";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
@@ -178,9 +179,10 @@ export default function ManageClientAccounts() {
 
         {selectedClient && selectedClientData && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={cn("grid w-full", canAccessOperations ? "grid-cols-3" : "grid-cols-2")}>
+            <TabsList className={cn("grid w-full", canAccessOperations ? "grid-cols-4" : "grid-cols-3")}>
               <TabsTrigger value="info">Client Info</TabsTrigger>
               <TabsTrigger value="defaults">Client Defaults</TabsTrigger>
+              <TabsTrigger value="qc_checklists">QC Checklists</TabsTrigger>
               {canAccessOperations && (
                 <TabsTrigger value="operations">Operations Measurements</TabsTrigger>
               )}
@@ -239,6 +241,12 @@ export default function ManageClientAccounts() {
                   userId={user.id}
                   clientMarkets={clientMarkets}
                 />
+              )}
+            </TabsContent>
+
+            <TabsContent value="qc_checklists" className="space-y-4">
+              {selectedClient && (
+                <ClientQCChecklistEditor clientId={selectedClient} />
               )}
             </TabsContent>
 

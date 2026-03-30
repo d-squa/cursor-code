@@ -37,10 +37,11 @@ import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/Launch
 import { DspConfigChangesView } from "@/components/launch/DspConfigChangesView";
 import { useDspConfigSync } from "@/hooks/useDspConfigSync";
 import { useQCTracking } from "@/hooks/useQCTracking";
+import { useQCChecklist } from "@/hooks/useQCChecklist";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
 import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
-import { QCStatusPanel } from "@/components/launch/QCStatusPanel";
+import { QCCheckSection } from "@/components/launch/QCCheckSection";
 
 interface LaunchStatusEntry {
   id: string;
@@ -184,7 +185,21 @@ export default function LaunchStatus() {
   });
 
   // QC Tracking
-  const { items: qcItems, transitions: qcTransitions, loading: qcLoading, summary: qcSummary } = useQCTracking({
+  const { items: qcItems, transitions: qcTransitions, loading: qcLoading, summary: qcSummary, initializeTracking, updateState: updateQCState } = useQCTracking({
+    campaignId,
+    enabled: !!campaignId && !!user && hasPushedEntities,
+  });
+
+  // QC Checklist
+  const {
+    getChecklist,
+    getCompletions,
+    getCompletionCount,
+    isAllChecked,
+    toggleItem: toggleChecklistItem,
+    toggleAll: toggleAllChecklist,
+    loading: checklistLoading,
+  } = useQCChecklist({
     campaignId,
     enabled: !!campaignId && !!user && hasPushedEntities,
   });
@@ -1334,14 +1349,21 @@ export default function LaunchStatus() {
         </div>
       )}
 
-      {/* QC Status Panel - shows when campaign has been pushed */}
-      {hasPushedEntities && campaignId && qcItems.length > 0 && (
+      {/* Quality Check Section - shows when campaign has been pushed */}
+      {hasPushedEntities && campaignId && (
         <div className="mb-6">
-          <QCStatusPanel
+          <QCCheckSection
             items={qcItems}
-            transitions={qcTransitions}
-            loading={qcLoading}
+            loading={qcLoading || checklistLoading}
             summary={qcSummary}
+            getChecklist={getChecklist}
+            getCompletions={getCompletions}
+            getCompletionCount={getCompletionCount}
+            isAllChecked={isAllChecked}
+            onToggleItem={toggleChecklistItem}
+            onToggleAll={toggleAllChecklist}
+            onUpdateState={updateQCState}
+            onInitialize={initializeTracking}
           />
         </div>
       )}

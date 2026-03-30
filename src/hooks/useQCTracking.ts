@@ -115,6 +115,134 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
     };
   }, [campaignId, enabled, user, fetchData]);
 
+  // Initialize QC tracking from launch statuses (creates entries for entities that don't have tracking yet)
+  const initializeTracking = useCallback(async () => {
+    if (!campaignId || !user) return;
+
+    try {
+      // Get launch statuses
+      const { data: launchStatuses } = await supabase
+        .from("campaign_launch_status")
+        .select("*")
+        .eq("campaign_id", campaignId);
+
+      if (!launchStatuses || launchStatuses.length === 0) return;
+
+      // Get campaign team_id
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("team_id")
+        .eq("id", campaignId)
+        .single();
+
+      // Get existing tracking
+      const existingKeys = new Set(
+        items.map(i => `${i.platform}-${i.entity_type}-${i.market}-${i.phase_name || ''}`)
+      );
+
+      // Create tracking entries for missing entities
+      const newEntries: any[] = [];
+      for (const ls of launchStatuses) {
+        const key = `${ls.platform}-${ls.entity_type}-${ls.market}-${ls.phase_name || ''}`;
+        if (!existingKeys.has(key)) {
+          newEntries.push({
+            campaign_id: campaignId,
+            platform: ls.platform,
+            market: ls.market,
+            phase_name: ls.phase_name,
+            entity_type: ls.entity_type,
+            entity_name: ls.entity_name,
+            dsp_entity_id: ls.dsp_entity_id,
+            current_state: 'waiting_for_final_qc',
+            is_valid: true,
+            user_id: user.id,
+            team_id: campaign?.team_id,
+          });
+        }
+      }
+
+      // Also create tracking for creative assignments (ads)
+      const { data: assignments } = await supabase
+        .from("creative_assignments")
+        .select("id, platform, market, phase_name, ad_set_name, creative_id, status")
+        .eq("campaign_id", campaignId);
+
+      if (assignments) {
+        for (const a of assignments) {
+          const key = `${a.platform}-ad-${a.market}-${a.phase_name || ''}-${a.id}`;
+          const existingAd = items.find(i => 
+            i.platform === a.platform && 
+            i.entity_type === 'ad' && 
+            i.market === a.market &&
+            i.dsp_entity_id === a.id
+          );
+          if (!existingAd) {
+            newEntries.push({
+              campaign_id: campaignId,
+              platform: a.platform,
+              market: a.market,
+              phase_name: a.phase_name,
+              entity_type: 'ad',
+              entity_name: `Ad in ${a.ad_set_name}`,
+              dsp_entity_id: a.id,
+              current_state: 'waiting_for_final_qc',
+              is_valid: true,
+              user_id: user.id,
+              team_id: campaign?.team_id,
+            });
+          }
+        }
+      }
+
+      if (newEntries.length > 0) {
+        await supabase.from("qc_tracking").insert(newEntries);
+        await fetchData();
+      }
+    } catch (error) {
+      console.error("Error initializing QC tracking:", error);
+    }
+  }, [campaignId, user, items, fetchData]);
+
+  // Update QC state for a tracking item
+  const updateState = useCallback(async (trackingId: string, newState: QCState) => {
+    if (!user || !campaignId) return;
+
+    const item = items.find(i => i.id === trackingId);
+    if (!item) return;
+
+    try {
+      // Update tracking
+      await supabase
+        .from("qc_tracking")
+        .update({
+          current_state: newState,
+          previous_state: item.current_state,
+          is_valid: true,
+        })
+        .eq("id", trackingId);
+
+      // Log transition
+      await supabase.from("qc_state_transitions").insert({
+        qc_tracking_id: trackingId,
+        campaign_id: campaignId,
+        from_state: item.current_state,
+        to_state: newState,
+        detected_via: "manual",
+        impressions_at_transition: item.impressions_count,
+        metadata: { set_by: user.id },
+      });
+
+      // Update local state immediately
+      setItems(prev => prev.map(i => 
+        i.id === trackingId 
+          ? { ...i, current_state: newState, previous_state: i.current_state }
+          : i
+      ));
+    } catch (error) {
+      console.error("Error updating QC state:", error);
+    }
+  }, [user, campaignId, items]);
+
   // Summary stats
   const summary = {
     total: items.length,
@@ -132,5 +260,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
     loading,
     summary,
     refresh: fetchData,
+    initializeTracking,
+    updateState,
   };
 }
