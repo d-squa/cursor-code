@@ -523,7 +523,19 @@ export default function ActiPlans() {
     return "Agency";
   };
 
+  const getEffectiveStatus = (campaign: Campaign): string => {
+    // If the campaign has QC tracking, the QC status takes precedence over pushed_to_dsp/partially_pushed/live
+    if (campaign.qc_status && ['pushed_to_dsp', 'partially_pushed', 'live'].includes(campaign.status || '')) {
+      return campaign.qc_status;
+    }
+    return campaign.status || 'draft';
+  };
+
   const getStatusBadge = (status: string, qcStatus?: string | null) => {
+    const effectiveStatus = qcStatus && ['pushed_to_dsp', 'partially_pushed', 'live'].includes(status)
+      ? qcStatus
+      : status;
+
     const variants: Record<string, { variant: any; label: string; className?: string }> = {
       draft: { variant: "secondary", label: "Draft" },
       awaiting_approval: { variant: "outline", label: "Awaiting Approval" },
@@ -534,28 +546,14 @@ export default function ActiPlans() {
       push_failed: { variant: "destructive", label: "Push Failed" },
       under_modification: { variant: "outline", label: "Under Modification" },
       rejected: { variant: "destructive", label: "Rejected" },
+      waiting_for_final_qc: { variant: "outline", label: "Waiting for Final Check", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" },
+      qc: { variant: "outline", label: "Checked", className: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
+      pushed_live: { variant: "outline", label: "Pushed Live", className: "bg-purple-500/10 text-purple-700 border-purple-500/30" },
+      delivering: { variant: "outline", label: "Delivering", className: "bg-green-500/10 text-green-700 border-green-500/30" },
     };
 
-    const qcVariants: Record<string, { label: string; className: string }> = {
-      waiting_for_final_qc: { label: "Waiting for Final Check", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" },
-      qc: { label: "Checked", className: "bg-blue-500/10 text-blue-700 border-blue-500/30" },
-      pushed_live: { label: "Pushed Live", className: "bg-purple-500/10 text-purple-700 border-purple-500/30" },
-      delivering: { label: "Delivering", className: "bg-green-500/10 text-green-700 border-green-500/30" },
-    };
-
-    const config = variants[status] || variants.draft;
-    const qcConfig = qcStatus ? qcVariants[qcStatus] : null;
-
-    return (
-      <div className="flex flex-col items-end gap-1">
-        <Badge variant={config.variant}>{config.label}</Badge>
-        {qcConfig && (
-          <Badge variant="outline" className={qcConfig.className}>
-            {qcConfig.label}
-          </Badge>
-        )}
-      </div>
-    );
+    const config = variants[effectiveStatus] || variants.draft;
+    return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
   const canEdit = (campaign: Campaign) => {
