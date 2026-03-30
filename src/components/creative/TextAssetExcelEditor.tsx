@@ -329,11 +329,18 @@ export function TextAssetExcelEditor({
     const groupId = group.id;
     const rowIds = group.rows.map(r => r.id);
     onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId, processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
-  }, [onBulkUpdate]);
+    // Notify parent to persist group to DB
+    onACGroupCreated?.(group, compiled);
+  }, [onBulkUpdate, onACGroupCreated]);
 
   const handleACBuilderUngroupRows = useCallback((rowIds: string[]) => {
+    // Find the group ID being removed before clearing it
+    const groupId = rows.find(r => rowIds.includes(r.id))?.assetCustomizationGroupId;
     onBulkUpdate(rowIds, { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
-  }, [onBulkUpdate]);
+    if (groupId) {
+      onACGroupRemoved?.(groupId);
+    }
+  }, [onBulkUpdate, rows, onACGroupRemoved]);
 
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupType: ProcessingGroupKind, groupId: string) => {
