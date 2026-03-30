@@ -1,7 +1,9 @@
 // Inline text assets step for the creative matching dialog
 // Shows hierarchical editor for configuring copy, CTAs, and tracking
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import type { DetectedACGroup } from '@/utils/assetCustomizationEngine';
+import type { CompilationResult } from '@/utils/assetFeedSpecCompiler';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
