@@ -65,7 +65,6 @@ export function QCCheckSection({
 }: QCCheckSectionProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedEntities, setExpandedEntities] = useState<Record<string, boolean>>({});
-  const [initialized, setInitialized] = useState(false);
 
   // Auto-initialize tracking entries when first mounted or when items are empty
   useEffect(() => {
