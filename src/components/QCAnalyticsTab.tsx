@@ -38,6 +38,14 @@ interface QCTrackingRow {
   updated_at: string;
 }
 
+interface QCCheckCompletionRow {
+  id: string;
+  qc_tracking_id: string;
+  item_key: string;
+  is_checked: boolean;
+  check_method: string;
+}
+
 interface QCTransitionRow {
   id: string;
   qc_tracking_id: string;
@@ -55,6 +63,7 @@ const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#f59e0b', '#
 export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyticsTabProps) {
   const [tracking, setTracking] = useState<QCTrackingRow[]>([]);
   const [transitions, setTransitions] = useState<QCTransitionRow[]>([]);
+  const [checkCompletions, setCheckCompletions] = useState<QCCheckCompletionRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,8 +96,22 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
         transitionsQuery.order("transitioned_at", { ascending: true }),
       ]);
 
-      setTracking((trackingRes.data || []) as unknown as QCTrackingRow[]);
+      const trackingData = (trackingRes.data || []) as unknown as QCTrackingRow[];
+      setTracking(trackingData);
       setTransitions((transitionsRes.data || []) as unknown as QCTransitionRow[]);
+
+      // Fetch check completions for PWR calculation
+      if (trackingData.length > 0) {
+        const trackingIds = trackingData.map(t => t.id);
+        const { data: completionsData } = await supabase
+          .from("qc_checklist_completions")
+          .select("id, qc_tracking_id, item_key, is_checked, check_method")
+          .in("qc_tracking_id", trackingIds)
+          .eq("is_checked", true);
+        setCheckCompletions((completionsData || []) as unknown as QCCheckCompletionRow[]);
+      } else {
+        setCheckCompletions([]);
+      }
     } catch (error) {
       console.error("Error loading QC analytics:", error);
     } finally {
@@ -187,10 +210,17 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
   const totalToDelivering = tracking.filter(t => t.current_state === 'delivering').length;
   const autoCompletedCount = tracking.filter(t => t.auto_completed).length;
 
+  // PWR (Pencil Whip Rate) calculation
+  const bulkChecks = checkCompletions.filter(c => c.check_method === 'bulk').length;
+  const individualChecks = checkCompletions.filter(c => c.check_method === 'individual').length;
+  const totalChecks = bulkChecks + individualChecks;
+  const pwrRate = totalChecks > 0 ? ((bulkChecks / totalChecks) * 100).toFixed(1) : '0.0';
+  const pwrColor = parseFloat(pwrRate) > 50 ? 'text-destructive' : parseFloat(pwrRate) > 25 ? 'text-amber-600' : 'text-green-600';
+
   return (
     <div className="space-y-6">
       {/* QC Scorecards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
@@ -228,6 +258,16 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
             <div className="text-center">
               <p className="text-sm text-muted-foreground">Errors</p>
               <p className="text-2xl font-bold text-destructive">{errors.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground" title={`Bulk: ${bulkChecks} | Individual: ${individualChecks}. High rate may indicate checks are being rushed.`}>
+                PWR (Pencil Whip Rate)
+              </p>
+              <p className={`text-2xl font-bold ${pwrColor}`}>{pwrRate}%</p>
             </div>
           </CardContent>
         </Card>

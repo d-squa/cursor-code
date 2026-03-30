@@ -3122,6 +3122,7 @@ export type Database = {
       }
       qc_checklist_completions: {
         Row: {
+          check_method: string
           checked_at: string | null
           checked_by: string | null
           created_at: string | null
@@ -3132,6 +3133,7 @@ export type Database = {
           qc_tracking_id: string
         }
         Insert: {
+          check_method?: string
           checked_at?: string | null
           checked_by?: string | null
           created_at?: string | null
@@ -3142,6 +3144,7 @@ export type Database = {
           qc_tracking_id: string
         }
         Update: {
+          check_method?: string
           checked_at?: string | null
           checked_by?: string | null
           created_at?: string | null
