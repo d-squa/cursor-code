@@ -34,6 +34,10 @@ import {
   ArrowLeft,
   CheckCheck,
   Zap,
+  ChevronsUpDown,
+  ChevronsDownUp,
+  FastForward,
+  Rewind,
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
@@ -76,6 +80,8 @@ export function QCCheckSection({
   onInitialize,
 }: QCCheckSectionProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
   const [expandedEntities, setExpandedEntities] = useState<Record<string, boolean>>({});
   const [initAttempts, setInitAttempts] = useState(0);
 
@@ -86,6 +92,35 @@ export function QCCheckSection({
       onInitialize();
     }
   }, [loading, items.length, onInitialize, initAttempts]);
+
+  const tree = useMemo(() => buildTree(items), [items]);
+
+  // Check if all items are fully checked and can advance
+  const allItemsChecked = useMemo(() => {
+    return items.every(item => {
+      const checklist = getChecklist(item.platform, item.entity_type);
+      return isAllChecked(item.id, checklist);
+    });
+  }, [items, getChecklist, isAllChecked]);
+
+  // Check if all items are at the same state and can advance together
+  const canMoveAllForward = useMemo(() => {
+    if (items.length === 0) return false;
+    return items.every(item => {
+      const nextState = getNextState(item.current_state);
+      if (!nextState) return false;
+      if (item.current_state === 'waiting_for_final_qc') {
+        const checklist = getChecklist(item.platform, item.entity_type);
+        return isAllChecked(item.id, checklist);
+      }
+      return true;
+    });
+  }, [items, getChecklist, isAllChecked]);
+
+  const canMoveAllBack = useMemo(() => {
+    if (items.length === 0) return false;
+    return items.some(item => getPreviousState(item.current_state) !== null);
+  }, [items]);
 
   if (loading) {
     return (
@@ -112,29 +147,104 @@ export function QCCheckSection({
   const deliveredPercent = summary.total > 0 ? Math.round(((summary.delivering + summary.pushedLive) / summary.total) * 100) : 0;
   const checkedPercent = summary.total > 0 ? Math.round(((summary.inQC + summary.pushedLive + summary.delivering) / summary.total) * 100) : 0;
 
-  // Group by platform → market → phase
-  const tree = buildTree(items);
+  const expandAll = () => {
+    const platforms: Record<string, boolean> = {};
+    const markets: Record<string, boolean> = {};
+    const phases: Record<string, boolean> = {};
+    const entities: Record<string, boolean> = {};
+    for (const item of items) {
+      platforms[item.platform] = true;
+      markets[`${item.platform}|${item.market || 'Unknown'}`] = true;
+      phases[`${item.platform}|${item.market || 'Unknown'}|${item.phase_name || '_none'}`] = true;
+      entities[item.id] = true;
+    }
+    setExpandedPlatforms(platforms);
+    setExpandedMarkets(markets);
+    setExpandedPhases(phases);
+    setExpandedEntities(entities);
+  };
+
+  const collapseAll = () => {
+    setExpandedPlatforms({});
+    setExpandedMarkets({});
+    setExpandedPhases({});
+    setExpandedEntities({});
+  };
 
   const togglePlatform = (platform: string) => {
     setExpandedPlatforms(prev => ({ ...prev, [platform]: !prev[platform] }));
+  };
+
+  const toggleMarket = (key: string) => {
+    setExpandedMarkets(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const togglePhase = (key: string) => {
+    setExpandedPhases(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleEntity = (id: string) => {
     setExpandedEntities(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleMoveAllForward = () => {
+    for (const item of items) {
+      const nextState = getNextState(item.current_state);
+      if (nextState) {
+        if (item.current_state === 'waiting_for_final_qc') {
+          const checklist = getChecklist(item.platform, item.entity_type);
+          if (isAllChecked(item.id, checklist)) {
+            onUpdateState(item.id, nextState);
+          }
+        } else {
+          onUpdateState(item.id, nextState);
+        }
+      }
+    }
+  };
+
+  const handleMoveAllBack = () => {
+    for (const item of items) {
+      const prevState = getPreviousState(item.current_state);
+      if (prevState) {
+        onUpdateState(item.id, prevState);
+      }
+    }
+  };
+
+  // Auto-advance handler: check all + move to Checked
+  const handleBulkCheckAndAdvance = (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => {
+    onToggleAll(trackingId, checklist, true);
+    if (currentState === 'waiting_for_final_qc') {
+      // Small delay to let the toggle persist first
+      setTimeout(() => onUpdateState(trackingId, 'qc'), 100);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4" />
-          Quality Check
-          {summary.delivering > 0 && (
-            <Badge variant="outline" className="ml-2 bg-green-500/10 text-green-700 border-green-500/30">
-              {summary.delivering} Delivering
-            </Badge>
-          )}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Quality Check
+            {summary.delivering > 0 && (
+              <Badge variant="outline" className="ml-2 bg-green-500/10 text-green-700 border-green-500/30">
+                {summary.delivering} Delivering
+              </Badge>
+            )}
+          </CardTitle>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={expandAll} className="h-7 px-2 text-xs">
+              <ChevronsUpDown className="h-3 w-3 mr-1" />
+              Expand All
+            </Button>
+            <Button variant="ghost" size="sm" onClick={collapseAll} className="h-7 px-2 text-xs">
+              <ChevronsDownUp className="h-3 w-3 mr-1" />
+              Collapse All
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Progress Overview */}
@@ -155,6 +265,51 @@ export function QCCheckSection({
               );
             })}
           </div>
+        </div>
+
+        {/* Global Move All Buttons */}
+        <div className="flex items-center justify-between">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!canMoveAllBack}>
+                <Rewind className="h-3 w-3 mr-1" />
+                Move All Back
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Move All Items Back?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will move all {items.filter(i => getPreviousState(i.current_state) !== null).length} eligible items to their previous state.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleMoveAllBack}>Yes, Move All Back</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="default" size="sm" className="h-7 text-xs" disabled={!canMoveAllForward}>
+                <FastForward className="h-3 w-3 mr-1" />
+                Move All Forward
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Move All Items Forward?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will advance all eligible items to their next state. Items that haven't completed their checklist will be skipped. This action is your responsibility.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleMoveAllForward}>Yes, Move All Forward</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         <Separator />
@@ -183,48 +338,67 @@ export function QCCheckSection({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="ml-4 space-y-1">
-                      {Object.entries(markets).map(([market, phases]) => (
-                        <div key={market} className="ml-2">
-                          <div className="text-xs font-medium text-muted-foreground py-1 px-2">{market}</div>
-                          {Object.entries(phases).map(([phase, entityGroups]) => (
-                            <div key={phase} className="ml-4">
-                              {phase !== '_none' && (
-                                <div className="text-xs text-muted-foreground py-0.5 px-2 italic">{phase}</div>
-                              )}
-                              {Object.entries(entityGroups).map(([entityType, entityItems]) => (
-                                <div key={entityType} className="ml-2 space-y-0.5">
-                                  <div className="flex items-center justify-between px-2 py-0.5">
-                                    <div className="text-xs font-medium text-muted-foreground/70 capitalize">
-                                      {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
-                                    </div>
-                                    <BulkCheckAllButton
-                                      entityItems={entityItems}
-                                      entityType={entityType}
-                                      getChecklist={getChecklist}
-                                      onToggleAll={onToggleAll}
-                                    />
+                      {Object.entries(markets).map(([market, phases]) => {
+                        const marketKey = `${platform}|${market}`;
+                        const isMarketExpanded = expandedMarkets[marketKey] ?? true;
+
+                        return (
+                          <Collapsible key={market} open={isMarketExpanded} onOpenChange={() => toggleMarket(marketKey)}>
+                            <CollapsibleTrigger className="flex items-center gap-2 w-full py-1 px-2 hover:bg-muted/30 rounded text-xs font-medium text-muted-foreground">
+                              {isMarketExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                              {market}
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              {Object.entries(phases).map(([phase, entityGroups]) => {
+                                const phaseKey = `${platform}|${market}|${phase}`;
+                                const isPhaseExpanded = expandedPhases[phaseKey] ?? true;
+
+                                return (
+                                  <div key={phase} className="ml-4">
+                                    {phase !== '_none' ? (
+                                      <Collapsible open={isPhaseExpanded} onOpenChange={() => togglePhase(phaseKey)}>
+                                        <CollapsibleTrigger className="flex items-center gap-2 w-full py-0.5 px-2 hover:bg-muted/20 rounded text-xs text-muted-foreground italic">
+                                          {isPhaseExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                          {phase}
+                                        </CollapsibleTrigger>
+                                        <CollapsibleContent>
+                                          <EntityGroupContent
+                                            entityGroups={entityGroups}
+                                            expandedEntities={expandedEntities}
+                                            toggleEntity={toggleEntity}
+                                            getChecklist={getChecklist}
+                                            getCompletions={getCompletions}
+                                            getCompletionCount={getCompletionCount}
+                                            isAllChecked={isAllChecked}
+                                            onToggleItem={onToggleItem}
+                                            onToggleAll={onToggleAll}
+                                            onUpdateState={onUpdateState}
+                                            onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
+                                          />
+                                        </CollapsibleContent>
+                                      </Collapsible>
+                                    ) : (
+                                      <EntityGroupContent
+                                        entityGroups={entityGroups}
+                                        expandedEntities={expandedEntities}
+                                        toggleEntity={toggleEntity}
+                                        getChecklist={getChecklist}
+                                        getCompletions={getCompletions}
+                                        getCompletionCount={getCompletionCount}
+                                        isAllChecked={isAllChecked}
+                                        onToggleItem={onToggleItem}
+                                        onToggleAll={onToggleAll}
+                                        onUpdateState={onUpdateState}
+                                        onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
+                                      />
+                                    )}
                                   </div>
-                                  {entityItems.map(item => (
-                                    <EntityRow
-                                      key={item.id}
-                                      item={item}
-                                      isExpanded={expandedEntities[item.id] ?? false}
-                                      onToggleExpand={() => toggleEntity(item.id)}
-                                      checklist={getChecklist(item.platform, item.entity_type)}
-                                      completions={getCompletions(item.id)}
-                                      completionCount={getCompletionCount(item.id, getChecklist(item.platform, item.entity_type))}
-                                      allChecked={isAllChecked(item.id, getChecklist(item.platform, item.entity_type))}
-                                      onToggleItem={(key, checked) => onToggleItem(item.id, key, checked)}
-                                      onToggleAll={(checked) => onToggleAll(item.id, getChecklist(item.platform, item.entity_type), checked)}
-                                      onUpdateState={(state) => onUpdateState(item.id, state)}
-                                    />
-                                  ))}
-                                </div>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
+                                );
+                              })}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        );
+                      })}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
@@ -234,6 +408,72 @@ export function QCCheckSection({
         </TooltipProvider>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Entity Group Content ───────────────────────────────────────────────────
+
+interface EntityGroupContentProps {
+  entityGroups: Record<string, QCTrackingItem[]>;
+  expandedEntities: Record<string, boolean>;
+  toggleEntity: (id: string) => void;
+  getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
+  getCompletions: (trackingId: string) => Record<string, boolean>;
+  getCompletionCount: (trackingId: string, items: QCChecklistItem[]) => { checked: number; total: number };
+  isAllChecked: (trackingId: string, items: QCChecklistItem[]) => boolean;
+  onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => void;
+  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
+  onUpdateState: (trackingId: string, newState: QCState) => void;
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+}
+
+function EntityGroupContent({
+  entityGroups,
+  expandedEntities,
+  toggleEntity,
+  getChecklist,
+  getCompletions,
+  getCompletionCount,
+  isAllChecked,
+  onToggleItem,
+  onToggleAll,
+  onUpdateState,
+  onBulkCheckAndAdvance,
+}: EntityGroupContentProps) {
+  return (
+    <>
+      {Object.entries(entityGroups).map(([entityType, entityItems]) => (
+        <div key={entityType} className="ml-2 space-y-0.5">
+          <div className="flex items-center justify-between px-2 py-0.5">
+            <div className="text-xs font-medium text-muted-foreground/70 capitalize">
+              {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
+            </div>
+            <BulkCheckAllButton
+              entityItems={entityItems}
+              entityType={entityType}
+              getChecklist={getChecklist}
+              onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+            />
+          </div>
+          {entityItems.map(item => (
+            <EntityRow
+              key={item.id}
+              item={item}
+              isExpanded={expandedEntities[item.id] ?? false}
+              onToggleExpand={() => toggleEntity(item.id)}
+              checklist={getChecklist(item.platform, item.entity_type)}
+              completions={getCompletions(item.id)}
+              completionCount={getCompletionCount(item.id, getChecklist(item.platform, item.entity_type))}
+              allChecked={isAllChecked(item.id, getChecklist(item.platform, item.entity_type))}
+              onToggleItem={(key, checked) => onToggleItem(item.id, key, checked)}
+              onToggleAll={(checked) => onToggleAll(item.id, getChecklist(item.platform, item.entity_type), checked)}
+              onUpdateState={(state) => onUpdateState(item.id, state)}
+              onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(item.id, getChecklist(item.platform, item.entity_type), item.current_state)}
+            />
+          ))}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -250,6 +490,7 @@ interface EntityRowProps {
   onToggleItem: (key: string, checked: boolean) => void;
   onToggleAll: (checked: boolean) => void;
   onUpdateState: (state: QCState) => void;
+  onBulkCheckAndAdvance: () => void;
 }
 
 function EntityRow({
@@ -263,6 +504,7 @@ function EntityRow({
   onToggleItem,
   onToggleAll,
   onUpdateState,
+  onBulkCheckAndAdvance,
 }: EntityRowProps) {
   const nextState = getNextState(item.current_state);
   const prevState = getPreviousState(item.current_state);
@@ -381,22 +623,22 @@ function EntityRow({
   );
 }
 
-// ─── Bulk Check All Button with Confirmation ───────────────────────────────
+// ─── Bulk Check All Button with Confirmation + Auto-Advance ────────────────
 
 interface BulkCheckAllButtonProps {
   entityItems: QCTrackingItem[];
   entityType: string;
   getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
-  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
 }
 
-function BulkCheckAllButton({ entityItems, entityType, getChecklist, onToggleAll }: BulkCheckAllButtonProps) {
+function BulkCheckAllButton({ entityItems, entityType, getChecklist, onBulkCheckAndAdvance }: BulkCheckAllButtonProps) {
   const label = entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns';
 
   const handleBulkCheck = () => {
     for (const item of entityItems) {
       const checklist = getChecklist(item.platform, item.entity_type);
-      onToggleAll(item.id, checklist, true);
+      onBulkCheckAndAdvance(item.id, checklist, item.current_state);
     }
   };
 
@@ -412,14 +654,14 @@ function BulkCheckAllButton({ entityItems, entityType, getChecklist, onToggleAll
         <AlertDialogHeader>
           <AlertDialogTitle>Bulk Check All {label}?</AlertDialogTitle>
           <AlertDialogDescription>
-            You are about to mark all checklist items as checked for {entityItems.length} {label.toLowerCase()}. 
+            You are about to mark all checklist items as checked for {entityItems.length} {label.toLowerCase()} and automatically advance them to <strong>Checked</strong> state. 
             This action is your responsibility — please ensure all items have been properly reviewed before confirming.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={handleBulkCheck}>
-            Yes, Check All
+            Yes, Check All & Advance
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
