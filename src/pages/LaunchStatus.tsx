@@ -185,7 +185,21 @@ export default function LaunchStatus() {
   });
 
   // QC Tracking
-  const { items: qcItems, transitions: qcTransitions, loading: qcLoading, summary: qcSummary } = useQCTracking({
+  const { items: qcItems, transitions: qcTransitions, loading: qcLoading, summary: qcSummary, initializeTracking, updateState: updateQCState } = useQCTracking({
+    campaignId,
+    enabled: !!campaignId && !!user && hasPushedEntities,
+  });
+
+  // QC Checklist
+  const {
+    getChecklist,
+    getCompletions,
+    getCompletionCount,
+    isAllChecked,
+    toggleItem: toggleChecklistItem,
+    toggleAll: toggleAllChecklist,
+    loading: checklistLoading,
+  } = useQCChecklist({
     campaignId,
     enabled: !!campaignId && !!user && hasPushedEntities,
   });
