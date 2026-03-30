@@ -22,6 +22,18 @@ interface ConfigChange {
   dsp_value: string | null;
 }
 
+interface ExistingChangeRow {
+  id: string;
+  platform: string;
+  entity_type: string;
+  dsp_entity_id: string;
+  field_name: string;
+  dsp_value: string | null;
+  is_acknowledged: boolean;
+  detected_at: string;
+  acknowledged_at: string | null;
+}
+
 // Field mappings for human-readable labels
 const META_CAMPAIGN_FIELDS: Record<string, { label: string; category: string }> = {
   name: { label: "Campaign Name", category: "naming" },
@@ -76,6 +88,24 @@ function normalizeValue(val: any): string {
   if (val === null || val === undefined) return "";
   if (typeof val === "object") return JSON.stringify(val);
   return String(val);
+}
+
+function getChangeKey(change: Pick<ConfigChange, "platform" | "entity_type" | "dsp_entity_id" | "field_name" | "dsp_value">): string {
+  return [change.platform, change.entity_type, change.dsp_entity_id, change.field_name, change.dsp_value ?? ""].join("::");
+}
+
+function getExistingChangeKey(change: Pick<ExistingChangeRow, "platform" | "entity_type" | "dsp_entity_id" | "field_name" | "dsp_value">): string {
+  return [change.platform, change.entity_type, change.dsp_entity_id, change.field_name, change.dsp_value ?? ""].join("::");
+}
+
+function dedupeChanges(changes: ConfigChange[]): ConfigChange[] {
+  const uniqueChanges = new Map<string, ConfigChange>();
+
+  for (const change of changes) {
+    uniqueChanges.set(getChangeKey(change), change);
+  }
+
+  return Array.from(uniqueChanges.values());
 }
 
 // Convert Meta budget from cents to dollars
@@ -381,24 +411,48 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("user_id", user.id)
       .eq("is_active", true);
 
-    // Check if this is the first-ever sync for this campaign (no existing changes at all)
-    const { count: existingChangeCount } = await supabase
+    const { data: existingChangesRaw, error: existingChangesError } = await supabase
       .from("dsp_config_changes")
-      .select("id", { count: "exact", head: true })
+      .select("id, platform, entity_type, dsp_entity_id, field_name, dsp_value, is_acknowledged, detected_at, acknowledged_at")
       .eq("campaign_id", campaignId);
 
-    const isInitialSync = (existingChangeCount || 0) === 0;
+    if (existingChangesError) {
+      throw existingChangesError;
+    }
 
-    // Get existing unacknowledged changes to avoid duplicates
-    const { data: existingChanges } = await supabase
-      .from("dsp_config_changes")
-      .select("dsp_entity_id, field_name, dsp_value")
-      .eq("campaign_id", campaignId)
-      .eq("is_acknowledged", false);
+    const existingChanges = (existingChangesRaw || []) as ExistingChangeRow[];
+    const isInitialSync = existingChanges.length === 0;
 
-    const existingChangeKeys = new Set(
-      (existingChanges || []).map((c: any) => `${c.dsp_entity_id}:${c.field_name}:${c.dsp_value}`),
+    const acknowledgedKeys = new Set(
+      existingChanges.filter((change) => change.is_acknowledged).map(getExistingChangeKey),
     );
+
+    const latestUnacknowledgedByKey = new Map(
+      existingChanges
+        .filter((change) => !change.is_acknowledged)
+        .sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime())
+        .map((change) => [getExistingChangeKey(change), change]),
+    );
+
+    const duplicateAcknowledgedIds = existingChanges
+      .filter((change) => change.is_acknowledged)
+      .sort((a, b) => {
+        const timeA = new Date(a.acknowledged_at || a.detected_at).getTime();
+        const timeB = new Date(b.acknowledged_at || b.detected_at).getTime();
+        return timeB - timeA;
+      })
+      .reduce(
+        (acc, change) => {
+          const key = getExistingChangeKey(change);
+          if (acc.seen.has(key)) {
+            acc.ids.push(change.id);
+          } else {
+            acc.seen.add(key);
+          }
+          return acc;
+        },
+        { ids: [] as string[], seen: new Set<string>() },
+      ).ids;
 
     const allChanges: ConfigChange[] = [];
 
@@ -540,26 +594,48 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Delete old unacknowledged changes for this campaign (replace with fresh data)
-    await supabase
+    const uniqueChanges = dedupeChanges(allChanges);
+
+    if (duplicateAcknowledgedIds.length > 0) {
+      for (let i = 0; i < duplicateAcknowledgedIds.length; i += 100) {
+        const chunk = duplicateAcknowledgedIds.slice(i, i + 100);
+        const { error: deleteDuplicateError } = await supabase.from("dsp_config_changes").delete().in("id", chunk);
+        if (deleteDuplicateError) {
+          console.error("Error deleting duplicate acknowledged DSP changes:", deleteDuplicateError);
+        }
+      }
+    }
+
+    const { error: deleteUnacknowledgedError } = await supabase
       .from("dsp_config_changes")
       .delete()
       .eq("campaign_id", campaignId)
       .eq("is_acknowledged", false);
 
-    // Insert all current DSP state
-    if (allChanges.length > 0) {
+    if (deleteUnacknowledgedError) {
+      throw deleteUnacknowledgedError;
+    }
+
+    // Insert only newly detected state that has not already been acknowledged
+    if (uniqueChanges.length > 0) {
       const now = new Date().toISOString();
-      const insertData = allChanges.map((c) => ({
+      const insertData = (isInitialSync
+        ? uniqueChanges
+        : uniqueChanges.filter((change) => !acknowledgedKeys.has(getChangeKey(change))))
+        .map((c) => {
+          const existingUnacknowledged = latestUnacknowledgedByKey.get(getChangeKey(c));
+
+          return {
         ...c,
-        detected_at: now,
+        detected_at: existingUnacknowledged?.detected_at || now,
         synced_at: now,
         // On initial sync (first time after push), auto-acknowledge everything
         // since these are the values we just pushed — not real changes
         is_acknowledged: isInitialSync ? true : false,
-        acknowledged_at: isInitialSync ? now : null,
+        acknowledged_at: isInitialSync ? now : existingUnacknowledged?.acknowledged_at || null,
         acknowledged_by: isInitialSync ? user.id : null,
-      }));
+          };
+        });
 
       // Batch insert in chunks of 50
       for (let i = 0; i < insertData.length; i += 50) {
@@ -572,8 +648,8 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const resultMessage = isInitialSync
-      ? `Initial baseline captured for campaign ${campaignId}: ${allChanges.length} fields stored`
-      : `DSP config sync complete for campaign ${campaignId}: ${allChanges.length} total fields synced`;
+      ? `Initial baseline captured for campaign ${campaignId}: ${uniqueChanges.length} fields stored`
+      : `DSP config sync complete for campaign ${campaignId}: ${uniqueChanges.length} total fields synced`;
 
     console.log(resultMessage);
 
@@ -581,8 +657,10 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({
         success: true,
         isInitialSync,
-        totalFields: allChanges.length,
-        changes: isInitialSync ? 0 : allChanges.length,
+        totalFields: uniqueChanges.length,
+        changes: isInitialSync
+          ? 0
+          : uniqueChanges.filter((change) => !acknowledgedKeys.has(getChangeKey(change))).length,
         platforms: {
           meta: metaEntities.length,
           tiktok: tiktokEntities.length,
