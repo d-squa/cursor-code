@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { QCState } from "@/utils/qcUtils";
+import type { Database } from "@/integrations/supabase/types";
 
 export interface QCTrackingItem {
   id: string;
@@ -43,6 +44,26 @@ interface UseQCTrackingOptions {
   campaignId: string | undefined;
   enabled?: boolean;
 }
+
+type QCTrackingInsert = Database["public"]["Tables"]["qc_tracking"]["Insert"];
+
+type TrackingSeed = {
+  platform: string;
+  market: string | null;
+  phase_name: string | null;
+  entity_type: string;
+  entity_name: string | null;
+  dsp_entity_id: string | null;
+};
+
+const buildTrackingKey = (seed: TrackingSeed) =>
+  [
+    seed.platform,
+    seed.entity_type,
+    seed.market || "",
+    seed.phase_name || "",
+    seed.dsp_entity_id || "",
+  ].join("::");
 
 export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptions) {
   const { user } = useAuth();
@@ -88,7 +109,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
   useEffect(() => {
     if (!campaignId || !enabled || !user) return;
 
-    fetchData();
+    void fetchData();
 
     const channel = supabase
       .channel(`qc-tracking-${campaignId}`)
@@ -101,7 +122,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           filter: `campaign_id=eq.${campaignId}`,
         },
         () => {
-          fetchData(true);
+          void fetchData(true);
         }
       )
       .subscribe();
@@ -123,8 +144,9 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       const [launchStatusesRes, campaignRes, existingTrackingRes, assignmentsRes] = await Promise.all([
         supabase
           .from("campaign_launch_status")
-          .select("platform, market, phase_name, entity_type, entity_name, dsp_entity_id")
-          .eq("campaign_id", campaignId),
+          .select("platform, market, phase_name, entity_type, entity_name, dsp_entity_id, status")
+          .eq("campaign_id", campaignId)
+          .in("status", ["pushed_to_dsp", "live", "partially_pushed"]),
         supabase
           .from("campaigns")
           .select("team_id")
@@ -136,8 +158,9 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           .eq("campaign_id", campaignId),
         supabase
           .from("creative_assignments")
-          .select("id, platform, market, phase_name, ad_set_name, display_name")
-          .eq("campaign_id", campaignId),
+          .select("id, platform, market, phase_name, ad_set_name, display_name, status")
+          .eq("campaign_id", campaignId)
+          .eq("status", "pushed"),
       ]);
 
       if (launchStatusesRes.error) throw launchStatusesRes.error;
@@ -145,76 +168,51 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       if (existingTrackingRes.error) throw existingTrackingRes.error;
       if (assignmentsRes.error) throw assignmentsRes.error;
 
-      const launchStatuses = launchStatusesRes.data || [];
       const campaign = campaignRes.data;
-      const existingTracking = existingTrackingRes.data || [];
-      const assignments = assignmentsRes.data || [];
-
       const existingKeys = new Set(
-        existingTracking.map((item: any) =>
-          [
-            item.platform,
-            item.entity_type,
-            item.market || "",
-            item.phase_name || "",
-            item.dsp_entity_id || "",
-          ].join("::")
-        )
+        (existingTrackingRes.data || []).map((item) => buildTrackingKey(item))
       );
+      const candidateSeeds = new Map<string, TrackingSeed>();
 
-      const newEntries: Array<Record<string, unknown>> = [];
-
-      for (const launchStatus of launchStatuses) {
-        const key = [
-          launchStatus.platform,
-          launchStatus.entity_type,
-          launchStatus.market || "",
-          launchStatus.phase_name || "",
-          launchStatus.dsp_entity_id || "",
-        ].join("::");
-
-        if (existingKeys.has(key)) continue;
-
-        newEntries.push({
-          campaign_id: campaignId,
+      for (const launchStatus of launchStatusesRes.data || []) {
+        const seed: TrackingSeed = {
           platform: launchStatus.platform,
           market: launchStatus.market,
           phase_name: launchStatus.phase_name,
           entity_type: launchStatus.entity_type,
           entity_name: launchStatus.entity_name,
           dsp_entity_id: launchStatus.dsp_entity_id,
-          current_state: "waiting_for_final_qc",
-          is_valid: true,
-          user_id: user.id,
-          team_id: campaign.team_id,
-        });
+        };
+        candidateSeeds.set(buildTrackingKey(seed), seed);
       }
 
-      for (const assignment of assignments) {
-        const key = [
-          assignment.platform,
-          "ad",
-          assignment.market || "",
-          assignment.phase_name || "",
-          assignment.id,
-        ].join("::");
-
-        if (existingKeys.has(key)) continue;
-
-        newEntries.push({
-          campaign_id: campaignId,
+      for (const assignment of assignmentsRes.data || []) {
+        const seed: TrackingSeed = {
           platform: assignment.platform,
           market: assignment.market,
           phase_name: assignment.phase_name,
           entity_type: "ad",
           entity_name: assignment.display_name || `Ad in ${assignment.ad_set_name}`,
           dsp_entity_id: assignment.id,
+        };
+        candidateSeeds.set(buildTrackingKey(seed), seed);
+      }
+
+      const newEntries: QCTrackingInsert[] = Array.from(candidateSeeds.entries())
+        .filter(([key]) => !existingKeys.has(key))
+        .map(([, seed]) => ({
+          campaign_id: campaignId,
+          platform: seed.platform,
+          market: seed.market,
+          phase_name: seed.phase_name,
+          entity_type: seed.entity_type,
+          entity_name: seed.entity_name,
+          dsp_entity_id: seed.dsp_entity_id,
           current_state: "waiting_for_final_qc",
           is_valid: true,
           user_id: user.id,
           team_id: campaign.team_id,
-        });
-      }
+        }));
 
       if (newEntries.length > 0) {
         const { error: insertError } = await supabase.from("qc_tracking").insert(newEntries);
