@@ -329,6 +329,18 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     setRows(validatedRows);
   }, []);
 
+  // AC group creation callback
+  const handleACGroupCreated = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
+    acGroupSpecsRef.current.set(group.id, { group, compiled });
+    acGroupsToDeleteRef.current.delete(group.id); // In case it was previously marked for deletion
+  }, []);
+
+  // AC group removal callback
+  const handleACGroupRemoved = useCallback((groupId: string) => {
+    acGroupSpecsRef.current.delete(groupId);
+    acGroupsToDeleteRef.current.add(groupId);
+  }, []);
+
   // Save text assets to database
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -374,6 +386,105 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         }
       }
 
+      // ========== PERSIST ASSET CUSTOMIZATION GROUPS ==========
+      // Delete removed AC groups
+      for (const groupId of acGroupsToDeleteRef.current) {
+        // Delete members first, then the group
+        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+        await supabase.from('asset_customization_groups').delete().eq('id', groupId);
+        console.log(`[TextAssetsTab] Deleted AC group ${groupId}`);
+      }
+      acGroupsToDeleteRef.current.clear();
+
+      // Upsert new/updated AC groups
+      for (const [groupId, { group, compiled }] of acGroupSpecsRef.current) {
+        if (!compiled.success || !compiled.spec) continue;
+
+        // Get the first row to extract campaign context
+        const firstRow = group.rows[0];
+        if (!firstRow) continue;
+
+        const campaignIdForGroup = effectiveCampaignId;
+        if (!campaignIdForGroup) continue;
+
+        // Map customization type
+        const customizationType = group.type === 'placement' ? 'placement'
+          : group.type === 'language' ? 'language'
+          : 'flexible';
+
+        // Upsert the group
+        const { error: groupError } = await supabase
+          .from('asset_customization_groups')
+          .upsert({
+            id: groupId,
+            campaign_id: campaignIdForGroup,
+            group_name: group.label || `${customizationType} group`,
+            customization_type: customizationType,
+            asset_feed_spec: compiled.spec as any,
+            customization_rules: (compiled.customizationRules || []) as any,
+            platform: firstRow.platform || 'meta',
+            market: firstRow.market || 'Global',
+            phase_name: firstRow.phase || 'Default',
+            ad_set_name: firstRow.adSet || null,
+            user_id: user?.id || '',
+            team_id: null,
+            status: 'ready',
+          } as any, { onConflict: 'id' });
+
+        if (groupError) {
+          console.error(`[TextAssetsTab] Error upserting AC group ${groupId}:`, groupError);
+          continue;
+        }
+
+        // Delete existing members for this group and re-insert
+        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+
+        const memberInserts = group.rows.map((row, index) => {
+          // Find the assignment ID for this row
+          const assignmentId = row.assignmentId || row.id.split('_')[0];
+          
+          // Determine delivery bucket from the row
+          let deliveryBucket = 'other';
+          for (const [bucket, bucketRows] of group.deliveryBuckets) {
+            if (bucketRows.some(br => br.id === row.id)) {
+              deliveryBucket = bucket;
+              break;
+            }
+          }
+
+          // Determine language
+          let language: string | null = null;
+          for (const [lang, langRows] of group.languages) {
+            if (langRows.some(lr => lr.id === row.id)) {
+              language = lang;
+              break;
+            }
+          }
+
+          return {
+            group_id: groupId,
+            creative_id: row.creativeId,
+            assignment_id: assignmentId,
+            delivery_bucket: deliveryBucket,
+            aspect_ratio: row.aspectRatio || null,
+            language: language,
+            position: index,
+          };
+        });
+
+        if (memberInserts.length > 0) {
+          const { error: membersError } = await supabase
+            .from('asset_customization_group_members')
+            .insert(memberInserts as any);
+
+          if (membersError) {
+            console.error(`[TextAssetsTab] Error inserting AC group members for ${groupId}:`, membersError);
+          }
+        }
+
+        console.log(`[TextAssetsTab] Persisted AC group "${group.label}" with ${memberInserts.length} members`);
+      }
+
       toast.success(`Saved text assets for ${rows.length} creatives`);
     } catch (error) {
       console.error('Error saving text assets:', error);
@@ -381,7 +492,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     } finally {
       setIsSaving(false);
     }
-  }, [rows]);
+  }, [rows, effectiveCampaignId, user?.id]);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
   const effectiveCampaignName = campaignName || selectedCampaign?.name;
