@@ -210,10 +210,17 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
   const totalToDelivering = tracking.filter(t => t.current_state === 'delivering').length;
   const autoCompletedCount = tracking.filter(t => t.auto_completed).length;
 
+  // PWR (Pencil Whip Rate) calculation
+  const bulkChecks = checkCompletions.filter(c => c.check_method === 'bulk').length;
+  const individualChecks = checkCompletions.filter(c => c.check_method === 'individual').length;
+  const totalChecks = bulkChecks + individualChecks;
+  const pwrRate = totalChecks > 0 ? ((bulkChecks / totalChecks) * 100).toFixed(1) : '0.0';
+  const pwrColor = parseFloat(pwrRate) > 50 ? 'text-destructive' : parseFloat(pwrRate) > 25 ? 'text-amber-600' : 'text-green-600';
+
   return (
     <div className="space-y-6">
       {/* QC Scorecards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
