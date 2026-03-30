@@ -264,15 +264,9 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <p className="text-sm text-muted-foreground cursor-help underline decoration-dotted">PWR (Pencil Whip Rate)</p>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[250px]">
-                  <p className="text-xs">Ratio of bulk-checked QC items vs individually checked. A high rate may indicate checks are being rushed without proper review.</p>
-                  <p className="text-xs mt-1">Bulk: {bulkChecks} | Individual: {individualChecks}</p>
-                </TooltipContent>
-              </Tooltip>
+              <p className="text-sm text-muted-foreground" title={`Bulk: ${bulkChecks} | Individual: ${individualChecks}. High rate may indicate checks are being rushed.`}>
+                PWR (Pencil Whip Rate)
+              </p>
               <p className={`text-2xl font-bold ${pwrColor}`}>{pwrRate}%</p>
             </div>
           </CardContent>
