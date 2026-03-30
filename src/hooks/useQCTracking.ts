@@ -51,8 +51,9 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  const fetchData = useCallback(async () => {
-    if (!campaignId || !enabled || !user) return;
+  const fetchData = useCallback(async (force = false) => {
+    if (!campaignId || !user) return;
+    if (!force && !enabled) return;
 
     try {
       setLoading(true);
