@@ -1,0 +1,1 @@
+ALTER TABLE public.qc_checklist_completions ADD COLUMN IF NOT EXISTS check_method text NOT NULL DEFAULT 'individual';
