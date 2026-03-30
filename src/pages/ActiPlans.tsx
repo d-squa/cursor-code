@@ -243,7 +243,37 @@ export default function ActiPlans() {
           Object.keys(latestStatusChanges).forEach((campaignId) => {
             latestStatusChanges[campaignId].user_email = profilesMap[latestStatusChanges[campaignId].user_id];
           });
+      }
+
+      // Fetch QC tracking summary per campaign
+      const qcStatusMap: Record<string, string> = {};
+      if (campaignIds.length > 0) {
+        const { data: qcData } = await supabase
+          .from("qc_tracking")
+          .select("campaign_id, current_state")
+          .in("campaign_id", campaignIds);
+
+        if (qcData && qcData.length > 0) {
+          // Group by campaign_id
+          const grouped: Record<string, string[]> = {};
+          qcData.forEach((row: any) => {
+            if (!grouped[row.campaign_id]) grouped[row.campaign_id] = [];
+            grouped[row.campaign_id].push(row.current_state);
+          });
+
+          // Derive campaign-level QC status based on lowest common state
+          const stateOrder = ['waiting_for_final_qc', 'qc', 'pushed_live', 'delivering'];
+          Object.entries(grouped).forEach(([campaignId, states]) => {
+            // Find the minimum state across all entities
+            let minIndex = stateOrder.length - 1;
+            states.forEach(s => {
+              const idx = stateOrder.indexOf(s);
+              if (idx >= 0 && idx < minIndex) minIndex = idx;
+            });
+            qcStatusMap[campaignId] = stateOrder[minIndex];
+          });
         }
+      }
       }
 
       // Map the data with permissions and last status change
