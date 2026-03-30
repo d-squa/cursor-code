@@ -67,13 +67,12 @@ export function QCCheckSection({
   const [expandedEntities, setExpandedEntities] = useState<Record<string, boolean>>({});
   const [initialized, setInitialized] = useState(false);
 
-  // Auto-initialize tracking entries when first mounted
+  // Auto-initialize tracking entries when first mounted or when items are empty
   useEffect(() => {
-    if (!loading && !initialized) {
+    if (!loading && items.length === 0) {
       onInitialize();
-      setInitialized(true);
     }
-  }, [loading, initialized, onInitialize]);
+  }, [loading, items.length, onInitialize]);
 
   if (loading) {
     return (
