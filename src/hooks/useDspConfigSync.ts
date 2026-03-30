@@ -176,16 +176,18 @@ export function useDspConfigSync({ campaignId, enabled = true, autoSyncOnMount =
     }
   }, [enabled, campaignId, user, fetchChanges]);
 
-  // Auto-sync on mount (if campaign has DSP entities)
+  // Auto-sync ONCE on mount only (not on every dependency change)
+  const hasSyncedOnMount = useState(false);
   useEffect(() => {
-    if (enabled && autoSyncOnMount && campaignId && user && getAccessToken()) {
-      // Small delay to not block initial page load
+    if (enabled && autoSyncOnMount && campaignId && user && getAccessToken() && !hasSyncedOnMount[0]) {
+      hasSyncedOnMount[1](true);
       const timer = setTimeout(() => {
         syncFromDsp();
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [enabled, autoSyncOnMount, campaignId, user, syncFromDsp, getAccessToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, autoSyncOnMount, campaignId, user]);
 
   return {
     changes,
