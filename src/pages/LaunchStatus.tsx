@@ -1334,6 +1334,18 @@ export default function LaunchStatus() {
         </div>
       )}
 
+      {/* QC Status Panel - shows when campaign has been pushed */}
+      {hasPushedEntities && campaignId && qcItems.length > 0 && (
+        <div className="mb-6">
+          <QCStatusPanel
+            items={qcItems}
+            transitions={qcTransitions}
+            loading={qcLoading}
+            summary={qcSummary}
+          />
+        </div>
+      )}
+
       {/* Unified Launch Progress Tracker - 2 Step Flow */}
       {statuses.length > 0 && campaignId && (
         <div className="mb-6">
