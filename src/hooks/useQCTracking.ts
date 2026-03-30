@@ -207,11 +207,10 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         } else {
           console.log(`[QC] Successfully inserted ${insertData?.length || 0} entries`);
         }
-        await fetchData();
+        await fetchData(true);
       } else {
         console.log(`[QC] No new entries needed. Existing: ${existingTracking?.length || 0}, Launch statuses: ${launchStatuses?.length || 0}, Assignments: ${assignments?.length || 0}`);
-        // Always refresh to show existing entries
-        await fetchData();
+        await fetchData(true);
       }
     } catch (error) {
       console.error("Error initializing QC tracking:", error);
