@@ -40,6 +40,10 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
   const [isSaving, setIsSaving] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
+  // Track AC group compiled specs for persistence
+  const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
+  const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
+
   const isExternallyControlled = !!campaignId || !!hideCampaignSelector;
   const effectiveCampaignId = campaignId || selectedCampaignId;
 
