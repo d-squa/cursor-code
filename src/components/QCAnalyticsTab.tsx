@@ -63,6 +63,7 @@ const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#f59e0b', '#
 export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyticsTabProps) {
   const [tracking, setTracking] = useState<QCTrackingRow[]>([]);
   const [transitions, setTransitions] = useState<QCTransitionRow[]>([]);
+  const [checkCompletions, setCheckCompletions] = useState<QCCheckCompletionRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
