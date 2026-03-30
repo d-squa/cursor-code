@@ -81,25 +81,19 @@ function buildMetaCreativeFeaturesSpec(features: {
 }): Record<string, any> {
   const opt = (flag: boolean) => flag ? "OPT_IN" : "OPT_OUT";
 
-  // Meta deprecated standard_enhancements - must use individual feature settings
-  const individualFeatures: Record<string, any> = {};
-  
-  if (features.relevantComments) individualFeatures.inline_comment = { enroll_status: "OPT_IN" };
-  if (features.videoTouchups) individualFeatures.image_touchups = { enroll_status: "OPT_IN" };
-  if (features.videoEffects) individualFeatures.visual_effects = { enroll_status: "OPT_IN" };
-  if (features.textImprovements) individualFeatures.text_generation = { enroll_status: "OPT_IN" };
-  if (features.enhanceCta) individualFeatures.enhance_cta = { enroll_status: "OPT_IN" };
-  if (features.optimizeTextPerPerson) individualFeatures.text_optimizations = { enroll_status: "OPT_IN" };
-  if (features.productTags) individualFeatures.product_tags = { enroll_status: "OPT_IN" };
-  if (features.sitelinks) individualFeatures.sitelinks = { enroll_status: "OPT_IN" };
-  if (features.products) individualFeatures.advantage_plus_creative_catalog = { enroll_status: "OPT_IN" };
-  if (features.revealDetails) individualFeatures.description_automation = { enroll_status: "OPT_IN" };
-  if (features.showSpotlights) individualFeatures.image_background_gen = { enroll_status: "OPT_IN" };
+  // degrees_of_freedom_spec.creative_features_spec only accepts these valid keys:
+  // HYPERLINK_FORMATTING, IG_VIDEO_NATIVE_SUBTITLE, PRODUCT_METADATA_AUTOMATION,
+  // PROFILE_CARD, STANDARD_ENHANCEMENTS_CATALOG, TEXT_OVERLAY_TRANSLATION
+  const dofFeatures: Record<string, any> = {};
+
+  if (features.products) dofFeatures.STANDARD_ENHANCEMENTS_CATALOG = { enroll_status: "OPT_IN" };
+  if (features.videoEffects) dofFeatures.IG_VIDEO_NATIVE_SUBTITLE = { enroll_status: "OPT_IN" };
+  if (features.textImprovements) dofFeatures.TEXT_OVERLAY_TRANSLATION = { enroll_status: "OPT_IN" };
+  if (features.productTags) dofFeatures.PRODUCT_METADATA_AUTOMATION = { enroll_status: "OPT_IN" };
 
   return {
-    creative_features_spec: individualFeatures,
     degrees_of_freedom_spec: {
-      creative_features_spec: individualFeatures,
+      creative_features_spec: dofFeatures,
     },
   };
 }
