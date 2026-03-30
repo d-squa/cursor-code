@@ -38,6 +38,14 @@ interface QCTrackingRow {
   updated_at: string;
 }
 
+interface QCCheckCompletionRow {
+  id: string;
+  qc_tracking_id: string;
+  item_key: string;
+  is_checked: boolean;
+  check_method: string;
+}
+
 interface QCTransitionRow {
   id: string;
   qc_tracking_id: string;
