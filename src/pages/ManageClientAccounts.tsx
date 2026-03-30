@@ -243,6 +243,12 @@ export default function ManageClientAccounts() {
               )}
             </TabsContent>
 
+            <TabsContent value="qc_checklists" className="space-y-4">
+              {selectedClient && (
+                <ClientQCChecklistEditor clientId={selectedClient} />
+              )}
+            </TabsContent>
+
             {canAccessOperations && (
               <TabsContent value="operations" className="space-y-4">
                 {selectedClient && (
