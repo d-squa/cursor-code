@@ -1349,14 +1349,21 @@ export default function LaunchStatus() {
         </div>
       )}
 
-      {/* QC Status Panel - shows when campaign has been pushed */}
-      {hasPushedEntities && campaignId && qcItems.length > 0 && (
+      {/* Quality Check Section - shows when campaign has been pushed */}
+      {hasPushedEntities && campaignId && (
         <div className="mb-6">
-          <QCStatusPanel
+          <QCCheckSection
             items={qcItems}
-            transitions={qcTransitions}
-            loading={qcLoading}
+            loading={qcLoading || checklistLoading}
             summary={qcSummary}
+            getChecklist={getChecklist}
+            getCompletions={getCompletions}
+            getCompletionCount={getCompletionCount}
+            isAllChecked={isAllChecked}
+            onToggleItem={toggleChecklistItem}
+            onToggleAll={toggleAllChecklist}
+            onUpdateState={updateQCState}
+            onInitialize={initializeTracking}
           />
         </div>
       )}
