@@ -36,9 +36,11 @@ import { LaunchProgressTracker } from "@/components/launch/LaunchProgressTracker
 import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/LaunchFilters";
 import { DspConfigChangesView } from "@/components/launch/DspConfigChangesView";
 import { useDspConfigSync } from "@/hooks/useDspConfigSync";
+import { useQCTracking } from "@/hooks/useQCTracking";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
 import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
+import { QCStatusPanel } from "@/components/launch/QCStatusPanel";
 
 interface LaunchStatusEntry {
   id: string;
@@ -179,6 +181,12 @@ export default function LaunchStatus() {
     campaignId,
     enabled: !!campaignId && !!user && hasPushedEntities,
     autoSyncOnMount: hasPushedEntities,
+  });
+
+  // QC Tracking
+  const { items: qcItems, transitions: qcTransitions, loading: qcLoading, summary: qcSummary } = useQCTracking({
+    campaignId,
+    enabled: !!campaignId && !!user && hasPushedEntities,
   });
 
   const getNextTierName = (): string => {
@@ -1322,6 +1330,18 @@ export default function LaunchStatus() {
             onSync={syncFromDsp}
             onAcknowledge={acknowledgeChange}
             onAcknowledgeAll={acknowledgeAll}
+          />
+        </div>
+      )}
+
+      {/* QC Status Panel - shows when campaign has been pushed */}
+      {hasPushedEntities && campaignId && qcItems.length > 0 && (
+        <div className="mb-6">
+          <QCStatusPanel
+            items={qcItems}
+            transitions={qcTransitions}
+            loading={qcLoading}
+            summary={qcSummary}
           />
         </div>
       )}

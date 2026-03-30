@@ -85,6 +85,17 @@ export function useDspConfigSync({ campaignId, enabled = true, autoSyncOnMount =
       // Refresh changes from DB
       await fetchChanges();
       setLastSyncedAt(new Date().toISOString());
+
+      // Also trigger QC sync alongside DSP sync
+      try {
+        await supabase.functions.invoke("qc-sync", {
+          body: { campaignId, mode: "sync" },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        console.log("QC sync completed alongside DSP sync");
+      } catch (qcError) {
+        console.warn("QC sync warning:", qcError);
+      }
     } finally {
       setSyncing(false);
     }
