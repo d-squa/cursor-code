@@ -298,6 +298,7 @@ export default function ActiPlans() {
           user_role: userRole?.role,
           can_edit: canEdit,
           is_admin_or_owner: isAdminOrOwner,
+          qc_status: qcStatusMap[campaign.id] || null,
           last_status_change: latestChange
             ? {
                 user_email: latestChange.user_email,
