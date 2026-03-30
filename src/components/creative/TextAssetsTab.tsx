@@ -1,5 +1,5 @@
 // Text Assets Tab - Page/editor for editing text assets for a specific ActiPlan
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import type { CreativeTextAssetRow, CreativeFormat } from '@/types/creativeTextA
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
 import { detectAdFormat } from '@/utils/adFormatDetection';
+import type { DetectedACGroup } from '@/utils/assetCustomizationEngine';
+import type { CompilationResult } from '@/utils/assetFeedSpecCompiler';
 
 interface Campaign {
   id: string;
@@ -37,6 +39,10 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+
+  // Track AC group compiled specs for persistence
+  const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
+  const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
 
   const isExternallyControlled = !!campaignId || !!hideCampaignSelector;
   const effectiveCampaignId = campaignId || selectedCampaignId;
@@ -272,10 +278,38 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           };
         });
 
-        // Validate all rows
+        // Load existing AC groups from DB and restore assetCustomizationGroupId on rows
+        const { data: existingACGroups } = await supabase
+          .from('asset_customization_groups')
+          .select(`
+            id, group_name, customization_type, asset_feed_spec, customization_rules,
+            asset_customization_group_members(id, creative_id, assignment_id, delivery_bucket, aspect_ratio, language, position)
+          `)
+          .eq('campaign_id', effectiveCampaignId)
+          .in('status', ['ready', 'pending']);
+
+        // Build a map of assignment_id → group_id from existing AC groups
+        const assignmentToGroupMap = new Map<string, string>();
+        if (existingACGroups) {
+          for (const group of existingACGroups) {
+            const members = (group as any).asset_customization_group_members || [];
+            for (const member of members) {
+              if (member.assignment_id) {
+                assignmentToGroupMap.set(member.assignment_id, group.id);
+              }
+            }
+          }
+        }
+
+        // Validate all rows and restore AC group IDs
         const validatedRows = transformedRows.map((row) => {
-          const errors = validateTextAssetRow(row);
-          return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+          const assignmentId = row.assignmentId;
+          const acGroupId = assignmentId ? assignmentToGroupMap.get(assignmentId) : undefined;
+          const updatedRow = acGroupId
+            ? { ...row, assetCustomizationGroupId: acGroupId, processingGroupId: acGroupId, processingGroupType: 'asset_customization' as const }
+            : row;
+          const errors = validateTextAssetRow(updatedRow);
+          return { ...updatedRow, validationErrors: errors, isValid: errors.length === 0 };
         });
 
         setRows(validatedRows);
@@ -323,6 +357,18 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     setRows(validatedRows);
   }, []);
 
+  // AC group creation callback
+  const handleACGroupCreated = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
+    acGroupSpecsRef.current.set(group.id, { group, compiled });
+    acGroupsToDeleteRef.current.delete(group.id); // In case it was previously marked for deletion
+  }, []);
+
+  // AC group removal callback
+  const handleACGroupRemoved = useCallback((groupId: string) => {
+    acGroupSpecsRef.current.delete(groupId);
+    acGroupsToDeleteRef.current.add(groupId);
+  }, []);
+
   // Save text assets to database
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -368,6 +414,105 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         }
       }
 
+      // ========== PERSIST ASSET CUSTOMIZATION GROUPS ==========
+      // Delete removed AC groups
+      for (const groupId of acGroupsToDeleteRef.current) {
+        // Delete members first, then the group
+        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+        await supabase.from('asset_customization_groups').delete().eq('id', groupId);
+        console.log(`[TextAssetsTab] Deleted AC group ${groupId}`);
+      }
+      acGroupsToDeleteRef.current.clear();
+
+      // Upsert new/updated AC groups
+      for (const [groupId, { group, compiled }] of acGroupSpecsRef.current) {
+        if (!compiled.success || !compiled.spec) continue;
+
+        // Get the first row to extract campaign context
+        const firstRow = group.rows[0];
+        if (!firstRow) continue;
+
+        const campaignIdForGroup = effectiveCampaignId;
+        if (!campaignIdForGroup) continue;
+
+        // Map customization type
+        const customizationType = group.type === 'placement' ? 'placement'
+          : group.type === 'language' ? 'language'
+          : 'flexible';
+
+        // Upsert the group
+        const { error: groupError } = await supabase
+          .from('asset_customization_groups')
+          .upsert({
+            id: groupId,
+            campaign_id: campaignIdForGroup,
+            group_name: group.label || `${customizationType} group`,
+            customization_type: customizationType,
+            asset_feed_spec: compiled.spec as any,
+            customization_rules: (compiled.customizationRules || []) as any,
+            platform: firstRow.platform || 'meta',
+            market: firstRow.market || 'Global',
+            phase_name: firstRow.phase || 'Default',
+            ad_set_name: firstRow.adSet || null,
+            user_id: user?.id || '',
+            team_id: null,
+            status: 'ready',
+          } as any, { onConflict: 'id' });
+
+        if (groupError) {
+          console.error(`[TextAssetsTab] Error upserting AC group ${groupId}:`, groupError);
+          continue;
+        }
+
+        // Delete existing members for this group and re-insert
+        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+
+        const memberInserts = group.rows.map((row, index) => {
+          // Find the assignment ID for this row
+          const assignmentId = row.assignmentId || row.id.split('_')[0];
+          
+          // Determine delivery bucket from the row
+          let deliveryBucket = 'other';
+          for (const [bucket, bucketRows] of group.deliveryBuckets) {
+            if (bucketRows.some(br => br.id === row.id)) {
+              deliveryBucket = bucket;
+              break;
+            }
+          }
+
+          // Determine language
+          let language: string | null = null;
+          for (const [lang, langRows] of group.languages) {
+            if (langRows.some(lr => lr.id === row.id)) {
+              language = lang;
+              break;
+            }
+          }
+
+          return {
+            group_id: groupId,
+            creative_id: row.creativeId,
+            assignment_id: assignmentId,
+            delivery_bucket: deliveryBucket,
+            aspect_ratio: row.aspectRatio || null,
+            language: language,
+            position: index,
+          };
+        });
+
+        if (memberInserts.length > 0) {
+          const { error: membersError } = await supabase
+            .from('asset_customization_group_members')
+            .insert(memberInserts as any);
+
+          if (membersError) {
+            console.error(`[TextAssetsTab] Error inserting AC group members for ${groupId}:`, membersError);
+          }
+        }
+
+        console.log(`[TextAssetsTab] Persisted AC group "${group.label}" with ${memberInserts.length} members`);
+      }
+
       toast.success(`Saved text assets for ${rows.length} creatives`);
     } catch (error) {
       console.error('Error saving text assets:', error);
@@ -375,7 +520,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     } finally {
       setIsSaving(false);
     }
-  }, [rows]);
+  }, [rows, effectiveCampaignId, user?.id]);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
   const effectiveCampaignName = campaignName || selectedCampaign?.name;
@@ -468,6 +613,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             onImportRows={handleImportRows}
             onSave={handleSave}
             isSaving={isSaving}
+            onACGroupCreated={handleACGroupCreated}
+            onACGroupRemoved={handleACGroupRemoved}
           />
         </div>
       ) : null}

@@ -1,7 +1,9 @@
 // Inline text assets step for the creative matching dialog
 // Shows hierarchical editor for configuring copy, CTAs, and tracking
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import type { DetectedACGroup } from '@/utils/assetCustomizationEngine';
+import type { CompilationResult } from '@/utils/assetFeedSpecCompiler';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -76,6 +78,10 @@ export function TextAssetsStep({
 
   // Track if we've attempted to load (to distinguish "loading" from "empty result")
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
+
+  // Track AC group compiled specs for persistence
+  const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
+  const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
 
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
@@ -621,6 +627,18 @@ export function TextAssetsStep({
     toast.success(`Added ${newRows.length} creative(s) to the editor`);
   }, [availableCreatives, selectedNewCreatives]);
 
+  // AC group creation callback
+  const handleACGroupCreated = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
+    acGroupSpecsRef.current.set(group.id, { group, compiled });
+    acGroupsToDeleteRef.current.delete(group.id);
+  }, []);
+
+  // AC group removal callback
+  const handleACGroupRemoved = useCallback((groupId: string) => {
+    acGroupSpecsRef.current.delete(groupId);
+    acGroupsToDeleteRef.current.add(groupId);
+  }, []);
+
   // Save text assets to database (no navigation)
   const saveTextAssets = useCallback(async (): Promise<boolean> => {
     setIsSaving(true);
@@ -655,6 +673,82 @@ export function TextAssetsStep({
         }
       }
 
+      // Persist carousel group data to creative_assignments
+      for (const row of rows) {
+        const assignmentId = row.assignmentId;
+        if (!assignmentId) continue;
+
+        await supabase
+          .from('creative_assignments')
+          .update({
+            carousel_group_id: row.carouselGroupId || null,
+            carousel_card_headline: (row as any).carouselCardHeadline || null,
+            carousel_card_description: (row as any).carouselCardDescription || null,
+            carousel_card_website_url: (row as any).carouselCardWebsiteUrl || null,
+            carousel_card_cta: (row as any).carouselCardCta || null,
+          })
+          .eq('id', assignmentId);
+      }
+
+      // ========== PERSIST ASSET CUSTOMIZATION GROUPS ==========
+      for (const groupId of acGroupsToDeleteRef.current) {
+        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+        await supabase.from('asset_customization_groups').delete().eq('id', groupId);
+      }
+      acGroupsToDeleteRef.current.clear();
+
+      for (const [groupId, { group, compiled }] of acGroupSpecsRef.current) {
+        if (!compiled.success || !compiled.spec) continue;
+        const firstRow = group.rows[0];
+        if (!firstRow) continue;
+
+        const customizationType = group.type === 'placement' ? 'placement'
+          : group.type === 'language' ? 'language' : 'flexible';
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        await supabase
+          .from('asset_customization_groups')
+          .upsert({
+            id: groupId,
+            campaign_id: campaignId,
+            group_name: group.label || `${customizationType} group`,
+            customization_type: customizationType,
+            asset_feed_spec: compiled.spec as any,
+            customization_rules: (compiled.customizationRules || []) as any,
+            platform: firstRow.platform || 'meta',
+            market: firstRow.market || 'Global',
+            phase_name: firstRow.phase || 'Default',
+            ad_set_name: firstRow.adSet || null,
+            user_id: user?.id || '',
+            status: 'ready',
+          } as any, { onConflict: 'id' });
+
+        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+
+        const memberInserts = group.rows.map((row, index) => {
+          const assignmentId = row.assignmentId || row.id.split('_')[0];
+          let deliveryBucket = 'other';
+          for (const [bucket, bucketRows] of group.deliveryBuckets) {
+            if (bucketRows.some(br => br.id === row.id)) { deliveryBucket = bucket; break; }
+          }
+          let language: string | null = null;
+          for (const [lang, langRows] of group.languages) {
+            if (langRows.some(lr => lr.id === row.id)) { language = lang; break; }
+          }
+          return {
+            group_id: groupId, creative_id: row.creativeId, assignment_id: assignmentId,
+            delivery_bucket: deliveryBucket, aspect_ratio: row.aspectRatio || null,
+            language, position: index,
+          };
+        });
+
+        if (memberInserts.length > 0) {
+          await supabase.from('asset_customization_group_members').insert(memberInserts as any);
+        }
+        console.log(`[TextAssetsStep] Persisted AC group "${group.label}" with ${memberInserts.length} members`);
+      }
+
       toast.success(`Saved text assets for ${rows.length} creatives`);
       return true;
     } catch (error) {
@@ -664,7 +758,7 @@ export function TextAssetsStep({
     } finally {
       setIsSaving(false);
     }
-  }, [rows]);
+  }, [rows, campaignId]);
 
   const handleSaveAndProceed = useCallback(async () => {
     const ok = await saveTextAssets();
@@ -747,6 +841,8 @@ export function TextAssetsStep({
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
           onDeleteAssignments={handleDeleteAssignments}
+          onACGroupCreated={handleACGroupCreated}
+          onACGroupRemoved={handleACGroupRemoved}
         />
       </div>
       

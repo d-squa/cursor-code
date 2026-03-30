@@ -65,6 +65,10 @@ interface TextAssetExcelEditorProps {
   onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
   /** Called when a row is ungrouped from a processing group */
   onUngroupRow?: (rowId: string, groupType?: ProcessingGroupKind) => void;
+  /** Called when an asset customization group is created */
+  onACGroupCreated?: (group: DetectedACGroup, compiled: CompilationResult) => void;
+  /** Called when an asset customization group is removed */
+  onACGroupRemoved?: (groupId: string) => void;
 }
 
 // Grid column definition - now includes checkbox for multi-select
@@ -209,7 +213,9 @@ export function TextAssetExcelEditor({
   onAddCreatives,
   onDeleteAssignment,
   onDeleteAssignments,
-  onUngroupRow
+  onUngroupRow,
+  onACGroupCreated,
+  onACGroupRemoved,
 }: TextAssetExcelEditorProps) {
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
@@ -323,11 +329,18 @@ export function TextAssetExcelEditor({
     const groupId = group.id;
     const rowIds = group.rows.map(r => r.id);
     onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId, processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
-  }, [onBulkUpdate]);
+    // Notify parent to persist group to DB
+    onACGroupCreated?.(group, compiled);
+  }, [onBulkUpdate, onACGroupCreated]);
 
   const handleACBuilderUngroupRows = useCallback((rowIds: string[]) => {
+    // Find the group ID being removed before clearing it
+    const groupId = rows.find(r => rowIds.includes(r.id))?.assetCustomizationGroupId;
     onBulkUpdate(rowIds, { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
-  }, [onBulkUpdate]);
+    if (groupId) {
+      onACGroupRemoved?.(groupId);
+    }
+  }, [onBulkUpdate, rows, onACGroupRemoved]);
 
   // Ungroup entire processing group
   const handleUngroupEntireGroup = useCallback((groupType: ProcessingGroupKind, groupId: string) => {
@@ -336,8 +349,11 @@ export function TextAssetExcelEditor({
     onBulkUpdate(group.rowIds, groupType === 'carousel'
       ? { carouselGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined, carouselCardHeadline: undefined, carouselCardDescription: undefined, carouselCardWebsiteUrl: undefined, carouselCardCta: undefined } as any
       : { assetCustomizationGroupId: undefined, processingGroupId: undefined, processingGroupType: undefined } as any);
+    if (groupType === 'asset_customization') {
+      onACGroupRemoved?.(groupId);
+    }
     toast.success('Group dissolved');
-  }, [processingGroups, onBulkUpdate]);
+  }, [processingGroups, onBulkUpdate, onACGroupRemoved]);
 
   // For asset customization groups: sync text changes across all members
   const handleRowChangeWithGroupSync = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
