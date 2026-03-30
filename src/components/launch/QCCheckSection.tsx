@@ -85,6 +85,8 @@ export function QCCheckSection({
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
   const [expandedEntities, setExpandedEntities] = useState<Record<string, boolean>>({});
   const [initAttempts, setInitAttempts] = useState(0);
+  const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
+  const [pendingLiveAction, setPendingLiveAction] = useState<(() => void) | null>(null);
 
   // Auto-initialize tracking entries when first mounted or when items are empty (max 2 attempts)
   useEffect(() => {
@@ -93,6 +95,16 @@ export function QCCheckSection({
       onInitialize();
     }
   }, [loading, items.length, onInitialize, initAttempts]);
+
+  // Wraps onUpdateState to intercept pushed_live transitions with confirmation
+  const handleUpdateStateWithLiveCheck = useCallback((trackingId: string, newState: QCState) => {
+    if (newState === 'pushed_live') {
+      setPendingLiveAction(() => () => onUpdateState(trackingId, newState));
+      setLiveConfirmOpen(true);
+    } else {
+      onUpdateState(trackingId, newState);
+    }
+  }, [onUpdateState]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
