@@ -111,7 +111,8 @@ export function getResultLabel(goal: string): string {
     AD_RECALL_LIFT: "Ad Recall Lift",
     THRUPLAY: "ThruPlay Views",
     TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: "2-Second Video Views",
-    POST_ENGAGEMENT: "Post Engagements",
+    POST_ENGAGEMENT: "Interactions",
+    INTERACTIONS: "Interactions",
   };
   
   return labels[goal] || goal;
