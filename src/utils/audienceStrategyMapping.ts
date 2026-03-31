@@ -63,6 +63,13 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
     showLookalikeAudiences: true,
     rationale: "Engaged users + expansion",
   },
+  "OUTCOME_ENGAGEMENT:INTERACTIONS": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: true,
+    showLookalikeAudiences: true,
+    rationale: "Engaged users + expansion",
+  },
   "OUTCOME_ENGAGEMENT:THRUPLAY": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
