@@ -48,6 +48,7 @@ import type { QCState } from "@/utils/qcUtils";
 interface QCCheckSectionProps {
   items: QCTrackingItem[];
   loading: boolean;
+  campaignId?: string;
   summary: {
     total: number;
     waitingForQC: number;
