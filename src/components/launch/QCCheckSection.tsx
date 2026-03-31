@@ -71,6 +71,7 @@ interface QCCheckSectionProps {
 export function QCCheckSection({
   items,
   loading,
+  campaignId,
   summary,
   getChecklist,
   getCompletions,
