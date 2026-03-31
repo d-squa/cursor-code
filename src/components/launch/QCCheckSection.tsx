@@ -92,6 +92,30 @@ export function QCCheckSection({
   const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
   const [pendingLiveAction, setPendingLiveAction] = useState<(() => void) | null>(null);
 
+  // Send stakeholder notification when campaign goes live
+  const sendLiveNotification = useCallback(async () => {
+    if (!campaignId) return;
+    try {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("name")
+        .eq("id", campaignId)
+        .single();
+
+      await supabase.functions.invoke("send-dsp-push-notification", {
+        body: {
+          campaignId,
+          campaignName: campaign?.name || "Campaign",
+          finalStatus: "pushed_to_dsp",
+          results: [],
+        },
+      });
+      console.log("✅ Live stakeholder notification sent");
+    } catch (err) {
+      console.error("Failed to send live notification:", err);
+    }
+  }, [campaignId]);
+
   // Auto-initialize tracking entries when first mounted or when items are empty (max 2 attempts)
   useEffect(() => {
     if (!loading && items.length === 0 && initAttempts < 2) {
