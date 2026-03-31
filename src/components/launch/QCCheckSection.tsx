@@ -240,10 +240,10 @@ export function QCCheckSection({
   };
 
   const handleMoveAllForward = () => {
-    // Check if any items will move to pushed_live
+    // Check if any items will move FORWARD to pushed_live (from qc state)
     const willMoveToPushedLive = items.some(item => {
       const nextState = getNextState(item.current_state);
-      return nextState === 'pushed_live';
+      return nextState === 'pushed_live' && item.current_state === 'qc';
     });
 
     const doMove = () => {
@@ -263,7 +263,10 @@ export function QCCheckSection({
     };
 
     if (willMoveToPushedLive) {
-      setPendingLiveAction(() => doMove);
+      setPendingLiveAction(() => () => {
+        doMove();
+        sendLiveNotification();
+      });
       setLiveConfirmOpen(true);
     } else {
       doMove();
