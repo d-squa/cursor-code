@@ -96,15 +96,26 @@ export function QCCheckSection({
     }
   }, [loading, items.length, onInitialize, initAttempts]);
 
-  // Wraps onUpdateState to intercept pushed_live transitions with confirmation
+  // Wraps onUpdateState to intercept FORWARD transitions to pushed_live with confirmation
   const handleUpdateStateWithLiveCheck = useCallback((trackingId: string, newState: QCState) => {
     if (newState === 'pushed_live') {
-      setPendingLiveAction(() => () => onUpdateState(trackingId, newState));
-      setLiveConfirmOpen(true);
+      // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
+      const item = items.find(i => i.id === trackingId);
+      const isForwardTransition = item && item.current_state === 'qc';
+      if (isForwardTransition) {
+        setPendingLiveAction(() => () => {
+          onUpdateState(trackingId, newState);
+          // Send stakeholder email notification
+          sendLiveNotification();
+        });
+        setLiveConfirmOpen(true);
+      } else {
+        onUpdateState(trackingId, newState);
+      }
     } else {
       onUpdateState(trackingId, newState);
     }
-  }, [onUpdateState]);
+  }, [onUpdateState, items]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 

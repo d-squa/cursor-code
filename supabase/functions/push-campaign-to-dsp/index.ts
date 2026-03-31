@@ -1899,6 +1899,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
         }
 
+        // Normalize deprecated POST_ENGAGEMENT → INTERACTIONS
+        if (optimizationGoal === "POST_ENGAGEMENT") {
+          console.log(`Normalizing deprecated POST_ENGAGEMENT → INTERACTIONS for ${phase.name}`);
+          optimizationGoal = "INTERACTIONS";
+        }
+
         // Create campaign - try to use taxonomy name first
         const genericConfig = campaign.generic_config || {};
         const adAccountId = (market as any).adAccountId || (market as any).ad_account_id;
