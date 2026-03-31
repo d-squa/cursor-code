@@ -2597,6 +2597,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             LANDING_PAGE_VIEWS: "IMPRESSIONS",
             POST_ENGAGEMENT: "IMPRESSIONS",
             INTERACTIONS: "IMPRESSIONS",
+            INTERACTIONS: "IMPRESSIONS",
             PAGE_LIKES: "IMPRESSIONS",
             EVENT_RESPONSES: "IMPRESSIONS",
             // Video
