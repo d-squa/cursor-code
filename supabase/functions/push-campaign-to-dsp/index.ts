@@ -1730,7 +1730,7 @@ function getMetaObjectiveFromPhase(
   }
 
   if (lowerPhaseName.includes("engagement") || lowerPhaseName.includes("interest")) {
-    return { objective: "OUTCOME_ENGAGEMENT", optimizationGoal: "POST_ENGAGEMENT" };
+    return { objective: "OUTCOME_ENGAGEMENT", optimizationGoal: "INTERACTIONS" };
   }
 
   if (lowerPhaseName.includes("consideration") || lowerPhaseName.includes("intent")) {
@@ -1897,6 +1897,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             objective = "OUTCOME_SALES";
             console.log(`Mapped Value optimization to objective: ${objective}, optimization goal: ${optimizationGoal}`);
           }
+        }
+
+        // Normalize deprecated POST_ENGAGEMENT → INTERACTIONS
+        if (optimizationGoal === "POST_ENGAGEMENT") {
+          console.log(`Normalizing deprecated POST_ENGAGEMENT → INTERACTIONS for ${phase.name}`);
+          optimizationGoal = "INTERACTIONS";
         }
 
         // Create campaign - try to use taxonomy name first
@@ -2596,6 +2602,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             LINK_CLICKS: "LINK_CLICKS",
             LANDING_PAGE_VIEWS: "IMPRESSIONS",
             POST_ENGAGEMENT: "IMPRESSIONS",
+            INTERACTIONS: "IMPRESSIONS",
+            INTERACTIONS: "IMPRESSIONS",
             PAGE_LIKES: "IMPRESSIONS",
             EVENT_RESPONSES: "IMPRESSIONS",
             // Video

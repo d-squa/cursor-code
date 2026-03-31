@@ -63,6 +63,13 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
     showLookalikeAudiences: true,
     rationale: "Engaged users + expansion",
   },
+  "OUTCOME_ENGAGEMENT:INTERACTIONS": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: true,
+    showLookalikeAudiences: true,
+    rationale: "Engaged users + expansion",
+  },
   "OUTCOME_ENGAGEMENT:THRUPLAY": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
@@ -408,7 +415,8 @@ const META_GOAL_LABEL_TO_KEY: Record<string, string> = {
   "Impressions": "IMPRESSIONS",
   "Video Views": "THRUPLAY",
   "ThruPlay": "THRUPLAY",
-  "Post Engagement": "POST_ENGAGEMENT",
+  "Post Engagement": "INTERACTIONS",
+  "Interactions": "INTERACTIONS",
   "Link Clicks": "LINK_CLICKS",
   "Landing Page Views": "LANDING_PAGE_VIEWS",
   "Conversions": "OFFSITE_CONVERSIONS",

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,7 @@ import type { QCState } from "@/utils/qcUtils";
 interface QCCheckSectionProps {
   items: QCTrackingItem[];
   loading: boolean;
+  campaignId?: string;
   summary: {
     total: number;
     waitingForQC: number;
@@ -70,6 +73,7 @@ interface QCCheckSectionProps {
 export function QCCheckSection({
   items,
   loading,
+  campaignId,
   summary,
   getChecklist,
   getCompletions,
@@ -88,6 +92,30 @@ export function QCCheckSection({
   const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
   const [pendingLiveAction, setPendingLiveAction] = useState<(() => void) | null>(null);
 
+  // Send stakeholder notification when campaign goes live
+  const sendLiveNotification = useCallback(async () => {
+    if (!campaignId) return;
+    try {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("name")
+        .eq("id", campaignId)
+        .single();
+
+      await supabase.functions.invoke("send-dsp-push-notification", {
+        body: {
+          campaignId,
+          campaignName: campaign?.name || "Campaign",
+          finalStatus: "pushed_to_dsp",
+          results: [],
+        },
+      });
+      console.log("✅ Live stakeholder notification sent");
+    } catch (err) {
+      console.error("Failed to send live notification:", err);
+    }
+  }, [campaignId]);
+
   // Auto-initialize tracking entries when first mounted or when items are empty (max 2 attempts)
   useEffect(() => {
     if (!loading && items.length === 0 && initAttempts < 2) {
@@ -96,15 +124,26 @@ export function QCCheckSection({
     }
   }, [loading, items.length, onInitialize, initAttempts]);
 
-  // Wraps onUpdateState to intercept pushed_live transitions with confirmation
+  // Wraps onUpdateState to intercept FORWARD transitions to pushed_live with confirmation
   const handleUpdateStateWithLiveCheck = useCallback((trackingId: string, newState: QCState) => {
     if (newState === 'pushed_live') {
-      setPendingLiveAction(() => () => onUpdateState(trackingId, newState));
-      setLiveConfirmOpen(true);
+      // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
+      const item = items.find(i => i.id === trackingId);
+      const isForwardTransition = item && item.current_state === 'qc';
+      if (isForwardTransition) {
+        setPendingLiveAction(() => () => {
+          onUpdateState(trackingId, newState);
+          // Send stakeholder email notification
+          sendLiveNotification();
+        });
+        setLiveConfirmOpen(true);
+      } else {
+        onUpdateState(trackingId, newState);
+      }
     } else {
       onUpdateState(trackingId, newState);
     }
-  }, [onUpdateState]);
+  }, [onUpdateState, items]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
@@ -201,10 +240,10 @@ export function QCCheckSection({
   };
 
   const handleMoveAllForward = () => {
-    // Check if any items will move to pushed_live
+    // Check if any items will move FORWARD to pushed_live (from qc state)
     const willMoveToPushedLive = items.some(item => {
       const nextState = getNextState(item.current_state);
-      return nextState === 'pushed_live';
+      return nextState === 'pushed_live' && item.current_state === 'qc';
     });
 
     const doMove = () => {
@@ -224,7 +263,10 @@ export function QCCheckSection({
     };
 
     if (willMoveToPushedLive) {
-      setPendingLiveAction(() => doMove);
+      setPendingLiveAction(() => () => {
+        doMove();
+        sendLiveNotification();
+      });
       setLiveConfirmOpen(true);
     } else {
       doMove();
@@ -232,12 +274,7 @@ export function QCCheckSection({
   };
 
   const handleMoveAllBack = () => {
-    // Check if any items will move to pushed_live (from delivering → pushed_live)
-    const willMoveToPushedLive = items.some(item => {
-      const prevState = getPreviousState(item.current_state);
-      return prevState === 'pushed_live';
-    });
-
+    // Moving back should NOT trigger the live email confirmation
     const doMove = () => {
       for (const item of items) {
         const prevState = getPreviousState(item.current_state);
@@ -246,13 +283,7 @@ export function QCCheckSection({
         }
       }
     };
-
-    if (willMoveToPushedLive) {
-      setPendingLiveAction(() => doMove);
-      setLiveConfirmOpen(true);
-    } else {
-      doMove();
-    }
+    doMove();
   };
 
   // Auto-advance handler: check all + move to Checked

@@ -47,7 +47,7 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
       // On Your Ad destination
       { value: "THRUPLAY", label: "Video Views (ThruPlay)", billingEvent: "THRUPLAY" },
       { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "Video Views (2-Second)", billingEvent: "IMPRESSIONS" },
-      { value: "POST_ENGAGEMENT", label: "Post Engagement", billingEvent: "POST_ENGAGEMENT" },
+      { value: "INTERACTIONS", label: "Interactions (Post Engagement)", billingEvent: "IMPRESSIONS" },
       { value: "EVENT_RESPONSES", label: "Event Responses", billingEvent: "EVENT_RESPONSES" },
       { value: "REMINDERS_SET", label: "Reminders Set", billingEvent: "IMPRESSIONS" },
       // Message destinations

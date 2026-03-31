@@ -503,20 +503,14 @@ export function CampaignForecast({
           .single();
 
         const forecastData = campaign?.forecast_data as any;
-        const generatedAt = forecastData?.generatedAt ? new Date(forecastData.generatedAt).getTime() : 0;
-        const campaignUpdatedAt = campaign?.updated_at ? new Date(campaign.updated_at).getTime() : 0;
-        const isStaleForecast = !generatedAt || (campaignUpdatedAt > 0 && generatedAt < campaignUpdatedAt);
 
-        if (!isStaleForecast && forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
+        if (forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
           setForecasts(forecastData.forecasts);
           if (forecastData.actiplanForecast) {
             setActiplanForecast(forecastData.actiplanForecast);
           }
           setHasExistingForecast(true);
           console.log("Loaded existing forecast data");
-        } else if (forecastData?.forecasts) {
-          setHasExistingForecast(false);
-          console.log("Skipping stale forecast data; campaign structure was updated after forecast generation");
         }
       } catch (error) {
         console.error("Error loading existing forecast:", error);

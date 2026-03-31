@@ -28,6 +28,8 @@ export const OPTIMIZATION_GOAL_METRICS: OptimizationGoalMetrics[] = [
   { objective: "OUTCOME_ENGAGEMENT", destination: "Event Response", goalNameOnInterface: "Maximize Number Of Event Responses", goal: "EVENT_RESPONSES", kpi: "CPER", costPerResultFormula: "amountSpent/EVENT_RESPONSES", rateName: "ERTR", resultRateFormula: "EVENT_RESPONSES/impressions" },
   { objective: "OUTCOME_ENGAGEMENT", destination: "Facebook Page", goalNameOnInterface: "Maximize Number Of Follows or likes", goal: "FOLLOWS_OR_LIKES", kpi: "CPFL", costPerResultFormula: "amountSpent/FOLLOWS_OR_LIKES", rateName: "FLTR", resultRateFormula: "FOLLOWS_OR_LIKES/impressions" },
   { objective: "OUTCOME_ENGAGEMENT", destination: "Messaging Apps", goalNameOnInterface: "Maximize Number Of Conversations", goal: "CONVERSATIONS", kpi: "CPCON-M", costPerResultFormula: "amountSpent/CONVERSATIONS", rateName: "CONTR", resultRateFormula: "CONVERSATIONS/impressions" },
+  { objective: "OUTCOME_ENGAGEMENT", destination: "Post Engagement", goalNameOnInterface: "Maximize Interactions", goal: "INTERACTIONS", kpi: "CPE-P", costPerResultFormula: "amountSpent/INTERACTIONS", rateName: "PETR", resultRateFormula: "INTERACTIONS/impressions" },
+  // Legacy POST_ENGAGEMENT mapping for backward compatibility
   { objective: "OUTCOME_ENGAGEMENT", destination: "Post Engagement", goalNameOnInterface: "Maximize Engagement With A Post", goal: "POST_ENGAGEMENT", kpi: "CPE-P", costPerResultFormula: "amountSpent/POST_ENGAGEMENT", rateName: "PETR", resultRateFormula: "POST_ENGAGEMENT/impressions" },
   { objective: "OUTCOME_ENGAGEMENT", destination: "Video Views", goalNameOnInterface: "Maximize Thruplay Views", goal: "THRUPLAY", kpi: "CPV", costPerResultFormula: "amountSpent/THRUPLAY", rateName: "TTR", resultRateFormula: "THRUPLAY/impressions" },
   { objective: "OUTCOME_ENGAGEMENT", destination: "Video Views", goalNameOnInterface: "Maximize 2-second Continuous Video Plays", goal: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", kpi: "CPV2SC", costPerResultFormula: "amountSpent/TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", rateName: "2SCTR", resultRateFormula: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS/impressions" },
@@ -109,7 +111,8 @@ export function getResultLabel(goal: string): string {
     AD_RECALL_LIFT: "Ad Recall Lift",
     THRUPLAY: "ThruPlay Views",
     TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: "2-Second Video Views",
-    POST_ENGAGEMENT: "Post Engagements",
+    POST_ENGAGEMENT: "Interactions",
+    INTERACTIONS: "Interactions",
   };
   
   return labels[goal] || goal;
@@ -137,7 +140,8 @@ export function calculateResultFromImpressions(
     THRUPLAY: 0.08,             // 8%
     VIDEO_VIEW: 0.10,           // 10%
     FOCUSED_VIEW: 0.06,         // 6%
-    POST_ENGAGEMENT: 0.025,     // 2.5%
+    POST_ENGAGEMENT: 0.025,     // 2.5% (legacy)
+    INTERACTIONS: 0.025,        // 2.5%
 
     // Mid funnel — moderate volume
     LINK_CLICKS: 0.008,         // 0.8% CTR

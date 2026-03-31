@@ -1334,37 +1334,34 @@ export default function LaunchStatus() {
         </div>
       )}
 
-      {/* DSP Config Sync - shows when campaign has been pushed */}
+      {/* DSP Config Sync - collapsible, shows when campaign has been pushed */}
       {hasPushedEntities && campaignId && (
         <div className="mb-6">
-          <DspConfigChangesView
-            changes={dspChanges}
-            unacknowledgedCount={dspUnacknowledgedCount}
-            syncing={dspSyncing}
-            lastSyncedAt={dspLastSyncedAt}
-            onSync={syncFromDsp}
-            onAcknowledge={acknowledgeChange}
-            onAcknowledgeAll={acknowledgeAll}
-          />
-        </div>
-      )}
-
-      {/* Quality Check Section - shows when campaign has been pushed */}
-      {hasPushedEntities && campaignId && (
-        <div className="mb-6">
-          <QCCheckSection
-            items={qcItems}
-            loading={qcLoading || checklistLoading}
-            summary={qcSummary}
-            getChecklist={getChecklist}
-            getCompletions={getCompletions}
-            getCompletionCount={getCompletionCount}
-            isAllChecked={isAllChecked}
-            onToggleItem={toggleChecklistItem}
-            onToggleAll={toggleAllChecklist}
-            onUpdateState={updateQCState}
-            onInitialize={initializeTracking}
-          />
+          <Collapsible defaultOpen={dspUnacknowledgedCount > 0}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 text-sm font-medium">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                <span>Live Sync</span>
+                {dspUnacknowledgedCount > 0 && (
+                  <Badge variant="destructive" className="text-xs">{dspUnacknowledgedCount}</Badge>
+                )}
+              </div>
+              <ChevronDown className="h-4 w-4 transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2">
+                <DspConfigChangesView
+                  changes={dspChanges}
+                  unacknowledgedCount={dspUnacknowledgedCount}
+                  syncing={dspSyncing}
+                  lastSyncedAt={dspLastSyncedAt}
+                  onSync={syncFromDsp}
+                  onAcknowledge={acknowledgeChange}
+                  onAcknowledgeAll={acknowledgeAll}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       )}
 
@@ -1381,6 +1378,44 @@ export default function LaunchStatus() {
             filters={launchFilters}
             onDeleteCreativeAssignment={handleDeleteCreativeAssignment}
           />
+        </div>
+      )}
+
+      {/* Quality Check Section - collapsible, at the bottom */}
+      {hasPushedEntities && campaignId && (
+        <div className="mb-6">
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 text-sm font-medium">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Quality Check</span>
+                {qcSummary.total > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {qcSummary.delivering + qcSummary.pushedLive}/{qcSummary.total} progressed
+                  </Badge>
+                )}
+              </div>
+              <ChevronDown className="h-4 w-4 transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-2">
+                <QCCheckSection
+                  items={qcItems}
+                  loading={qcLoading || checklistLoading}
+                  campaignId={campaignId}
+                  summary={qcSummary}
+                  getChecklist={getChecklist}
+                  getCompletions={getCompletions}
+                  getCompletionCount={getCompletionCount}
+                  isAllChecked={isAllChecked}
+                  onToggleItem={toggleChecklistItem}
+                  onToggleAll={toggleAllChecklist}
+                  onUpdateState={updateQCState}
+                  onInitialize={initializeTracking}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       )}
 
