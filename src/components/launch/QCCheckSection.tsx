@@ -274,12 +274,7 @@ export function QCCheckSection({
   };
 
   const handleMoveAllBack = () => {
-    // Check if any items will move to pushed_live (from delivering → pushed_live)
-    const willMoveToPushedLive = items.some(item => {
-      const prevState = getPreviousState(item.current_state);
-      return prevState === 'pushed_live';
-    });
-
+    // Moving back should NOT trigger the live email confirmation
     const doMove = () => {
       for (const item of items) {
         const prevState = getPreviousState(item.current_state);
@@ -288,13 +283,7 @@ export function QCCheckSection({
         }
       }
     };
-
-    if (willMoveToPushedLive) {
-      setPendingLiveAction(() => doMove);
-      setLiveConfirmOpen(true);
-    } else {
-      doMove();
-    }
+    doMove();
   };
 
   // Auto-advance handler: check all + move to Checked
