@@ -140,7 +140,8 @@ export function calculateResultFromImpressions(
     THRUPLAY: 0.08,             // 8%
     VIDEO_VIEW: 0.10,           // 10%
     FOCUSED_VIEW: 0.06,         // 6%
-    POST_ENGAGEMENT: 0.025,     // 2.5%
+    POST_ENGAGEMENT: 0.025,     // 2.5% (legacy)
+    INTERACTIONS: 0.025,        // 2.5%
 
     // Mid funnel — moderate volume
     LINK_CLICKS: 0.008,         // 0.8% CTR
