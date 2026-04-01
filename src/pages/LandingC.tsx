@@ -338,10 +338,10 @@ const Landing = () => {
   return (
     <>
       <SEO
-        title="Media Buying Platform | Cross-Platform Ad Management | ActiPlan"
-        description="ActiPlan is a powerful media buying Platform that lets teams launch, manage, and optimize paid campaigns across Meta, Google, TikTok, LinkedIn, and more from one platform."
-        keywords="media buying Platform, paid media buying platform, ad buying Platform, cross-platform campaign management, programmatic workflow tool"
-        ogTitle="ActiPlan | Media Buying Platform for Performance Teams"
+        title="AI Media Buyer | Cross-Platform Ad Management | ActiPlan"
+        description="ActiPlan is a powerful AI media buyer that lets teams launch, manage, and optimize paid campaigns across Meta, Google, TikTok, LinkedIn, and more from one platform."
+        keywords="ai media buyer, media buying Platform, paid media buying platform, ad buying Platform, cross-platform campaign management, programmatic workflow tool"
+        ogTitle="ActiPlan | AI Media Buyer for Performance Teams"
         ogDescription="Launch and manage paid media campaigns across platforms using one centralized buying workflow."
         ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
         canonical="https://actiplan.app/media-buying-software"
@@ -397,8 +397,8 @@ const Landing = () => {
           <div className="max-w-4xl mx-auto text-center">
             <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm bg-fuchsia-100">
               <Sparkles className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">Professional Media Buying Platform</span>
-              <span className="sm:hidden">Professional Media Buying Platform</span>
+              <span className="hidden sm:inline">Professional AI Media Buyer</span>
+              <span className="sm:hidden">Professional AI Media Buyer/span>
             </Badge>
             <h1 className="text-3xl sm:text-4xl mb-4 md:mb-6 leading-tight font-extrabold md:text-4xl">
               Launch & Manage
