@@ -398,7 +398,7 @@ const Landing = () => {
             <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm bg-fuchsia-100">
               <Sparkles className="h-3 w-3 mr-1" />
               <span className="hidden sm:inline">Professional AI Media Buyer</span>
-              <span className="sm:hidden">Professional AI Media Buyer/span>
+              <span className="sm:hidden">Professional AI Media Buyer</span>
             </Badge>
             <h1 className="text-3xl sm:text-4xl mb-4 md:mb-6 leading-tight font-extrabold md:text-4xl">
               Launch & Manage
