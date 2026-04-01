@@ -2537,6 +2537,10 @@ export function PhaseScheduler({
                             const audienceStrategy = getAudienceStrategyConfig(platformName, adjustedObjective, autoGoal);
 
                             // Build updates (single atomic write)
+                            const validGoalValues = new Set(
+                              getOptimizationGoalsForObjective(platformType, adjustedObjective).map((goal) => goal.value)
+                            );
+
                             const updates: any = {
                               objective: adjustedObjective,
                               optimizationGoal: autoGoal,
@@ -2545,6 +2549,20 @@ export function PhaseScheduler({
                               // Disable override if broad targeting is auto-enabled
                               overrideTargeting: audienceStrategy.useBroadTargeting ? false : basePhase.overrideTargeting,
                             };
+
+                            if (Array.isArray(basePhase.adSets) && basePhase.adSets.length > 0) {
+                              updates.adSets = basePhase.adSets.map((adSet) => {
+                                const currentAdSetGoal = adSet.optimizationGoal;
+                                const nextAdSetGoal = currentAdSetGoal && validGoalValues.has(currentAdSetGoal)
+                                  ? currentAdSetGoal
+                                  : autoGoal;
+
+                                return {
+                                  ...adSet,
+                                  optimizationGoal: nextAdSetGoal,
+                                };
+                              });
+                            }
 
                             // Auto-populate destination from account defaults if objective requires destination
                             if (validDestinations.length > 0 && adAccountDefaults) {
@@ -2652,12 +2670,25 @@ export function PhaseScheduler({
                               // Check if this optimization goal requires a specific destination
                               const requiredDestination = isMeta ? getDestinationForOptimizationGoal(value) : null;
                               
+                              const basePhase = phasesRef.current.find((p) => p.id === phase.id) ?? phase;
+
                               if (requiredDestination && adAccountDefaults) {
                                 // Auto-set the destination and populate related defaults
                                 const updates: Partial<Phase> = { 
                                   optimizationGoal: value,
                                   metaOptimizationLocation: requiredDestination 
                                 };
+
+                                if (
+                                  Array.isArray(basePhase.adSets) &&
+                                  basePhase.adSets.length > 0 &&
+                                  basePhase.adSetSplitDimension !== 'optimization_goal'
+                                ) {
+                                  updates.adSets = basePhase.adSets.map((adSet) => ({
+                                    ...adSet,
+                                    optimizationGoal: value,
+                                  }));
+                                }
                                 
                                 // Auto-populate related fields based on destination
                                 if (requiredDestination === 'APP') {
@@ -2702,7 +2733,21 @@ export function PhaseScheduler({
                                 updatePhaseFields(phase.id, updates);
                               } else {
                                 // No destination required, just update the goal
-                                updatePhaseField(phase.id, "optimizationGoal", value);
+                                if (
+                                  Array.isArray(basePhase.adSets) &&
+                                  basePhase.adSets.length > 0 &&
+                                  basePhase.adSetSplitDimension !== 'optimization_goal'
+                                ) {
+                                  updatePhaseFields(phase.id, {
+                                    optimizationGoal: value,
+                                    adSets: basePhase.adSets.map((adSet) => ({
+                                      ...adSet,
+                                      optimizationGoal: value,
+                                    })),
+                                  });
+                                } else {
+                                  updatePhaseField(phase.id, "optimizationGoal", value);
+                                }
                               }
                             }}
                             disabled={!phase.objective}
