@@ -1899,10 +1899,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
         }
 
-        // Normalize deprecated POST_ENGAGEMENT → INTERACTIONS
-        if (optimizationGoal === "POST_ENGAGEMENT") {
-          console.log(`Normalizing deprecated POST_ENGAGEMENT → INTERACTIONS for ${phase.name}`);
-          optimizationGoal = "INTERACTIONS";
+        // Normalize UI label INTERACTIONS back to Meta API value POST_ENGAGEMENT
+        if (optimizationGoal === "INTERACTIONS") {
+          console.log(`Mapping UI label INTERACTIONS → POST_ENGAGEMENT for Meta API for ${phase.name}`);
+          optimizationGoal = "POST_ENGAGEMENT";
         }
 
         // Create campaign - try to use taxonomy name first
