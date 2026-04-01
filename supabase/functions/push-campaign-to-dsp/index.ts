@@ -1730,7 +1730,7 @@ function getMetaObjectiveFromPhase(
   }
 
   if (lowerPhaseName.includes("engagement") || lowerPhaseName.includes("interest")) {
-    return { objective: "OUTCOME_ENGAGEMENT", optimizationGoal: "INTERACTIONS" };
+    return { objective: "OUTCOME_ENGAGEMENT", optimizationGoal: "POST_ENGAGEMENT" };
   }
 
   if (lowerPhaseName.includes("consideration") || lowerPhaseName.includes("intent")) {
