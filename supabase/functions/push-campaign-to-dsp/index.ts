@@ -1762,6 +1762,51 @@ function getMetaObjectiveFromPhase(
   return { objective: "OUTCOME_TRAFFIC", optimizationGoal: "LINK_CLICKS" };
 }
 
+const META_VALID_OPTIMIZATION_GOALS: Record<string, string[]> = {
+  OUTCOME_AWARENESS: ["REACH", "IMPRESSIONS", "AD_RECALL_LIFT", "THRUPLAY"],
+  OUTCOME_TRAFFIC: ["LINK_CLICKS", "LANDING_PAGE_VIEWS", "REACH", "IMPRESSIONS"],
+  OUTCOME_ENGAGEMENT: [
+    "THRUPLAY",
+    "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS",
+    "POST_ENGAGEMENT",
+    "EVENT_RESPONSES",
+    "REMINDERS_SET",
+    "CONVERSATIONS",
+    "QUALITY_CALL",
+    "LANDING_PAGE_VIEWS",
+    "LINK_CLICKS",
+    "APP_INSTALLS",
+    "PAGE_LIKES",
+  ],
+  OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "OFFSITE_CONVERSIONS", "APP_INSTALLS", "LINK_CLICKS"],
+  OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "APP_EVENTS", "VALUE", "LINK_CLICKS"],
+  OUTCOME_SALES: ["OFFSITE_CONVERSIONS", "VALUE", "LINK_CLICKS", "LANDING_PAGE_VIEWS", "CONVERSATIONS"],
+};
+
+function normalizeMetaObjectiveAndOptimizationGoal(
+  objective: string,
+  optimizationGoal: string,
+): { objective: string; optimizationGoal: string; corrected: boolean } {
+  let normalizedObjective = objective;
+  let normalizedGoal = optimizationGoal === "INTERACTIONS" ? "POST_ENGAGEMENT" : optimizationGoal;
+
+  if (normalizedGoal === "VALUE") {
+    normalizedObjective = "OUTCOME_SALES";
+  }
+
+  const validGoals = META_VALID_OPTIMIZATION_GOALS[normalizedObjective] || [];
+  if (validGoals.includes(normalizedGoal)) {
+    return { objective: normalizedObjective, optimizationGoal: normalizedGoal, corrected: false };
+  }
+
+  const fallbackGoal = validGoals[0] || normalizedGoal;
+  return {
+    objective: normalizedObjective,
+    optimizationGoal: fallbackGoal,
+    corrected: fallbackGoal !== normalizedGoal || normalizedObjective !== objective,
+  };
+}
+
 async function pushToMeta(campaign: any, platformConfig: any, platform: any, supabase: any) {
   console.log("Pushing to Meta...");
   console.log("📦 platformConfig.markets received:", JSON.stringify(platformConfig.markets, null, 2));
@@ -1899,11 +1944,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
         }
 
-        // Normalize UI label INTERACTIONS back to Meta API value POST_ENGAGEMENT
-        if (optimizationGoal === "INTERACTIONS") {
-          console.log(`Mapping UI label INTERACTIONS → POST_ENGAGEMENT for Meta API for ${phase.name}`);
-          optimizationGoal = "POST_ENGAGEMENT";
+        const normalizedPhaseConfig = normalizeMetaObjectiveAndOptimizationGoal(objective, optimizationGoal);
+        if (normalizedPhaseConfig.corrected) {
+          console.log(
+            `Normalized Meta objective/goal for ${phase.name}: ${objective}/${optimizationGoal} → ${normalizedPhaseConfig.objective}/${normalizedPhaseConfig.optimizationGoal}`,
+          );
         }
+        objective = normalizedPhaseConfig.objective;
+        optimizationGoal = normalizedPhaseConfig.optimizationGoal;
 
         // Create campaign - try to use taxonomy name first
         const genericConfig = campaign.generic_config || {};
@@ -2835,10 +2883,15 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
 
           // Build ad set taxonomy context
+          const normalizedAdSetConfig = normalizeMetaObjectiveAndOptimizationGoal(
+            objective,
+            adSetConfig.optimizationGoal || optimizationGoal,
+          );
+
           const adsetTaxonomyContext: TaxonomyContext = {
             platform: "meta",
             objective: objective,
-            optimizationGoal: adSetConfig.optimizationGoal || optimizationGoal,
+            optimizationGoal: normalizedAdSetConfig.optimizationGoal,
             phaseBudget: adSetConfig.adSetBudget,
             budgetType: budgetType,
             ageMin: adSetConfig.ageMin || effectiveBasicTargeting.ageMin || 18,
@@ -2871,7 +2924,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           const defaultAdSetName = `${phase.name}${splitSuffix} - Ad Set_${generateTimestampSuffix()}`;
 
           // CRITICAL: Each ad set may have its own optimization goal, so billing event must match
-          const adSetOptimizationGoal = adSetConfig.optimizationGoal || optimizationGoal;
+          const adSetOptimizationGoal = normalizedAdSetConfig.optimizationGoal;
           const adSetBillingEvent = getBillingEventForOptimizationGoal(
             adSetOptimizationGoal,
             adSetConfig.billingEvent || userBillingEvent,
