@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useWorkspace } from "@/hooks/useWorkspace";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
