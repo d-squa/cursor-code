@@ -291,6 +291,11 @@ export function PlatformMarketBudgetSelector({
             clickWindow: acc.default_click_window,
             viewWindow: acc.default_view_window,
             billingEvent: acc.default_billing_event,
+            // Advantage+ Campaign-level defaults
+            advantagePlusCampaign: acc.default_advantage_plus_campaign ?? false,
+            advantagePlusAudience: acc.default_advantage_plus_audience ?? false,
+            advantagePlusCreative: acc.default_advantage_plus_creative ?? false,
+            conversionCount: acc.default_conversion_count || 'all_conversions',
           };
           console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
         });

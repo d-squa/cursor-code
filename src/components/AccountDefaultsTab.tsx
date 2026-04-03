@@ -805,6 +805,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "advantage_plus_optimize_text_per_person",
         "advantage_plus_sitelinks",
         "advantage_plus_products",
+        // Advantage+ Campaign-level defaults
+        "default_advantage_plus_campaign",
+        "default_advantage_plus_audience",
+        "default_advantage_plus_creative",
         // UTM Parameters
         "default_utm_mode",
         "default_url_parameters",
