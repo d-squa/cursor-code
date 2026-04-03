@@ -644,6 +644,8 @@ function EntityRow({
                 variant="ghost"
                 size="sm"
                 className="h-6 text-xs px-2"
+                disabled={qcEnforceIndividual}
+                title={qcEnforceIndividual ? 'QC enforcement is enabled — items must be checked individually' : undefined}
                 onClick={(e) => { e.stopPropagation(); onToggleAll(!allChecked); }}
               >
                 <CheckCheck className="h-3 w-3 mr-1" />
