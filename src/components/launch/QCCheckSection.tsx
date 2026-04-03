@@ -75,6 +75,7 @@ export function QCCheckSection({
   items,
   loading,
   campaignId,
+  qcEnforceIndividual = false,
   summary,
   getChecklist,
   getCompletions,
