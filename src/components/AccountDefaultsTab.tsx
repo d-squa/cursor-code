@@ -482,6 +482,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
               : (acc as any).default_billing_event || "IMPRESSIONS",
           default_optimization_event:
             acc.platform === "tiktok" ? acc.default_optimization_event || "ON_WEB_ORDER" : null,
+          default_conversion_count: (acc as any).default_conversion_count || "all_conversions",
           // Landing page URL for both platforms
           default_landing_page_url: (acc as any).default_landing_page_url || null,
           // Optimization location for both platforms
@@ -805,6 +806,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "advantage_plus_optimize_text_per_person",
         "advantage_plus_sitelinks",
         "advantage_plus_products",
+        // Advantage+ Campaign-level defaults
+        "default_advantage_plus_campaign",
+        "default_advantage_plus_audience",
+        "default_advantage_plus_creative",
         // UTM Parameters
         "default_utm_mode",
         "default_url_parameters",

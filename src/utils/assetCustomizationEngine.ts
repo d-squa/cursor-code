@@ -385,7 +385,7 @@ export function detectAssetCustomizationGroups(
 
     const claimedRowIds = new Set<string>();
 
-    // Step 2: For each base key, check if creatives span 2+ different buckets with 1 each
+    // Step 2: For each base key, check if creatives span 2+ different buckets
     for (const [baseKey, baseRows] of baseKeyMap) {
       if (baseRows.length < 2) continue;
 
@@ -399,9 +399,48 @@ export function detectAssetCustomizationGroups(
       const uniqueBuckets = new Set([...bucketMap.keys()].filter((b) => b !== 'other'));
       if (uniqueBuckets.size < 2) continue;
 
-      // Only form a placement group if each bucket has exactly 1 creative
+      // Check if each bucket has exactly 1 creative → Placement group
       const allSinglePerBucket = [...uniqueBuckets].every((b) => (bucketMap.get(b)?.length || 0) === 1);
-      if (!allSinglePerBucket) continue;
+
+      if (!allSinglePerBucket) {
+        // Multiple creatives per bucket with 2+ different buckets → Flexible Creative
+        // Create flexible groups by pairing one creative per bucket per slot
+        const maxPerBucket = Math.max(...[...uniqueBuckets].map((b) => bucketMap.get(b)!.length));
+        for (let slotIdx = 0; slotIdx < maxPerBucket; slotIdx++) {
+          const slotRows: CreativeTextAssetRow[] = [];
+          const slotBucketMap = new Map<DeliveryBucket, CreativeTextAssetRow[]>();
+          for (const b of uniqueBuckets) {
+            const arr = bucketMap.get(b)!;
+            if (slotIdx < arr.length) {
+              slotRows.push(arr[slotIdx]);
+              slotBucketMap.set(b, [arr[slotIdx]]);
+            }
+          }
+          if (slotBucketMap.size < 2) continue;
+
+          const languageMap = new Map<string, CreativeTextAssetRow[]>();
+          for (const row of slotRows) {
+            const lang = detectLanguage(row) || 'unknown';
+            if (!languageMap.has(lang)) languageMap.set(lang, []);
+            languageMap.get(lang)!.push(row);
+          }
+
+          detected.push({
+            id: `ac-flexible-${taxKey.replace(/[^a-z0-9]/gi, '-')}-${baseKey.replace(/[^a-z0-9]/gi, '-')}-${slotIdx}`,
+            type: 'flexible_creative',
+            label: `Flexible Creative`,
+            description: `${slotBucketMap.size} delivery buckets — dynamic optimization per user (same creative, different sizes)`,
+            rows: slotRows,
+            taxonomyKey: taxKey,
+            deliveryBuckets: slotBucketMap,
+            languages: languageMap,
+            validationErrors: [],
+          });
+
+          slotRows.forEach((r) => claimedRowIds.add(r.id));
+        }
+        continue;
+      }
 
       const placementRows = [...uniqueBuckets].map((b) => bucketMap.get(b)![0]);
       const languageMap = new Map<string, CreativeTextAssetRow[]>();

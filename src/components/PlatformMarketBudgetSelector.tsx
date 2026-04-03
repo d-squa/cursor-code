@@ -291,6 +291,11 @@ export function PlatformMarketBudgetSelector({
             clickWindow: acc.default_click_window,
             viewWindow: acc.default_view_window,
             billingEvent: acc.default_billing_event,
+            // Advantage+ Campaign-level defaults
+            advantagePlusCampaign: acc.default_advantage_plus_campaign ?? false,
+            advantagePlusAudience: acc.default_advantage_plus_audience ?? false,
+            advantagePlusCreative: acc.default_advantage_plus_creative ?? false,
+            conversionCount: acc.default_conversion_count || 'all_conversions',
           };
           console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
         });
@@ -646,6 +651,7 @@ export function PlatformMarketBudgetSelector({
           clickWindow: acc.default_click_window,
           viewWindow: acc.default_view_window,
           billingEvent: acc.default_billing_event,
+          conversionCount: acc.default_conversion_count || 'all_conversions',
         };
       });
       console.log('✅ TikTok Ad Account Defaults loaded:', defaults);
@@ -1818,6 +1824,10 @@ export function PlatformMarketBudgetSelector({
                                                     metaClickWindow: defaults?.clickWindow || 7,
                                                     metaViewWindow: defaults?.viewWindow || 1,
                                                     metaAdvantagePlusPlacements: defaults?.advantagePlusPlacements ?? true,
+                                                    metaAdvantagePlusCampaign: defaults?.advantagePlusCampaign ?? false,
+                                                    metaAdvantagePlusAudience: defaults?.advantagePlusAudience ?? false,
+                                                    metaAdvantagePlusCreative: defaults?.advantagePlusCreative ?? false,
+                                                    metaConversionCount: defaults?.conversionCount || 'all_conversions',
                                                   };
                                               });
                                              
@@ -1884,6 +1894,10 @@ export function PlatformMarketBudgetSelector({
                                                        if (defaults.clickWindow) updated.metaClickWindow = defaults.clickWindow;
                                                        if (defaults.viewWindow) updated.metaViewWindow = defaults.viewWindow;
                                                        if (defaults.advantagePlusPlacements !== undefined) updated.metaAdvantagePlusPlacements = defaults.advantagePlusPlacements;
+                                                       if (defaults.advantagePlusCampaign !== undefined) (updated as any).metaAdvantagePlusCampaign = defaults.advantagePlusCampaign;
+                                                       if (defaults.advantagePlusAudience !== undefined) (updated as any).metaAdvantagePlusAudience = defaults.advantagePlusAudience;
+                                                       if (defaults.advantagePlusCreative !== undefined) (updated as any).metaAdvantagePlusCreative = defaults.advantagePlusCreative;
+                                                       if (defaults.conversionCount) (updated as any).metaConversionCount = defaults.conversionCount;
                                                        
                                                        toast.success("Applied default settings for this ad account");
                                                      }
@@ -3013,6 +3027,11 @@ export function PlatformMarketBudgetSelector({
                                     metaClickWindow: (market as any).metaClickWindow,
                                     metaViewWindow: (market as any).metaViewWindow,
                                     metaBillingEvent: (market as any).metaBillingEvent,
+                                    // Meta Advantage+ Campaign-level defaults
+                                    metaAdvantagePlusCampaign: (market as any).metaAdvantagePlusCampaign,
+                                    metaAdvantagePlusAudience: (market as any).metaAdvantagePlusAudience,
+                                    metaAdvantagePlusCreative: (market as any).metaAdvantagePlusCreative,
+                                    metaConversionCount: (market as any).metaConversionCount,
                                     // TikTok destination defaults
                                     tiktokOptimizationLocation: (market as any).tiktokOptimizationLocation,
                                     tiktokAppId: (market as any).tiktokAppId,

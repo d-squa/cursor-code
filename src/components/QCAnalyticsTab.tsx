@@ -14,6 +14,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Cell,
 } from "recharts";
 import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass } from "@/utils/qcUtils";
 import type { QCState } from "@/utils/qcUtils";
@@ -272,6 +273,57 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
           </CardContent>
         </Card>
       </div>
+
+      {/* PWR (Pencil Whip Rate) Dedicated Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Pencil Whip Rate (PWR) Analysis
+          </CardTitle>
+          <CardDescription>
+            Tracks the ratio of bulk-checked vs individually checked QC items. High PWR may indicate rushed reviews.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="text-center p-3 bg-muted/20 rounded-md border">
+              <p className="text-xs text-muted-foreground">Individual Checks</p>
+              <p className="text-xl font-bold">{individualChecks}</p>
+            </div>
+            <div className="text-center p-3 bg-muted/20 rounded-md border">
+              <p className="text-xs text-muted-foreground">Bulk Checks</p>
+              <p className="text-xl font-bold">{bulkChecks}</p>
+            </div>
+            <div className="text-center p-3 bg-muted/20 rounded-md border">
+              <p className="text-xs text-muted-foreground">PWR Score</p>
+              <p className={`text-xl font-bold ${pwrColor}`}>{pwrRate}%</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {parseFloat(pwrRate) <= 25 ? '🟢 Low risk' : parseFloat(pwrRate) <= 50 ? '🟡 Medium risk' : '🔴 High risk'}
+              </p>
+            </div>
+          </div>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[
+                { name: 'Individual', count: individualChecks, fill: 'hsl(var(--primary))' },
+                { name: 'Bulk', count: bulkChecks, fill: 'hsl(var(--accent))' },
+              ]}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="count" name="Checks">
+                  {[
+                    <Cell key="individual" fill="hsl(var(--primary))" />,
+                    <Cell key="bulk" fill="hsl(var(--accent))" />,
+                  ]}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

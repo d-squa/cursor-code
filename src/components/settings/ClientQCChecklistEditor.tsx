@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,22 +51,26 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
   const [customChecklists, setCustomChecklists] = useState<Record<string, QCChecklistItem[]>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [activePlatform, setActivePlatform] = useState<PlatformKey>('meta');
+  const [enforceIndividual, setEnforceIndividual] = useState(false);
 
   const fetchCustomChecklists = useCallback(async () => {
     if (!clientId) return;
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from("client_qc_checklists")
-        .select("*")
-        .eq("client_id", clientId);
+      const [checklistRes, clientRes] = await Promise.all([
+        supabase.from("client_qc_checklists").select("*").eq("client_id", clientId),
+        supabase.from("clients").select("qc_enforce_individual").eq("id", clientId).single(),
+      ]);
 
-      if (data) {
+      if (checklistRes.data) {
         const map: Record<string, QCChecklistItem[]> = {};
-        (data as any[]).forEach(c => {
+        (checklistRes.data as any[]).forEach(c => {
           map[`${c.platform}_${c.entity_type}`] = c.items as QCChecklistItem[];
         });
         setCustomChecklists(map);
+      }
+      if (clientRes.data) {
+        setEnforceIndividual((clientRes.data as any).qc_enforce_individual ?? false);
       }
     } catch (error) {
       console.error("Error fetching client QC checklists:", error);
@@ -126,6 +132,9 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
     if (!user) return;
     setSaving(true);
     try {
+      // Save enforce setting on client
+      await supabase.from("clients").update({ qc_enforce_individual: enforceIndividual } as any).eq("id", clientId);
+
       // Delete existing custom checklists for this client
       await supabase
         .from("client_qc_checklists")
@@ -195,6 +204,16 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
         <p className="text-xs text-muted-foreground mt-1">
           Customize QC checklists per platform. Items not customized will use defaults.
         </p>
+        <div className="flex items-center gap-3 mt-2 p-2 bg-muted/30 rounded-md">
+          <Switch
+            checked={enforceIndividual}
+            onCheckedChange={setEnforceIndividual}
+          />
+          <div>
+            <Label className="text-xs font-medium">Enforce Individual Checking</Label>
+            <p className="text-[10px] text-muted-foreground">When enabled, "Check All" bulk actions are disabled — each item must be reviewed one by one.</p>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activePlatform} onValueChange={(v) => setActivePlatform(v as PlatformKey)}>

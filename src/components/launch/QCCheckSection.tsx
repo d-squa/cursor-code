@@ -51,6 +51,7 @@ interface QCCheckSectionProps {
   items: QCTrackingItem[];
   loading: boolean;
   campaignId?: string;
+  qcEnforceIndividual?: boolean;
   summary: {
     total: number;
     waitingForQC: number;
@@ -74,6 +75,7 @@ export function QCCheckSection({
   items,
   loading,
   campaignId,
+  qcEnforceIndividual = false,
   summary,
   getChecklist,
   getCompletions,
@@ -473,6 +475,7 @@ export function QCCheckSection({
                                             onToggleAll={onToggleAll}
                                             onUpdateState={handleUpdateStateWithLiveCheck}
                                             onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
+                                            qcEnforceIndividual={qcEnforceIndividual}
                                           />
                                         </CollapsibleContent>
                                       </Collapsible>
@@ -489,6 +492,7 @@ export function QCCheckSection({
                                         onToggleAll={onToggleAll}
                                         onUpdateState={handleUpdateStateWithLiveCheck}
                                         onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
+                                        qcEnforceIndividual={qcEnforceIndividual}
                                       />
                                     )}
                                   </div>
@@ -524,6 +528,7 @@ interface EntityGroupContentProps {
   onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
   onUpdateState: (trackingId: string, newState: QCState) => void;
   onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+  qcEnforceIndividual?: boolean;
 }
 
 function EntityGroupContent({
@@ -538,21 +543,24 @@ function EntityGroupContent({
   onToggleAll,
   onUpdateState,
   onBulkCheckAndAdvance,
+  qcEnforceIndividual = false,
 }: EntityGroupContentProps) {
   return (
     <>
       {Object.entries(entityGroups).map(([entityType, entityItems]) => (
         <div key={entityType} className="ml-2 space-y-0.5">
-          <div className="flex items-center justify-between px-2 py-0.5">
-            <div className="text-xs font-medium text-muted-foreground/70 capitalize">
-              {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
-            </div>
-            <BulkCheckAllButton
-              entityItems={entityItems}
-              entityType={entityType}
-              getChecklist={getChecklist}
-              onBulkCheckAndAdvance={onBulkCheckAndAdvance}
-            />
+            <div className="flex items-center justify-between px-2 py-0.5">
+              <div className="text-xs font-medium text-muted-foreground/70 capitalize">
+                {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
+              </div>
+              {!qcEnforceIndividual && (
+                <BulkCheckAllButton
+                  entityItems={entityItems}
+                  entityType={entityType}
+                  getChecklist={getChecklist}
+                  onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+                />
+              )}
           </div>
           {entityItems.map(item => (
             <EntityRow
@@ -568,6 +576,7 @@ function EntityGroupContent({
               onToggleAll={(checked) => onToggleAll(item.id, getChecklist(item.platform, item.entity_type), checked)}
               onUpdateState={(state) => onUpdateState(item.id, state)}
               onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(item.id, getChecklist(item.platform, item.entity_type), item.current_state)}
+              qcEnforceIndividual={qcEnforceIndividual}
             />
           ))}
         </div>
@@ -590,6 +599,7 @@ interface EntityRowProps {
   onToggleAll: (checked: boolean) => void;
   onUpdateState: (state: QCState) => void;
   onBulkCheckAndAdvance: () => void;
+  qcEnforceIndividual?: boolean;
 }
 
 function EntityRow({
@@ -604,6 +614,7 @@ function EntityRow({
   onToggleAll,
   onUpdateState,
   onBulkCheckAndAdvance,
+  qcEnforceIndividual = false,
 }: EntityRowProps) {
   const nextState = getNextState(item.current_state);
   const prevState = getPreviousState(item.current_state);
@@ -642,6 +653,8 @@ function EntityRow({
                 variant="ghost"
                 size="sm"
                 className="h-6 text-xs px-2"
+                disabled={qcEnforceIndividual}
+                title={qcEnforceIndividual ? 'QC enforcement is enabled — items must be checked individually' : undefined}
                 onClick={(e) => { e.stopPropagation(); onToggleAll(!allChecked); }}
               >
                 <CheckCheck className="h-3 w-3 mr-1" />
