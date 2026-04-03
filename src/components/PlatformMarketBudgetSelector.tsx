@@ -3026,6 +3026,11 @@ export function PlatformMarketBudgetSelector({
                                     metaClickWindow: (market as any).metaClickWindow,
                                     metaViewWindow: (market as any).metaViewWindow,
                                     metaBillingEvent: (market as any).metaBillingEvent,
+                                    // Meta Advantage+ Campaign-level defaults
+                                    metaAdvantagePlusCampaign: (market as any).metaAdvantagePlusCampaign,
+                                    metaAdvantagePlusAudience: (market as any).metaAdvantagePlusAudience,
+                                    metaAdvantagePlusCreative: (market as any).metaAdvantagePlusCreative,
+                                    metaConversionCount: (market as any).metaConversionCount,
                                     // TikTok destination defaults
                                     tiktokOptimizationLocation: (market as any).tiktokOptimizationLocation,
                                     tiktokAppId: (market as any).tiktokAppId,
