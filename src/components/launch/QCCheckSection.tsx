@@ -547,16 +547,18 @@ function EntityGroupContent({
     <>
       {Object.entries(entityGroups).map(([entityType, entityItems]) => (
         <div key={entityType} className="ml-2 space-y-0.5">
-          <div className="flex items-center justify-between px-2 py-0.5">
-            <div className="text-xs font-medium text-muted-foreground/70 capitalize">
-              {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
-            </div>
-            <BulkCheckAllButton
-              entityItems={entityItems}
-              entityType={entityType}
-              getChecklist={getChecklist}
-              onBulkCheckAndAdvance={onBulkCheckAndAdvance}
-            />
+            <div className="flex items-center justify-between px-2 py-0.5">
+              <div className="text-xs font-medium text-muted-foreground/70 capitalize">
+                {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
+              </div>
+              {!qcEnforceIndividual && (
+                <BulkCheckAllButton
+                  entityItems={entityItems}
+                  entityType={entityType}
+                  getChecklist={getChecklist}
+                  onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+                />
+              )}
           </div>
           {entityItems.map(item => (
             <EntityRow
