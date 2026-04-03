@@ -49,6 +49,7 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
   const [customChecklists, setCustomChecklists] = useState<Record<string, QCChecklistItem[]>>({});
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [activePlatform, setActivePlatform] = useState<PlatformKey>('meta');
+  const [enforceIndividual, setEnforceIndividual] = useState(false);
 
   const fetchCustomChecklists = useCallback(async () => {
     if (!clientId) return;
