@@ -574,6 +574,7 @@ function EntityGroupContent({
               onToggleAll={(checked) => onToggleAll(item.id, getChecklist(item.platform, item.entity_type), checked)}
               onUpdateState={(state) => onUpdateState(item.id, state)}
               onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(item.id, getChecklist(item.platform, item.entity_type), item.current_state)}
+              qcEnforceIndividual={qcEnforceIndividual}
             />
           ))}
         </div>
