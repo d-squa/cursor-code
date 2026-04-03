@@ -202,6 +202,16 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
         <p className="text-xs text-muted-foreground mt-1">
           Customize QC checklists per platform. Items not customized will use defaults.
         </p>
+        <div className="flex items-center gap-3 mt-2 p-2 bg-muted/30 rounded-md">
+          <Switch
+            checked={enforceIndividual}
+            onCheckedChange={setEnforceIndividual}
+          />
+          <div>
+            <Label className="text-xs font-medium">Enforce Individual Checking</Label>
+            <p className="text-[10px] text-muted-foreground">When enabled, "Check All" bulk actions are disabled — each item must be reviewed one by one.</p>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activePlatform} onValueChange={(v) => setActivePlatform(v as PlatformKey)}>
