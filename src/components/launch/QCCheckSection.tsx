@@ -541,6 +541,7 @@ function EntityGroupContent({
   onToggleAll,
   onUpdateState,
   onBulkCheckAndAdvance,
+  qcEnforceIndividual = false,
 }: EntityGroupContentProps) {
   return (
     <>
