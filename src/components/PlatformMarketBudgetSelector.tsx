@@ -651,6 +651,7 @@ export function PlatformMarketBudgetSelector({
           clickWindow: acc.default_click_window,
           viewWindow: acc.default_view_window,
           billingEvent: acc.default_billing_event,
+          conversionCount: acc.default_conversion_count || 'all_conversions',
         };
       });
       console.log('✅ TikTok Ad Account Defaults loaded:', defaults);
