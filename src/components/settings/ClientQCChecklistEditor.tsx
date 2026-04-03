@@ -55,17 +55,20 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
     if (!clientId) return;
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from("client_qc_checklists")
-        .select("*")
-        .eq("client_id", clientId);
+      const [checklistRes, clientRes] = await Promise.all([
+        supabase.from("client_qc_checklists").select("*").eq("client_id", clientId),
+        supabase.from("clients").select("qc_enforce_individual").eq("id", clientId).single(),
+      ]);
 
-      if (data) {
+      if (checklistRes.data) {
         const map: Record<string, QCChecklistItem[]> = {};
-        (data as any[]).forEach(c => {
+        (checklistRes.data as any[]).forEach(c => {
           map[`${c.platform}_${c.entity_type}`] = c.items as QCChecklistItem[];
         });
         setCustomChecklists(map);
+      }
+      if (clientRes.data) {
+        setEnforceIndividual((clientRes.data as any).qc_enforce_individual ?? false);
       }
     } catch (error) {
       console.error("Error fetching client QC checklists:", error);
