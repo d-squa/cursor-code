@@ -1823,6 +1823,10 @@ export function PlatformMarketBudgetSelector({
                                                     metaClickWindow: defaults?.clickWindow || 7,
                                                     metaViewWindow: defaults?.viewWindow || 1,
                                                     metaAdvantagePlusPlacements: defaults?.advantagePlusPlacements ?? true,
+                                                    metaAdvantagePlusCampaign: defaults?.advantagePlusCampaign ?? false,
+                                                    metaAdvantagePlusAudience: defaults?.advantagePlusAudience ?? false,
+                                                    metaAdvantagePlusCreative: defaults?.advantagePlusCreative ?? false,
+                                                    metaConversionCount: defaults?.conversionCount || 'all_conversions',
                                                   };
                                               });
                                              
