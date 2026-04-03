@@ -14,6 +14,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Cell,
 } from "recharts";
 import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass } from "@/utils/qcUtils";
 import type { QCState } from "@/utils/qcUtils";
