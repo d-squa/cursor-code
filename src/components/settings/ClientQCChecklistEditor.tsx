@@ -130,6 +130,9 @@ export function ClientQCChecklistEditor({ clientId }: ClientQCChecklistEditorPro
     if (!user) return;
     setSaving(true);
     try {
+      // Save enforce setting on client
+      await supabase.from("clients").update({ qc_enforce_individual: enforceIndividual } as any).eq("id", clientId);
+
       // Delete existing custom checklists for this client
       await supabase
         .from("client_qc_checklists")
