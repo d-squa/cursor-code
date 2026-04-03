@@ -526,6 +526,7 @@ interface EntityGroupContentProps {
   onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
   onUpdateState: (trackingId: string, newState: QCState) => void;
   onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+  qcEnforceIndividual?: boolean;
 }
 
 function EntityGroupContent({
