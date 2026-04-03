@@ -51,6 +51,7 @@ interface QCCheckSectionProps {
   items: QCTrackingItem[];
   loading: boolean;
   campaignId?: string;
+  qcEnforceIndividual?: boolean;
   summary: {
     total: number;
     waitingForQC: number;
