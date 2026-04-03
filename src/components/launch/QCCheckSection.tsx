@@ -596,6 +596,7 @@ interface EntityRowProps {
   onToggleAll: (checked: boolean) => void;
   onUpdateState: (state: QCState) => void;
   onBulkCheckAndAdvance: () => void;
+  qcEnforceIndividual?: boolean;
 }
 
 function EntityRow({
@@ -610,6 +611,7 @@ function EntityRow({
   onToggleAll,
   onUpdateState,
   onBulkCheckAndAdvance,
+  qcEnforceIndividual = false,
 }: EntityRowProps) {
   const nextState = getNextState(item.current_state);
   const prevState = getPreviousState(item.current_state);
