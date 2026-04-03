@@ -1047,6 +1047,7 @@ export type Database = {
           markets: Json | null
           name: string
           platforms: Json | null
+          qc_enforce_individual: boolean
           updated_at: string
           user_id: string
           website: string | null
@@ -1065,6 +1066,7 @@ export type Database = {
           markets?: Json | null
           name: string
           platforms?: Json | null
+          qc_enforce_individual?: boolean
           updated_at?: string
           user_id: string
           website?: string | null
@@ -1083,6 +1085,7 @@ export type Database = {
           markets?: Json | null
           name?: string
           platforms?: Json | null
+          qc_enforce_individual?: boolean
           updated_at?: string
           user_id?: string
           website?: string | null
