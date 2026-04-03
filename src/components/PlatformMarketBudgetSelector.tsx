@@ -1893,6 +1893,10 @@ export function PlatformMarketBudgetSelector({
                                                        if (defaults.clickWindow) updated.metaClickWindow = defaults.clickWindow;
                                                        if (defaults.viewWindow) updated.metaViewWindow = defaults.viewWindow;
                                                        if (defaults.advantagePlusPlacements !== undefined) updated.metaAdvantagePlusPlacements = defaults.advantagePlusPlacements;
+                                                       if (defaults.advantagePlusCampaign !== undefined) (updated as any).metaAdvantagePlusCampaign = defaults.advantagePlusCampaign;
+                                                       if (defaults.advantagePlusAudience !== undefined) (updated as any).metaAdvantagePlusAudience = defaults.advantagePlusAudience;
+                                                       if (defaults.advantagePlusCreative !== undefined) (updated as any).metaAdvantagePlusCreative = defaults.advantagePlusCreative;
+                                                       if (defaults.conversionCount) (updated as any).metaConversionCount = defaults.conversionCount;
                                                        
                                                        toast.success("Applied default settings for this ad account");
                                                      }
