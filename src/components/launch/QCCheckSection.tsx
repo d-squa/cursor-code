@@ -492,6 +492,7 @@ export function QCCheckSection({
                                         onToggleAll={onToggleAll}
                                         onUpdateState={handleUpdateStateWithLiveCheck}
                                         onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
+                                        qcEnforceIndividual={qcEnforceIndividual}
                                       />
                                     )}
                                   </div>
