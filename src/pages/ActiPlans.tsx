@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { SampleDataBadge } from "@/components/TourDataBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
