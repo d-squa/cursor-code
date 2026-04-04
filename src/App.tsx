@@ -59,6 +59,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <TourDataProvider>
           <MarketingGTM />
           <DataLayerUserID />
           <Routes>
