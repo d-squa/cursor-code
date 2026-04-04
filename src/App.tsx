@@ -120,6 +120,7 @@ const App = () => (
           {/* Global floating components */}
           <BugReportButton />
           <AIAssistantSidebar />
+        </TourDataProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
