@@ -514,3 +514,72 @@ export default function AccountSettings() {
     </div>
   );
 }
+
+function TourSettingsCard() {
+  const navigate = useNavigate();
+  const { isSeeded, isVisible, toggleVisibility, seedTourData, loading } = useTourDataContext();
+
+  const handleReplayTour = () => {
+    resetOnboardingTour();
+    navigate("/overview");
+    window.location.reload();
+  };
+
+  const handleSeedData = async () => {
+    await seedTourData();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <GraduationCap className="h-5 w-5 text-primary" />
+          Interactive Tour & Sample Data
+        </CardTitle>
+        <CardDescription>
+          Manage the onboarding tour and sample demo data used to explore the platform.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Replay Onboarding Tour</p>
+            <p className="text-xs text-muted-foreground">Walk through the platform features again</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleReplayTour} className="gap-2">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Replay Tour
+          </Button>
+        </div>
+
+        <Separator />
+
+        {isSeeded ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Show Sample Tour Data</p>
+              <p className="text-xs text-muted-foreground">
+                {isVisible ? "Sample data is currently visible across the platform" : "Sample data is hidden from all views"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {isVisible ? <Eye className="h-4 w-4 text-primary" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+              <Switch checked={isVisible} onCheckedChange={toggleVisibility} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Load Sample Data</p>
+              <p className="text-xs text-muted-foreground">Create demo connections, campaign, and performance data</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSeedData} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GraduationCap className="h-3.5 w-3.5" />}
+              Load Sample Data
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
