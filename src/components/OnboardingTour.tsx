@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,82 +12,89 @@ import {
   FileText,
   Image,
   Rocket,
-  LayoutDashboard,
   Settings,
   CheckCircle2,
   Sparkles,
+  Loader2,
+  GraduationCap,
 } from "lucide-react";
+import { useTourDataContext } from "@/contexts/TourDataContext";
 
 interface TourStep {
   title: string;
   description: string;
   icon: React.ReactNode;
-  action?: { label: string; path: string };
+  navigateTo?: string;
   tip?: string;
+  seedsData?: boolean;
+  isInteractive?: boolean;
 }
 
 const TOUR_STEPS: TourStep[] = [
   {
     title: "Welcome to ActiPlan! 🎉",
     description:
-      "Let's walk you through the key steps to get your cross-platform activation manager up and running. This will only take a minute.",
+      "Let's take you on an interactive tour with sample data so you can explore the full platform. We'll load demo accounts and a sample campaign you can explore freely.",
     icon: <Sparkles className="h-6 w-6" />,
-    tip: "You can skip this tour at any time and revisit it from Settings.",
+    tip: "Sample data is clearly labeled and can be hidden anytime from Settings.",
   },
   {
-    title: "Step 1: Connect your ad platforms",
+    title: "Loading your demo environment…",
     description:
-      "Connect Meta, TikTok, Google Ads, or Snapchat to enable automated syncing, audience targeting, and campaign pushes directly from ActiPlan.",
+      "We're setting up sample platform connections (Meta, TikTok, Google Ads) and a fully configured cross-platform campaign with 2 months of realistic performance data.",
+    icon: <GraduationCap className="h-6 w-6" />,
+    seedsData: true,
+    tip: "This will only take a few seconds.",
+  },
+  {
+    title: "Platform Connections",
+    description:
+      "Here you can see the demo accounts connected to Meta, TikTok, and Google Ads. In real usage, you'd connect your own ad accounts through OAuth to enable campaign syncing and pushing.",
     icon: <Plug className="h-6 w-6" />,
-    action: { label: "Go to Platform Connections", path: "/platform-connections" },
-    tip: "You can connect multiple accounts per platform.",
+    navigateTo: "/settings/platforms",
+    isInteractive: true,
+    tip: "You can connect multiple ad accounts per platform.",
   },
   {
-    title: "Step 2: Set up your clients",
+    title: "Your Sample ActiPlan",
     description:
-      "Create client profiles with their industry, markets, and business objectives. Then link ad accounts to each client under Manage Accounts.",
+      "This is a fully configured cross-platform campaign with 3 platforms, 2 markets, and 13 ad sets. You can explore the structure, view the forecast, and check the activity logs. The push and creative mesh features are disabled for sample data.",
+    icon: <FileText className="h-6 w-6" />,
+    navigateTo: "/actiplans",
+    isInteractive: true,
+    tip: "Click into the sample ActiPlan to explore targeting, budgets, and phases.",
+  },
+  {
+    title: "Performance Dashboard",
+    description:
+      "The Overview dashboard shows real-time pacing, performance metrics, and cross-platform insights. The sample data covers 2 months with realistic weekday/weekend patterns and gradual optimization improvements.",
+    icon: <Rocket className="h-6 w-6" />,
+    navigateTo: "/overview",
+    isInteractive: true,
+    tip: "Try switching between platforms and date ranges to see the data change.",
+  },
+  {
+    title: "Set Up Your Clients",
+    description:
+      "Create client profiles with industry, markets, and business objectives. Then link ad accounts and configure default pixels, pages, and conversion events that auto-populate in new ActiPlans.",
     icon: <Users className="h-6 w-6" />,
-    action: { label: "Manage Clients", path: "/settings/accounts" },
-    tip: "Clients help organize ad accounts and set targeting defaults.",
-  },
-  {
-    title: "Step 3: Configure account defaults",
-    description:
-      "For each linked ad account, set default pixels, pages, conversion events, budget types, merchant centers, and URL parameters. These auto-populate when creating ActiPlans.",
-    icon: <Settings className="h-6 w-6" />,
-    action: { label: "Go to Clients → Defaults Tab", path: "/settings/accounts" },
+    navigateTo: "/settings/accounts",
     tip: "Defaults save hours of repetitive configuration.",
   },
   {
-    title: "Step 4: Create your first ActiPlan",
+    title: "Creative Mesh",
     description:
-      "Build a full cross-platform media plan with the blueprint-driven workflow. Select clients, platforms, markets, phases, and budgets — then forecast performance.",
-    icon: <FileText className="h-6 w-6" />,
-    action: { label: "Create New ActiPlan", path: "/app?new=true" },
-    tip: "ActiPlans support Meta, TikTok, Google Ads, and Snapchat simultaneously.",
-  },
-  {
-    title: "Step 5: Assign creatives via Creative Mesh",
-    description:
-      "Upload or sync creative assets, then assign them to specific phases and ad sets. Creative Mesh handles format validation and platform-specific requirements.",
+      "Upload or sync creative assets, then assign them to specific phases and ad sets. Creative Mesh handles format validation and platform-specific requirements automatically.",
     icon: <Image className="h-6 w-6" />,
-    action: { label: "Open Creative Mesh", path: "/creatives" },
-    tip: "You can also use AI-powered creative matching to auto-assign assets.",
-  },
-  {
-    title: "Step 6: Push to DSP & monitor",
-    description:
-      "Once your ActiPlan is ready, push campaigns directly to ad platforms. Track launch status, pacing, and performance from the Overview dashboard.",
-    icon: <Rocket className="h-6 w-6" />,
-    action: { label: "View Overview", path: "/overview" },
-    tip: "Performance insights refresh automatically via connected platforms.",
+    navigateTo: "/creatives",
+    tip: "AI-powered creative matching can auto-assign assets based on format and objective.",
   },
   {
     title: "You're all set! 🚀",
     description:
-      "You now know the key workflow. Start by connecting a platform and creating your first client. If you need help, check the Settings page or report a bug anytime.",
+      "You now know the key workflow. The sample data will remain visible so you can keep exploring. You can hide it anytime from Settings, or replay this tour.",
     icon: <CheckCircle2 className="h-6 w-6" />,
-    action: { label: "Start using ActiPlan", path: "/overview" },
+    navigateTo: "/overview",
   },
 ];
 
@@ -96,38 +103,72 @@ const TOUR_STORAGE_KEY = "actiplan_tour_completed";
 export function OnboardingTour() {
   const [currentStep, setCurrentStep] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const navigate = useNavigate();
+  const { seedTourData, isSeeded } = useTourDataContext();
 
   useEffect(() => {
     const completed = localStorage.getItem(TOUR_STORAGE_KEY);
     if (!completed) {
-      // Small delay so the page renders first
       const timer = setTimeout(() => setVisible(true), 800);
       return () => clearTimeout(timer);
     }
   }, []);
 
-  const handleSkip = () => {
+  const handleSkip = useCallback(() => {
     localStorage.setItem(TOUR_STORAGE_KEY, new Date().toISOString());
     setVisible(false);
-  };
+  }, []);
 
-  const handleNext = () => {
-    if (currentStep < TOUR_STEPS.length - 1) {
-      setCurrentStep((s) => s + 1);
-    } else {
+  const handleNext = useCallback(async () => {
+    const nextStep = currentStep + 1;
+    if (nextStep >= TOUR_STEPS.length) {
       handleSkip();
+      return;
     }
-  };
 
-  const handlePrev = () => {
-    if (currentStep > 0) setCurrentStep((s) => s - 1);
-  };
+    const next = TOUR_STEPS[nextStep];
 
-  const handleAction = (path: string) => {
-    handleSkip();
-    navigate(path);
-  };
+    // If next step seeds data, do it
+    if (next.seedsData && !isSeeded) {
+      setCurrentStep(nextStep);
+      setSeeding(true);
+      await seedTourData();
+      setSeeding(false);
+      // Auto-advance after seeding
+      const stepAfterSeed = nextStep + 1;
+      if (stepAfterSeed < TOUR_STEPS.length) {
+        const navStep = TOUR_STEPS[stepAfterSeed];
+        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        setCurrentStep(stepAfterSeed);
+      }
+      return;
+    }
+
+    // If already seeded and this is the seed step, skip it
+    if (next.seedsData && isSeeded) {
+      const stepAfterSeed = nextStep + 1;
+      if (stepAfterSeed < TOUR_STEPS.length) {
+        const navStep = TOUR_STEPS[stepAfterSeed];
+        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        setCurrentStep(stepAfterSeed);
+      }
+      return;
+    }
+
+    if (next.navigateTo) navigate(next.navigateTo);
+    setCurrentStep(nextStep);
+  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip]);
+
+  const handlePrev = useCallback(() => {
+    let prev = currentStep - 1;
+    // Skip the seeding step when going back
+    if (prev >= 0 && TOUR_STEPS[prev].seedsData) prev--;
+    if (prev < 0) prev = 0;
+    const step = TOUR_STEPS[prev];
+    if (step.navigateTo) navigate(step.navigateTo);
+    setCurrentStep(prev);
+  }, [currentStep, navigate]);
 
   if (!visible) return null;
 
@@ -136,15 +177,13 @@ export function OnboardingTour() {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] transition-opacity duration-300"
-        onClick={handleSkip}
+        onClick={step.seedsData ? undefined : handleSkip}
       />
 
-      {/* Tour Card */}
-      <div className="fixed inset-0 z-[61] flex items-center justify-center p-4 pointer-events-none">
-        <Card className="pointer-events-auto w-full max-w-lg shadow-2xl border-primary/20 animate-in fade-in zoom-in-95 duration-300">
+      <div className="fixed inset-0 z-[61] flex items-end sm:items-center justify-center p-4 pointer-events-none">
+        <Card className="pointer-events-auto w-full max-w-lg shadow-2xl border-primary/20 animate-in fade-in zoom-in-95 duration-300 mb-4 sm:mb-0">
           <CardContent className="p-6">
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
@@ -159,18 +198,25 @@ export function OnboardingTour() {
                   <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={handleSkip} className="h-8 w-8 -mt-1 -mr-2">
-                <X className="h-4 w-4" />
-              </Button>
+              {!step.seedsData && (
+                <Button variant="ghost" size="icon" onClick={handleSkip} className="h-8 w-8 -mt-1 -mr-2">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
 
-            {/* Progress */}
             <Progress value={progress} className="h-1.5 mb-4" />
 
-            {/* Body */}
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">{step.description}</p>
 
-            {step.tip && (
+            {seeding && (
+              <div className="flex items-center gap-3 rounded-lg bg-primary/5 border border-primary/10 px-4 py-3 mb-4">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <p className="text-sm text-primary font-medium">Setting up your demo environment…</p>
+              </div>
+            )}
+
+            {step.tip && !seeding && (
               <div className="rounded-lg bg-primary/5 border border-primary/10 px-3 py-2 mb-4">
                 <p className="text-xs text-primary">
                   <span className="font-semibold">💡 Tip:</span> {step.tip}
@@ -178,34 +224,35 @@ export function OnboardingTour() {
               </div>
             )}
 
-            {/* Action button */}
-            {step.action && currentStep > 0 && currentStep < TOUR_STEPS.length - 1 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mb-4 gap-2"
-                onClick={() => handleAction(step.action!.path)}
-              >
-                {step.action.label}
-                <ChevronRight className="h-3 w-3" />
-              </Button>
+            {step.isInteractive && (
+              <div className="rounded-lg bg-accent/50 border border-accent px-3 py-2 mb-4">
+                <p className="text-xs text-muted-foreground">
+                  👆 <span className="font-medium">Feel free to explore this page</span> — click "Next" when you're ready to continue the tour.
+                </p>
+              </div>
             )}
 
             {/* Navigation */}
             <div className="flex items-center justify-between pt-2 border-t">
-              <Button variant="ghost" size="sm" onClick={handleSkip} className="text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSkip}
+                className="text-muted-foreground"
+                disabled={seeding}
+              >
                 Skip tour
               </Button>
               <div className="flex items-center gap-2">
-                {currentStep > 0 && (
+                {currentStep > 0 && !seeding && (
                   <Button variant="outline" size="sm" onClick={handlePrev} className="gap-1">
                     <ChevronLeft className="h-3 w-3" />
                     Back
                   </Button>
                 )}
-                <Button size="sm" onClick={handleNext} className="gap-1">
+                <Button size="sm" onClick={handleNext} className="gap-1" disabled={seeding}>
                   {currentStep === TOUR_STEPS.length - 1 ? (
-                    "Get Started"
+                    "Start Using ActiPlan"
                   ) : (
                     <>
                       Next
