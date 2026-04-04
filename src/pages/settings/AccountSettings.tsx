@@ -454,6 +454,9 @@ export default function AccountSettings() {
         </CardContent>
       </Card>
 
+      {/* Tour & Sample Data */}
+      <TourSettingsCard />
+
       {/* Delete Account */}
       <Card className="border-destructive/50">
         <CardHeader>
