@@ -29,6 +29,7 @@ import { PerformanceMetric, getPerformanceStatus } from "@/components/overview/P
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { TourDataBanner } from "@/components/TourDataBanner";
 
 interface Campaign {
   id: string;
