@@ -651,6 +651,7 @@ export default function ActiPlans() {
                     {campaign.bo_number}
                   </Badge>
                 )}
+                {campaign.is_sample && <SampleDataBadge />}
               </div>
               <CardDescription className="text-xs">
                 {format(new Date(campaign.start_date), "MMM dd")} -{" "}
