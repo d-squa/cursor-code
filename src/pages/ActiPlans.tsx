@@ -87,6 +87,7 @@ interface Campaign {
   objective?: string;
   market_splits?: any;
   qc_status?: string | null;
+  is_sample?: boolean;
   creator?: {
     email: string;
     company_name?: string;
