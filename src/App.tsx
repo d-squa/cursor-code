@@ -47,6 +47,7 @@ import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { AIAssistantSidebar } from "./components/AIAssistantSidebar";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
+import { TourDataProvider } from "./contexts/TourDataContext";
 import { MarketingGTM } from "./components/MarketingGTM";
 import { DataLayerUserID } from "./components/DataLayerUserID";
 
