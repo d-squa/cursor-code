@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { SampleDataBadge } from "@/components/TourDataBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -87,6 +88,7 @@ interface Campaign {
   objective?: string;
   market_splits?: any;
   qc_status?: string | null;
+  is_sample?: boolean;
   creator?: {
     email: string;
     company_name?: string;
@@ -649,6 +651,7 @@ export default function ActiPlans() {
                     {campaign.bo_number}
                   </Badge>
                 )}
+                {campaign.is_sample && <SampleDataBadge />}
               </div>
               <CardDescription className="text-xs">
                 {format(new Date(campaign.start_date), "MMM dd")} -{" "}

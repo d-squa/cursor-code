@@ -29,6 +29,7 @@ import { PerformanceMetric, getPerformanceStatus } from "@/components/overview/P
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { TourDataBanner } from "@/components/TourDataBanner";
 
 interface Campaign {
   id: string;
@@ -744,6 +745,7 @@ const Overview = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       <OnboardingTour />
+      <TourDataBanner />
       {/* Header */}
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4">

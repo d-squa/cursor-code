@@ -77,6 +77,7 @@ export type Database = {
           description: string | null
           estimated_hours: number | null
           id: string
+          is_sample: boolean
           metadata: Json | null
           title: string
           user_id: string
@@ -92,6 +93,7 @@ export type Database = {
           description?: string | null
           estimated_hours?: number | null
           id?: string
+          is_sample?: boolean
           metadata?: Json | null
           title: string
           user_id: string
@@ -107,6 +109,7 @@ export type Database = {
           description?: string | null
           estimated_hours?: number | null
           id?: string
+          is_sample?: boolean
           metadata?: Json | null
           title?: string
           user_id?: string
@@ -642,6 +645,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_sample: boolean
           user_id: string
         }
         Insert: {
@@ -651,6 +655,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_sample?: boolean
           user_id: string
         }
         Update: {
@@ -660,6 +665,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_sample?: boolean
           user_id?: string
         }
         Relationships: [
@@ -687,6 +693,7 @@ export type Database = {
           created_at: string
           fetched_at: string
           id: string
+          is_sample: boolean
           metrics: Json
           platform: string
           updated_at: string
@@ -699,6 +706,7 @@ export type Database = {
           created_at?: string
           fetched_at?: string
           id?: string
+          is_sample?: boolean
           metrics?: Json
           platform: string
           updated_at?: string
@@ -711,6 +719,7 @@ export type Database = {
           created_at?: string
           fetched_at?: string
           id?: string
+          is_sample?: boolean
           metrics?: Json
           platform?: string
           updated_at?: string
@@ -737,6 +746,7 @@ export type Database = {
           error_details: Json | null
           error_message: string | null
           id: string
+          is_sample: boolean
           last_checked_at: string | null
           market: string
           phase_name: string | null
@@ -759,6 +769,7 @@ export type Database = {
           error_details?: Json | null
           error_message?: string | null
           id?: string
+          is_sample?: boolean
           last_checked_at?: string | null
           market: string
           phase_name?: string | null
@@ -781,6 +792,7 @@ export type Database = {
           error_details?: Json | null
           error_message?: string | null
           id?: string
+          is_sample?: boolean
           last_checked_at?: string | null
           market?: string
           phase_name?: string | null
@@ -878,6 +890,7 @@ export type Database = {
           forecast_data: Json | null
           generic_config: Json | null
           id: string
+          is_sample: boolean
           market_splits: Json | null
           name: string
           objective: string
@@ -899,6 +912,7 @@ export type Database = {
           forecast_data?: Json | null
           generic_config?: Json | null
           id?: string
+          is_sample?: boolean
           market_splits?: Json | null
           name: string
           objective: string
@@ -920,6 +934,7 @@ export type Database = {
           forecast_data?: Json | null
           generic_config?: Json | null
           id?: string
+          is_sample?: boolean
           market_splits?: Json | null
           name?: string
           objective?: string
@@ -1192,6 +1207,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean | null
+          is_sample: boolean
           metadata: Json | null
           platform_name: string
           platform_type: string
@@ -1209,6 +1225,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
+          is_sample?: boolean
           metadata?: Json | null
           platform_name: string
           platform_type: string
@@ -1226,6 +1243,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean | null
+          is_sample?: boolean
           metadata?: Json | null
           platform_name?: string
           platform_type?: string
@@ -1286,6 +1304,7 @@ export type Database = {
           headline_4: string | null
           headline_5: string | null
           id: string
+          is_sample: boolean
           market: string
           phase_name: string
           platform: string
@@ -1343,6 +1362,7 @@ export type Database = {
           headline_4?: string | null
           headline_5?: string | null
           id?: string
+          is_sample?: boolean
           market: string
           phase_name: string
           platform: string
@@ -1400,6 +1420,7 @@ export type Database = {
           headline_4?: string | null
           headline_5?: string | null
           id?: string
+          is_sample?: boolean
           market?: string
           phase_name?: string
           platform?: string
@@ -1489,6 +1510,7 @@ export type Database = {
           file_size_bytes: number | null
           height: number | null
           id: string
+          is_sample: boolean
           is_usable: boolean | null
           platform: string
           platform_asset_id: string
@@ -1514,6 +1536,7 @@ export type Database = {
           file_size_bytes?: number | null
           height?: number | null
           id?: string
+          is_sample?: boolean
           is_usable?: boolean | null
           platform: string
           platform_asset_id: string
@@ -1539,6 +1562,7 @@ export type Database = {
           file_size_bytes?: number | null
           height?: number | null
           id?: string
+          is_sample?: boolean
           is_usable?: boolean | null
           platform?: string
           platform_asset_id?: string
@@ -4171,6 +4195,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      tour_data_state: {
+        Row: {
+          created_at: string
+          id: string
+          is_seeded: boolean
+          is_visible: boolean
+          seeded_at: string | null
+          seeded_campaign_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_seeded?: boolean
+          is_visible?: boolean
+          seeded_at?: string | null
+          seeded_campaign_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_seeded?: boolean
+          is_visible?: boolean
+          seeded_at?: string | null
+          seeded_campaign_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tour_data_state_seeded_campaign_id_fkey"
+            columns: ["seeded_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
