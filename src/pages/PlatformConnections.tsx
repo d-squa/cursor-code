@@ -37,6 +37,7 @@ import AdAccountUpgradeModal from "@/components/AdAccountUpgradeModal";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSubscription } from "@/hooks/useSubscription";
 import SwapCounterBadge from "@/components/SwapCounterBadge";
+import { TourDataBanner } from "@/components/TourDataBanner";
 
 interface MetaAdAccount {
   id: string;
