@@ -6,9 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, AlertTriangle, Copy, Check } from "lucide-react";
+import { Loader2, AlertTriangle, Copy, Check, GraduationCap, RotateCcw, Eye, EyeOff } from "lucide-react";
+import { useTourDataContext } from "@/contexts/TourDataContext";
+import { resetOnboardingTour } from "@/components/OnboardingTour";
 import {
   AlertDialog,
   AlertDialogAction,
