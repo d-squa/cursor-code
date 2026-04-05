@@ -21,6 +21,7 @@ interface Campaign {
   forecast_data?: any;
   market_splits?: any;
   status: string;
+  is_sample?: boolean;
 }
 
 interface PerformanceMetrics {
