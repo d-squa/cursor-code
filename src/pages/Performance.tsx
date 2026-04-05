@@ -21,6 +21,7 @@ interface Campaign {
   forecast_data?: any;
   market_splits?: any;
   status: string;
+  is_sample?: boolean;
 }
 
 interface PerformanceMetrics {
@@ -66,8 +67,6 @@ interface WeeklyData {
   cumulativeSov: number;
 }
 
-const SAMPLE_CAMPAIGN_ID = "sample-campaign-1";
-
 export default function Performance() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -85,7 +84,7 @@ export default function Performance() {
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   // Auto-detect if current campaign is sample
-  const isSampleCampaign = selectedCampaign?.id === SAMPLE_CAMPAIGN_ID;
+  const isSampleCampaign = selectedCampaign?.is_sample === true;
 
   useEffect(() => {
     if (!loading && !user) {
