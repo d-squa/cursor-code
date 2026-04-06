@@ -1318,7 +1318,6 @@ export function MediaPlanEditor() {
             platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
             budget_allocation: budgetAllocation,
             updated_at: new Date().toISOString(),
-            forecast_data: null,
             market_splits: platformsWithMarkets.reduce((acc, platform) => {
               console.log(
                 `💾 Auto-saving platform ${platform.id}, markets:`,
@@ -2575,7 +2574,6 @@ export function MediaPlanEditor() {
                               ...currentConfig,
                               basicTargeting: targeting, // Use the passed targeting directly
                             } as any,
-                            forecast_data: null,
                           })
                           .eq("id", savedCampaignId);
                         console.log("✅ Saved basicTargeting to database:", targeting.selectedItems?.length, "items");
@@ -2639,7 +2637,6 @@ export function MediaPlanEditor() {
                               ...currentConfig,
                               targetingPreset: preset,
                             } as any,
-                            forecast_data: null,
                           })
                           .eq("id", savedCampaignId);
                         console.log("✅ Saved targeting preset to database");
@@ -3648,7 +3645,6 @@ export function MediaPlanEditor() {
                     .update({
                       updated_at: new Date().toISOString(),
                       generic_config: { ...currentConfig, basicTargeting: updated } as any,
-                      forecast_data: null,
                     })
                     .eq("id", savedCampaignId);
                 } catch (error) {
