@@ -77,6 +77,14 @@ interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
   totalBudget: number;
   genericConfig: GenericConfig;
+  clientBranding?: {
+    name?: string;
+    client_logo_url?: string | null;
+    agency_logo_url?: string | null;
+    brand_font_color?: string | null;
+    brand_background_color?: string | null;
+    brand_foreground_color?: string | null;
+  };
   startDate: string;
   endDate: string;
   campaignId?: string;
@@ -214,6 +222,7 @@ export function CampaignForecast({
   platforms,
   totalBudget,
   genericConfig,
+  clientBranding,
   startDate,
   endDate,
   campaignId,
@@ -254,7 +263,7 @@ export function CampaignForecast({
     actiplan: ActiplanForecast;
     options: ForecastOptions;
   } | null>(null);
-  const { versions, saveVersion, loadVersions } = useForecastVersions(campaignId);
+  const { versions, loading: versionsLoading, saveVersion, loadVersions } = useForecastVersions(campaignId);
   const persistedClientIndustry = (genericConfig as any)?.clientIndustry as string | undefined;
   const persistedClientId = (genericConfig as any)?.selectedClientId as string | undefined;
   const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(
@@ -514,6 +523,8 @@ export function CampaignForecast({
         }
       } catch (error) {
         console.error("Error loading existing forecast:", error);
+      } finally {
+        setExistingLoadComplete(true);
       }
     };
 
@@ -534,9 +545,25 @@ export function CampaignForecast({
     loadBenchmarks();
   }, [campaignId, resolvedIndustry]);
 
+  useEffect(() => {
+    if (!existingLoadComplete || versionsLoading || hasExistingForecast || Object.keys(forecasts).length > 0) return;
+
+    const latestVersion = versions[0];
+    const latestForecast = latestVersion?.forecast_data as any;
+    if (!latestForecast?.forecasts || Object.keys(latestForecast.forecasts).length === 0) return;
+
+    setForecasts(latestForecast.forecasts);
+    if (latestForecast.actiplanForecast) {
+      setActiplanForecast(latestForecast.actiplanForecast);
+    }
+    setHasExistingForecast(true);
+    console.log("Loaded latest saved forecast version");
+  }, [existingLoadComplete, versionsLoading, versions, hasExistingForecast, forecasts]);
+
   // Auto-fetch forecasts once existing-load check completes and none exist yet
   useEffect(() => {
     if (!existingLoadComplete) return;
+    if (versionsLoading) return;
     if (loading) return;
     if (hasExistingForecast) return;
     if (Object.keys(forecasts).length > 0) return;
@@ -545,7 +572,7 @@ export function CampaignForecast({
 
     // Trigger a single automatic fetch on first load of the Forecast step
     handleFetchForecasts(undefined);
-  }, [existingLoadComplete, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
+  }, [existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
@@ -720,6 +747,7 @@ export function CampaignForecast({
       endDate,
       platforms,
       genericConfig,
+        clientBranding,
       forecasts: totalMetrics ? {
         totalReach: totalMetrics.reach,
         audienceSize: totalMetrics.audienceSize,
@@ -1660,6 +1688,7 @@ export function CampaignForecast({
               }
               
               const resultRate = phaseImpressions > 0 ? (result / phaseImpressions) * 100 : 0;
+              const resultDisplayName = getResultLabel(optimizationGoal);
               
               console.log(`  ✓ Phase ${phase.name} allocated:`, {
                 budgetRatio: `${(budgetRatio * 100).toFixed(1)}%`,
@@ -1782,7 +1811,7 @@ export function CampaignForecast({
                       result: strategyResult,
                       costPerResult: parseFloat(strategyCostPerResult.toFixed(2)),
                       resultRate: parseFloat(strategyResultRate.toFixed(2)),
-                      kpi: goalMetrics?.kpi || optimizationGoal,
+                        kpi: resultDisplayName,
                       startDate: phase.startDate,
                       endDate: phase.endDate,
                       ctr: phaseCTR,
@@ -1797,7 +1826,7 @@ export function CampaignForecast({
                 budget: campaignBudget,
                 startDate: phase.startDate,
                 endDate: phase.endDate,
-                kpi: goalMetrics?.kpi || optimizationGoal,
+                kpi: resultDisplayName,
                 optimizationGoal,
                 result,
                 costPerResult: parseFloat(costPerResult.toFixed(3)),
@@ -1812,7 +1841,7 @@ export function CampaignForecast({
               // Aggregate results by goal
               if (!resultsByGoal[optimizationGoal]) {
                 resultsByGoal[optimizationGoal] = {
-                  kpi: goalMetrics?.kpi || optimizationGoal,
+                  kpi: resultDisplayName,
                   result: 0,
                   cost: 0,
                   impressions: 0
@@ -1835,7 +1864,7 @@ export function CampaignForecast({
                   cpm: phaseCPM,
                   result,
                   resultLabel: getResultLabel(optimizationGoal),
-                  resultKPI: goalMetrics?.kpi || optimizationGoal,
+                  resultKPI: resultDisplayName,
                   costPerResult: parseFloat(costPerResult.toFixed(3)),
                   resultRate: parseFloat(resultRate.toFixed(2)),
                   resultRateName: goalMetrics?.rateName || "Rate",
@@ -1899,7 +1928,7 @@ export function CampaignForecast({
                 sov: 0,
                 resultsByGoal: [{
                   goal: forecast.optimizationGoal || "LINK_CLICKS",
-                  kpi: goalMetrics?.kpi || forecast.resultKPI,
+                  kpi: forecast.resultLabel || getResultLabel(forecast.optimizationGoal || "LINK_CLICKS"),
                   result: forecast.result,
                   costPerResult: forecast.costPerResult,
                   resultRate: forecast.resultRate,
@@ -1936,7 +1965,7 @@ export function CampaignForecast({
                 sov: 0,
                 resultsByGoal: [{
                   goal: autoDetected.optimizationGoal,
-                  kpi: goalMetrics?.kpi || autoDetected.optimizationGoal,
+                    kpi: getResultLabel(autoDetected.optimizationGoal),
                   result,
                   costPerResult: result > 0 ? marketBudget / result : 0,
                   resultRate: estimatedImpressions > 0 ? (result / estimatedImpressions) * 100 : 0,
@@ -1954,7 +1983,7 @@ export function CampaignForecast({
                   cpm: (marketBudget / estimatedImpressions) * 1000,
                   result,
                   resultLabel: getResultLabel(autoDetected.optimizationGoal),
-                  resultKPI: goalMetrics?.kpi || autoDetected.optimizationGoal,
+                  resultKPI: getResultLabel(autoDetected.optimizationGoal),
                   costPerResult: result > 0 ? marketBudget / result : 0,
                   resultRate: estimatedImpressions > 0 ? (result / estimatedImpressions) * 100 : 0,
                   resultRateName: goalMetrics?.rateName || "Rate",
@@ -2719,6 +2748,7 @@ export function CampaignForecast({
                               const data = v.forecast_data as any;
                               if (data?.forecasts) setForecasts(data.forecasts);
                               if (data?.actiplanForecast) setActiplanForecast(data.actiplanForecast);
+                              setHasExistingForecast(true);
                               toast.success(`Reverted to ${v.label || `Forecast v${v.version_number}`}`);
                             }}
                           >

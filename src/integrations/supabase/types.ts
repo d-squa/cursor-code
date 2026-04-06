@@ -1049,8 +1049,13 @@ export type Database = {
       }
       clients: {
         Row: {
+          agency_logo_url: string | null
           app_name: string | null
+          brand_background_color: string | null
+          brand_font_color: string | null
+          brand_foreground_color: string | null
           business_objective: string
+          client_logo_url: string | null
           created_at: string
           default_age_max: number | null
           default_age_min: number | null
@@ -1068,8 +1073,13 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          agency_logo_url?: string | null
           app_name?: string | null
+          brand_background_color?: string | null
+          brand_font_color?: string | null
+          brand_foreground_color?: string | null
           business_objective: string
+          client_logo_url?: string | null
           created_at?: string
           default_age_max?: number | null
           default_age_min?: number | null
@@ -1087,8 +1097,13 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          agency_logo_url?: string | null
           app_name?: string | null
+          brand_background_color?: string | null
+          brand_font_color?: string | null
+          brand_foreground_color?: string | null
           business_objective?: string
+          client_logo_url?: string | null
           created_at?: string
           default_age_max?: number | null
           default_age_min?: number | null
