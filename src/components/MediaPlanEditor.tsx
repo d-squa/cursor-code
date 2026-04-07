@@ -3614,6 +3614,17 @@ export function MediaPlanEditor() {
           platforms={platformsWithMarkets}
           totalBudget={parseFloat(totalBudget) || 0}
           genericConfig={genericConfigResolved}
+          clientBranding={(() => {
+            const client = clients.find((c) => c.id === selectedClientId) as any;
+            return client ? {
+              name: client.name,
+              client_logo_url: client.client_logo_url,
+              agency_logo_url: client.agency_logo_url,
+              brand_font_color: client.brand_font_color,
+              brand_background_color: client.brand_background_color,
+              brand_foreground_color: client.brand_foreground_color,
+            } : undefined;
+          })()}
           startDate={startDate}
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
