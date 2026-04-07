@@ -111,25 +111,25 @@ export const META_LEGACY_OBJECTIVES: ObjectiveMapping[] = [
     value: "Reach",
     label: "Reach (Legacy)",
     optimizationGoals: [
-      { value: "REACH", label: "Reach" },
-      { value: "IMPRESSIONS", label: "Impressions" },
+      { value: "REACH", label: "Reach", billingEvent: "IMPRESSIONS" },
+      { value: "IMPRESSIONS", label: "Impressions", billingEvent: "IMPRESSIONS" },
     ]
   },
   {
     value: "Video Views",
     label: "Video Views (Legacy)",
     optimizationGoals: [
-      { value: "THRUPLAY", label: "ThruPlay" },
-      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "2-Second Video Views" },
+      { value: "THRUPLAY", label: "ThruPlay", billingEvent: "THRUPLAY" },
+      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "2-Second Video Views", billingEvent: "IMPRESSIONS" },
     ]
   },
   {
     value: "Catalog Sales",
     label: "Catalog Sales (Legacy)",
     optimizationGoals: [
-      { value: "OFFSITE_CONVERSIONS", label: "Conversions" },
-      { value: "VALUE", label: "Conversion Value" },
-      { value: "LINK_CLICKS", label: "Link Clicks" },
+      { value: "OFFSITE_CONVERSIONS", label: "Conversions", billingEvent: "IMPRESSIONS" },
+      { value: "VALUE", label: "Conversion Value", billingEvent: "IMPRESSIONS" },
+      { value: "LINK_CLICKS", label: "Link Clicks", billingEvent: "LINK_CLICKS" },
     ]
   },
 ];

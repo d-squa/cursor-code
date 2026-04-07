@@ -1783,27 +1783,67 @@ const META_VALID_OPTIMIZATION_GOALS: Record<string, string[]> = {
   OUTCOME_SALES: ["OFFSITE_CONVERSIONS", "VALUE", "LINK_CLICKS", "LANDING_PAGE_VIEWS", "CONVERSATIONS"],
 };
 
+// Map legacy Meta objectives to their modern OUTCOME_* equivalents
+const LEGACY_OBJECTIVE_MAP: Record<string, string> = {
+  "Video Views": "OUTCOME_ENGAGEMENT",
+  "VIDEO_VIEWS": "OUTCOME_ENGAGEMENT",
+  "Reach": "OUTCOME_AWARENESS",
+  "REACH": "OUTCOME_AWARENESS",
+  "Brand Awareness": "OUTCOME_AWARENESS",
+  "BRAND_AWARENESS": "OUTCOME_AWARENESS",
+  "Traffic": "OUTCOME_TRAFFIC",
+  "TRAFFIC": "OUTCOME_TRAFFIC",
+  "Link Clicks": "OUTCOME_TRAFFIC",
+  "LINK_CLICKS": "OUTCOME_TRAFFIC",
+  "Conversions": "OUTCOME_SALES",
+  "CONVERSIONS": "OUTCOME_SALES",
+  "Catalog Sales": "OUTCOME_SALES",
+  "PRODUCT_CATALOG_SALES": "OUTCOME_SALES",
+  "Lead Generation": "OUTCOME_LEADS",
+  "LEAD_GENERATION": "OUTCOME_LEADS",
+  "Messages": "OUTCOME_ENGAGEMENT",
+  "MESSAGES": "OUTCOME_ENGAGEMENT",
+  "App Installs": "OUTCOME_APP_PROMOTION",
+  "APP_INSTALLS": "OUTCOME_APP_PROMOTION",
+  "Post Engagement": "OUTCOME_ENGAGEMENT",
+  "POST_ENGAGEMENT": "OUTCOME_ENGAGEMENT",
+  "Page Likes": "OUTCOME_ENGAGEMENT",
+  "PAGE_LIKES": "OUTCOME_ENGAGEMENT",
+  "Event Responses": "OUTCOME_ENGAGEMENT",
+  "EVENT_RESPONSES": "OUTCOME_ENGAGEMENT",
+  "Store Visits": "OUTCOME_AWARENESS",
+  "STORE_VISITS": "OUTCOME_AWARENESS",
+  "Local Awareness": "OUTCOME_AWARENESS",
+  "LOCAL_AWARENESS": "OUTCOME_AWARENESS",
+};
+
 function normalizeMetaObjectiveAndOptimizationGoal(
   objective: string,
   optimizationGoal: string,
 ): { objective: string; optimizationGoal: string; corrected: boolean } {
-  let normalizedObjective = objective;
+  // Map legacy objectives to modern OUTCOME_* equivalents first
+  let normalizedObjective = LEGACY_OBJECTIVE_MAP[objective] || objective;
   let normalizedGoal = optimizationGoal === "INTERACTIONS" ? "POST_ENGAGEMENT" : optimizationGoal;
 
   if (normalizedGoal === "VALUE") {
     normalizedObjective = "OUTCOME_SALES";
   }
 
+  const corrected = normalizedObjective !== objective;
+  if (corrected) {
+    console.log(`📋 Legacy objective mapped: "${objective}" → "${normalizedObjective}"`);
+  }
+
   const validGoals = META_VALID_OPTIMIZATION_GOALS[normalizedObjective] || [];
   if (validGoals.includes(normalizedGoal)) {
-    return { objective: normalizedObjective, optimizationGoal: normalizedGoal, corrected: false };
+    return { objective: normalizedObjective, optimizationGoal: normalizedGoal, corrected };
   }
 
   const fallbackGoal = validGoals[0] || normalizedGoal;
   return {
     objective: normalizedObjective,
     optimizationGoal: fallbackGoal,
-    corrected: fallbackGoal !== normalizedGoal || normalizedObjective !== objective,
+    corrected: true,
   };
 }
 
