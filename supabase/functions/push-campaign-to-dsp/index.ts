@@ -1929,6 +1929,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
     for (const phase of phases) {
       try {
+        console.log(`🔍 Phase raw data for "${phase.name}":`, JSON.stringify({
+          "phase.objective": phase.objective,
+          "phase.optimizationGoal": phase.optimizationGoal,
+          "phase.billingEvent": phase.billingEvent,
+          "market.objective": market.objective,
+          "market.optimizationGoal": market.optimizationGoal,
+          "campaign.objective": campaign.objective,
+        }));
         // Map phase objective to valid Meta objective - check forecast fields first
         let objective =
           phase.objective ||
