@@ -236,6 +236,16 @@ export default function ManageClientAccounts() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="branding" className="space-y-4">
+              {selectedClient && (
+                <ClientBrandingTab
+                  clientId={selectedClient}
+                  initialData={selectedClientData as any}
+                  onUpdate={() => loadData()}
+                />
+              )}
+            </TabsContent>
+
             <TabsContent value="defaults" className="space-y-4">
               {selectedClient && user && (
                 <AccountDefaultsTab 
