@@ -151,7 +151,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
       head: [overviewData[0]],
       body: overviewData.slice(1),
       theme: 'grid',
-      headStyles: { fillColor: [66, 139, 202] },
+      headStyles: { fillColor: accentColor },
     });
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -212,7 +212,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
     head: [['Platform', 'Budget %', 'Budget ($)', 'Markets']],
     body: platformData,
     theme: 'grid',
-    headStyles: { fillColor: [66, 139, 202] },
+    headStyles: { fillColor: accentColor },
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -302,7 +302,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
             head: [['KPI', 'Result', 'Cost/Result', 'Rate']],
             body: kpiData,
             theme: 'grid',
-            headStyles: { fillColor: [100, 180, 100], fontSize: 9 },
+            headStyles: { fillColor: accentColor, fontSize: 9 },
             styles: { fontSize: 8 },
           });
 
@@ -325,7 +325,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
             head: [['Phase', 'KPI', 'Dates', 'Budget', 'Result', 'Cost/Result']],
             body: phaseData,
             theme: 'striped',
-            headStyles: { fillColor: [66, 139, 202], fontSize: 9 },
+            headStyles: { fillColor: accentColor, fontSize: 9 },
             styles: { fontSize: 8 },
           });
 
@@ -397,7 +397,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
         head: [['Strategy', 'Keywords', 'Budget %', 'Monthly Searches', 'Avg. CPC', 'Est. Clicks', 'Negatives']],
         body: kwTableData,
         theme: 'grid',
-        headStyles: { fillColor: [66, 139, 202], fontSize: 9 },
+        headStyles: { fillColor: accentColor, fontSize: 9 },
         styles: { fontSize: 8 },
       });
 
@@ -428,7 +428,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
           head: [['Keyword', 'Platform', 'Match Type', 'Monthly Vol.', 'CPC Range', 'Competition']],
           body: kwListData,
           theme: 'striped',
-          headStyles: { fillColor: [100, 160, 200], fontSize: 8 },
+          headStyles: { fillColor: accentColor, fontSize: 8 },
           styles: { fontSize: 7 },
         });
 
