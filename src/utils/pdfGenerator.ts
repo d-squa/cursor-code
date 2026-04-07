@@ -87,13 +87,39 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
   const doc = new jsPDF();
   let yPos = 20;
 
+  // Branding colors
+  const branding = data.clientBranding;
+  const hexToRgb = (hex: string): [number, number, number] => {
+    const h = hex.replace("#", "");
+    return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)];
+  };
+  const accentColor: [number, number, number] = branding?.brand_foreground_color
+    ? hexToRgb(branding.brand_foreground_color)
+    : [66, 139, 202];
+  const fontColorHex = branding?.brand_font_color || "#1a1a2e";
+  const fontColorRgb = hexToRgb(fontColorHex);
+
+  // Header with logos
+  if (branding?.client_logo_url || branding?.agency_logo_url) {
+    // We can't easily embed external URLs in jsPDF without async image loading,
+    // so we add text placeholders for logo positions
+    doc.setFontSize(8);
+    doc.setTextColor(...fontColorRgb);
+    if (branding?.name) {
+      doc.text(branding.name, 20, yPos);
+    }
+    yPos += 5;
+  }
+
   // Title
   doc.setFontSize(20);
+  doc.setTextColor(...fontColorRgb);
   doc.text('Media Plan', 105, yPos, { align: 'center' });
   yPos += 15;
 
   // Plan Details
   doc.setFontSize(12);
+  doc.setTextColor(...fontColorRgb);
   doc.text(`Plan Name: ${data.name}`, 20, yPos);
   yPos += 8;
   doc.text(`Total Budget: $${data.totalBudget.toLocaleString()}`, 20, yPos);
