@@ -48,6 +48,7 @@ import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { AIAssistantSidebar } from "./components/AIAssistantSidebar";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 import { TourDataProvider } from "./contexts/TourDataContext";
+import { TourResumeButton } from "./components/TourResumeButton";
 import { MarketingGTM } from "./components/MarketingGTM";
 import { DataLayerUserID } from "./components/DataLayerUserID";
 
@@ -120,6 +121,7 @@ const App = () => (
           {/* Global floating components */}
           <BugReportButton />
           <AIAssistantSidebar />
+          <TourResumeButton onResume={() => (window as any).__resumeOnboardingTour?.()} />
         </TourDataProvider>
       </BrowserRouter>
     </TooltipProvider>
