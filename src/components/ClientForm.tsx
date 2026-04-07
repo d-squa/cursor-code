@@ -24,6 +24,11 @@ interface ClientFormData {
   default_gender?: string;
   default_devices?: string[];
   default_languages?: string[];
+  client_logo_url?: string | null;
+  agency_logo_url?: string | null;
+  brand_font_color?: string | null;
+  brand_background_color?: string | null;
+  brand_foreground_color?: string | null;
 }
 
 interface Props {

@@ -50,20 +50,58 @@ Deno.serve(async (req) => {
       {
         user_id: userId, team_id: teamId, platform_type: "meta",
         platform_name: "Meta Business Suite", ad_account_id: "act_sample_123456",
-        ad_account_name: "Sample Meta Ad Account", is_active: true, is_sample: true,
-        metadata: { business_name: "Tour Demo Business" },
+        ad_account_name: "Demo Brand - Meta Ads", is_active: true, is_sample: true,
+        business_manager_id: "bm_demo_98765",
+        access_token: "SAMPLE_TOKEN_META",
+        metadata: {
+          business_name: "Demo Brand Inc.",
+          business_manager_name: "Demo Brand Business Manager",
+          account_status: 1,
+          currency: "USD",
+          timezone: "America/New_York",
+          spend_cap: "100000",
+          pages: [
+            { id: "sample_page_123", name: "Demo Brand US", category: "E-commerce" },
+            { id: "sample_page_uk", name: "Demo Brand UK", category: "E-commerce" },
+          ],
+          pixels: [
+            { id: "sample_pixel_456", name: "Demo Brand Pixel" },
+          ],
+        },
       },
       {
         user_id: userId, team_id: teamId, platform_type: "tiktok",
         platform_name: "TikTok Business Center", ad_account_id: "sample_tt_789012",
-        ad_account_name: "Sample TikTok Ad Account", is_active: true, is_sample: true,
-        metadata: { business_name: "Tour Demo Business" },
+        ad_account_name: "Demo Brand - TikTok Ads", is_active: true, is_sample: true,
+        access_token: "SAMPLE_TOKEN_TIKTOK",
+        metadata: {
+          business_name: "Demo Brand Inc.",
+          advertiser_name: "Demo Brand TikTok",
+          account_status: "ACTIVE",
+          currency: "USD",
+          timezone: "America/New_York",
+          pixels: [
+            { id: "sample_tt_pixel", name: "Demo TikTok Pixel" },
+          ],
+        },
       },
       {
         user_id: userId, team_id: teamId, platform_type: "google",
         platform_name: "Google Ads", ad_account_id: "sample_gads_345678",
-        ad_account_name: "Sample Google Ads Account", is_active: true, is_sample: true,
-        metadata: { business_name: "Tour Demo Business" },
+        ad_account_name: "Demo Brand - Google Ads", is_active: true, is_sample: true,
+        access_token: "SAMPLE_TOKEN_GOOGLE",
+        metadata: {
+          business_name: "Demo Brand Inc.",
+          customer_name: "Demo Brand Google",
+          account_status: "ENABLED",
+          currency_code: "USD",
+          time_zone: "America/New_York",
+          manager_customer_id: "MCC_DEMO_111",
+          conversion_actions: [
+            { id: "conv_purchase", name: "Purchase", category: "PURCHASE" },
+            { id: "conv_lead", name: "Lead Form Submit", category: "SUBMIT_LEAD_FORM" },
+          ],
+        },
       },
     ];
 

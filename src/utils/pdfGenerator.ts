@@ -24,6 +24,14 @@ export interface MediaPlanData {
   genericConfig: any;
   forecasts?: any;
   selectedKeywords?: KeywordItemForExport[];
+  clientBranding?: {
+    name?: string;
+    client_logo_url?: string | null;
+    agency_logo_url?: string | null;
+    brand_font_color?: string | null;
+    brand_background_color?: string | null;
+    brand_foreground_color?: string | null;
+  };
   actiplanForecasts?: {
     totalBudget: number;
     totalAudienceSize: number;
@@ -79,13 +87,39 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
   const doc = new jsPDF();
   let yPos = 20;
 
+  // Branding colors
+  const branding = data.clientBranding;
+  const hexToRgb = (hex: string): [number, number, number] => {
+    const h = hex.replace("#", "");
+    return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)];
+  };
+  const accentColor: [number, number, number] = branding?.brand_foreground_color
+    ? hexToRgb(branding.brand_foreground_color)
+    : [66, 139, 202];
+  const fontColorHex = branding?.brand_font_color || "#1a1a2e";
+  const fontColorRgb = hexToRgb(fontColorHex);
+
+  // Header with logos
+  if (branding?.client_logo_url || branding?.agency_logo_url) {
+    // We can't easily embed external URLs in jsPDF without async image loading,
+    // so we add text placeholders for logo positions
+    doc.setFontSize(8);
+    doc.setTextColor(...fontColorRgb);
+    if (branding?.name) {
+      doc.text(branding.name, 20, yPos);
+    }
+    yPos += 5;
+  }
+
   // Title
   doc.setFontSize(20);
+  doc.setTextColor(...fontColorRgb);
   doc.text('Media Plan', 105, yPos, { align: 'center' });
   yPos += 15;
 
   // Plan Details
   doc.setFontSize(12);
+  doc.setTextColor(...fontColorRgb);
   doc.text(`Plan Name: ${data.name}`, 20, yPos);
   yPos += 8;
   doc.text(`Total Budget: $${data.totalBudget.toLocaleString()}`, 20, yPos);
@@ -117,7 +151,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
       head: [overviewData[0]],
       body: overviewData.slice(1),
       theme: 'grid',
-      headStyles: { fillColor: [66, 139, 202] },
+      headStyles: { fillColor: accentColor },
     });
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -178,7 +212,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
     head: [['Platform', 'Budget %', 'Budget ($)', 'Markets']],
     body: platformData,
     theme: 'grid',
-    headStyles: { fillColor: [66, 139, 202] },
+    headStyles: { fillColor: accentColor },
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 15;
@@ -268,7 +302,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
             head: [['KPI', 'Result', 'Cost/Result', 'Rate']],
             body: kpiData,
             theme: 'grid',
-            headStyles: { fillColor: [100, 180, 100], fontSize: 9 },
+            headStyles: { fillColor: accentColor, fontSize: 9 },
             styles: { fontSize: 8 },
           });
 
@@ -291,7 +325,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
             head: [['Phase', 'KPI', 'Dates', 'Budget', 'Result', 'Cost/Result']],
             body: phaseData,
             theme: 'striped',
-            headStyles: { fillColor: [66, 139, 202], fontSize: 9 },
+            headStyles: { fillColor: accentColor, fontSize: 9 },
             styles: { fontSize: 8 },
           });
 
@@ -363,7 +397,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
         head: [['Strategy', 'Keywords', 'Budget %', 'Monthly Searches', 'Avg. CPC', 'Est. Clicks', 'Negatives']],
         body: kwTableData,
         theme: 'grid',
-        headStyles: { fillColor: [66, 139, 202], fontSize: 9 },
+        headStyles: { fillColor: accentColor, fontSize: 9 },
         styles: { fontSize: 8 },
       });
 
@@ -394,7 +428,7 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
           head: [['Keyword', 'Platform', 'Match Type', 'Monthly Vol.', 'CPC Range', 'Competition']],
           body: kwListData,
           theme: 'striped',
-          headStyles: { fillColor: [100, 160, 200], fontSize: 8 },
+          headStyles: { fillColor: accentColor, fontSize: 8 },
           styles: { fontSize: 7 },
         });
 
