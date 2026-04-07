@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { setTourActiveStep } from "@/components/TourResumeButton";
 import {
   X,
   ChevronRight,
@@ -115,8 +116,29 @@ export function OnboardingTour() {
     }
   }, []);
 
+  // Sync active step for TourResumeButton
+  useEffect(() => {
+    if (visible) {
+      setTourActiveStep(currentStep);
+    } else {
+      setTourActiveStep(null);
+    }
+  }, [visible, currentStep]);
+
+  // Allow resuming tour from TourResumeButton
+  const resumeTour = useCallback(() => {
+    setVisible(true);
+  }, []);
+
+  // Expose resume globally
+  useEffect(() => {
+    (window as any).__resumeOnboardingTour = resumeTour;
+    return () => { delete (window as any).__resumeOnboardingTour; };
+  }, [resumeTour]);
+
   const handleSkip = useCallback(() => {
     localStorage.setItem(TOUR_STORAGE_KEY, new Date().toISOString());
+    setTourActiveStep(null);
     setVisible(false);
   }, []);
 
