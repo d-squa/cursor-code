@@ -119,8 +119,8 @@ export const META_LEGACY_OBJECTIVES: ObjectiveMapping[] = [
     value: "Video Views",
     label: "Video Views (Legacy)",
     optimizationGoals: [
-      { value: "THRUPLAY", label: "ThruPlay" },
-      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "2-Second Video Views" },
+      { value: "THRUPLAY", label: "ThruPlay", billingEvent: "THRUPLAY" },
+      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "2-Second Video Views", billingEvent: "IMPRESSIONS" },
     ]
   },
   {
