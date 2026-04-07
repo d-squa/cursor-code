@@ -24,6 +24,14 @@ export interface MediaPlanData {
   genericConfig: any;
   forecasts?: any;
   selectedKeywords?: KeywordItemForExport[];
+  clientBranding?: {
+    name?: string;
+    client_logo_url?: string | null;
+    agency_logo_url?: string | null;
+    brand_font_color?: string | null;
+    brand_background_color?: string | null;
+    brand_foreground_color?: string | null;
+  };
   actiplanForecasts?: {
     totalBudget: number;
     totalAudienceSize: number;
