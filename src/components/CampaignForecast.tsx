@@ -913,6 +913,22 @@ export function CampaignForecast({
         }
 
         if (!connectedPlatformId) {
+          const normalizedAdAccountId = String(market.adAccountId || '').replace(/^act_/i, '');
+
+          if (normalizedAdAccountId) {
+            const { data: mappedMetaAccounts } = await supabase
+              .from('meta_ad_accounts')
+              .select('platform_id, created_at')
+              .in('account_id', [`act_${normalizedAdAccountId}`, normalizedAdAccountId])
+              .not('platform_id', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            connectedPlatformId = mappedMetaAccounts?.[0]?.platform_id ?? null;
+          }
+        }
+
+        if (!connectedPlatformId) {
           const { data: connectedPlatforms } = await supabase
             .from('connected_platforms_safe')
             .select('id')

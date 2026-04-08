@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
+import { getMetaPlatformCandidatesForAdAccount } from "../_shared/platform-connection-resolver.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,26 +53,74 @@ serve(async (req) => {
       throw new Error('Budget must be between 100 and 10,000,000');
     }
 
-    // Fetch platform credentials from connected_platforms
-    const { data: platform, error: platformError } = await supabase
+    const requestedAdAccountId = body.adAccountId || body.ad_account_id || "";
+
+    // Fetch explicitly requested platform first, then fall back to ad-account-aware resolution
+    const { data: requestedPlatform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("id, access_token, ad_account_id")
+      .select("id, user_id, team_id, access_token, ad_account_id, updated_at")
       .eq("id", connectedPlatformId)
       .eq("platform_type", "meta")
-      .single();
+      .maybeSingle();
 
-    if (platformError || !platform) {
-      console.error("Connected Meta platform not found:", platformError);
+    if (platformError) {
+      console.error("Error loading requested Meta platform:", platformError);
+    }
+
+    const resolvedCandidates = await getMetaPlatformCandidatesForAdAccount(
+      supabase,
+      user.id,
+      requestedAdAccountId || requestedPlatform?.ad_account_id,
+    );
+
+    const candidateMap = new Map<string, any>();
+    for (const candidate of [requestedPlatform, ...resolvedCandidates].filter(Boolean)) {
+      if (!candidateMap.has(candidate.id)) {
+        candidateMap.set(candidate.id, candidate);
+      }
+    }
+
+    const platformCandidates = Array.from(candidateMap.values());
+
+    if (platformCandidates.length === 0) {
+      console.error("Connected Meta platform not found or not accessible:", {
+        connectedPlatformId,
+        userId: user.id,
+        requestedAdAccountId,
+      });
       throw new Error("Meta platform connection not found. Please connect your Meta account.");
     }
 
-    // Get token from Vault with fallback to database column
-    let accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+    let platform = platformCandidates[0];
+    let accessToken: string | null = null;
+
+    for (const candidate of platformCandidates) {
+      const candidateToken = await getAccessToken(supabase, candidate.id, candidate.access_token);
+      if (candidateToken) {
+        platform = candidate;
+        accessToken = candidateToken;
+        if (candidate.id !== connectedPlatformId) {
+          console.log("🔄 Meta R&F switched to fallback connection with valid token:", {
+            requestedPlatformId: connectedPlatformId,
+            resolvedPlatformId: candidate.id,
+            requestedAdAccountId,
+          });
+        }
+        break;
+      }
+    }
+
     if (!accessToken) {
       if (body.dryRun === true) {
         console.warn("DRY RUN: No access token available, using placeholder.");
         accessToken = "DRYRUN";
       } else {
+        console.error("No valid Meta access token found across candidate connections:", {
+          connectedPlatformId,
+          candidatePlatformIds: platformCandidates.map((candidate) => candidate.id),
+          requestedAdAccountId,
+          userId: user.id,
+        });
         throw new Error("Meta access token not found. Please reconnect your Meta account.");
       }
     }
