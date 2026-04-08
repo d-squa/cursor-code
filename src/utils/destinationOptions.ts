@@ -165,6 +165,17 @@ export function getDestinationsForGoal(
       return ["WEBSITE"];
     }
   }
+
+  // For OUTCOME_LEADS, goal-specific destinations
+  if (objective === "OUTCOME_LEADS") {
+    switch (optimizationGoal) {
+      case "LEAD_GENERATION": return []; // Instant Forms - no user destination selection (ON_AD)
+      case "CONVERSATIONS": return ["MESSAGING_APPS"]; // Messaging only
+      case "OFFSITE_CONVERSIONS": return ["WEBSITE"]; // Website only
+      case "LINK_CLICKS": return ["WEBSITE", "APP", "MESSAGING_APPS"]; // Multiple options
+      default: return null;
+    }
+  }
   
   return null; // Use default objective-level destinations
 }
