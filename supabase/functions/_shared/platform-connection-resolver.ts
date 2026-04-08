@@ -16,6 +16,10 @@ function normalizeExternalId(value: string | number | null | undefined): string 
   return String(value ?? "").replace(/[-\s]/g, "").trim();
 }
 
+function normalizeMetaAdAccountId(value: string | number | null | undefined): string {
+  return normalizeExternalId(value).replace(/^act_/i, "");
+}
+
 function isAccessibleRecord(
   record: { user_id?: string | null; team_id?: string | null },
   userId: string,
@@ -204,6 +208,67 @@ export async function getTikTokPlatformCandidatesForAdvertiser(
       : metadataHasTikTokAdvertiser(b.metadata, normalizedAdvertiserId)
         ? 250
         : hasAccessibleAccount && isAccessibleRecord(b, userId, teamIds)
+          ? 100
+          : 0;
+
+    if (bScore !== aScore) {
+      return bScore - aScore;
+    }
+
+    return getUpdatedAtScore(b.updated_at) - getUpdatedAtScore(a.updated_at);
+  });
+}
+
+export async function getMetaPlatformCandidatesForAdAccount(
+  supabase: any,
+  userId: string,
+  adAccountId?: string,
+): Promise<ConnectedPlatformRecord[]> {
+  const normalizedAdAccountId = normalizeMetaAdAccountId(adAccountId);
+  const teamIds = await getAccessibleTeamIds(supabase, userId);
+  const platformCandidates = await getActivePlatformConnections(supabase, userId, "meta", teamIds);
+
+  if (!normalizedAdAccountId) {
+    return platformCandidates;
+  }
+
+  const adAccountVariants = [`act_${normalizedAdAccountId}`, normalizedAdAccountId];
+  const { data: metaAccounts, error: accountError } = await supabase
+    .from("meta_ad_accounts")
+    .select("platform_id, user_id, team_id, account_id")
+    .in("account_id", adAccountVariants);
+
+  if (accountError) {
+    console.error("Failed to load Meta ad account mapping:", accountError.message);
+  }
+
+  const accessibleAccounts = (metaAccounts ?? []).filter((account: any) =>
+    isAccessibleRecord(account, userId, teamIds),
+  );
+
+  const preferredPlatformIds = new Set<string>(
+    accessibleAccounts
+      .map((account: any) => account.platform_id)
+      .filter((platformId: string | null): platformId is string => Boolean(platformId)),
+  );
+
+  const hasAccessibleAccountMatch = accessibleAccounts.some(
+    (account: any) => normalizeMetaAdAccountId(account.account_id) === normalizedAdAccountId,
+  );
+
+  return platformCandidates.sort((a, b) => {
+    const aScore = preferredPlatformIds.has(a.id)
+      ? 400
+      : normalizeMetaAdAccountId(a.ad_account_id) === normalizedAdAccountId
+        ? 300
+        : hasAccessibleAccountMatch && isAccessibleRecord(a, userId, teamIds)
+          ? 100
+          : 0;
+    const bScore = preferredPlatformIds.has(b.id)
+      ? 400
+      : normalizeMetaAdAccountId(b.ad_account_id) === normalizedAdAccountId
+        ? 300
+        : hasAccessibleAccountMatch && isAccessibleRecord(b, userId, teamIds)
           ? 100
           : 0;
 
