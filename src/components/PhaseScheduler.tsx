@@ -49,6 +49,7 @@ import {
 import {
   getDestinationsForObjective,
   getDestinationForOptimizationGoal,
+  getDestinationsForGoal,
   destinationRequiresApp,
   destinationRequiresMessaging,
   destinationRequiresWebsite,
@@ -2790,41 +2791,55 @@ export function PhaseScheduler({
                         ];
                         
                         const platformType = "meta";
-                        const validDestinations = phase.objective ? getDestinationsForObjective(platformType, phase.objective) : [];
+                        const objectiveLevelDestinations = phase.objective ? getDestinationsForObjective(platformType, phase.objective) : [];
                         
                         // Check if current optimization goal requires a specific destination
                         const goalRequiredDestination = phase.optimizationGoal ? getDestinationForOptimizationGoal(phase.optimizationGoal) : null;
                         
-                        // Hide optimization location for objectives that don't support it
+                        // Use goal-specific destination filtering
+                        const goalSpecificDestinations = (phase.objective && phase.optimizationGoal) 
+                          ? getDestinationsForGoal(phase.objective, phase.optimizationGoal) 
+                          : null;
+                        
+                        // Hide optimization location for objectives that don't support it (except Engagement which is goal-specific)
                         if (phase.objective && objectivesWithoutOptimizationLocation.includes(phase.objective) && phase.objective !== 'OUTCOME_ENGAGEMENT') {
                           return null;
                         }
                         
-                        // Hide for optimization goals that don't support optimization location,
-                        // unless the selected goal explicitly requires a destination.
-                        if (
-                          phase.optimizationGoal &&
-                          goalsWithoutOptimizationLocation.includes(phase.optimizationGoal) &&
-                          !goalRequiredDestination
-                        ) {
-                          return null;
-                        }
-                        
-                        // For Engagement objective, only show destination section if optimization goal specifically requires one
-                        // (On Your Ad goals like POST_ENGAGEMENT, THRUPLAY don't need destinations)
+                        // For Engagement objective, use goal-specific destinations
                         if (phase.objective === 'OUTCOME_ENGAGEMENT') {
-                          if (!goalRequiredDestination) return null;
+                          if (goalSpecificDestinations !== null && goalSpecificDestinations.length === 0) return null;
+                          if (goalSpecificDestinations === null && !goalRequiredDestination) return null;
                         } else {
+                          // Hide for optimization goals that don't support optimization location
+                          if (
+                            phase.optimizationGoal &&
+                            goalsWithoutOptimizationLocation.includes(phase.optimizationGoal) &&
+                            !goalRequiredDestination
+                          ) {
+                            return null;
+                          }
                           // For other objectives, use standard logic
-                          if (validDestinations.length === 0 && !goalRequiredDestination) return null;
+                          if (objectiveLevelDestinations.length === 0 && !goalRequiredDestination) return null;
                         }
                         
                         const currentDestination = phase.metaOptimizationLocation;
                         
-                        // If goal requires a destination, filter to show only that option
-                        const availableDestinations = goalRequiredDestination 
-                          ? validDestinations.filter(d => d.value === goalRequiredDestination)
-                          : validDestinations;
+                        // Determine available destinations: goal-specific > goal-required > objective-level
+                        let availableDestinations: Array<{ value: string; label: string }>;
+                        if (goalSpecificDestinations !== null && goalSpecificDestinations.length > 0) {
+                          const allLocations = [
+                            { value: "WEBSITE", label: "Website" },
+                            { value: "APP", label: "App" },
+                            { value: "MESSAGING_APPS", label: "Messaging Apps" },
+                            { value: "CALLS", label: "Calls" },
+                          ];
+                          availableDestinations = allLocations.filter(d => goalSpecificDestinations.includes(d.value));
+                        } else if (goalRequiredDestination) {
+                          availableDestinations = objectiveLevelDestinations.filter(d => d.value === goalRequiredDestination);
+                        } else {
+                          availableDestinations = objectiveLevelDestinations;
+                        }
                         
                         return (
                           <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
