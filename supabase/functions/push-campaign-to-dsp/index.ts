@@ -3062,10 +3062,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               LINK_CLICKS:
                 metaOptimizationLocation === "APP"
                   ? "APP"
-                  : metaOptimizationLocation === "INSTAGRAM_DIRECT"
-                    ? "INSTAGRAM_DIRECT"
-                    : metaOptimizationLocation === "MESSENGER"
-                      ? "MESSENGER"
+                  : (metaOptimizationLocation === "MESSAGING_APPS" || metaOptimizationLocation === "MESSENGER")
+                    ? "MESSENGER"
+                    : metaOptimizationLocation === "INSTAGRAM_DIRECT"
+                      ? "INSTAGRAM_DIRECT"
                       : "WEBSITE",
               REACH: metaOptimizationLocation === "APP" ? "APP" : "WEBSITE",
               IMPRESSIONS: "WEBSITE",
