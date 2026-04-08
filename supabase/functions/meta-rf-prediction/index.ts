@@ -74,7 +74,7 @@ serve(async (req) => {
     );
 
     const candidateMap = new Map<string, any>();
-    for (const candidate of [requestedPlatform, ...resolvedCandidates].filter(Boolean)) {
+    for (const candidate of [requestedPlatform, ...resolvedCandidates].filter((value): value is NonNullable<typeof value> => Boolean(value))) {
       if (!candidateMap.has(candidate.id)) {
         candidateMap.set(candidate.id, candidate);
       }
