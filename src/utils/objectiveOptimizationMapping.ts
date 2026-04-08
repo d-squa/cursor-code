@@ -80,8 +80,6 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
     optimizationGoals: [
       { value: "OFFSITE_CONVERSIONS", label: "Conversions", billingEvent: "IMPRESSIONS" },
       { value: "VALUE", label: "Conversion Value (ROAS)", billingEvent: "IMPRESSIONS" },
-      { value: "LINK_CLICKS", label: "Link Clicks", billingEvent: "LINK_CLICKS" },
-      { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views", billingEvent: "IMPRESSIONS" },
       { value: "CONVERSATIONS", label: "Conversations", billingEvent: "IMPRESSIONS" },
     ]
   },
