@@ -111,7 +111,7 @@ export const META_OBJECTIVE_DESTINATIONS: Record<string, string[]> = {
   "OUTCOME_ENGAGEMENT": [], // Engagement uses goal-specific destinations (ON_POST, ON_VIDEO, ON_PAGE, MESSENGER) - not user-selectable
   "OUTCOME_LEADS": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
   "OUTCOME_APP_PROMOTION": ["APP"],
-  "OUTCOME_SALES": ["WEBSITE", "APP", "MESSAGING_APPS"],
+  "OUTCOME_SALES": ["WEBSITE", "MESSAGING_APPS"],
 };
 
 /**
