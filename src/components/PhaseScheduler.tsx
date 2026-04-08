@@ -2907,7 +2907,7 @@ export function PhaseScheduler({
                                 <SelectValue placeholder="Select destination" />
                               </SelectTrigger>
                               <SelectContent>
-                                {(availableDestinations.length > 0 ? availableDestinations : validDestinations).map((dest) => (
+                                {(availableDestinations.length > 0 ? availableDestinations : objectiveLevelDestinations).map((dest) => (
                                   <SelectItem key={dest.value} value={dest.value}>
                                     {dest.label}
                                   </SelectItem>
