@@ -3091,6 +3091,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               adSetPayload.destination_type = "WEBSITE";
             }
             console.log(`🎯 OUTCOME_LEADS destination_type set to "${adSetPayload.destination_type}" for goal "${adSetOptimizationGoal}" location "${metaOptimizationLocation}"`);
+          } else if (objective === "OUTCOME_APP_PROMOTION") {
+            adSetPayload.destination_type = "APP";
+            console.log(`🎯 OUTCOME_APP_PROMOTION destination_type set to "APP"`);
           } else if (
             metaLandingPageUrl &&
             (adSetPayload.optimization_goal === "LINK_CLICKS" ||
