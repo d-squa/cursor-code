@@ -2978,8 +2978,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           const splitSuffix = adSetConfig.id !== "default" ? `_${adSetConfig.name}` : "";
           const defaultAdSetName = `${phase.name}${splitSuffix} - Ad Set_${generateTimestampSuffix()}`;
 
-          // CRITICAL: Each ad set may have its own optimization goal, so billing event must match
-          const adSetOptimizationGoal = normalizedAdSetConfig.optimizationGoal;
+          // CRITICAL: Map UI optimization goals to valid Meta API optimization_goal values
+          const UI_TO_META_GOAL_MAP: Record<string, string> = {
+            APP_EVENTS: "OFFSITE_CONVERSIONS",
+            QUALITY_CALL: "MEANINGFUL_CALL_ATTEMPT",
+          };
+          const adSetOptimizationGoal = UI_TO_META_GOAL_MAP[normalizedAdSetConfig.optimizationGoal] || normalizedAdSetConfig.optimizationGoal;
           const adSetBillingEvent = getBillingEventForOptimizationGoal(
             adSetOptimizationGoal,
             adSetConfig.billingEvent || userBillingEvent,
