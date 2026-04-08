@@ -177,6 +177,16 @@ export function getDestinationsForGoal(
     }
   }
   
+  // For OUTCOME_SALES, goal-specific destinations
+  if (objective === "OUTCOME_SALES") {
+    switch (optimizationGoal) {
+      case "OFFSITE_CONVERSIONS": return ["WEBSITE"]; // Website conversions
+      case "VALUE": return ["WEBSITE"]; // Value optimization = website
+      case "CONVERSATIONS": return ["MESSAGING_APPS"]; // Messaging only
+      default: return null;
+    }
+  }
+
   return null; // Use default objective-level destinations
 }
 
