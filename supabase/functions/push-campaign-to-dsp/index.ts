@@ -1771,12 +1771,14 @@ const META_VALID_OPTIMIZATION_GOALS: Record<string, string[]> = {
     "POST_ENGAGEMENT",
     "EVENT_RESPONSES",
     "REMINDERS_SET",
+    "PAGE_LIKES",
     "CONVERSATIONS",
     "QUALITY_CALL",
+    "OFFSITE_CONVERSIONS",
     "LANDING_PAGE_VIEWS",
     "LINK_CLICKS",
-    "APP_INSTALLS",
-    "PAGE_LIKES",
+    "REACH",
+    "IMPRESSIONS",
   ],
   OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "OFFSITE_CONVERSIONS", "APP_INSTALLS", "LINK_CLICKS"],
   OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "APP_EVENTS", "VALUE", "LINK_CLICKS"],
@@ -3039,12 +3041,38 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
           // ============= END ADVANTAGE+ SUPPORT =============
 
-          // Add destination URL for traffic campaigns
-          if (
+          // ============= DESTINATION TYPE MAPPING =============
+          // OUTCOME_ENGAGEMENT requires destination_type to match optimization_goal
+          // Without correct destination_type, Meta rejects with "incompatible performance goal"
+          if (objective === "OUTCOME_ENGAGEMENT") {
+            const engagementDestinationMap: Record<string, string> = {
+              THRUPLAY: "ON_VIDEO",
+              TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: "ON_VIDEO",
+              POST_ENGAGEMENT: "ON_POST",
+              PAGE_LIKES: "ON_PAGE",
+              EVENT_RESPONSES: "ON_EVENT",
+              REMINDERS_SET: "ON_EVENT",
+              CONVERSATIONS: "MESSENGER",
+              QUALITY_CALL: "PHONE_CALL",
+              // Website-based goals under engagement
+              OFFSITE_CONVERSIONS: "UNDEFINED",
+              LINK_CLICKS: metaOptimizationLocation === "MESSENGER" ? "MESSENGER" : "UNDEFINED",
+              LANDING_PAGE_VIEWS: "UNDEFINED",
+              REACH: "UNDEFINED",
+              IMPRESSIONS: "UNDEFINED",
+              APP_INSTALLS: "UNDEFINED",
+            };
+            const engDestType = engagementDestinationMap[adSetOptimizationGoal];
+            if (engDestType) {
+              adSetPayload.destination_type = engDestType;
+              console.log(`🎯 OUTCOME_ENGAGEMENT destination_type set to "${engDestType}" for optimization_goal "${adSetOptimizationGoal}"`);
+            }
+          } else if (
             metaLandingPageUrl &&
             (adSetPayload.optimization_goal === "LINK_CLICKS" ||
               adSetPayload.optimization_goal === "LANDING_PAGE_VIEWS")
           ) {
+            // Add destination URL for traffic/other campaigns
             adSetPayload.destination_type = metaOptimizationLocation;
           }
 
