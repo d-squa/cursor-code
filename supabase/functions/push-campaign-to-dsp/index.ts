@@ -3094,6 +3094,22 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           } else if (objective === "OUTCOME_APP_PROMOTION") {
             adSetPayload.destination_type = "APP";
             console.log(`🎯 OUTCOME_APP_PROMOTION destination_type set to "APP"`);
+          } else if (objective === "OUTCOME_SALES") {
+            // OUTCOME_SALES valid destination_types: WEBSITE, MESSENGER, PHONE_CALL
+            const salesDestinationMap: Record<string, string> = {
+              WEBSITE: "WEBSITE",
+              APP: "WEBSITE", // Meta doesn't support APP destination for Sales; fallback to WEBSITE
+              MESSAGING_APPS: "MESSENGER",
+              CALLS: "PHONE_CALL",
+            };
+            if (adSetOptimizationGoal === "CONVERSATIONS") {
+              adSetPayload.destination_type = "MESSENGER";
+            } else if (metaOptimizationLocation && salesDestinationMap[metaOptimizationLocation]) {
+              adSetPayload.destination_type = salesDestinationMap[metaOptimizationLocation];
+            } else {
+              adSetPayload.destination_type = "WEBSITE";
+            }
+            console.log(`🎯 OUTCOME_SALES destination_type set to "${adSetPayload.destination_type}" for goal "${adSetOptimizationGoal}" location "${metaOptimizationLocation}"`);
           } else if (
             metaLandingPageUrl &&
             (adSetPayload.optimization_goal === "LINK_CLICKS" ||
