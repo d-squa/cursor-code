@@ -3050,6 +3050,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // OUTCOME_ENGAGEMENT requires destination_type to match optimization_goal
           // Without correct destination_type, Meta rejects with "incompatible performance goal"
           if (objective === "OUTCOME_ENGAGEMENT") {
+            // IMPORTANT: WEBSITE and APP are NOT valid destination_types for OUTCOME_ENGAGEMENT
+            // Valid: UNDEFINED, ON_POST, ON_EVENT, ON_VIDEO, ON_PAGE, MESSENGER, INSTAGRAM_DIRECT, WHATSAPP, PHONE_CALL
             const engagementDestinationMap: Record<string, string> = {
               THRUPLAY: "ON_VIDEO",
               TWO_SECOND_CONTINUOUS_VIDEO_VIEWS: "ON_VIDEO",
@@ -3057,18 +3059,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               PAGE_LIKES: "ON_PAGE",
               EVENT_RESPONSES: "ON_EVENT",
               CONVERSATIONS: metaOptimizationLocation === "INSTAGRAM_DIRECT" ? "INSTAGRAM_DIRECT" : "MESSENGER",
-              OFFSITE_CONVERSIONS: "WEBSITE",
-              LANDING_PAGE_VIEWS: "WEBSITE",
-              LINK_CLICKS:
-                metaOptimizationLocation === "APP"
-                  ? "APP"
-                  : (metaOptimizationLocation === "MESSAGING_APPS" || metaOptimizationLocation === "MESSENGER")
-                    ? "MESSENGER"
-                    : metaOptimizationLocation === "INSTAGRAM_DIRECT"
-                      ? "INSTAGRAM_DIRECT"
-                      : "WEBSITE",
-              REACH: metaOptimizationLocation === "APP" ? "APP" : "WEBSITE",
-              IMPRESSIONS: "WEBSITE",
+              LINK_CLICKS: "UNDEFINED",
+              REACH: "UNDEFINED",
+              IMPRESSIONS: "UNDEFINED",
             };
             const engDestType = engagementDestinationMap[adSetOptimizationGoal];
             if (engDestType) {
