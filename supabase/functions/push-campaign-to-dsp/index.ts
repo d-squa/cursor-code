@@ -1778,7 +1778,7 @@ const META_VALID_OPTIMIZATION_GOALS: Record<string, string[]> = {
     "REACH",
     "IMPRESSIONS",
   ],
-  OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "QUALITY_CALL", "OFFSITE_CONVERSIONS", "APP_INSTALLS", "LINK_CLICKS"],
+  OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "OFFSITE_CONVERSIONS", "LINK_CLICKS"],
   OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "APP_EVENTS", "VALUE", "LINK_CLICKS"],
   OUTCOME_SALES: ["OFFSITE_CONVERSIONS", "VALUE", "LINK_CLICKS", "LANDING_PAGE_VIEWS", "CONVERSATIONS"],
 };
@@ -3068,13 +3068,32 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               adSetPayload.destination_type = engDestType;
               console.log(`🎯 OUTCOME_ENGAGEMENT destination_type set to "${engDestType}" for optimization_goal "${adSetOptimizationGoal}"`);
             }
+          } else if (objective === "OUTCOME_LEADS") {
+            // OUTCOME_LEADS valid destination_types: ON_AD, WEBSITE, APP, PHONE_CALL, LEAD_FROM_MESSENGER, LEAD_FROM_IG_DIRECT, UNDEFINED
+            const leadsDestinationMap: Record<string, string> = {
+              WEBSITE: "WEBSITE",
+              APP: "APP",
+              MESSAGING_APPS: "LEAD_FROM_MESSENGER",
+              CALLS: "PHONE_CALL",
+            };
+            if (adSetOptimizationGoal === "LEAD_GENERATION") {
+              // Instant Forms use ON_AD destination
+              adSetPayload.destination_type = "ON_AD";
+            } else if (adSetOptimizationGoal === "CONVERSATIONS") {
+              adSetPayload.destination_type = metaOptimizationLocation === "INSTAGRAM_DIRECT" ? "LEAD_FROM_IG_DIRECT" : "LEAD_FROM_MESSENGER";
+            } else if (metaOptimizationLocation && leadsDestinationMap[metaOptimizationLocation]) {
+              adSetPayload.destination_type = leadsDestinationMap[metaOptimizationLocation];
+            } else {
+              adSetPayload.destination_type = "WEBSITE";
+            }
+            console.log(`🎯 OUTCOME_LEADS destination_type set to "${adSetPayload.destination_type}" for goal "${adSetOptimizationGoal}" location "${metaOptimizationLocation}"`);
           } else if (
             metaLandingPageUrl &&
             (adSetPayload.optimization_goal === "LINK_CLICKS" ||
               adSetPayload.optimization_goal === "LANDING_PAGE_VIEWS")
           ) {
             // Add destination URL for traffic/other campaigns
-            adSetPayload.destination_type = metaOptimizationLocation;
+            adSetPayload.destination_type = metaOptimizationLocation || "WEBSITE";
           }
 
           // DSA compliance
