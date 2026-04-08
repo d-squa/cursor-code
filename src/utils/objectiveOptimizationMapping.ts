@@ -51,17 +51,16 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
       { value: "POST_ENGAGEMENT", label: "Interactions (Post Engagement)", billingEvent: "IMPRESSIONS" },
       // Event destination (ON_EVENT)
       { value: "EVENT_RESPONSES", label: "Event Responses", billingEvent: "IMPRESSIONS" },
-      { value: "REMINDERS_SET", label: "Reminders Set", billingEvent: "IMPRESSIONS" },
       // Page destination (ON_PAGE)
       { value: "PAGE_LIKES", label: "Page Likes", billingEvent: "IMPRESSIONS" },
-      // Message destinations (MESSENGER)
-      { value: "CONVERSATIONS", label: "Conversations (Messaging)", billingEvent: "IMPRESSIONS" },
-      // Calls destination (PHONE_CALL)
-      { value: "QUALITY_CALL", label: "Calls", billingEvent: "IMPRESSIONS" },
       // Website destination (UNDEFINED)
       { value: "OFFSITE_CONVERSIONS", label: "Conversions (Website)", billingEvent: "IMPRESSIONS" },
       { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views (Website)", billingEvent: "IMPRESSIONS" },
-      { value: "LINK_CLICKS", label: "Link Clicks (Website)", billingEvent: "LINK_CLICKS" },
+      { value: "LINK_CLICKS", label: "Link Clicks (Website / Messaging / App)", billingEvent: "LINK_CLICKS" },
+      { value: "IMPRESSIONS", label: "Impressions", billingEvent: "IMPRESSIONS" },
+      { value: "REACH", label: "Reach (Daily Unique)", billingEvent: "IMPRESSIONS" },
+      // Message destinations (MESSENGER)
+      { value: "CONVERSATIONS", label: "Conversations (Messaging)", billingEvent: "IMPRESSIONS" },
     ]
   },
   {
@@ -70,6 +69,7 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
     optimizationGoals: [
       { value: "LEAD_GENERATION", label: "Leads (Instant Forms)", billingEvent: "IMPRESSIONS" },
       { value: "CONVERSATIONS", label: "Conversations (Messaging)", billingEvent: "IMPRESSIONS" },
+      { value: "QUALITY_CALL", label: "Calls", billingEvent: "IMPRESSIONS" },
       { value: "OFFSITE_CONVERSIONS", label: "Conversions (Website)", billingEvent: "IMPRESSIONS" },
       { value: "APP_INSTALLS", label: "Leads (App)", billingEvent: "IMPRESSIONS" },
       { value: "LINK_CLICKS", label: "Link Clicks", billingEvent: "LINK_CLICKS" },
