@@ -108,7 +108,7 @@ export const TIKTOK_MESSAGING_APPS: TikTokMessagingApp[] = [
 export const META_OBJECTIVE_DESTINATIONS: Record<string, string[]> = {
   "OUTCOME_AWARENESS": [], // No destination - awareness objectives use impressions/reach
   "OUTCOME_TRAFFIC": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
-  "OUTCOME_ENGAGEMENT": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"], // Destinations depend on optimization goal
+  "OUTCOME_ENGAGEMENT": [], // Engagement uses goal-specific destinations (ON_POST, ON_VIDEO, ON_PAGE, MESSENGER) - not user-selectable
   "OUTCOME_LEADS": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
   "OUTCOME_APP_PROMOTION": ["APP"],
   "OUTCOME_SALES": ["WEBSITE", "APP", "MESSAGING_APPS"],
@@ -154,25 +154,9 @@ export function getDestinationsForGoal(
 ): string[] | null {
   // For Engagement objective, destinations are goal-specific
   if (objective === "OUTCOME_ENGAGEMENT") {
-    switch (optimizationGoal) {
-      case "LINK_CLICKS":
-        return ["WEBSITE", "MESSAGING_APPS", "APP"];
-      case "OFFSITE_CONVERSIONS":
-      case "LANDING_PAGE_VIEWS":
-        return ["WEBSITE"];
-      case "CONVERSATIONS":
-        return ["MESSAGING_APPS"];
-      case "REACH":
-      case "IMPRESSIONS":
-      case "THRUPLAY":
-      case "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS":
-      case "POST_ENGAGEMENT":
-      case "PAGE_LIKES":
-      case "EVENT_RESPONSES":
-        return []; // No destination selection
-      default:
-        return [];
-    }
+    // All Engagement goals use auto-mapped destination_types (ON_POST, ON_VIDEO, ON_PAGE, MESSENGER)
+    // No user-selectable destination for Engagement
+    return [];
   }
   
   // For Traffic objective, REACH and IMPRESSIONS need WEBSITE
