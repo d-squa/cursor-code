@@ -129,11 +129,11 @@ export const META_OPTIMIZATION_GOAL_DESTINATIONS: Record<string, string | null> 
   "CONVERSATIONS": "MESSAGING_APPS",
   "QUALITY_CALL": "CALLS",
   "LANDING_PAGE_VIEWS": "WEBSITE",
-  "LINK_CLICKS": "WEBSITE",
+  "LINK_CLICKS": null, // Can be Website, Messaging, or App - shows all valid destinations
   "APP_INSTALLS": "APP",
   // Traffic objective - these show optimization location
-  "REACH": "WEBSITE", // Reach (Daily Unique) requires destination
-  "IMPRESSIONS": "WEBSITE", // Impressions requires destination
+  "REACH": null, // Reach (Daily Unique) - no destination for Engagement, WEBSITE for Traffic
+  "IMPRESSIONS": null, // Impressions - no destination for Engagement, WEBSITE for Traffic
   // Awareness - no destination
   "AD_RECALL_LIFT": null,
   // Lead Generation
@@ -143,6 +143,47 @@ export const META_OPTIMIZATION_GOAL_DESTINATIONS: Record<string, string | null> 
   "APP_EVENTS": "APP",
   "VALUE": null,
 };
+
+/**
+ * Get valid destinations for a specific objective + optimization goal combination
+ * This provides goal-level filtering within an objective's allowed destinations
+ */
+export function getDestinationsForGoal(
+  objective: string,
+  optimizationGoal: string
+): string[] | null {
+  // For Engagement objective, destinations are goal-specific
+  if (objective === "OUTCOME_ENGAGEMENT") {
+    switch (optimizationGoal) {
+      case "LINK_CLICKS":
+        return ["WEBSITE", "MESSAGING_APPS", "APP"];
+      case "OFFSITE_CONVERSIONS":
+      case "LANDING_PAGE_VIEWS":
+        return ["WEBSITE"];
+      case "CONVERSATIONS":
+        return ["MESSAGING_APPS"];
+      case "REACH":
+      case "IMPRESSIONS":
+      case "THRUPLAY":
+      case "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS":
+      case "POST_ENGAGEMENT":
+      case "PAGE_LIKES":
+      case "EVENT_RESPONSES":
+        return []; // No destination selection
+      default:
+        return [];
+    }
+  }
+  
+  // For Traffic objective, REACH and IMPRESSIONS need WEBSITE
+  if (objective === "OUTCOME_TRAFFIC") {
+    if (optimizationGoal === "REACH" || optimizationGoal === "IMPRESSIONS") {
+      return ["WEBSITE"];
+    }
+  }
+  
+  return null; // Use default objective-level destinations
+}
 
 /**
  * Get the required destination for a Meta optimization goal
