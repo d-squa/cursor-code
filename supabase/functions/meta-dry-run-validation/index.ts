@@ -58,6 +58,9 @@ const OBJECTIVES: ObjEntry[] = [
       { value: "THRUPLAY", label: "ThruPlay", billingEvent: "THRUPLAY" },
       { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "2s Video Views", billingEvent: "IMPRESSIONS" },
       { value: "POST_ENGAGEMENT", label: "Post Engagement", billingEvent: "IMPRESSIONS" },
+      { value: "EVENT_RESPONSES", label: "Event Responses", billingEvent: "IMPRESSIONS" },
+      { value: "IMPRESSIONS", label: "Impressions", billingEvent: "IMPRESSIONS" },
+      { value: "REACH", label: "Reach", billingEvent: "IMPRESSIONS" },
       { value: "CONVERSATIONS", label: "Conversations", billingEvent: "IMPRESSIONS" },
       { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views", billingEvent: "IMPRESSIONS" },
       { value: "LINK_CLICKS", label: "Link Clicks", billingEvent: "LINK_CLICKS" },
@@ -150,7 +153,7 @@ const ATTRIBUTION_WINDOWS = [
   { click: 7, view: 1 },
 ];
 
-const DESTINATION_TYPES = ["WEBSITE", "APP", "MESSENGER", "ON_AD"];
+const DESTINATION_TYPES = ["WEBSITE", "APP", "MESSENGER", "INSTAGRAM_DIRECT", "ON_POST", "ON_VIDEO", "ON_PAGE", "ON_EVENT"];
 
 // Helpers
 function buildDates(budgetType: string) {

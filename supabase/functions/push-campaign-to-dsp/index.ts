@@ -1770,17 +1770,15 @@ const META_VALID_OPTIMIZATION_GOALS: Record<string, string[]> = {
     "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS",
     "POST_ENGAGEMENT",
     "EVENT_RESPONSES",
-    "REMINDERS_SET",
     "PAGE_LIKES",
     "CONVERSATIONS",
-    "QUALITY_CALL",
     "OFFSITE_CONVERSIONS",
     "LANDING_PAGE_VIEWS",
     "LINK_CLICKS",
     "REACH",
     "IMPRESSIONS",
   ],
-  OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "OFFSITE_CONVERSIONS", "APP_INSTALLS", "LINK_CLICKS"],
+  OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "QUALITY_CALL", "OFFSITE_CONVERSIONS", "APP_INSTALLS", "LINK_CLICKS"],
   OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "APP_EVENTS", "VALUE", "LINK_CLICKS"],
   OUTCOME_SALES: ["OFFSITE_CONVERSIONS", "VALUE", "LINK_CLICKS", "LANDING_PAGE_VIEWS", "CONVERSATIONS"],
 };
@@ -1826,14 +1824,21 @@ function normalizeMetaObjectiveAndOptimizationGoal(
   // Map legacy objectives to modern OUTCOME_* equivalents first
   let normalizedObjective = LEGACY_OBJECTIVE_MAP[objective] || objective;
   let normalizedGoal = optimizationGoal === "INTERACTIONS" ? "POST_ENGAGEMENT" : optimizationGoal;
+  let corrected = normalizedObjective !== objective || normalizedGoal !== optimizationGoal;
+
+  if (normalizedObjective === "OUTCOME_ENGAGEMENT" && normalizedGoal === "REMINDERS_SET") {
+    console.warn("⚠️ REMINDERS_SET is not supported for OUTCOME_ENGAGEMENT in the current Meta ODAX matrix. Falling back to EVENT_RESPONSES.");
+    normalizedGoal = "EVENT_RESPONSES";
+    corrected = true;
+  }
 
   if (normalizedGoal === "VALUE") {
     normalizedObjective = "OUTCOME_SALES";
+    corrected = true;
   }
 
-  const corrected = normalizedObjective !== objective;
   if (corrected) {
-    console.log(`📋 Legacy objective mapped: "${objective}" → "${normalizedObjective}"`);
+    console.log(`📋 Meta objective/goal normalized: "${objective}" / "${optimizationGoal}" → "${normalizedObjective}" / "${normalizedGoal}"`);
   }
 
   const validGoals = META_VALID_OPTIMIZATION_GOALS[normalizedObjective] || [];
@@ -3051,16 +3056,19 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               POST_ENGAGEMENT: "ON_POST",
               PAGE_LIKES: "ON_PAGE",
               EVENT_RESPONSES: "ON_EVENT",
-              REMINDERS_SET: "ON_EVENT",
-              CONVERSATIONS: "MESSENGER",
-              QUALITY_CALL: "PHONE_CALL",
-              // Website-based goals under engagement
-              OFFSITE_CONVERSIONS: "UNDEFINED",
-              LINK_CLICKS: metaOptimizationLocation === "MESSENGER" ? "MESSENGER" : "UNDEFINED",
-              LANDING_PAGE_VIEWS: "UNDEFINED",
-              REACH: "UNDEFINED",
-              IMPRESSIONS: "UNDEFINED",
-              APP_INSTALLS: "UNDEFINED",
+              CONVERSATIONS: metaOptimizationLocation === "INSTAGRAM_DIRECT" ? "INSTAGRAM_DIRECT" : "MESSENGER",
+              OFFSITE_CONVERSIONS: "WEBSITE",
+              LANDING_PAGE_VIEWS: "WEBSITE",
+              LINK_CLICKS:
+                metaOptimizationLocation === "APP"
+                  ? "APP"
+                  : metaOptimizationLocation === "INSTAGRAM_DIRECT"
+                    ? "INSTAGRAM_DIRECT"
+                    : metaOptimizationLocation === "MESSENGER"
+                      ? "MESSENGER"
+                      : "WEBSITE",
+              REACH: metaOptimizationLocation === "APP" ? "APP" : "WEBSITE",
+              IMPRESSIONS: "WEBSITE",
             };
             const engDestType = engagementDestinationMap[adSetOptimizationGoal];
             if (engDestType) {
