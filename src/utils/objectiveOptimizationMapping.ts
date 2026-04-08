@@ -46,19 +46,10 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
     optimizationGoals: [
       // Video destination (ON_VIDEO)
       { value: "THRUPLAY", label: "Video Views (ThruPlay)", billingEvent: "THRUPLAY" },
-      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "Video Views (2-Second)", billingEvent: "IMPRESSIONS" },
       // Post destination (ON_POST)
       { value: "POST_ENGAGEMENT", label: "Interactions (Post Engagement)", billingEvent: "IMPRESSIONS" },
-      // Event destination (ON_EVENT)
-      { value: "EVENT_RESPONSES", label: "Event Responses", billingEvent: "IMPRESSIONS" },
       // Page destination (ON_PAGE)
       { value: "PAGE_LIKES", label: "Page Likes", billingEvent: "IMPRESSIONS" },
-      // Website destination (UNDEFINED)
-      { value: "OFFSITE_CONVERSIONS", label: "Conversions (Website)", billingEvent: "IMPRESSIONS" },
-      { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views (Website)", billingEvent: "IMPRESSIONS" },
-      { value: "LINK_CLICKS", label: "Link Clicks (Website / Messaging / App)", billingEvent: "LINK_CLICKS" },
-      { value: "IMPRESSIONS", label: "Impressions", billingEvent: "IMPRESSIONS" },
-      { value: "REACH", label: "Reach (Daily Unique)", billingEvent: "IMPRESSIONS" },
       // Message destinations (MESSENGER)
       { value: "CONVERSATIONS", label: "Conversations (Messaging)", billingEvent: "IMPRESSIONS" },
     ]
