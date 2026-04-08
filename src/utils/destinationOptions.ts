@@ -124,7 +124,6 @@ export const META_OPTIMIZATION_GOAL_DESTINATIONS: Record<string, string | null> 
   "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS": null,
   "POST_ENGAGEMENT": null,
   "EVENT_RESPONSES": null,
-  "REMINDERS_SET": null,
   "PAGE_LIKES": null,
   // Destination-specific goals
   "CONVERSATIONS": "MESSAGING_APPS",
