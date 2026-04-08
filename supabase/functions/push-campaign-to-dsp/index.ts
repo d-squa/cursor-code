@@ -1779,7 +1779,7 @@ const META_VALID_OPTIMIZATION_GOALS: Record<string, string[]> = {
     "IMPRESSIONS",
   ],
   OUTCOME_LEADS: ["LEAD_GENERATION", "CONVERSATIONS", "OFFSITE_CONVERSIONS", "LINK_CLICKS"],
-  OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "APP_EVENTS", "VALUE", "LINK_CLICKS"],
+  OUTCOME_APP_PROMOTION: ["APP_INSTALLS", "OFFSITE_CONVERSIONS", "VALUE", "LINK_CLICKS"],
   OUTCOME_SALES: ["OFFSITE_CONVERSIONS", "VALUE", "LINK_CLICKS", "LANDING_PAGE_VIEWS", "CONVERSATIONS"],
 };
 
@@ -2978,8 +2978,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           const splitSuffix = adSetConfig.id !== "default" ? `_${adSetConfig.name}` : "";
           const defaultAdSetName = `${phase.name}${splitSuffix} - Ad Set_${generateTimestampSuffix()}`;
 
-          // CRITICAL: Each ad set may have its own optimization goal, so billing event must match
-          const adSetOptimizationGoal = normalizedAdSetConfig.optimizationGoal;
+          // CRITICAL: Map UI optimization goals to valid Meta API optimization_goal values
+          const UI_TO_META_GOAL_MAP: Record<string, string> = {
+            APP_EVENTS: "OFFSITE_CONVERSIONS",
+            QUALITY_CALL: "MEANINGFUL_CALL_ATTEMPT",
+          };
+          const adSetOptimizationGoal = UI_TO_META_GOAL_MAP[normalizedAdSetConfig.optimizationGoal] || normalizedAdSetConfig.optimizationGoal;
           const adSetBillingEvent = getBillingEventForOptimizationGoal(
             adSetOptimizationGoal,
             adSetConfig.billingEvent || userBillingEvent,
@@ -3087,6 +3091,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               adSetPayload.destination_type = "WEBSITE";
             }
             console.log(`🎯 OUTCOME_LEADS destination_type set to "${adSetPayload.destination_type}" for goal "${adSetOptimizationGoal}" location "${metaOptimizationLocation}"`);
+          } else if (objective === "OUTCOME_APP_PROMOTION") {
+            adSetPayload.destination_type = "APP";
+            console.log(`🎯 OUTCOME_APP_PROMOTION destination_type set to "APP"`);
           } else if (
             metaLandingPageUrl &&
             (adSetPayload.optimization_goal === "LINK_CLICKS" ||
