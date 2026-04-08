@@ -834,20 +834,40 @@ export function PlatformMarketBudgetSelector({
       return true;
     }
     
-    // Then check phase-level objectives
+    // Check campaign-level objective
+    const campaignObjective = (genericConfig?.objective || "").toUpperCase();
+    const conversionObjectives = [
+      "OUTCOME_SALES", "OUTCOME_LEADS", "OUTCOME_APP_PROMOTION",
+      "CONVERSIONS", "LEAD_GENERATION", "CATALOG_SALES"
+    ];
+    if (conversionObjectives.includes(campaignObjective)) {
+      return true;
+    }
+    
+    // Then check phase-level objectives and optimization goals
     if (!market.phases || market.phases.length === 0) return false;
     
     return market.phases.some((phase: any) => {
       const phaseName = phase.name?.toLowerCase() || "";
-      const objective = phase.objective?.toLowerCase() || "";
+      const objective = (phase.objective || "").toUpperCase();
+      const optimizationGoal = (phase.optimizationGoal || "").toUpperCase();
+      
+      // Direct objective match
+      if (conversionObjectives.includes(objective)) return true;
+      
+      // Optimization goals that need conversion events
+      const conversionGoals = [
+        "OFFSITE_CONVERSIONS", "VALUE", "APP_INSTALLS", "APP_EVENTS",
+        "LEAD_GENERATION", "QUALITY_LEAD"
+      ];
+      if (conversionGoals.includes(optimizationGoal)) return true;
+      
+      // Phase name heuristic
       return (
         phaseName.includes("conversion") ||
         phaseName.includes("purchase") ||
         phaseName.includes("sales") ||
-        phaseName.includes("lead") ||
-        objective.includes("conversion") ||
-        objective.includes("sales") ||
-        objective.includes("lead")
+        phaseName.includes("lead")
       );
     });
   };
