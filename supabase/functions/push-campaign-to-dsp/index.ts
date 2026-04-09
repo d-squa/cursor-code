@@ -2093,8 +2093,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           } else {
             campaignPayload.daily_budget = Math.max(Math.round((earlyPhaseBudget / earlyDurationDays) * 100), 100); // in cents, min $1/day
           }
+          // With CBO, bid_strategy belongs on the campaign, not ad sets
+          const cboBidStrategy = phase.metaBidStrategy || (market as any).metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
+          campaignPayload.bid_strategy = cboBidStrategy;
           console.log(
-            `📊 CBO enabled - Campaign ${earlyBudgetType} budget: ${earlyBudgetType === "lifetime" ? campaignPayload.lifetime_budget : campaignPayload.daily_budget} cents`,
+            `📊 CBO enabled - Campaign ${earlyBudgetType} budget: ${earlyBudgetType === "lifetime" ? campaignPayload.lifetime_budget : campaignPayload.daily_budget} cents, bid_strategy: ${cboBidStrategy}`,
           );
         }
 
