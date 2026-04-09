@@ -37,6 +37,9 @@ interface EmptyAdSetSuggestion {
   }>;
 }
 
+// Default Meta API limit: 50 non-archived ads per ad set
+const ADS_PER_AD_SET_LIMIT = 50;
+
 interface StructureCentricViewProps {
   structureResults: StructureMatchResult[];
   unassignedAssets: UnassignedAsset[];
