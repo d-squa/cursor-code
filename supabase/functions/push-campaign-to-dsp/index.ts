@@ -1030,7 +1030,8 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { campaignId } = parseResult.data;
+    const { campaignId, skipCreatives } = parseResult.data;
+    console.log(`🚀 Push mode: ${skipCreatives ? "SHELL ONLY (skip creatives)" : "FULL (with creatives)"}`);
 
     // Get campaign data
     const { data: campaign, error: campaignError } = await supabase
