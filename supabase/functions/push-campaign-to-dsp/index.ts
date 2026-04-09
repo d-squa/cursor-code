@@ -4335,9 +4335,26 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           const phaseTargeting = phase.targeting || {};
           const effectivePhaseTargeting = Object.keys(phaseTargeting).length > 0 ? phaseTargeting : basicTargeting;
 
-          // Determine if we have ad set splits
-          const adSetsToCreate = phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
+          // Determine if we have ad set splits - resolve inherited splits from basicTargeting
+          const googlePerPlatformSplitDim = basicTargeting.defaultAdSetSplitDimensionPerPlatform || {};
+          const googleHasPerPlatformConfig = Object.keys(googlePerPlatformSplitDim).length > 0;
+          const googleDefaultDimension = googleHasPerPlatformConfig
+            ? (googlePerPlatformSplitDim["google"] || "none")
+            : (basicTargeting.defaultAdSetSplitDimension || "none");
+          const googlePhaseHasOwnSplits = phase.adSetSplitDimension && phase.adSetSplitDimension !== "none";
+          const googleShouldInherit = !googlePhaseHasOwnSplits && !phase.overrideTargeting && googleDefaultDimension !== "none";
+          
+          const googlePerPlatformAdSets = basicTargeting.defaultAdSetsPerPlatform || {};
+          const googleDefaultAdSets = Object.keys(googlePerPlatformAdSets).length > 0
+            ? (googlePerPlatformAdSets["google"] || [])
+            : (basicTargeting.defaultAdSets || []);
+          
+          const googleEffectiveAdSets = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
             ? phase.adSets
+            : (googleShouldInherit && googleDefaultAdSets.length > 0 ? googleDefaultAdSets : []);
+          
+          const adSetsToCreate = googleEffectiveAdSets.length > 0
+            ? googleEffectiveAdSets
             : [{ id: "default", name: phase.name, budgetPercentage: 100 }];
 
           for (const adSetConfig of adSetsToCreate) {
