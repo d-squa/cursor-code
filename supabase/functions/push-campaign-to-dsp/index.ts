@@ -2821,14 +2821,49 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         // ============= AD SET SPLIT SUPPORT =============
         // If phase has adSets defined (split), iterate over each ad set
-        // Otherwise, create a single ad set for the phase
-        const adSetSplitDimension = phase.adSetSplitDimension || "none";
+        // Otherwise, check if phase inherits splits from generic_config.basicTargeting defaults
+        // Finally, create a single ad set for the phase if no splits are found
+        const campaignBasicTargetingSplits = campaign.generic_config?.basicTargeting || {};
+        const perPlatformSplitDim = campaignBasicTargetingSplits.defaultAdSetSplitDimensionPerPlatform || {};
+        const hasPerPlatformSplitConfig = Object.keys(perPlatformSplitDim).length > 0;
+        
+        // Resolve effective split dimension: phase-level > per-platform default > legacy default
+        const resolvedDefaultDimension = hasPerPlatformSplitConfig
+          ? (perPlatformSplitDim["meta"] || "none")
+          : (campaignBasicTargetingSplits.defaultAdSetSplitDimension || "none");
+        
+        const phaseHasOwnSplits = phase.adSetSplitDimension && phase.adSetSplitDimension !== "none";
+        const shouldInheritSplits = !phaseHasOwnSplits && !phase.overrideTargeting && resolvedDefaultDimension !== "none";
+        
+        const adSetSplitDimension = phaseHasOwnSplits 
+          ? phase.adSetSplitDimension 
+          : (shouldInheritSplits ? resolvedDefaultDimension : "none");
+        
+        // Resolve effective ad sets: phase-level > per-platform defaults > legacy defaults
+        const perPlatformDefaultAdSets = campaignBasicTargetingSplits.defaultAdSetsPerPlatform || {};
+        const hasPerPlatformDefaultAdSets = Object.keys(perPlatformDefaultAdSets).length > 0;
+        const resolvedDefaultAdSets = hasPerPlatformDefaultAdSets
+          ? (perPlatformDefaultAdSets["meta"] || [])
+          : (campaignBasicTargetingSplits.defaultAdSets || []);
+        
+        const effectivePhaseAdSets = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
+          ? phase.adSets
+          : (shouldInheritSplits && resolvedDefaultAdSets.length > 0 ? resolvedDefaultAdSets : []);
+        
+        console.log(`📦 Ad Set Split Resolution for "${phase.name}":`, {
+          phaseHasOwnSplits,
+          shouldInheritSplits,
+          adSetSplitDimension,
+          effectiveAdSetCount: effectivePhaseAdSets.length,
+          phaseOverrideTargeting: phase.overrideTargeting,
+        });
+        
         const adSetsToCreate: Array<
           AdSetConfig & { adSetBudget: number; adSetLifetimeBudget: number | null; adSetDailyBudget: number | null }
         > = [];
-        const useCBO = phase.useCBO === true; // Campaign Budget Optimization
+        const useCBO = phase.useCBO ?? campaignBasicTargetingSplits.defaultAdSetSplitUseCBO ?? false;
 
-        if (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0 && adSetSplitDimension !== "none") {
+        if (effectivePhaseAdSets.length > 0 && adSetSplitDimension !== "none") {
           console.log(
             `📦 AD SET SPLIT DETECTED: ${phase.adSets.length} ad sets with dimension '${adSetSplitDimension}'`,
           );
