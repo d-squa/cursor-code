@@ -5637,6 +5637,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             console.log(`ℹ️ No creatives assigned for TikTok ${market.name}/${phase.name}`);
           }
           // ============= END TIKTOK AD CREATION =============
+          } // end skipCreatives guard
 
           results.push({
             market: market.name,
