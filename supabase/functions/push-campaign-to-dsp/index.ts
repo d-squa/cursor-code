@@ -3306,10 +3306,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               );
             }
           } else {
-            // With CBO, budget is set at campaign level - but Meta API may still require a budget field
-            // Some Meta API versions require at least one budget field even with CBO
-            // Add a minimal budget as fallback to prevent "Missing Daily Budget" errors
-            console.log(`📊 CBO enabled - ad set budget controlled by campaign`);
+            // With CBO, budget and bid_strategy are set at campaign level, not ad set level
+            // Remove bid_strategy from ad set to avoid "Bid Amount Required" errors
+            delete adSetPayload.bid_strategy;
+            delete adSetPayload.bid_amount;
+            console.log(`📊 CBO enabled - ad set budget & bid_strategy controlled by campaign`);
           }
 
           console.log(`Creating Meta ad set [${adSetIdx + 1}/${adSetsToCreate.length}]:`, adSetPayload.name);
