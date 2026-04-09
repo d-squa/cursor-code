@@ -2865,13 +2865,13 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         if (effectivePhaseAdSets.length > 0 && adSetSplitDimension !== "none") {
           console.log(
-            `📦 AD SET SPLIT DETECTED: ${phase.adSets.length} ad sets with dimension '${adSetSplitDimension}'`,
+            `📦 AD SET SPLIT DETECTED: ${effectivePhaseAdSets.length} ad sets with dimension '${adSetSplitDimension}'`,
           );
           console.log(`📦 CBO mode: ${useCBO ? "ON (platform distributes budget)" : "OFF (manual budget per ad set)"}`);
 
-          for (const adSetConfig of phase.adSets as AdSetConfig[]) {
+          for (const adSetConfig of effectivePhaseAdSets as AdSetConfig[]) {
             // Calculate budget for this ad set based on percentage
-            const adSetBudgetPercentage = adSetConfig.budgetPercentage || 100 / phase.adSets.length;
+            const adSetBudgetPercentage = adSetConfig.budgetPercentage || 100 / effectivePhaseAdSets.length;
             const adSetBudget = useCBO ? phaseBudget : (phaseBudget * adSetBudgetPercentage) / 100;
             const adSetLifetimeBudget = useCBO
               ? null
