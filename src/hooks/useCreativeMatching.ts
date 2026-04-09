@@ -864,7 +864,6 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               matchedCriteria: matchResult.matchedCriteria.map(c => c.criterion),
               issues: matchResult.issues,
             });
-            assignedAssetIds.add(asset.id);
           }
         }
 
