@@ -884,6 +884,11 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
           structure,
           assignedAssets: trimmedAssets,
         });
+
+        // Track assigned asset IDs (only from trimmed set within limit)
+        for (const a of trimmedAssets) {
+          assignedAssetIds.add(a.asset.id);
+        }
       }
 
       // Step 3: Identify unassigned assets with reasons
