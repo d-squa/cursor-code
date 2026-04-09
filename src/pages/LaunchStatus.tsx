@@ -366,7 +366,7 @@ export default function LaunchStatus() {
 
       // Push to DSP
       const { data, error } = await supabase.functions.invoke("push-campaign-to-dsp", {
-        body: { campaignId },
+        body: { campaignId, skipCreatives: true },
       });
 
       if (error) {

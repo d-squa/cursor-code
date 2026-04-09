@@ -13,6 +13,7 @@ const corsHeaders = {
 // Input validation schema
 const campaignInputSchema = z.object({
   campaignId: z.string().uuid(),
+  skipCreatives: z.boolean().optional().default(false),
 });
 
 // ============= MINIMUM BUDGET REQUIREMENTS =============
@@ -1029,7 +1030,8 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { campaignId } = parseResult.data;
+    const { campaignId, skipCreatives } = parseResult.data;
+    console.log(`🚀 Push mode: ${skipCreatives ? "SHELL ONLY (skip creatives)" : "FULL (with creatives)"}`);
 
     // Get campaign data
     const { data: campaign, error: campaignError } = await supabase
@@ -3539,6 +3541,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`✅ Meta ad set created: ${adSetData.id} (${adSetPayload.name})`);
 
           // ============= CREATE ADS FROM ASSIGNED CREATIVES =============
+          if (skipCreatives) {
+            console.log(`⏭️ Skipping creative processing (shell-only mode) for ${market.name}/${phase.name}`);
+          } else {
           // Query creative_assignments for this campaign/platform/market/phase
           console.log(`🎨 Checking for assigned creatives for ${market.name}/${phase.name}...`);
 
@@ -3805,6 +3810,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             console.log(`ℹ️ No creatives assigned for ${market.name}/${phase.name}`);
           }
           // ============= END AD CREATION =============
+          } // end skipCreatives guard
 
           results.push({
             platform: "Meta",
@@ -4500,6 +4506,9 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             console.log(`✅ Google Ads ad group created: ${adGroupResult.adGroupId}${strategyName ? ` [${strategyName}]` : ""}`);
 
             // Step 3: Create Ads from assigned creatives
+            if (skipCreatives) {
+              console.log(`⏭️ Skipping creative processing (shell-only mode) for Google Ads ${market.name}/${phase.name}`);
+            } else {
             console.log(`🎨 Checking for assigned creatives for Google Ads ${market.name}/${phase.name}...`);
 
             const { data: googleAssignments, error: assignmentError } = await supabase
@@ -4597,6 +4606,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             } else {
               console.log(`ℹ️ No creatives assigned for Google Ads ${market.name}/${phase.name}`);
             }
+            } // end skipCreatives guard
 
             results.push({
               platform: "Google Ads",
@@ -5457,6 +5467,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           });
 
           // ============= CREATE ADS FROM ASSIGNED CREATIVES (TikTok) =============
+          if (skipCreatives) {
+            console.log(`⏭️ Skipping creative processing (shell-only mode) for TikTok ${market.name}/${phase.name}`);
+          } else {
           console.log(`🎨 Checking for assigned creatives for TikTok ${market.name}/${phase.name}...`);
 
           const { data: tiktokAssignments, error: tiktokAssignmentError } = await supabase
@@ -5624,6 +5637,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             console.log(`ℹ️ No creatives assigned for TikTok ${market.name}/${phase.name}`);
           }
           // ============= END TIKTOK AD CREATION =============
+          } // end skipCreatives guard
 
           results.push({
             market: market.name,
