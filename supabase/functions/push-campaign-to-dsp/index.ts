@@ -4506,6 +4506,9 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             console.log(`✅ Google Ads ad group created: ${adGroupResult.adGroupId}${strategyName ? ` [${strategyName}]` : ""}`);
 
             // Step 3: Create Ads from assigned creatives
+            if (skipCreatives) {
+              console.log(`⏭️ Skipping creative processing (shell-only mode) for Google Ads ${market.name}/${phase.name}`);
+            } else {
             console.log(`🎨 Checking for assigned creatives for Google Ads ${market.name}/${phase.name}...`);
 
             const { data: googleAssignments, error: assignmentError } = await supabase
