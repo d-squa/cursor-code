@@ -871,9 +871,19 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
         // Sort by confidence score descending
         assignedAssets.sort((a, b) => b.confidenceScore - a.confidenceScore);
 
+        // Trim to platform ad set limit (50 ads max per ad set)
+        // Keep only the top-scoring assets within the limit
+        const trimmedAssets = assignedAssets.slice(0, ADS_PER_AD_SET_LIMIT);
+        if (assignedAssets.length > ADS_PER_AD_SET_LIMIT) {
+          // Mark overflow assets as unassigned (they'll appear in unassigned panel)
+          for (let i = ADS_PER_AD_SET_LIMIT; i < assignedAssets.length; i++) {
+            // Don't add to assignedAssetIds so they show as unassigned
+          }
+        }
+
         structureResults.push({
           structure,
-          assignedAssets,
+          assignedAssets: trimmedAssets,
         });
       }
 
