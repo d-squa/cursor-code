@@ -151,7 +151,7 @@ const META_SAAS_GROWTH_BASE: StrategyDefinition = {
       budgetPercent: 50,
       objective: "OUTCOME_ENGAGEMENT",
       optimizationGoal: "THRUPLAY",
-      optimizationLocation: "Website / On-platform",
+      optimizationLocation: "On-platform",
       billingType: "Impressions",
       audienceTypes: "Broad + Job Titles + LAL",
       adFormats: "Thought Leadership Video",
