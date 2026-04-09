@@ -3810,6 +3810,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             console.log(`ℹ️ No creatives assigned for ${market.name}/${phase.name}`);
           }
           // ============= END AD CREATION =============
+          } // end skipCreatives guard
 
           results.push({
             platform: "Meta",
