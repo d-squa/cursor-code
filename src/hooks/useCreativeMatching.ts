@@ -1085,15 +1085,39 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     });
   }, [campaignId, selectedPlatform]);
 
+  // Platform ad limits per ad set (Meta API confirmed: 50 non-archived ads per ad set)
+  // TikTok has similar limits; Google varies but we use 50 as a safe default
+  const ADS_PER_AD_SET_LIMIT = 50;
+
+  // Helper: count accepted ads for a specific structure (ad set)
+  const countAcceptedForStructure = useCallback((structureId: string, acceptedMap?: Map<string, UICreativeMatch>): number => {
+    const map = acceptedMap || stateRef.current.acceptedMatches;
+    let count = 0;
+    for (const key of map.keys()) {
+      if (key.endsWith(`:${structureId}`)) count++;
+    }
+    return count;
+  }, []);
+
   // Use composite key: assetId:structureId so each asset-structure pair is independent
   const acceptMatch = useCallback((assetId: string, match: UICreativeMatch) => {
     const compositeKey = `${assetId}:${match.structure.id}`;
     setState(prev => {
+      // Check if already accepted
+      if (prev.acceptedMatches.has(compositeKey)) return prev;
+
+      // Enforce 50 ads per ad set limit
+      const currentCount = countAcceptedForStructure(match.structure.id, prev.acceptedMatches);
+      if (currentCount >= ADS_PER_AD_SET_LIMIT) {
+        toast.error(`Ad set limit reached (${ADS_PER_AD_SET_LIMIT} ads max). Remove a creative before adding another.`);
+        return prev;
+      }
+
       const newAccepted = new Map(prev.acceptedMatches);
       newAccepted.set(compositeKey, match);
       return { ...prev, acceptedMatches: newAccepted };
     });
-  }, []);
+  }, [countAcceptedForStructure]);
 
   const rejectMatch = useCallback((assetId: string, structureId: string) => {
     setState(prev => {
@@ -1714,7 +1738,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     }
   }, [user]);
 
-  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets, loadExistingAssignments };
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets, loadExistingAssignments, ADS_PER_AD_SET_LIMIT, countAcceptedForStructure };
 }
 
 // Helper functions
