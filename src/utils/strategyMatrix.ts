@@ -740,7 +740,7 @@ const META_AWARENESS_VISIBILITY_ADVANTAGE: StrategyDefinition = {
       budgetPercent: 10,
       objective: "OUTCOME_ENGAGEMENT",
       optimizationGoal: "POST_ENGAGEMENT",
-      optimizationLocation: "On-platform / Website",
+      optimizationLocation: "On-platform",
       billingType: "Impressions",
       audienceTypes: "Expanded Engagement Pool",
       adFormats: "Reminder + Social Proof Ads",
