@@ -1200,15 +1200,29 @@ function AssignedAssetsPanel({
                                                                        <X className="h-2.5 w-2.5 mr-0.5" />
                                                                        Unmatch
                                                                      </Button>
-                                                                  ) : (
+                                                                   ) : (
                                                                     <div className="flex gap-1 shrink-0">
-                                                                      <Button 
-                                                                        size="sm" 
-                                                                        onClick={() => onAcceptAsset(asset.id, structure)}
-                                                                        className="bg-emerald-500 hover:bg-emerald-600 h-6 w-6 p-0"
-                                                                      >
-                                                                        <Check className="h-3 w-3" />
-                                                                      </Button>
+                                                                      <TooltipProvider>
+                                                                        <Tooltip>
+                                                                          <TooltipTrigger asChild>
+                                                                            <span>
+                                                                              <Button 
+                                                                                size="sm" 
+                                                                                onClick={() => onAcceptAsset(asset.id, structure)}
+                                                                                className="bg-emerald-500 hover:bg-emerald-600 h-6 w-6 p-0"
+                                                                                disabled={isAtLimit}
+                                                                              >
+                                                                                <Check className="h-3 w-3" />
+                                                                              </Button>
+                                                                            </span>
+                                                                          </TooltipTrigger>
+                                                                          {isAtLimit && (
+                                                                            <TooltipContent side="left" className="text-xs">
+                                                                              Ad set limit reached ({ADS_PER_AD_SET_LIMIT} ads max)
+                                                                            </TooltipContent>
+                                                                          )}
+                                                                        </Tooltip>
+                                                                      </TooltipProvider>
                                                                       <Button 
                                                                         size="sm" 
                                                                         variant="ghost"
