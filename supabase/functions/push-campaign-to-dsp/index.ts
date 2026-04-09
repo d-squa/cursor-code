@@ -4606,8 +4606,8 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             } else {
               console.log(`ℹ️ No creatives assigned for Google Ads ${market.name}/${phase.name}`);
             }
+            } // end skipCreatives guard
 
-            results.push({
               platform: "Google Ads",
               market: market.name,
               phase: phase.name,
