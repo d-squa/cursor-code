@@ -689,7 +689,7 @@ const META_AWARENESS_VISIBILITY_BASE: StrategyDefinition = {
       budgetPercent: 10,
       objective: "OUTCOME_ENGAGEMENT",
       optimizationGoal: "POST_ENGAGEMENT",
-      optimizationLocation: "Website / On-platform",
+      optimizationLocation: "On-platform",
       billingType: "Impressions",
       audienceTypes: "Video Viewers 75% + Page Engagers",
       adFormats: "Short Reminder Ads + Testimonials",
