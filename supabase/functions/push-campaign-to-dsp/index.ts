@@ -5216,13 +5216,32 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         console.log(`📍 campaignId: ${campaignResult.campaignId}, advertiserId: ${advertiserId}`);
 
         // ============= AD SET SPLITS FOR TIKTOK =============
-        // Determine if we have ad set splits defined
-        const tiktokAdSets: AdSetConfig[] =
-          phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
-            ? phase.adSets
-            : [{ id: "default", name: phase.name, dimensionValue: "", budgetPercentage: 100 }];
+        // Resolve inherited splits from basicTargeting defaults
+        const tiktokBasicTargetingSplits = campaign.generic_config?.basicTargeting || {};
+        const tiktokPerPlatformSplitDim = tiktokBasicTargetingSplits.defaultAdSetSplitDimensionPerPlatform || {};
+        const tiktokHasPerPlatformConfig = Object.keys(tiktokPerPlatformSplitDim).length > 0;
+        const tiktokDefaultDimension = tiktokHasPerPlatformConfig
+          ? (tiktokPerPlatformSplitDim["tiktok"] || null)
+          : (tiktokBasicTargetingSplits.defaultAdSetSplitDimension || null);
+        const tiktokPhaseHasOwnSplits = phase.adSetSplitDimension && phase.adSetSplitDimension !== "none";
+        const tiktokShouldInherit = !tiktokPhaseHasOwnSplits && !phase.overrideTargeting && tiktokDefaultDimension && tiktokDefaultDimension !== "none";
+        
+        const tiktokPerPlatformAdSets = tiktokBasicTargetingSplits.defaultAdSetsPerPlatform || {};
+        const tiktokDefaultAdSets = Object.keys(tiktokPerPlatformAdSets).length > 0
+          ? (tiktokPerPlatformAdSets["tiktok"] || [])
+          : (tiktokBasicTargetingSplits.defaultAdSets || []);
+        
+        const tiktokEffectiveAdSets = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
+          ? phase.adSets
+          : (tiktokShouldInherit && tiktokDefaultAdSets.length > 0 ? tiktokDefaultAdSets : []);
+        
+        const tiktokAdSets: AdSetConfig[] = tiktokEffectiveAdSets.length > 0
+          ? tiktokEffectiveAdSets
+          : [{ id: "default", name: phase.name, dimensionValue: "", budgetPercentage: 100 }];
 
-        const tiktokSplitDimension = phase.adSetSplitDimension || null;
+        const tiktokSplitDimension = tiktokPhaseHasOwnSplits 
+          ? phase.adSetSplitDimension 
+          : (tiktokShouldInherit ? tiktokDefaultDimension : null);
         const isTiktokCBO = budgetType === "BUDGET_MODE_DAY" || budgetType === "BUDGET_MODE_TOTAL";
 
         console.log(
