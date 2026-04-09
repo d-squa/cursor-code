@@ -3630,52 +3630,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                   continue;
                 }
 
-                // ============= CHECK CREATIVE UPLOAD STATUS =============
-                // IMPORTANT: We no longer do inline uploads to avoid memory exhaustion.
-                // Creatives must be pre-uploaded via the 'upload-creative-to-meta' edge function.
-                // If creative is missing Meta asset, mark it for deferred upload and skip.
-                let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
-
-                if (!hasMetaAsset) {
-                  console.log(
-                    `⏭️ Creative ${creative.name} missing Meta asset - requires pre-upload via upload-creative-to-meta function`,
-                  );
-
-                  // Mark assignment as pending upload - user needs to upload creatives first
-                  await supabase
-                    .from("creative_assignments")
-                    .update({
-                      status: "pending_upload",
-                      error_message:
-                        "Creative needs to be uploaded to Meta first. Please use the Upload to Meta feature in Creative Library.",
-                    })
-                    .eq("id", assignment.id);
-                  continue;
-                }
-                // ============= END UPLOAD CHECK =============
-
-                // Final check after upload attempt
-                if (!hasMetaAsset) {
-                  const missingFields = [
-                    !creative.platform_image_hash ? "platform_image_hash" : null,
-                    !creative.platform_video_id ? "platform_video_id" : null,
-                  ].filter(Boolean);
-
-                  console.warn(`⚠️ Meta creative still missing uploaded asset identifiers after upload attempt`, {
-                    assignmentId: assignment.id,
-                    creativeId: creative.id,
-                    creativeName: creative.name,
-                  });
-
-                  await supabase
-                    .from("creative_assignments")
-                    .update({
-                      status: "error",
-                      error_message: `Creative not uploaded to Meta (missing ${missingFields.join(" & ")})`,
-                    })
-                    .eq("id", assignment.id);
-                  continue;
-                }
+                // Creative already verified to have Meta assets in pre-filter above
 
                 // Build ad creative payload
                 const adName = `${creative.name}_${generateTimestampSuffix()}`;
