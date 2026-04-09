@@ -5467,6 +5467,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           });
 
           // ============= CREATE ADS FROM ASSIGNED CREATIVES (TikTok) =============
+          if (skipCreatives) {
+            console.log(`⏭️ Skipping creative processing (shell-only mode) for TikTok ${market.name}/${phase.name}`);
+          } else {
           console.log(`🎨 Checking for assigned creatives for TikTok ${market.name}/${phase.name}...`);
 
           const { data: tiktokAssignments, error: tiktokAssignmentError } = await supabase
