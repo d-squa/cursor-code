@@ -37,6 +37,9 @@ interface EmptyAdSetSuggestion {
   }>;
 }
 
+// Default Meta API limit: 50 non-archived ads per ad set
+const ADS_PER_AD_SET_LIMIT = 50;
+
 interface StructureCentricViewProps {
   structureResults: StructureMatchResult[];
   unassignedAssets: UnassignedAsset[];
@@ -1041,6 +1044,8 @@ function AssignedAssetsPanel({
                                                   const isAdSetExpanded = expandedAdSets.has(structure.id);
                                                   const acceptedCount = assignedAssets.filter(a => acceptedMatches.has(`${a.asset.id}:${structure.id}`)).length;
                                                   const hasAdSetUnaccepted = acceptedCount < assignedAssets.length;
+                                                  const isAtLimit = acceptedCount >= ADS_PER_AD_SET_LIMIT;
+                                                  const remainingSlots = Math.max(0, ADS_PER_AD_SET_LIMIT - acceptedCount);
                                                   
                                                   return (
                                                     <div key={structure.id} className="border rounded-lg bg-background">
@@ -1054,8 +1059,17 @@ function AssignedAssetsPanel({
                                                               <div className="flex items-center gap-2">
                                                                 <span className="text-xs font-medium truncate">{structure.adSetName}</span>
                                                                 {acceptedCount > 0 && (
-                                                                  <Badge className="bg-emerald-500 text-[10px] py-0 h-4">
-                                                                    {acceptedCount} accepted
+                                                                  <Badge className={cn(
+                                                                    "text-[10px] py-0 h-4",
+                                                                    isAtLimit ? "bg-amber-500" : "bg-emerald-500"
+                                                                  )}>
+                                                                    {acceptedCount}/{ADS_PER_AD_SET_LIMIT} ads
+                                                                  </Badge>
+                                                                )}
+                                                                {isAtLimit && (
+                                                                  <Badge variant="destructive" className="text-[10px] py-0 h-4">
+                                                                    <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
+                                                                    Limit
                                                                   </Badge>
                                                                 )}
                                                               </div>
@@ -1081,18 +1095,30 @@ function AssignedAssetsPanel({
                                                               )}
                                                             </div>
                                                             <div className="flex items-center gap-1.5">
-                                                              {hasAdSetUnaccepted && (
+                                                              {hasAdSetUnaccepted && !isAtLimit && (
                                                                 <Button
                                                                   size="sm"
                                                                   variant="ghost"
                                                                   className="h-5 text-[9px] px-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
                                                                   onClick={(e) => { 
-                                                                    e.stopPropagation(); 
-                                                                    assignedAssets.forEach(a => onAcceptAsset(a.asset.id, structure));
+                                                                    e.stopPropagation();
+                                                                    // Sort by confidence and accept up to the limit
+                                                                    const sorted = [...assignedAssets].sort((a, b) => b.confidenceScore - a.confidenceScore);
+                                                                    let slotsLeft = remainingSlots;
+                                                                    for (const a of sorted) {
+                                                                      if (slotsLeft <= 0) break;
+                                                                      if (!acceptedMatches.has(`${a.asset.id}:${structure.id}`)) {
+                                                                        onAcceptAsset(a.asset.id, structure);
+                                                                        slotsLeft--;
+                                                                      }
+                                                                    }
+                                                                    if (remainingSlots < assignedAssets.filter(a => !acceptedMatches.has(`${a.asset.id}:${structure.id}`)).length) {
+                                                                      // Will show toast from hook
+                                                                    }
                                                                   }}
                                                                 >
                                                                   <Check className="h-2.5 w-2.5 mr-0.5" />
-                                                                  Accept
+                                                                  Accept{remainingSlots < assignedAssets.length ? ` (${remainingSlots} left)` : ''}
                                                                 </Button>
                                                               )}
                                                               <Badge variant="secondary" className="shrink-0 text-[10px] h-4">
@@ -1174,15 +1200,29 @@ function AssignedAssetsPanel({
                                                                        <X className="h-2.5 w-2.5 mr-0.5" />
                                                                        Unmatch
                                                                      </Button>
-                                                                  ) : (
+                                                                   ) : (
                                                                     <div className="flex gap-1 shrink-0">
-                                                                      <Button 
-                                                                        size="sm" 
-                                                                        onClick={() => onAcceptAsset(asset.id, structure)}
-                                                                        className="bg-emerald-500 hover:bg-emerald-600 h-6 w-6 p-0"
-                                                                      >
-                                                                        <Check className="h-3 w-3" />
-                                                                      </Button>
+                                                                      <TooltipProvider>
+                                                                        <Tooltip>
+                                                                          <TooltipTrigger asChild>
+                                                                            <span>
+                                                                              <Button 
+                                                                                size="sm" 
+                                                                                onClick={() => onAcceptAsset(asset.id, structure)}
+                                                                                className="bg-emerald-500 hover:bg-emerald-600 h-6 w-6 p-0"
+                                                                                disabled={isAtLimit}
+                                                                              >
+                                                                                <Check className="h-3 w-3" />
+                                                                              </Button>
+                                                                            </span>
+                                                                          </TooltipTrigger>
+                                                                          {isAtLimit && (
+                                                                            <TooltipContent side="left" className="text-xs">
+                                                                              Ad set limit reached ({ADS_PER_AD_SET_LIMIT} ads max)
+                                                                            </TooltipContent>
+                                                                          )}
+                                                                        </Tooltip>
+                                                                      </TooltipProvider>
                                                                       <Button 
                                                                         size="sm" 
                                                                         variant="ghost"

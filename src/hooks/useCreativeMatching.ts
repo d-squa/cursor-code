@@ -864,17 +864,31 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               matchedCriteria: matchResult.matchedCriteria.map(c => c.criterion),
               issues: matchResult.issues,
             });
-            assignedAssetIds.add(asset.id);
           }
         }
 
         // Sort by confidence score descending
         assignedAssets.sort((a, b) => b.confidenceScore - a.confidenceScore);
 
+        // Trim to platform ad set limit (50 ads max per ad set)
+        // Keep only the top-scoring assets within the limit
+        const trimmedAssets = assignedAssets.slice(0, ADS_PER_AD_SET_LIMIT);
+        if (assignedAssets.length > ADS_PER_AD_SET_LIMIT) {
+          // Mark overflow assets as unassigned (they'll appear in unassigned panel)
+          for (let i = ADS_PER_AD_SET_LIMIT; i < assignedAssets.length; i++) {
+            // Don't add to assignedAssetIds so they show as unassigned
+          }
+        }
+
         structureResults.push({
           structure,
-          assignedAssets,
+          assignedAssets: trimmedAssets,
         });
+
+        // Track assigned asset IDs (only from trimmed set within limit)
+        for (const a of trimmedAssets) {
+          assignedAssetIds.add(a.asset.id);
+        }
       }
 
       // Step 3: Identify unassigned assets with reasons
@@ -1085,15 +1099,39 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     });
   }, [campaignId, selectedPlatform]);
 
+  // Platform ad limits per ad set (Meta API confirmed: 50 non-archived ads per ad set)
+  // TikTok has similar limits; Google varies but we use 50 as a safe default
+  const ADS_PER_AD_SET_LIMIT = 50;
+
+  // Helper: count accepted ads for a specific structure (ad set)
+  const countAcceptedForStructure = useCallback((structureId: string, acceptedMap?: Map<string, UICreativeMatch>): number => {
+    const map = acceptedMap || stateRef.current.acceptedMatches;
+    let count = 0;
+    for (const key of map.keys()) {
+      if (key.endsWith(`:${structureId}`)) count++;
+    }
+    return count;
+  }, []);
+
   // Use composite key: assetId:structureId so each asset-structure pair is independent
   const acceptMatch = useCallback((assetId: string, match: UICreativeMatch) => {
     const compositeKey = `${assetId}:${match.structure.id}`;
     setState(prev => {
+      // Check if already accepted
+      if (prev.acceptedMatches.has(compositeKey)) return prev;
+
+      // Enforce 50 ads per ad set limit
+      const currentCount = countAcceptedForStructure(match.structure.id, prev.acceptedMatches);
+      if (currentCount >= ADS_PER_AD_SET_LIMIT) {
+        toast.error(`Ad set limit reached (${ADS_PER_AD_SET_LIMIT} ads max). Remove a creative before adding another.`);
+        return prev;
+      }
+
       const newAccepted = new Map(prev.acceptedMatches);
       newAccepted.set(compositeKey, match);
       return { ...prev, acceptedMatches: newAccepted };
     });
-  }, []);
+  }, [countAcceptedForStructure]);
 
   const rejectMatch = useCallback((assetId: string, structureId: string) => {
     setState(prev => {
@@ -1714,7 +1752,7 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
     }
   }, [user]);
 
-  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets, loadExistingAssignments };
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets, loadExistingAssignments, ADS_PER_AD_SET_LIMIT, countAcceptedForStructure };
 }
 
 // Helper functions
