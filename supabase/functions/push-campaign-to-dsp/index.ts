@@ -13,6 +13,7 @@ const corsHeaders = {
 // Input validation schema
 const campaignInputSchema = z.object({
   campaignId: z.string().uuid(),
+  skipCreatives: z.boolean().optional().default(false),
 });
 
 // ============= MINIMUM BUDGET REQUIREMENTS =============
