@@ -578,6 +578,24 @@ interface AdSetConfig {
   }>;
 }
 
+// ISO language code to Meta locale ID mapping
+const ISO_TO_META_LOCALE: Record<string, number> = {
+  en: 6, en_US: 6, en_GB: 24, es: 23, es_ES: 23, es_MX: 36, fr: 7, de: 5, it: 10,
+  pt: 16, pt_BR: 31, nl: 13, pl: 15, sv: 20, no: 14, da: 3, fi: 4, ar: 28, ja: 11,
+  ko: 12, hi: 45, ru: 17, tr: 27, vi: 25, th: 22, id: 44, ms: 41, cs: 2, hu: 9,
+  ro: 32, el: 8, he: 29, uk: 26, zh_CN: 42, zh_TW: 21, bg: 33, hr: 34, sk: 35,
+  sr: 37, ca: 38, tl: 40, bn: 46, ta: 47, te: 48, ml: 49, kn: 50, mr: 51, pa: 52,
+  gu: 53, ur: 54, fa: 30, af: 55, sw: 56, nb: 14, nn: 14,
+};
+
+function resolveMetaLocale(lang: string | number): number | null {
+  if (typeof lang === "number") return lang;
+  const num = parseInt(String(lang));
+  if (!isNaN(num)) return num;
+  // Try ISO code lookup
+  return ISO_TO_META_LOCALE[lang] ?? ISO_TO_META_LOCALE[lang.toLowerCase()] ?? null;
+}
+
 // Apply ad set split overrides to Meta targeting object
 function applyMetaAdSetOverrides(baseTargeting: any, adSet: AdSetConfig, dimension: string): any {
   const targeting = { ...baseTargeting };
@@ -613,12 +631,16 @@ function applyMetaAdSetOverrides(baseTargeting: any, adSet: AdSetConfig, dimensi
 
     case "language":
       if (adSet.languages && adSet.languages.length > 0) {
-        // Convert to Meta locale IDs if needed
         const locales = adSet.languages
-          .map((lang: string | number) => parseInt(String(lang)))
-          .filter((l: number) => !isNaN(l));
+          .map((lang: string | number) => resolveMetaLocale(lang))
+          .filter((l): l is number => l !== null);
         if (locales.length > 0) {
           targeting.locales = locales;
+          console.log(`📦 Language override: resolved ${JSON.stringify(adSet.languages)} → Meta locales ${JSON.stringify(locales)}`);
+        } else {
+          // If no locales resolved, remove locale targeting (= all languages)
+          delete targeting.locales;
+          console.log(`📦 Language override: no valid locales from ${JSON.stringify(adSet.languages)}, targeting all languages`);
         }
       }
       break;
@@ -650,8 +672,18 @@ function applyMetaAdSetOverrides(baseTargeting: any, adSet: AdSetConfig, dimensi
         }
       }
       break;
+
+    case "optimization_goal":
+      // optimization_goal is handled at the ad set payload level, not in targeting
+      break;
+
+    case "ad_format":
+    case "placement":
+      // Handled separately via getMetaPlacementOverrides
+      break;
   }
 
+  console.log(`📦 Ad set "${adSet.name}" targeting after ${dimension} override:`, JSON.stringify(targeting));
   return targeting;
 }
 
@@ -2216,11 +2248,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const languages = effectiveBasicTargeting.languages;
         if (languages && Array.isArray(languages) && languages.length > 0 && !languages.includes("all")) {
           const locales = languages
-            .map((lang: string | number) => parseInt(String(lang)))
-            .filter((l: number) => !isNaN(l));
+            .map((lang: string | number) => resolveMetaLocale(lang))
+            .filter((l): l is number => l !== null);
           if (locales.length > 0) {
             targeting.locales = locales;
-            console.log("Adding language targeting:", locales);
+            console.log("Adding language targeting:", locales, "(from", languages, ")");
           }
         }
 
