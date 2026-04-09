@@ -3541,6 +3541,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`✅ Meta ad set created: ${adSetData.id} (${adSetPayload.name})`);
 
           // ============= CREATE ADS FROM ASSIGNED CREATIVES =============
+          if (skipCreatives) {
+            console.log(`⏭️ Skipping creative processing (shell-only mode) for ${market.name}/${phase.name}`);
+          } else {
           // Query creative_assignments for this campaign/platform/market/phase
           console.log(`🎨 Checking for assigned creatives for ${market.name}/${phase.name}...`);
 
