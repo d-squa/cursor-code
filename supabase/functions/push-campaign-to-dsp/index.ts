@@ -1623,19 +1623,19 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (platformName.includes("Meta") || platformName.includes("Facebook")) {
-        const result = await pushToMeta(campaign, platformConfig, platformWithToken, supabase);
+        const result = await pushToMeta(campaign, platformConfig, platformWithToken, supabase, skipCreatives);
         results.push(result);
 
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, platformName, result, Object.values(filteredMarkets) as any[]);
       } else if (platformName.includes("Google")) {
-        const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken, supabase);
+        const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken, supabase, skipCreatives);
         results.push(result);
 
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, "Google Ads", result, Object.values(filteredMarkets) as any[]);
       } else if (platformName.toLowerCase().includes("tiktok")) {
-        const result = await pushToTikTok(campaign, platformConfig, platformWithToken);
+        const result = await pushToTikTok(campaign, platformConfig, platformWithToken, skipCreatives);
         results.push(result);
 
         // Update campaign_launch_status for each pushed entity
@@ -1888,7 +1888,7 @@ function normalizeMetaObjectiveAndOptimizationGoal(
   };
 }
 
-async function pushToMeta(campaign: any, platformConfig: any, platform: any, supabase: any) {
+async function pushToMeta(campaign: any, platformConfig: any, platform: any, supabase: any, skipCreatives: boolean = false) {
   console.log("Pushing to Meta...");
   console.log("📦 platformConfig.markets received:", JSON.stringify(platformConfig.markets, null, 2));
 
@@ -3847,7 +3847,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
   return { platform: "Meta", results, errors: errors.length > 0 ? errors : undefined };
 }
 
-async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any, supabase: any) {
+async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any, supabase: any, skipCreatives: boolean = false) {
   console.log("Pushing to Google Ads...");
 
   const results: any[] = [];
@@ -4645,7 +4645,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 }
 
 // TikTok campaign publishing
-async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
+async function pushToTikTok(campaign: any, platformConfig: any, platform: any, skipCreatives: boolean = false) {
   console.log("Pushing to TikTok...");
 
   // Check for conversion campaigns and log automatic fallback warning
