@@ -2821,22 +2821,57 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         // ============= AD SET SPLIT SUPPORT =============
         // If phase has adSets defined (split), iterate over each ad set
-        // Otherwise, create a single ad set for the phase
-        const adSetSplitDimension = phase.adSetSplitDimension || "none";
+        // Otherwise, check if phase inherits splits from generic_config.basicTargeting defaults
+        // Finally, create a single ad set for the phase if no splits are found
+        const campaignBasicTargetingSplits = campaign.generic_config?.basicTargeting || {};
+        const perPlatformSplitDim = campaignBasicTargetingSplits.defaultAdSetSplitDimensionPerPlatform || {};
+        const hasPerPlatformSplitConfig = Object.keys(perPlatformSplitDim).length > 0;
+        
+        // Resolve effective split dimension: phase-level > per-platform default > legacy default
+        const resolvedDefaultDimension = hasPerPlatformSplitConfig
+          ? (perPlatformSplitDim["meta"] || "none")
+          : (campaignBasicTargetingSplits.defaultAdSetSplitDimension || "none");
+        
+        const phaseHasOwnSplits = phase.adSetSplitDimension && phase.adSetSplitDimension !== "none";
+        const shouldInheritSplits = !phaseHasOwnSplits && !phase.overrideTargeting && resolvedDefaultDimension !== "none";
+        
+        const adSetSplitDimension = phaseHasOwnSplits 
+          ? phase.adSetSplitDimension 
+          : (shouldInheritSplits ? resolvedDefaultDimension : "none");
+        
+        // Resolve effective ad sets: phase-level > per-platform defaults > legacy defaults
+        const perPlatformDefaultAdSets = campaignBasicTargetingSplits.defaultAdSetsPerPlatform || {};
+        const hasPerPlatformDefaultAdSets = Object.keys(perPlatformDefaultAdSets).length > 0;
+        const resolvedDefaultAdSets = hasPerPlatformDefaultAdSets
+          ? (perPlatformDefaultAdSets["meta"] || [])
+          : (campaignBasicTargetingSplits.defaultAdSets || []);
+        
+        const effectivePhaseAdSets = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
+          ? phase.adSets
+          : (shouldInheritSplits && resolvedDefaultAdSets.length > 0 ? resolvedDefaultAdSets : []);
+        
+        console.log(`📦 Ad Set Split Resolution for "${phase.name}":`, {
+          phaseHasOwnSplits,
+          shouldInheritSplits,
+          adSetSplitDimension,
+          effectiveAdSetCount: effectivePhaseAdSets.length,
+          phaseOverrideTargeting: phase.overrideTargeting,
+        });
+        
         const adSetsToCreate: Array<
           AdSetConfig & { adSetBudget: number; adSetLifetimeBudget: number | null; adSetDailyBudget: number | null }
         > = [];
-        const useCBO = phase.useCBO === true; // Campaign Budget Optimization
+        const useCBO = phase.useCBO ?? campaignBasicTargetingSplits.defaultAdSetSplitUseCBO ?? false;
 
-        if (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0 && adSetSplitDimension !== "none") {
+        if (effectivePhaseAdSets.length > 0 && adSetSplitDimension !== "none") {
           console.log(
-            `📦 AD SET SPLIT DETECTED: ${phase.adSets.length} ad sets with dimension '${adSetSplitDimension}'`,
+            `📦 AD SET SPLIT DETECTED: ${effectivePhaseAdSets.length} ad sets with dimension '${adSetSplitDimension}'`,
           );
           console.log(`📦 CBO mode: ${useCBO ? "ON (platform distributes budget)" : "OFF (manual budget per ad set)"}`);
 
-          for (const adSetConfig of phase.adSets as AdSetConfig[]) {
+          for (const adSetConfig of effectivePhaseAdSets as AdSetConfig[]) {
             // Calculate budget for this ad set based on percentage
-            const adSetBudgetPercentage = adSetConfig.budgetPercentage || 100 / phase.adSets.length;
+            const adSetBudgetPercentage = adSetConfig.budgetPercentage || 100 / effectivePhaseAdSets.length;
             const adSetBudget = useCBO ? phaseBudget : (phaseBudget * adSetBudgetPercentage) / 100;
             const adSetLifetimeBudget = useCBO
               ? null
@@ -4300,9 +4335,26 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           const phaseTargeting = phase.targeting || {};
           const effectivePhaseTargeting = Object.keys(phaseTargeting).length > 0 ? phaseTargeting : basicTargeting;
 
-          // Determine if we have ad set splits
-          const adSetsToCreate = phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
+          // Determine if we have ad set splits - resolve inherited splits from basicTargeting
+          const googlePerPlatformSplitDim = basicTargeting.defaultAdSetSplitDimensionPerPlatform || {};
+          const googleHasPerPlatformConfig = Object.keys(googlePerPlatformSplitDim).length > 0;
+          const googleDefaultDimension = googleHasPerPlatformConfig
+            ? (googlePerPlatformSplitDim["google"] || "none")
+            : (basicTargeting.defaultAdSetSplitDimension || "none");
+          const googlePhaseHasOwnSplits = phase.adSetSplitDimension && phase.adSetSplitDimension !== "none";
+          const googleShouldInherit = !googlePhaseHasOwnSplits && !phase.overrideTargeting && googleDefaultDimension !== "none";
+          
+          const googlePerPlatformAdSets = basicTargeting.defaultAdSetsPerPlatform || {};
+          const googleDefaultAdSets = Object.keys(googlePerPlatformAdSets).length > 0
+            ? (googlePerPlatformAdSets["google"] || [])
+            : (basicTargeting.defaultAdSets || []);
+          
+          const googleEffectiveAdSets = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
             ? phase.adSets
+            : (googleShouldInherit && googleDefaultAdSets.length > 0 ? googleDefaultAdSets : []);
+          
+          const adSetsToCreate = googleEffectiveAdSets.length > 0
+            ? googleEffectiveAdSets
             : [{ id: "default", name: phase.name, budgetPercentage: 100 }];
 
           for (const adSetConfig of adSetsToCreate) {
@@ -5164,13 +5216,32 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         console.log(`📍 campaignId: ${campaignResult.campaignId}, advertiserId: ${advertiserId}`);
 
         // ============= AD SET SPLITS FOR TIKTOK =============
-        // Determine if we have ad set splits defined
-        const tiktokAdSets: AdSetConfig[] =
-          phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0
-            ? phase.adSets
-            : [{ id: "default", name: phase.name, dimensionValue: "", budgetPercentage: 100 }];
+        // Resolve inherited splits from basicTargeting defaults
+        const tiktokBasicTargetingSplits = campaign.generic_config?.basicTargeting || {};
+        const tiktokPerPlatformSplitDim = tiktokBasicTargetingSplits.defaultAdSetSplitDimensionPerPlatform || {};
+        const tiktokHasPerPlatformConfig = Object.keys(tiktokPerPlatformSplitDim).length > 0;
+        const tiktokDefaultDimension = tiktokHasPerPlatformConfig
+          ? (tiktokPerPlatformSplitDim["tiktok"] || null)
+          : (tiktokBasicTargetingSplits.defaultAdSetSplitDimension || null);
+        const tiktokPhaseHasOwnSplits = phase.adSetSplitDimension && phase.adSetSplitDimension !== "none";
+        const tiktokShouldInherit = !tiktokPhaseHasOwnSplits && !phase.overrideTargeting && tiktokDefaultDimension && tiktokDefaultDimension !== "none";
+        
+        const tiktokPerPlatformAdSets = tiktokBasicTargetingSplits.defaultAdSetsPerPlatform || {};
+        const tiktokDefaultAdSets = Object.keys(tiktokPerPlatformAdSets).length > 0
+          ? (tiktokPerPlatformAdSets["tiktok"] || [])
+          : (tiktokBasicTargetingSplits.defaultAdSets || []);
+        
+        const tiktokEffectiveAdSets = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
+          ? phase.adSets
+          : (tiktokShouldInherit && tiktokDefaultAdSets.length > 0 ? tiktokDefaultAdSets : []);
+        
+        const tiktokAdSets: AdSetConfig[] = tiktokEffectiveAdSets.length > 0
+          ? tiktokEffectiveAdSets
+          : [{ id: "default", name: phase.name, dimensionValue: "", budgetPercentage: 100 }];
 
-        const tiktokSplitDimension = phase.adSetSplitDimension || null;
+        const tiktokSplitDimension = tiktokPhaseHasOwnSplits 
+          ? phase.adSetSplitDimension 
+          : (tiktokShouldInherit ? tiktokDefaultDimension : null);
         const isTiktokCBO = budgetType === "BUDGET_MODE_DAY" || budgetType === "BUDGET_MODE_TOTAL";
 
         console.log(
