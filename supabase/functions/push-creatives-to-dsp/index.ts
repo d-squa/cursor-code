@@ -766,6 +766,59 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
+      // ========== PRE-FLIGHT: CHECK AD SET AD COUNT LIMIT ==========
+      // Meta limits each ad set to 50 ads (including paused/inactive/turned off).
+      // Query Meta for the current ad count before pushing to avoid "Too Many Ads" errors.
+      const META_AD_SET_LIMIT = 50;
+      let existingAdCount = 0;
+      let availableSlots = META_AD_SET_LIMIT;
+
+      if (platformKey === "meta" && targetEntityId && pendingAssignments.length > 0) {
+        try {
+          const pfAccessToken = platform.access_token;
+          // Query the ad set for current non-deleted ad count
+          const adCountUrl = `https://graph.facebook.com/v22.0/${targetEntityId}/ads?summary=true&limit=0&access_token=${pfAccessToken}`;
+          const adCountResp = await fetch(adCountUrl);
+          const adCountData = await adCountResp.json();
+
+          if (adCountData.summary?.total_count !== undefined) {
+            existingAdCount = adCountData.summary.total_count;
+            availableSlots = Math.max(0, META_AD_SET_LIMIT - existingAdCount);
+            console.log(`[push-creatives] Ad set ${targetEntityId} has ${existingAdCount}/${META_AD_SET_LIMIT} ads, ${availableSlots} slots available`);
+
+            if (availableSlots === 0) {
+              console.warn(`[push-creatives] Ad set ${targetEntityId} is FULL (${existingAdCount} ads). Skipping all ${pendingAssignments.length} pending assignments.`);
+              const pendingIds = pendingAssignments.map((a: any) => a.id);
+              const fullMsg = `Ad set has reached the maximum of ${META_AD_SET_LIMIT} ads (currently ${existingAdCount}). Delete or archive existing ads in Meta Ads Manager to free up space.`;
+              if (pendingIds.length > 0) {
+                await supabase
+                  .from("creative_assignments")
+                  .update({ status: "error", error_message: fullMsg })
+                  .in("id", pendingIds);
+              }
+              failedCount += pendingIds.length;
+              results.push({
+                platform: entry.platform,
+                market: entry.market,
+                phase: entry.phase_name,
+                pushed: 0,
+                failed: pendingIds.length,
+                success: false,
+                error: fullMsg,
+                hasUserAuth: !!requestAuthHeader,
+              });
+              continue;
+            }
+
+            if (pendingAssignments.length > availableSlots) {
+              console.warn(`[push-creatives] Ad set ${targetEntityId}: only ${availableSlots} slots available but ${pendingAssignments.length} pending. Will push first ${availableSlots} and mark rest as error.`);
+            }
+          }
+        } catch (countErr) {
+          console.warn(`[push-creatives] Failed to check ad set ad count, proceeding without limit check:`, countErr);
+        }
+      }
+
       // ========== CAROUSEL GROUPING ==========
       // Separate carousel assignments from standalone assignments.
       // Carousel assignments share the same carousel_group_id and must be pushed as a single ad.
@@ -779,6 +832,25 @@ const handler = async (req: Request): Promise<Response> => {
           carouselGroups.get(cgId)!.push(a);
         } else {
           standaloneAssignments.push(a);
+        }
+      }
+
+      // ========== ENFORCE SLOT LIMIT ON STANDALONE ASSIGNMENTS ==========
+      // If we have more standalone assignments than available slots, trim and mark excess as error
+      if (platformKey === "meta" && standaloneAssignments.length + carouselGroups.size > availableSlots) {
+        const slotsForStandalone = Math.max(0, availableSlots - carouselGroups.size);
+        if (standaloneAssignments.length > slotsForStandalone) {
+          const excess = standaloneAssignments.splice(slotsForStandalone);
+          const excessIds = excess.map((a: any) => a.id);
+          const limitMsg = `Ad set limit reached: only ${availableSlots} of ${META_AD_SET_LIMIT} slots available (${existingAdCount} existing ads). This creative was not pushed.`;
+          console.warn(`[push-creatives] Trimming ${excess.length} standalone assignments due to ad set limit`);
+          if (excessIds.length > 0) {
+            await supabase
+              .from("creative_assignments")
+              .update({ status: "error", error_message: limitMsg })
+              .in("id", excessIds);
+          }
+          failedCount += excessIds.length;
         }
       }
 
