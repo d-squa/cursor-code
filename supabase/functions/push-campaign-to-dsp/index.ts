@@ -3581,16 +3581,45 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             // Filter to only pending assignments to skip already-processed ones
             const pendingAssignments = assignments.filter((a: any) => a.status !== "pushed" && a.status !== "error");
 
+            // === FAST PATH: separate creatives that have Meta assets from those that don't ===
+            const readyAssignments: any[] = [];
+            const notReadyAssignments: any[] = [];
+            for (const a of pendingAssignments) {
+              const c = a.creative as any;
+              if (c && (c.platform_image_hash || c.platform_video_id)) {
+                readyAssignments.push(a);
+              } else {
+                notReadyAssignments.push(a);
+              }
+            }
+
+            // Bulk-update all not-ready assignments in one DB call instead of looping
+            if (notReadyAssignments.length > 0) {
+              const notReadyIds = notReadyAssignments.map((a: any) => a.id);
+              console.log(`⏭️ ${notReadyAssignments.length} creatives missing Meta assets — bulk-marking as pending_upload`);
+              await supabase
+                .from("creative_assignments")
+                .update({
+                  status: "pending_upload",
+                  error_message: "Creative needs to be uploaded to Meta first. Please use the Upload to Meta feature in Creative Library.",
+                })
+                .in("id", notReadyIds);
+            }
+
+            if (readyAssignments.length === 0) {
+              console.log(`📦 No creatives with Meta assets ready — skipping creative push for this ad set`);
+            }
+
             console.log(
-              `📦 Processing ${pendingAssignments.length} pending assignments in batches of ${CREATIVE_BATCH_SIZE}`,
+              `📦 Processing ${readyAssignments.length} ready assignments in batches of ${CREATIVE_BATCH_SIZE} (${notReadyAssignments.length} skipped)`,
             );
 
-            for (let batchStart = 0; batchStart < pendingAssignments.length; batchStart += CREATIVE_BATCH_SIZE) {
-              const batchEnd = Math.min(batchStart + CREATIVE_BATCH_SIZE, pendingAssignments.length);
-              const batch = pendingAssignments.slice(batchStart, batchEnd);
+            for (let batchStart = 0; batchStart < readyAssignments.length; batchStart += CREATIVE_BATCH_SIZE) {
+              const batchEnd = Math.min(batchStart + CREATIVE_BATCH_SIZE, readyAssignments.length);
+              const batch = readyAssignments.slice(batchStart, batchEnd);
 
               console.log(
-                `📦 Processing creative batch ${Math.floor(batchStart / CREATIVE_BATCH_SIZE) + 1}/${Math.ceil(pendingAssignments.length / CREATIVE_BATCH_SIZE)} (${batch.length} items)`,
+                `📦 Processing creative batch ${Math.floor(batchStart / CREATIVE_BATCH_SIZE) + 1}/${Math.ceil(readyAssignments.length / CREATIVE_BATCH_SIZE)} (${batch.length} items)`,
               );
 
               // Process each creative in the batch sequentially to manage memory
@@ -3601,52 +3630,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                   continue;
                 }
 
-                // ============= CHECK CREATIVE UPLOAD STATUS =============
-                // IMPORTANT: We no longer do inline uploads to avoid memory exhaustion.
-                // Creatives must be pre-uploaded via the 'upload-creative-to-meta' edge function.
-                // If creative is missing Meta asset, mark it for deferred upload and skip.
-                let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
-
-                if (!hasMetaAsset) {
-                  console.log(
-                    `⏭️ Creative ${creative.name} missing Meta asset - requires pre-upload via upload-creative-to-meta function`,
-                  );
-
-                  // Mark assignment as pending upload - user needs to upload creatives first
-                  await supabase
-                    .from("creative_assignments")
-                    .update({
-                      status: "pending_upload",
-                      error_message:
-                        "Creative needs to be uploaded to Meta first. Please use the Upload to Meta feature in Creative Library.",
-                    })
-                    .eq("id", assignment.id);
-                  continue;
-                }
-                // ============= END UPLOAD CHECK =============
-
-                // Final check after upload attempt
-                if (!hasMetaAsset) {
-                  const missingFields = [
-                    !creative.platform_image_hash ? "platform_image_hash" : null,
-                    !creative.platform_video_id ? "platform_video_id" : null,
-                  ].filter(Boolean);
-
-                  console.warn(`⚠️ Meta creative still missing uploaded asset identifiers after upload attempt`, {
-                    assignmentId: assignment.id,
-                    creativeId: creative.id,
-                    creativeName: creative.name,
-                  });
-
-                  await supabase
-                    .from("creative_assignments")
-                    .update({
-                      status: "error",
-                      error_message: `Creative not uploaded to Meta (missing ${missingFields.join(" & ")})`,
-                    })
-                    .eq("id", assignment.id);
-                  continue;
-                }
+                // Creative already verified to have Meta assets in pre-filter above
 
                 // Build ad creative payload
                 const adName = `${creative.name}_${generateTimestampSuffix()}`;
