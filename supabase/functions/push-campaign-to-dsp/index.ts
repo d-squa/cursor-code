@@ -2050,7 +2050,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}_${generateTimestampSuffix()}`;
 
         // Check if CBO (Campaign Budget Optimization) is enabled
-        const useCBOEarly = phase.useCBO === true;
+        // Must match the same fallback logic used later for ad set budget decisions
+        const earlyBasicTargeting = campaign.generic_config?.basicTargeting || {};
+        const useCBOEarly = phase.useCBO ?? earlyBasicTargeting.defaultAdSetSplitUseCBO ?? false;
 
         // Pre-calculate budget for CBO campaigns (budget goes on campaign, not ad sets)
         const earlyTotalBudget = campaign.total_budget || 0;
