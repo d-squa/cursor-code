@@ -2248,11 +2248,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const languages = effectiveBasicTargeting.languages;
         if (languages && Array.isArray(languages) && languages.length > 0 && !languages.includes("all")) {
           const locales = languages
-            .map((lang: string | number) => parseInt(String(lang)))
-            .filter((l: number) => !isNaN(l));
+            .map((lang: string | number) => resolveMetaLocale(lang))
+            .filter((l): l is number => l !== null);
           if (locales.length > 0) {
             targeting.locales = locales;
-            console.log("Adding language targeting:", locales);
+            console.log("Adding language targeting:", locales, "(from", languages, ")");
           }
         }
 
