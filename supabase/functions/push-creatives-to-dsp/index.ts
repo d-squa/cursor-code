@@ -1275,7 +1275,8 @@ const handler = async (req: Request): Promise<Response> => {
       // to push multiple creatives as a single ad with customization rules.
       if (platformKey === "meta") {
         try {
-          // Fetch asset customization groups for this campaign/market/phase
+          // Fetch asset customization groups for this campaign/market/phase.
+          // Platform is matched case-insensitively because older rows may store "Meta".
           const { data: customGroups, error: cgError } = await supabase
             .from("asset_customization_groups")
             .select(`
@@ -1286,16 +1287,31 @@ const handler = async (req: Request): Promise<Response> => {
               )
             `)
             .eq("campaign_id", campaign.id)
-            .eq("platform", "meta")
+            .ilike("platform", "meta")
             .eq("market", entry.market)
             .eq("phase_name", entry.phase_name)
             .in("status", ["ready", "pending"]);
 
+          const groupAssignmentIds = new Set<string>();
+
           if (!cgError && customGroups && customGroups.length > 0) {
             console.log(`[push-creatives] Found ${customGroups.length} asset customization group(s) for ${entry.market}/${entry.phase_name}`);
 
-            // Collect assignment IDs that belong to groups so we can skip them in standalone processing
-            const groupAssignmentIds = new Set<string>();
+            // Exclude grouped assignments from standalone processing immediately so they can never
+            // fall through into per-asset ad creation even if group push later errors.
+            for (const group of customGroups) {
+              const members = (group as any).asset_customization_group_members || [];
+              for (const member of members) {
+                if (member.assignment_id) groupAssignmentIds.add(member.assignment_id);
+              }
+            }
+
+            if (groupAssignmentIds.size > 0) {
+              const filteredStandalone = standaloneAssignments.filter((a: any) => !groupAssignmentIds.has(a.id));
+              console.log(`[push-creatives] Pre-filtered ${standaloneAssignments.length - filteredStandalone.length} grouped assignments out of standalone processing`);
+              standaloneAssignments.length = 0;
+              standaloneAssignments.push(...filteredStandalone);
+            }
 
             for (const group of customGroups) {
               if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
@@ -1310,19 +1326,13 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Track assignment IDs for exclusion from standalone
-              for (const member of members) {
-                if (member.assignment_id) groupAssignmentIds.add(member.assignment_id);
-              }
-
               // Use the pre-compiled asset_feed_spec from the database
-              const assetFeedSpec = JSON.parse(JSON.stringify(group.asset_feed_spec)); // deep clone
+              const assetFeedSpec = JSON.parse(JSON.stringify(group.asset_feed_spec));
               if (!assetFeedSpec) {
                 console.warn(`[push-creatives] Group ${group.group_name} has no compiled asset_feed_spec, skipping`);
                 continue;
               }
 
-              // Resolve ad account and page
               const resolvedAdAccount =
                 (market as any)?.adAccountId || (market as any)?.ad_account_id ||
                 platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
@@ -1338,10 +1348,6 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // ── Resolve actual media references for each member ──
-              // The client-side compiler only puts adlabels into images/videos arrays.
-              // We need to fetch actual platform_image_hash / platform_video_id from creatives
-              // and inject them into the spec before sending to Meta.
               const memberCreativeIds = members.map((m: any) => m.creative_id).filter(Boolean);
               const { data: memberCreatives } = await supabase
                 .from("creatives")
@@ -1353,11 +1359,7 @@ const handler = async (req: Request): Promise<Response> => {
                 creativeMap.set(mc.id, mc);
               }
 
-              // Upload missing assets and populate the spec
               let mediaResolutionFailed = false;
-              
-              // Build ordered list of member creatives matching spec images/videos order
-              // Members are ordered by position; images and videos arrays follow the same order
               const sortedMembers = [...members].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
               let imageIdx = 0;
               let videoIdx = 0;
@@ -1373,7 +1375,6 @@ const handler = async (req: Request): Promise<Response> => {
                 const isVideo = mc.media_type === "video";
                 let hash = isVideo ? mc.platform_video_id : mc.platform_image_hash;
 
-                // Auto-upload if missing
                 if (!hash && mc.media_urls?.[0]) {
                   console.log(`[push-creatives] Auto-uploading asset for AC group member: ${mc.id}`);
                   const mediaUrl = mc.media_urls[0];
@@ -1423,11 +1424,9 @@ const handler = async (req: Request): Promise<Response> => {
                   break;
                 }
 
-                // Inject into the correct slot in the asset_feed_spec
                 if (isVideo) {
                   if (assetFeedSpec.videos && videoIdx < assetFeedSpec.videos.length) {
                     assetFeedSpec.videos[videoIdx].video_id = hash;
-                    // Add thumbnail if available
                     if (mc.platform_thumbnail_id) {
                       assetFeedSpec.videos[videoIdx].thumbnail_hash = mc.platform_thumbnail_id;
                     } else if (mc.thumbnail_url) {
@@ -1435,7 +1434,6 @@ const handler = async (req: Request): Promise<Response> => {
                     }
                     videoIdx++;
                   } else {
-                    // Append if no placeholder slot exists
                     if (!assetFeedSpec.videos) assetFeedSpec.videos = [];
                     assetFeedSpec.videos.push({ video_id: hash, adlabels: member.adlabels || [] });
                     videoIdx++;
@@ -1464,9 +1462,7 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Ensure link_urls has at least one entry (required by Meta for flexible/placement)
               if (!assetFeedSpec.link_urls || assetFeedSpec.link_urls.length === 0) {
-                // Try to get destination URL from the first member's assignment
                 const firstMemberId = sortedMembers[0]?.assignment_id;
                 if (firstMemberId) {
                   const { data: firstAssignment } = await supabase
@@ -1480,7 +1476,6 @@ const handler = async (req: Request): Promise<Response> => {
                 }
               }
 
-              // Ensure bodies has at least one entry (required by Meta)
               if (!assetFeedSpec.bodies || assetFeedSpec.bodies.length === 0) {
                 const firstMemberId = sortedMembers[0]?.assignment_id;
                 if (firstMemberId) {
@@ -1519,7 +1514,6 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Build the creative payload with resolved asset_feed_spec
               const groupCreativePayload: any = {
                 name: group.group_name,
                 object_story_spec: {
@@ -1545,7 +1539,6 @@ const handler = async (req: Request): Promise<Response> => {
                   validation_errors: [{ message: errMsg, raw: creativeData?.error }],
                 }).eq("id", group.id);
 
-                // Mark member assignments as error
                 for (const member of members) {
                   if (member.assignment_id) {
                     await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
@@ -1555,7 +1548,6 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Create the ad
               const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId;
               const adPayload = {
                 name: `${group.group_name} - Ad`,
@@ -1587,7 +1579,6 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Success - mark group and assignments
               await supabase.from("asset_customization_groups").update({ status: "pushed" }).eq("id", group.id);
               for (const member of members) {
                 if (member.assignment_id) {
@@ -1596,14 +1587,6 @@ const handler = async (req: Request): Promise<Response> => {
                 }
               }
               console.log(`[push-creatives] ✅ Asset customization group "${group.group_name}" pushed: ${members.length} members, ad_id=${adData.id}`);
-            }
-
-            // Remove group assignments from standalone processing
-            if (groupAssignmentIds.size > 0) {
-              const filteredStandalone = standaloneAssignments.filter((a: any) => !groupAssignmentIds.has(a.id));
-              console.log(`[push-creatives] Filtered out ${standaloneAssignments.length - filteredStandalone.length} assignments belonging to customization groups`);
-              standaloneAssignments.length = 0;
-              standaloneAssignments.push(...filteredStandalone);
             }
           }
         } catch (cgGroupError) {
