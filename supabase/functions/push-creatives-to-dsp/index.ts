@@ -1244,7 +1244,7 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               // Use the pre-compiled asset_feed_spec from the database
-              const assetFeedSpec = group.asset_feed_spec;
+              const assetFeedSpec = JSON.parse(JSON.stringify(group.asset_feed_spec)); // deep clone
               if (!assetFeedSpec) {
                 console.warn(`[push-creatives] Group ${group.group_name} has no compiled asset_feed_spec, skipping`);
                 continue;
@@ -1264,6 +1264,166 @@ const handler = async (req: Request): Promise<Response> => {
                 console.error(`[push-creatives] No ad account for asset customization group ${group.group_name}`);
                 await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing ad account" }] }).eq("id", group.id);
                 continue;
+              }
+
+              // ── Resolve actual media references for each member ──
+              // The client-side compiler only puts adlabels into images/videos arrays.
+              // We need to fetch actual platform_image_hash / platform_video_id from creatives
+              // and inject them into the spec before sending to Meta.
+              const memberCreativeIds = members.map((m: any) => m.creative_id).filter(Boolean);
+              const { data: memberCreatives } = await supabase
+                .from("creatives")
+                .select("id, media_type, media_urls, platform_image_hash, platform_video_id, platform_thumbnail_id, thumbnail_url")
+                .in("id", memberCreativeIds);
+
+              const creativeMap = new Map<string, any>();
+              for (const mc of (memberCreatives || [])) {
+                creativeMap.set(mc.id, mc);
+              }
+
+              // Upload missing assets and populate the spec
+              let mediaResolutionFailed = false;
+              
+              // Build ordered list of member creatives matching spec images/videos order
+              // Members are ordered by position; images and videos arrays follow the same order
+              const sortedMembers = [...members].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+              let imageIdx = 0;
+              let videoIdx = 0;
+
+              for (const member of sortedMembers) {
+                const mc = creativeMap.get(member.creative_id);
+                if (!mc) {
+                  console.error(`[push-creatives] Member creative ${member.creative_id} not found in DB`);
+                  mediaResolutionFailed = true;
+                  break;
+                }
+
+                const isVideo = mc.media_type === "video";
+                let hash = isVideo ? mc.platform_video_id : mc.platform_image_hash;
+
+                // Auto-upload if missing
+                if (!hash && mc.media_urls?.[0]) {
+                  console.log(`[push-creatives] Auto-uploading asset for AC group member: ${mc.id}`);
+                  const mediaUrl = mc.media_urls[0];
+                  try {
+                    const mediaResponse = await fetch(mediaUrl);
+                    if (!mediaResponse.ok) throw new Error(`Download failed: ${mediaResponse.status}`);
+                    const mediaBlob = await mediaResponse.blob();
+                    const fileName = mediaUrl.split('/').pop() || (isVideo ? 'video.mp4' : 'image.jpg');
+
+                    if (isVideo) {
+                      const formData = new FormData();
+                      formData.append('access_token', platform.access_token);
+                      formData.append('source', mediaBlob, fileName);
+                      const uploadRes = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/advideos`, { method: 'POST', body: formData });
+                      const uploadResult = await uploadRes.json();
+                      if (uploadResult.id) {
+                        hash = uploadResult.id;
+                        await supabase.from("creatives").update({ platform_video_id: hash, dsp_upload_status: "uploaded", dsp_uploaded_at: new Date().toISOString() }).eq("id", mc.id);
+                      } else {
+                        throw new Error(uploadResult.error?.message || "Video upload failed");
+                      }
+                    } else {
+                      const formData = new FormData();
+                      formData.append('access_token', platform.access_token);
+                      formData.append('filename', fileName);
+                      formData.append('bytes', await blobToBase64(mediaBlob));
+                      const uploadRes = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adimages`, { method: 'POST', body: formData });
+                      const uploadResult = await uploadRes.json();
+                      const imageData = uploadResult.images?.[fileName] || Object.values(uploadResult.images || {})[0] as any;
+                      if (imageData?.hash) {
+                        hash = imageData.hash;
+                        await supabase.from("creatives").update({ platform_image_hash: hash, dsp_upload_status: "uploaded", dsp_uploaded_at: new Date().toISOString() }).eq("id", mc.id);
+                      } else {
+                        throw new Error(uploadResult.error?.message || "Image upload failed");
+                      }
+                    }
+                  } catch (uploadErr) {
+                    console.error(`[push-creatives] Auto-upload failed for AC member ${mc.id}:`, uploadErr);
+                    mediaResolutionFailed = true;
+                    break;
+                  }
+                }
+
+                if (!hash) {
+                  console.error(`[push-creatives] No media hash for AC member ${mc.id}`);
+                  mediaResolutionFailed = true;
+                  break;
+                }
+
+                // Inject into the correct slot in the asset_feed_spec
+                if (isVideo) {
+                  if (assetFeedSpec.videos && videoIdx < assetFeedSpec.videos.length) {
+                    assetFeedSpec.videos[videoIdx].video_id = hash;
+                    // Add thumbnail if available
+                    if (mc.platform_thumbnail_id) {
+                      assetFeedSpec.videos[videoIdx].thumbnail_hash = mc.platform_thumbnail_id;
+                    } else if (mc.thumbnail_url) {
+                      assetFeedSpec.videos[videoIdx].thumbnail_url = mc.thumbnail_url;
+                    }
+                    videoIdx++;
+                  } else {
+                    // Append if no placeholder slot exists
+                    if (!assetFeedSpec.videos) assetFeedSpec.videos = [];
+                    assetFeedSpec.videos.push({ video_id: hash, adlabels: member.adlabels || [] });
+                    videoIdx++;
+                  }
+                } else {
+                  if (assetFeedSpec.images && imageIdx < assetFeedSpec.images.length) {
+                    assetFeedSpec.images[imageIdx].hash = hash;
+                    imageIdx++;
+                  } else {
+                    if (!assetFeedSpec.images) assetFeedSpec.images = [];
+                    assetFeedSpec.images.push({ hash, adlabels: member.adlabels || [] });
+                    imageIdx++;
+                  }
+                }
+              }
+
+              if (mediaResolutionFailed) {
+                const errMsg = "Failed to resolve media assets for asset customization group";
+                await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: errMsg }] }).eq("id", group.id);
+                for (const member of members) {
+                  if (member.assignment_id) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                    localFailed++;
+                  }
+                }
+                continue;
+              }
+
+              // Ensure link_urls has at least one entry (required by Meta for flexible/placement)
+              if (!assetFeedSpec.link_urls || assetFeedSpec.link_urls.length === 0) {
+                // Try to get destination URL from the first member's assignment
+                const firstMemberId = sortedMembers[0]?.assignment_id;
+                if (firstMemberId) {
+                  const { data: firstAssignment } = await supabase
+                    .from("creative_assignments")
+                    .select("destination_url")
+                    .eq("id", firstMemberId)
+                    .maybeSingle();
+                  if (firstAssignment?.destination_url) {
+                    assetFeedSpec.link_urls = [{ website_url: firstAssignment.destination_url }];
+                  }
+                }
+              }
+
+              // Ensure bodies has at least one entry (required by Meta)
+              if (!assetFeedSpec.bodies || assetFeedSpec.bodies.length === 0) {
+                const firstMemberId = sortedMembers[0]?.assignment_id;
+                if (firstMemberId) {
+                  const { data: firstAssignment } = await supabase
+                    .from("creative_assignments")
+                    .select("primary_text, headline")
+                    .eq("id", firstMemberId)
+                    .maybeSingle();
+                  if (firstAssignment?.primary_text) {
+                    assetFeedSpec.bodies = [{ text: firstAssignment.primary_text }];
+                  }
+                  if (firstAssignment?.headline && (!assetFeedSpec.titles || assetFeedSpec.titles.length === 0)) {
+                    assetFeedSpec.titles = [{ text: firstAssignment.headline }];
+                  }
+                }
               }
 
               let pageId = resolveConfiguredMetaPageId(null, phase, market);
@@ -1287,7 +1447,7 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Build the creative payload with asset_feed_spec
+              // Build the creative payload with resolved asset_feed_spec
               const groupCreativePayload: any = {
                 name: group.group_name,
                 object_story_spec: {
