@@ -2051,7 +2051,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         // Check if CBO (Campaign Budget Optimization) is enabled
         // Must match the same fallback logic used later for ad set budget decisions
-        const useCBOEarly = phase.useCBO ?? campaignBasicTargetingSplits.defaultAdSetSplitUseCBO ?? false;
+        const earlyBasicTargeting = campaign.generic_config?.basicTargeting || {};
+        const useCBOEarly = phase.useCBO ?? earlyBasicTargeting.defaultAdSetSplitUseCBO ?? false;
 
         // Pre-calculate budget for CBO campaigns (budget goes on campaign, not ad sets)
         const earlyTotalBudget = campaign.total_budget || 0;
