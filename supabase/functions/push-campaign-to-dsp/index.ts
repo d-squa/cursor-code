@@ -3824,9 +3824,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             budget: adSetConfig.adSetBudget,
             budgetType: budgetType,
             splitDimension: adSetSplitDimension !== "none" ? adSetSplitDimension : undefined,
-            adsCreated:
-              assignments?.filter((a: any) => a.creative?.platform_image_hash || a.creative?.platform_video_id)
-                .length || 0,
+            adsCreated: 0,
           });
         }
         // ============= END AD SET SPLIT SUPPORT =============
