@@ -1317,7 +1317,8 @@ const handler = async (req: Request): Promise<Response> => {
             for (const group of customGroups) {
               const members = (group as any).asset_customization_group_members || [];
               for (const member of members) {
-                if (member.assignment_id) groupAssignmentIds.add(member.assignment_id);
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) groupAssignmentIds.add(inferredAssignmentId);
               }
             }
 
@@ -1469,8 +1470,9 @@ const handler = async (req: Request): Promise<Response> => {
                 const errMsg = "Failed to resolve media assets for asset customization group";
                 await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: errMsg }] }).eq("id", group.id);
                 for (const member of members) {
-                  if (member.assignment_id) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) {
+                  await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
                     localFailed++;
                   }
                 }
@@ -1478,7 +1480,7 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               if (!assetFeedSpec.link_urls || assetFeedSpec.link_urls.length === 0) {
-                const firstMemberId = sortedMembers[0]?.assignment_id;
+                  const firstMemberId = inferAssignmentIdFromMember(sortedMembers[0]);
                 if (firstMemberId) {
                   const { data: firstAssignment } = await supabase
                     .from("creative_assignments")
@@ -1492,7 +1494,7 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               if (!assetFeedSpec.bodies || assetFeedSpec.bodies.length === 0) {
-                const firstMemberId = sortedMembers[0]?.assignment_id;
+                  const firstMemberId = inferAssignmentIdFromMember(sortedMembers[0]);
                 if (firstMemberId) {
                   const { data: firstAssignment } = await supabase
                     .from("creative_assignments")
@@ -1555,8 +1557,9 @@ const handler = async (req: Request): Promise<Response> => {
                 }).eq("id", group.id);
 
                 for (const member of members) {
-                  if (member.assignment_id) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
                     localFailed++;
                   }
                 }
@@ -1586,8 +1589,9 @@ const handler = async (req: Request): Promise<Response> => {
                   validation_errors: [{ message: errMsg, raw: adData?.error }],
                 }).eq("id", group.id);
                 for (const member of members) {
-                  if (member.assignment_id) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
                     localFailed++;
                   }
                 }
@@ -1596,8 +1600,9 @@ const handler = async (req: Request): Promise<Response> => {
 
               await supabase.from("asset_customization_groups").update({ status: "pushed" }).eq("id", group.id);
               for (const member of members) {
-                if (member.assignment_id) {
-                  await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).eq("id", member.assignment_id);
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) {
+                  await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).eq("id", inferredAssignmentId);
                   localPushed++;
                 }
               }
