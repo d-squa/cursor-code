@@ -1623,11 +1623,42 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (platformName.includes("Meta") || platformName.includes("Facebook")) {
-        const result = await pushToMeta(campaign, platformConfig, platformWithToken, supabase, skipCreatives);
+        const delegateMetaCreativePush = !skipCreatives;
+        const result = await pushToMeta(
+          campaign,
+          platformConfig,
+          platformWithToken,
+          supabase,
+          delegateMetaCreativePush ? true : skipCreatives,
+        );
         results.push(result);
 
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, platformName, result, Object.values(filteredMarkets) as any[]);
+
+        if (delegateMetaCreativePush) {
+          try {
+            console.log("🎨 Delegating Meta creative push to push-creatives-to-dsp for grouped asset_feed_spec handling...");
+
+            const creativePushResponse = await fetch(`${supabaseUrl}/functions/v1/push-creatives-to-dsp`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                authorization: authHeader,
+              },
+              body: JSON.stringify({ campaignId }),
+            });
+
+            const creativePushData = await creativePushResponse.json();
+            console.log("🎨 Meta creative delegation result:", JSON.stringify(creativePushData));
+
+            if (!creativePushResponse.ok || creativePushData?.success === false) {
+              console.error("❌ Delegated Meta creative push failed:", JSON.stringify(creativePushData));
+            }
+          } catch (creativeDelegationError) {
+            console.error("❌ Failed to delegate Meta creative push:", creativeDelegationError);
+          }
+        }
       } else if (platformName.includes("Google")) {
         const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken, supabase, skipCreatives);
         results.push(result);
