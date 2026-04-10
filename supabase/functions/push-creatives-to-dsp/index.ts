@@ -211,6 +211,21 @@ function assignmentMatchesAdSetConfig(assignment: any, adSetConfig: any): boolea
   return false;
 }
 
+function normalizeUuidLike(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function inferAssignmentIdFromMember(member: any): string | null {
+  const directAssignmentId = normalizeUuidLike(member?.assignment_id);
+  if (directAssignmentId) return directAssignmentId;
+
+  const rawMemberId = String(member?.id ?? "").trim();
+  if (!rawMemberId) return null;
+
+  const uuidMatch = rawMemberId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  return uuidMatch ? uuidMatch[0].toLowerCase() : null;
+}
+
 // Function to trigger auto-retry in background
 async function triggerAutoRetry(
   supabaseUrl: string,
