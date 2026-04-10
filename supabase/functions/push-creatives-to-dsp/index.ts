@@ -216,14 +216,41 @@ function normalizeUuidLike(value: unknown): string {
 }
 
 function inferAssignmentIdFromMember(member: any): string | null {
-  const directAssignmentId = normalizeUuidLike(member?.assignment_id);
-  if (directAssignmentId) return directAssignmentId;
+  const candidates = [
+    member?.assignment_id,
+    member?.assignmentId,
+    member?.source_assignment_id,
+    member?.sourceAssignmentId,
+  ];
 
-  const rawMemberId = String(member?.id ?? "").trim();
-  if (!rawMemberId) return null;
+  for (const candidate of candidates) {
+    const normalized = normalizeUuidLike(candidate);
+    if (normalized) return normalized;
+  }
 
-  const uuidMatch = rawMemberId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
-  return uuidMatch ? uuidMatch[0].toLowerCase() : null;
+  const rawValues = [
+    member?.id,
+    member?.member_id,
+    member?.memberId,
+    member?.creative_id,
+    member?.creativeId,
+  ];
+
+  for (const rawValue of rawValues) {
+    const raw = String(rawValue ?? "").trim();
+    if (!raw) continue;
+
+    const uuidMatches = raw.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/ig);
+    if (!uuidMatches || uuidMatches.length === 0) continue;
+
+    if (uuidMatches.length > 1) {
+      return uuidMatches[1].toLowerCase();
+    }
+
+    return uuidMatches[0].toLowerCase();
+  }
+
+  return null;
 }
 
 // Function to trigger auto-retry in background
