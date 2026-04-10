@@ -211,6 +211,48 @@ function assignmentMatchesAdSetConfig(assignment: any, adSetConfig: any): boolea
   return false;
 }
 
+function normalizeUuidLike(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function inferAssignmentIdFromMember(member: any): string | null {
+  const candidates = [
+    member?.assignment_id,
+    member?.assignmentId,
+    member?.source_assignment_id,
+    member?.sourceAssignmentId,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeUuidLike(candidate);
+    if (normalized) return normalized;
+  }
+
+  const rawValues = [
+    member?.id,
+    member?.member_id,
+    member?.memberId,
+    member?.creative_id,
+    member?.creativeId,
+  ];
+
+  for (const rawValue of rawValues) {
+    const raw = String(rawValue ?? "").trim();
+    if (!raw) continue;
+
+    const uuidMatches = raw.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/ig);
+    if (!uuidMatches || uuidMatches.length === 0) continue;
+
+    if (uuidMatches.length > 1) {
+      return uuidMatches[1].toLowerCase();
+    }
+
+    return uuidMatches[0].toLowerCase();
+  }
+
+  return null;
+}
+
 // Function to trigger auto-retry in background
 async function triggerAutoRetry(
   supabaseUrl: string,
@@ -1302,7 +1344,8 @@ const handler = async (req: Request): Promise<Response> => {
             for (const group of customGroups) {
               const members = (group as any).asset_customization_group_members || [];
               for (const member of members) {
-                if (member.assignment_id) groupAssignmentIds.add(member.assignment_id);
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) groupAssignmentIds.add(inferredAssignmentId);
               }
             }
 
@@ -1454,8 +1497,9 @@ const handler = async (req: Request): Promise<Response> => {
                 const errMsg = "Failed to resolve media assets for asset customization group";
                 await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: errMsg }] }).eq("id", group.id);
                 for (const member of members) {
-                  if (member.assignment_id) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) {
+                  await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
                     localFailed++;
                   }
                 }
@@ -1463,7 +1507,7 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               if (!assetFeedSpec.link_urls || assetFeedSpec.link_urls.length === 0) {
-                const firstMemberId = sortedMembers[0]?.assignment_id;
+                  const firstMemberId = inferAssignmentIdFromMember(sortedMembers[0]);
                 if (firstMemberId) {
                   const { data: firstAssignment } = await supabase
                     .from("creative_assignments")
@@ -1477,7 +1521,7 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               if (!assetFeedSpec.bodies || assetFeedSpec.bodies.length === 0) {
-                const firstMemberId = sortedMembers[0]?.assignment_id;
+                  const firstMemberId = inferAssignmentIdFromMember(sortedMembers[0]);
                 if (firstMemberId) {
                   const { data: firstAssignment } = await supabase
                     .from("creative_assignments")
@@ -1540,8 +1584,9 @@ const handler = async (req: Request): Promise<Response> => {
                 }).eq("id", group.id);
 
                 for (const member of members) {
-                  if (member.assignment_id) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
                     localFailed++;
                   }
                 }
@@ -1571,8 +1616,9 @@ const handler = async (req: Request): Promise<Response> => {
                   validation_errors: [{ message: errMsg, raw: adData?.error }],
                 }).eq("id", group.id);
                 for (const member of members) {
-                  if (member.assignment_id) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", member.assignment_id);
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
                     localFailed++;
                   }
                 }
@@ -1581,8 +1627,9 @@ const handler = async (req: Request): Promise<Response> => {
 
               await supabase.from("asset_customization_groups").update({ status: "pushed" }).eq("id", group.id);
               for (const member of members) {
-                if (member.assignment_id) {
-                  await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).eq("id", member.assignment_id);
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) {
+                  await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).eq("id", inferredAssignmentId);
                   localPushed++;
                 }
               }
