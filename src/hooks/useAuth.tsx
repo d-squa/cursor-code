@@ -30,6 +30,14 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        setLoading(false);
+        return;
+      }
+      syncAuthState(data.session, true);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       syncAuthState(session, event === "USER_UPDATED");
     });

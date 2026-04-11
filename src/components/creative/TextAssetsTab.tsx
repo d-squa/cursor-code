@@ -30,7 +30,7 @@ interface TextAssetsTabProps {
 }
 
 export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, refreshNonce: externalRefreshNonce }: TextAssetsTabProps) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(campaignId || '');
@@ -376,6 +376,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     setIsSaving(true);
 
     try {
+      if (authLoading) throw new Error('Auth is still loading');
+      if (!user?.id) throw new Error('User session not found while saving text assets');
       // Update creatives with text assets
       for (const row of rows) {
         const { error } = await supabase
@@ -531,7 +533,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     } finally {
       setIsSaving(false);
     }
-  }, [rows, effectiveCampaignId, user?.id]);
+  }, [rows, effectiveCampaignId, user?.id, authLoading]);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
   const effectiveCampaignName = campaignName || selectedCampaign?.name;
