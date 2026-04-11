@@ -134,6 +134,13 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         const validationErrors = Array.isArray(group.validation_errors)
           ? group.validation_errors
           : [];
+        const firstValidationErrorMessage = validationErrors.find(
+          (entry: unknown): entry is { message: string } =>
+            typeof entry === "object" &&
+            entry !== null &&
+            "message" in entry &&
+            typeof (entry as { message?: unknown }).message === "string",
+        )?.message;
 
         groupedItems.push({
           id: group.id,
@@ -149,7 +156,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           status: groupedStatus,
           errorMessage:
             memberAssignments.find((assignment: any) => assignment.error_message)?.error_message ||
-            validationErrors.find((entry: any) => typeof entry?.message === "string")?.message ||
+            firstValidationErrorMessage ||
             undefined,
           urlParameters: firstAssignment.url_parameters || undefined,
           isGrouped: true,
