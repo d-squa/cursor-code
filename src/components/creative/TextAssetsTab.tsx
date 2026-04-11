@@ -14,6 +14,10 @@ import type { CallToAction } from '@/types/creative';
 import { detectAdFormat } from '@/utils/adFormatDetection';
 import type { DetectedACGroup } from '@/utils/assetCustomizationEngine';
 import type { CompilationResult } from '@/utils/assetFeedSpecCompiler';
+import {
+  ASSET_CUSTOMIZATION_VISIBLE_STATUSES,
+  toAssetCustomizationMemberBucket,
+} from '@/utils/assetCustomizationPersistence';
 
 interface Campaign {
   id: string;
@@ -286,7 +290,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             asset_customization_group_members(id, creative_id, assignment_id, delivery_bucket, aspect_ratio, language, position)
           `)
           .eq('campaign_id', effectiveCampaignId)
-          .in('status', ['ready', 'pending', 'pushed']);
+          .in('status', ASSET_CUSTOMIZATION_VISIBLE_STATUSES);
 
         if (existingACGroupsError) throw existingACGroupsError;
 
@@ -470,7 +474,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             ad_set_name: firstRow.adSet || null,
             user_id: user?.id || '',
             team_id: null,
-            status: 'ready',
+            status: 'compiled',
           } as any, { onConflict: 'id' });
 
           if (groupError) throw groupError;
@@ -508,7 +512,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             group_id: groupId,
             creative_id: row.creativeId,
             assignment_id: assignmentId,
-            delivery_bucket: deliveryBucket,
+            delivery_bucket: toAssetCustomizationMemberBucket(deliveryBucket),
             aspect_ratio: row.aspectRatio || null,
             language: language,
             position: index,
