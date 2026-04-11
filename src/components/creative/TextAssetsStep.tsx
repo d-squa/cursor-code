@@ -740,9 +740,9 @@ export function TextAssetsStep({
       }
       acGroupsToDeleteRef.current.clear();
 
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!authData.user?.id) throw new Error('User session not found while saving asset customization groups');
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!sessionData.session?.user?.id) throw new Error('User session not found while saving asset customization groups');
 
       for (const [groupId, { group, compiled }] of acGroupSpecsRef.current) {
         if (!compiled.success || !compiled.spec) continue;
@@ -765,7 +765,7 @@ export function TextAssetsStep({
             market: firstRow.market || 'Global',
             phase_name: firstRow.phase || 'Default',
             ad_set_name: firstRow.adSet || null,
-            user_id: authData.user.id,
+            user_id: sessionData.session.user.id,
             status: 'ready',
           } as any, { onConflict: 'id' });
         if (groupError) throw groupError;
