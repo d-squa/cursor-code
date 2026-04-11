@@ -462,10 +462,44 @@ export function TextAssetsStep({
           };
         });
 
+        const { data: existingACGroups, error: existingACGroupsError } = await supabase
+          .from('asset_customization_groups')
+          .select(`
+            id,
+            asset_customization_group_members(assignment_id)
+          `)
+          .eq('campaign_id', campaignId)
+          .in('status', ['ready', 'pending', 'pushed']);
+
+        if (existingACGroupsError) {
+          console.error('TextAssetsStep: Error fetching asset customization groups:', existingACGroupsError);
+          throw existingACGroupsError;
+        }
+
+        const assignmentToGroupMap = new Map<string, string>();
+        for (const group of existingACGroups || []) {
+          const members = (group as any).asset_customization_group_members || [];
+          for (const member of members) {
+            if (member.assignment_id) {
+              assignmentToGroupMap.set(member.assignment_id, group.id);
+            }
+          }
+        }
+
         // Keep one row per assignment, not per creative.
         // The same creative can legitimately be reused across multiple phases/ad sets,
         // and collapsing by creativeId hides valid assignments in the editor.
-        setRows(transformedRows);
+        const validatedRows = transformedRows.map((row) => {
+          const assignmentId = row.assignmentId;
+          const acGroupId = assignmentId ? assignmentToGroupMap.get(assignmentId) : undefined;
+          const updatedRow = acGroupId
+            ? { ...row, assetCustomizationGroupId: acGroupId, processingGroupId: acGroupId, processingGroupType: 'asset_customization' as const }
+            : row;
+          const errors = validateTextAssetRow(updatedRow);
+          return { ...updatedRow, validationErrors: errors, isValid: errors.length === 0 };
+        });
+
+        setRows(validatedRows);
       } catch (error) {
         console.error('Error loading assignments:', error);
         toast.error('Failed to load creative assignments');
@@ -692,10 +726,23 @@ export function TextAssetsStep({
 
       // ========== PERSIST ASSET CUSTOMIZATION GROUPS ==========
       for (const groupId of acGroupsToDeleteRef.current) {
-        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
-        await supabase.from('asset_customization_groups').delete().eq('id', groupId);
+        const { error: deleteMembersError } = await supabase
+          .from('asset_customization_group_members')
+          .delete()
+          .eq('group_id', groupId);
+        if (deleteMembersError) throw deleteMembersError;
+
+        const { error: deleteGroupError } = await supabase
+          .from('asset_customization_groups')
+          .delete()
+          .eq('id', groupId);
+        if (deleteGroupError) throw deleteGroupError;
       }
       acGroupsToDeleteRef.current.clear();
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!authData.user?.id) throw new Error('User session not found while saving asset customization groups');
 
       for (const [groupId, { group, compiled }] of acGroupSpecsRef.current) {
         if (!compiled.success || !compiled.spec) continue;
@@ -705,9 +752,7 @@ export function TextAssetsStep({
         const customizationType = group.type === 'placement' ? 'placement'
           : group.type === 'language' ? 'language' : 'flexible';
 
-        const { data: { user } } = await supabase.auth.getUser();
-
-        await supabase
+        const { error: groupError } = await supabase
           .from('asset_customization_groups')
           .upsert({
             id: groupId,
@@ -720,11 +765,16 @@ export function TextAssetsStep({
             market: firstRow.market || 'Global',
             phase_name: firstRow.phase || 'Default',
             ad_set_name: firstRow.adSet || null,
-            user_id: user?.id || '',
+            user_id: authData.user.id,
             status: 'ready',
           } as any, { onConflict: 'id' });
+        if (groupError) throw groupError;
 
-        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+        const { error: deleteMembersError } = await supabase
+          .from('asset_customization_group_members')
+          .delete()
+          .eq('group_id', groupId);
+        if (deleteMembersError) throw deleteMembersError;
 
         const memberInserts = group.rows.map((row, index) => {
           const assignmentId = row.assignmentId || row.id.split('_')[0];
@@ -744,7 +794,10 @@ export function TextAssetsStep({
         });
 
         if (memberInserts.length > 0) {
-          await supabase.from('asset_customization_group_members').insert(memberInserts as any);
+          const { error: membersError } = await supabase
+            .from('asset_customization_group_members')
+            .insert(memberInserts as any);
+          if (membersError) throw membersError;
         }
         console.log(`[TextAssetsStep] Persisted AC group "${group.label}" with ${memberInserts.length} members`);
       }

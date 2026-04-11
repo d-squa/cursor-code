@@ -279,14 +279,16 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         });
 
         // Load existing AC groups from DB and restore assetCustomizationGroupId on rows
-        const { data: existingACGroups } = await supabase
+        const { data: existingACGroups, error: existingACGroupsError } = await supabase
           .from('asset_customization_groups')
           .select(`
             id, group_name, customization_type, asset_feed_spec, customization_rules,
             asset_customization_group_members(id, creative_id, assignment_id, delivery_bucket, aspect_ratio, language, position)
           `)
           .eq('campaign_id', effectiveCampaignId)
-          .in('status', ['ready', 'pending']);
+          .in('status', ['ready', 'pending', 'pushed']);
+
+        if (existingACGroupsError) throw existingACGroupsError;
 
         // Build a map of assignment_id → group_id from existing AC groups
         const assignmentToGroupMap = new Map<string, string>();
@@ -418,8 +420,18 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
       // Delete removed AC groups
       for (const groupId of acGroupsToDeleteRef.current) {
         // Delete members first, then the group
-        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
-        await supabase.from('asset_customization_groups').delete().eq('id', groupId);
+        const { error: deleteMembersError } = await supabase
+          .from('asset_customization_group_members')
+          .delete()
+          .eq('group_id', groupId);
+        if (deleteMembersError) throw deleteMembersError;
+
+        const { error: deleteGroupError } = await supabase
+          .from('asset_customization_groups')
+          .delete()
+          .eq('id', groupId);
+        if (deleteGroupError) throw deleteGroupError;
+
         console.log(`[TextAssetsTab] Deleted AC group ${groupId}`);
       }
       acGroupsToDeleteRef.current.clear();
@@ -459,13 +471,14 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             status: 'ready',
           } as any, { onConflict: 'id' });
 
-        if (groupError) {
-          console.error(`[TextAssetsTab] Error upserting AC group ${groupId}:`, groupError);
-          continue;
-        }
+          if (groupError) throw groupError;
 
         // Delete existing members for this group and re-insert
-        await supabase.from('asset_customization_group_members').delete().eq('group_id', groupId);
+          const { error: deleteMembersError } = await supabase
+            .from('asset_customization_group_members')
+            .delete()
+            .eq('group_id', groupId);
+          if (deleteMembersError) throw deleteMembersError;
 
         const memberInserts = group.rows.map((row, index) => {
           // Find the assignment ID for this row
@@ -505,9 +518,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             .from('asset_customization_group_members')
             .insert(memberInserts as any);
 
-          if (membersError) {
-            console.error(`[TextAssetsTab] Error inserting AC group members for ${groupId}:`, membersError);
-          }
+            if (membersError) throw membersError;
         }
 
         console.log(`[TextAssetsTab] Persisted AC group "${group.label}" with ${memberInserts.length} members`);

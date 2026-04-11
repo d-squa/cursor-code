@@ -52,6 +52,8 @@ export interface CreativeAssignmentItem {
   status: CreativeAssignmentStatus;
   errorMessage?: string;
   urlParameters?: string;
+  isGrouped?: boolean;
+  memberCount?: number;
 }
 
 export interface AdSetStatus {
@@ -164,7 +166,7 @@ function CreativeTreeItem({
   isDeleting?: boolean;
 }) {
   const Icon = item.mediaType === "video" ? Video : Image;
-  const canDelete = item.status !== "pushed" && item.status !== "pushing";
+  const canDelete = !item.isGrouped && item.status !== "pushed" && item.status !== "pushing";
 
   return (
     <div
@@ -193,6 +195,11 @@ function CreativeTreeItem({
           )}
         </Tooltip>
       </TooltipProvider>
+      {item.isGrouped && (item.memberCount || 0) > 1 && (
+        <Badge variant="outline" className="text-[10px] h-5 px-1.5 shrink-0">
+          {item.memberCount} assets
+        </Badge>
+      )}
       <ItemStatusIndicator status={item.status} error={item.errorMessage} />
       {canDelete && onDelete && (
         <AlertDialog>

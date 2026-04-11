@@ -88,6 +88,14 @@ interface GridColumn {
 
 type ProcessingGroupKind = 'carousel' | 'asset_customization';
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function ensurePersistentGroupId(groupId?: string) {
+  if (groupId && UUID_PATTERN.test(groupId)) return groupId;
+  return crypto.randomUUID();
+}
+
 function getProcessingGroupId(row: CreativeTextAssetRow, groupType: ProcessingGroupKind) {
   if (groupType === 'carousel') {
     return row.carouselGroupId || (row.processingGroupType === 'carousel' ? row.processingGroupId : undefined);
@@ -326,11 +334,12 @@ export function TextAssetExcelEditor({
 
   // Handle AC Builder group creation
   const handleACBuilderCreateGroup = useCallback((group: DetectedACGroup, compiled: CompilationResult) => {
-    const groupId = group.id;
-    const rowIds = group.rows.map(r => r.id);
+    const groupId = ensurePersistentGroupId(group.id);
+    const persistedGroup = groupId === group.id ? group : { ...group, id: groupId };
+    const rowIds = persistedGroup.rows.map(r => r.id);
     onBulkUpdate(rowIds, { assetCustomizationGroupId: groupId, processingGroupId: groupId, processingGroupType: 'asset_customization' } as any);
     // Notify parent to persist group to DB
-    onACGroupCreated?.(group, compiled);
+    onACGroupCreated?.(persistedGroup, compiled);
   }, [onBulkUpdate, onACGroupCreated]);
 
   const handleACBuilderUngroupRows = useCallback((rowIds: string[]) => {

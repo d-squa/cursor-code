@@ -16,6 +16,18 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
   const [creativeAssignments, setCreativeAssignments] = useState<CreativeAssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const reloadTimeoutRef = useRef<number | null>(null);
+
+  const scheduleReload = useCallback((delayMs = 150) => {
+    if (reloadTimeoutRef.current !== null) {
+      globalThis.clearTimeout(reloadTimeoutRef.current);
+    }
+
+    reloadTimeoutRef.current = globalThis.setTimeout(() => {
+      reloadTimeoutRef.current = null;
+      loadData();
+    }, delayMs);
+  }, []);
 
   // Load initial data
   const loadData = useCallback(async () => {
@@ -69,23 +81,108 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
 
       if (assignmentError) throw assignmentError;
 
-      const mappedAssignments: CreativeAssignmentItem[] = (assignmentData || []).map((a: any) => ({
-        id: a.id,
-        creative_id: a.creative_id,
-        // Use display_name (DSP ad name) first, fallback to creative name
-        creativeName: a.display_name || a.creative?.name || "Unknown Creative",
-        originalFilename: a.creative?.original_filename || undefined,
-        mediaType: a.creative?.media_type || "image",
-        creativeType: a.creative?.creative_type || "dark_post",
-        platform: a.platform,
-        market: a.market,
-        phaseName: a.phase_name,
-        adSetName: a.ad_set_name || undefined,
-        status: (a.status || "pending") as CreativeAssignmentStatus,
-        errorMessage: a.error_message || undefined,
-        urlParameters: a.url_parameters || undefined,
-      }));
-      setCreativeAssignments(mappedAssignments);
+      const { data: groupData, error: groupError } = await supabase
+        .from("asset_customization_groups")
+        .select(
+          `
+          id,
+          group_name,
+          status,
+          market,
+          phase_name,
+          ad_set_name,
+          validation_errors,
+          asset_customization_group_members(assignment_id)
+        `,
+        )
+        .eq("campaign_id", campaignId)
+        .in("status", ["ready", "pending", "pushing", "pushed", "error"]);
+
+      if (groupError) throw groupError;
+
+      const assignmentById = new Map<string, any>();
+      for (const assignment of assignmentData || []) {
+        assignmentById.set(assignment.id, assignment);
+      }
+
+      const groupedAssignmentIds = new Set<string>();
+      const groupedItems: CreativeAssignmentItem[] = [];
+
+      for (const group of groupData || []) {
+        const memberIds = ((group as any).asset_customization_group_members || [])
+          .map((member: any) => member.assignment_id)
+          .filter(Boolean);
+
+        const memberAssignments = memberIds
+          .map((assignmentId: string) => assignmentById.get(assignmentId))
+          .filter(Boolean);
+
+        if (memberAssignments.length === 0) continue;
+
+        memberAssignments.forEach((assignment: any) => groupedAssignmentIds.add(assignment.id));
+
+        const firstAssignment = memberAssignments[0];
+        const memberStatuses = memberAssignments.map((assignment: any) => assignment.status || "pending");
+        const groupedStatus: CreativeAssignmentStatus = memberStatuses.some((status: string) => status === "error")
+          ? "error"
+          : memberStatuses.some((status: string) => status === "pushing")
+            ? "pushing"
+            : memberStatuses.every((status: string) => status === "pushed") || group.status === "pushed"
+              ? "pushed"
+              : "pending";
+
+        const validationErrors = Array.isArray(group.validation_errors)
+          ? group.validation_errors
+          : [];
+        const firstValidationErrorMessage = validationErrors.find(
+          (entry: unknown): entry is { message: string } =>
+            typeof entry === "object" &&
+            entry !== null &&
+            "message" in entry &&
+            typeof (entry as { message?: unknown }).message === "string",
+        )?.message;
+
+        groupedItems.push({
+          id: group.id,
+          creative_id: group.id,
+          creativeName: group.group_name || "Asset Customization Group",
+          originalFilename: `${memberAssignments.length} grouped asset${memberAssignments.length === 1 ? "" : "s"}`,
+          mediaType: memberAssignments.some((assignment: any) => assignment.creative?.media_type === "video") ? "video" : "image",
+          creativeType: "asset_customization",
+          platform: firstAssignment.platform,
+          market: group.market || firstAssignment.market,
+          phaseName: group.phase_name || firstAssignment.phase_name,
+          adSetName: group.ad_set_name || firstAssignment.ad_set_name || undefined,
+          status: groupedStatus,
+          errorMessage:
+            memberAssignments.find((assignment: any) => assignment.error_message)?.error_message ||
+            firstValidationErrorMessage ||
+            undefined,
+          urlParameters: firstAssignment.url_parameters || undefined,
+          isGrouped: true,
+          memberCount: memberAssignments.length,
+        });
+      }
+
+      const mappedAssignments: CreativeAssignmentItem[] = (assignmentData || [])
+        .filter((assignment: any) => !groupedAssignmentIds.has(assignment.id))
+        .map((a: any) => ({
+          id: a.id,
+          creative_id: a.creative_id,
+          creativeName: a.display_name || a.creative?.name || "Unknown Creative",
+          originalFilename: a.creative?.original_filename || undefined,
+          mediaType: a.creative?.media_type || "image",
+          creativeType: a.creative?.creative_type || "dark_post",
+          platform: a.platform,
+          market: a.market,
+          phaseName: a.phase_name,
+          adSetName: a.ad_set_name || undefined,
+          status: (a.status || "pending") as CreativeAssignmentStatus,
+          errorMessage: a.error_message || undefined,
+          urlParameters: a.url_parameters || undefined,
+        }));
+
+      setCreativeAssignments([...groupedItems, ...mappedAssignments]);
     } catch (error) {
       console.error("Error loading launch progress:", error);
     } finally {
@@ -114,15 +211,17 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         (payload) => {
           const updated = payload.new as any;
           setCreativeAssignments((prev) =>
-            prev.map((item) =>
-              item.id === updated.id
-                ? {
-                    ...item,
-                    status: (updated.status || "pending") as CreativeAssignmentStatus,
-                    errorMessage: updated.error_message || undefined,
-                  }
-                : item
-            )
+            prev.some((item) => item.isGrouped)
+              ? (scheduleReload(), prev)
+              : prev.map((item) =>
+                  item.id === updated.id
+                    ? {
+                        ...item,
+                        status: (updated.status || "pending") as CreativeAssignmentStatus,
+                        errorMessage: updated.error_message || undefined,
+                      }
+                    : item
+                )
           );
         }
       )
@@ -134,12 +233,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           table: "creative_assignments",
           filter: `campaign_id=eq.${campaignId}`,
         },
-        (payload) => {
-          const deleted = payload.old as any;
-          if (deleted?.id) {
-            setCreativeAssignments((prev) => prev.filter((item) => item.id !== deleted.id));
-          }
-        }
+        () => scheduleReload()
       )
       .on(
         "postgres_changes",
@@ -149,10 +243,26 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           table: "creative_assignments",
           filter: `campaign_id=eq.${campaignId}`,
         },
-        () => {
-          // Reload all data to get the full joined creative info
-          loadData();
-        }
+        () => scheduleReload()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "asset_customization_groups",
+          filter: `campaign_id=eq.${campaignId}`,
+        },
+        () => scheduleReload()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "asset_customization_group_members",
+        },
+        () => scheduleReload()
       )
       .on(
         "postgres_changes",
@@ -183,12 +293,17 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
     channelRef.current = channel;
 
     return () => {
+      if (reloadTimeoutRef.current !== null) {
+        globalThis.clearTimeout(reloadTimeoutRef.current);
+        reloadTimeoutRef.current = null;
+      }
+
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
-  }, [campaignId, enabled, loadData]);
+  }, [campaignId, enabled, loadData, scheduleReload]);
 
   // Refresh function
   const refresh = useCallback(() => {
