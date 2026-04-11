@@ -24,6 +24,10 @@ import {
   generateTaxonomyString,
   generateAdTaxonomyName
 } from '@/utils/taxonomyUtils';
+import {
+  ASSET_CUSTOMIZATION_VISIBLE_STATUSES,
+  toAssetCustomizationMemberBucket,
+} from '@/utils/assetCustomizationPersistence';
 
 interface SavedAssignment {
   id: string;
@@ -469,7 +473,7 @@ export function TextAssetsStep({
             asset_customization_group_members(assignment_id)
           `)
           .eq('campaign_id', campaignId)
-          .in('status', ['ready', 'pending', 'pushed']);
+          .in('status', ASSET_CUSTOMIZATION_VISIBLE_STATUSES);
 
         if (existingACGroupsError) {
           console.error('TextAssetsStep: Error fetching asset customization groups:', existingACGroupsError);
@@ -766,7 +770,7 @@ export function TextAssetsStep({
             phase_name: firstRow.phase || 'Default',
             ad_set_name: firstRow.adSet || null,
             user_id: sessionData.session.user.id,
-            status: 'ready',
+            status: 'compiled',
           } as any, { onConflict: 'id' });
         if (groupError) throw groupError;
 
@@ -788,7 +792,7 @@ export function TextAssetsStep({
           }
           return {
             group_id: groupId, creative_id: row.creativeId, assignment_id: assignmentId,
-            delivery_bucket: deliveryBucket, aspect_ratio: row.aspectRatio || null,
+            delivery_bucket: toAssetCustomizationMemberBucket(deliveryBucket), aspect_ratio: row.aspectRatio || null,
             language, position: index,
           };
         });

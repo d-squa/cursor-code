@@ -5,6 +5,7 @@ import type {
   CreativeAssignmentStatus,
   AdSetStatus,
 } from "@/components/launch/LaunchProgressTracker";
+import { ASSET_CUSTOMIZATION_VISIBLE_STATUSES } from "@/utils/assetCustomizationPersistence";
 
 interface UseLaunchProgressOptions {
   campaignId: string | undefined;
@@ -96,7 +97,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         `,
         )
         .eq("campaign_id", campaignId)
-        .in("status", ["ready", "pending", "pushing", "pushed", "error"]);
+        .in("status", ASSET_CUSTOMIZATION_VISIBLE_STATUSES);
 
       if (groupError) throw groupError;
 
