@@ -211,6 +211,26 @@ function assignmentMatchesAdSetConfig(assignment: any, adSetConfig: any): boolea
   return false;
 }
 
+function groupMatchesLaunchAdSet(group: any, entryEntityName: string | null | undefined, adSetConfig: any): boolean {
+  const groupAdSetName = normalizeComparableLabel(group?.ad_set_name);
+  if (!groupAdSetName) return !adSetConfig;
+
+  const configId = normalizeComparableLabel(adSetConfig?.id);
+  const configName = normalizeComparableLabel(adSetConfig?.name);
+  const entryName = normalizeComparableLabel(entryEntityName);
+
+  if (configId && groupAdSetName === configId) return true;
+  if (configName && groupAdSetName === configName) return true;
+
+  if (entryName) {
+    return entryName === groupAdSetName
+      || entryName.endsWith(` - ${groupAdSetName}`)
+      || entryName.includes(groupAdSetName);
+  }
+
+  return !adSetConfig;
+}
+
 function normalizeUuidLike(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -1336,12 +1356,16 @@ const handler = async (req: Request): Promise<Response> => {
 
           const groupAssignmentIds = new Set<string>();
 
-          if (!cgError && customGroups && customGroups.length > 0) {
-            console.log(`[push-creatives] Found ${customGroups.length} asset customization group(s) for ${entry.market}/${entry.phase_name}`);
+          const scopedCustomGroups = !cgError && customGroups
+            ? customGroups.filter((group: any) => groupMatchesLaunchAdSet(group, entry.entity_name, resolvedLaunchAdSetConfig))
+            : [];
+
+          if (!cgError && scopedCustomGroups.length > 0) {
+            console.log(`[push-creatives] Found ${scopedCustomGroups.length} asset customization group(s) for ${entry.market}/${entry.phase_name}`);
 
             // Exclude grouped assignments from standalone processing immediately so they can never
             // fall through into per-asset ad creation even if group push later errors.
-            for (const group of customGroups) {
+            for (const group of scopedCustomGroups) {
               const members = (group as any).asset_customization_group_members || [];
               for (const member of members) {
                 const inferredAssignmentId = inferAssignmentIdFromMember(member);
@@ -1356,7 +1380,7 @@ const handler = async (req: Request): Promise<Response> => {
               standaloneAssignments.push(...filteredStandalone);
             }
 
-            for (const group of customGroups) {
+            for (const group of scopedCustomGroups) {
               if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
                 timedOut = true;
                 hasMoreWork = true;
