@@ -750,7 +750,7 @@ export function TextAssetsStep({
         if (!firstRow) continue;
 
         const customizationType = group.type === 'placement' ? 'placement'
-          : group.type === 'language' ? 'language' : 'flexible';
+          : group.type === 'language' ? 'language' : 'flexible_creative';
 
         const { error: groupError } = await supabase
           .from('asset_customization_groups')

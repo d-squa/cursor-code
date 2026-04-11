@@ -450,7 +450,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         // Map customization type
         const customizationType = group.type === 'placement' ? 'placement'
           : group.type === 'language' ? 'language'
-          : 'flexible';
+          : 'flexible_creative';
 
         // Upsert the group
         const { error: groupError } = await supabase
