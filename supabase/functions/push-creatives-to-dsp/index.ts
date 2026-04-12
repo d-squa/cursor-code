@@ -1707,7 +1707,6 @@ const handler = async (req: Request): Promise<Response> => {
               }
               console.log(`[push-creatives] ✅ Asset customization group "${group.group_name}" pushed: ${members.length} members, ad_id=${adData.id}`);
             }
-          }
         } catch (cgGroupError) {
           console.error(`[push-creatives] Asset customization group processing error:`, cgGroupError);
         }
