@@ -1676,11 +1676,39 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Normalize call_to_action_types to plain strings (Meta rejects objects like {value:"SHOP_NOW"})
+              // Normalize call_to_action_types to valid Meta enum strings
+              const VALID_META_CTAS = new Set([
+                "OPEN_LINK","LIKE_PAGE","SHOP_NOW","PLAY_GAME","INSTALL_APP","USE_APP","CALL","CALL_ME",
+                "VIDEO_CALL","INSTALL_MOBILE_APP","USE_MOBILE_APP","MOBILE_DOWNLOAD","BOOK_TRAVEL",
+                "LISTEN_MUSIC","WATCH_VIDEO","LEARN_MORE","SIGN_UP","DOWNLOAD","WATCH_MORE","NO_BUTTON",
+                "VISIT_PAGES_FEED","CALL_NOW","APPLY_NOW","CONTACT","BUY_NOW","GET_OFFER","GET_OFFER_VIEW",
+                "BUY_TICKETS","UPDATE_APP","GET_DIRECTIONS","BUY","SEND_UPDATES","MESSAGE_PAGE","DONATE",
+                "SUBSCRIBE","SAY_THANKS","SELL_NOW","SHARE","DONATE_NOW","GET_QUOTE","CONTACT_US",
+                "ORDER_NOW","START_ORDER","ADD_TO_CART","VIEW_CART","VIEW_IN_CART","RECORD_NOW",
+                "INQUIRE_NOW","CONFIRM","REFER_FRIENDS","REQUEST_TIME","GET_SHOWTIMES","LISTEN_NOW",
+                "SEE_SHOP","GET_DETAILS","FIND_OUT_MORE","VISIT_WEBSITE","BROWSE_SHOP","EVENT_RSVP",
+                "WHATSAPP_MESSAGE","SEE_MORE","BOOK_NOW","FOLLOW_PAGE","SEND_A_GIFT","GET_STARTED",
+                "OPEN_INSTANT_APP","AUDIO_CALL","GET_PROMOTIONS","JOIN_CHANNEL","MAKE_AN_APPOINTMENT",
+                "ASK_ABOUT_SERVICES","BOOK_A_CONSULTATION","GET_A_QUOTE","BUY_VIA_MESSAGE",
+                "ASK_FOR_MORE_INFO","CHAT_WITH_US","VIEW_PRODUCT","VIEW_CHANNEL","GET_IN_TOUCH",
+                "ASK_A_QUESTION","START_A_CHAT","CHAT_NOW","ASK_US","WATCH_LIVE_VIDEO","SHOP_WITH_AI",
+              ]);
               if (assetFeedSpec.call_to_action_types && Array.isArray(assetFeedSpec.call_to_action_types)) {
-                assetFeedSpec.call_to_action_types = assetFeedSpec.call_to_action_types.map((cta: any) =>
-                  typeof cta === "object" && cta !== null ? (cta.value || cta.type || "LEARN_MORE") : cta
-                );
+                const normalized = assetFeedSpec.call_to_action_types.map((cta: any) => {
+                  // Extract string from object if needed
+                  let raw = typeof cta === "object" && cta !== null ? (cta.value || cta.type || "") : String(cta || "");
+                  // Normalize: "Learn More" → "LEARN_MORE", "shop-now" → "SHOP_NOW"
+                  raw = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
+                  return raw;
+                }).filter((cta: string) => VALID_META_CTAS.has(cta));
+                
+                if (normalized.length > 0) {
+                  assetFeedSpec.call_to_action_types = normalized;
+                } else {
+                  // Remove invalid CTAs entirely rather than sending bad data
+                  console.warn(`[push-creatives] Removing invalid call_to_action_types from asset_feed_spec:`, assetFeedSpec.call_to_action_types);
+                  delete assetFeedSpec.call_to_action_types;
+                }
               }
 
               const groupCreativePayload: any = {
