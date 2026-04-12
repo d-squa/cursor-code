@@ -214,7 +214,8 @@ function assignmentMatchesAdSetConfig(assignment: any, adSetConfig: any): boolea
 
 function groupMatchesLaunchAdSet(group: any, entryEntityName: string | null | undefined, adSetConfig: any): boolean {
   const groupAdSetName = normalizeComparableLabel(group?.ad_set_name);
-  if (!groupAdSetName) return !adSetConfig;
+  // If the group has no ad_set_name and there's no config, let assignment-ID matching decide
+  if (!groupAdSetName) return false;
 
   const configId = normalizeComparableLabel(adSetConfig?.id);
   const configName = normalizeComparableLabel(adSetConfig?.name);
@@ -229,7 +230,8 @@ function groupMatchesLaunchAdSet(group: any, entryEntityName: string | null | un
       || entryName.includes(groupAdSetName);
   }
 
-  return !adSetConfig;
+  // Don't default to true — let assignment-ID matching in groupMatchesScopedAssignments decide
+  return false;
 }
 
 function groupMatchesScopedAssignments(
@@ -1439,6 +1441,50 @@ const handler = async (req: Request): Promise<Response> => {
             if (members.length === 0) {
               console.log(`[push-creatives] Skipping empty customization group ${group.group_name}`);
               continue;
+            }
+
+            // Check if member assignments were previously pushed as standalone ads.
+            // If so, delete those standalone ads from Meta before creating the grouped ad.
+            const memberAssignmentIds = members
+              .map((m: any) => inferAssignmentIdFromMember(m))
+              .filter(Boolean);
+
+            if (memberAssignmentIds.length > 0) {
+              const { data: existingAssignments } = await supabase
+                .from("creative_assignments")
+                .select("id, dsp_creative_id, status")
+                .in("id", memberAssignmentIds);
+
+              const standaloneAdIds = (existingAssignments || [])
+                .filter((a: any) => a.dsp_creative_id && a.status === "pushed")
+                .map((a: any) => a.dsp_creative_id);
+
+              if (standaloneAdIds.length > 0) {
+                console.log(`[push-creatives] Deleting ${standaloneAdIds.length} standalone ads that will be replaced by AC group "${group.group_name}": ${standaloneAdIds.join(", ")}`);
+                const pfAccessToken = platform.access_token;
+                for (const standaloneAdId of standaloneAdIds) {
+                  try {
+                    const deleteResp = await fetch(
+                      `https://graph.facebook.com/v22.0/${standaloneAdId}?access_token=${pfAccessToken}`,
+                      { method: "DELETE" },
+                    );
+                    const deleteData = await deleteResp.json();
+                    if (deleteData.error) {
+                      console.warn(`[push-creatives] Failed to delete standalone ad ${standaloneAdId}:`, JSON.stringify(deleteData.error));
+                    } else {
+                      console.log(`[push-creatives] ✅ Deleted standalone ad ${standaloneAdId}`);
+                    }
+                  } catch (delErr) {
+                    console.warn(`[push-creatives] Error deleting standalone ad ${standaloneAdId}:`, delErr);
+                  }
+                }
+
+                // Reset assignment statuses so they can be re-marked after AC group push
+                await supabase
+                  .from("creative_assignments")
+                  .update({ status: "pushing", dsp_creative_id: null, error_message: null })
+                  .in("id", memberAssignmentIds);
+              }
             }
 
             // Use the pre-compiled asset_feed_spec from the database
