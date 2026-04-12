@@ -232,6 +232,44 @@ function groupMatchesLaunchAdSet(group: any, entryEntityName: string | null | un
   return !adSetConfig;
 }
 
+function groupMatchesScopedAssignments(
+  group: any,
+  scopedAssignments: any[],
+  entryEntityName: string | null | undefined,
+  adSetConfig: any,
+): boolean {
+  if (groupMatchesLaunchAdSet(group, entryEntityName, adSetConfig)) {
+    return true;
+  }
+
+  const scopedAssignmentIds = new Set(
+    scopedAssignments
+      .map((assignment: any) => normalizeUuidLike(assignment?.id))
+      .filter(Boolean),
+  );
+
+  const members = (group?.asset_customization_group_members || []) as any[];
+  for (const member of members) {
+    const inferredAssignmentId = inferAssignmentIdFromMember(member);
+    if (inferredAssignmentId && scopedAssignmentIds.has(inferredAssignmentId)) {
+      return true;
+    }
+  }
+
+  const groupAdSetName = normalizeComparableLabel(group?.ad_set_name);
+  if (!groupAdSetName) {
+    return false;
+  }
+
+  const scopedAdSetNames = new Set(
+    scopedAssignments
+      .map((assignment: any) => normalizeComparableLabel(assignment?.ad_set_name))
+      .filter(Boolean),
+  );
+
+  return scopedAdSetNames.has(groupAdSetName);
+}
+
 function normalizeUuidLike(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -644,6 +682,52 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE} (filtered from ${scopedAssignments.length} scoped assignments, excluding ${scopedAssignments.filter((a: any) => a.dsp_creative_id).length} already pushed to DSP)`);
 
+      let scopedCustomGroups: any[] = [];
+      const groupAssignmentIds = new Set<string>();
+
+      if (platformKey === "meta") {
+        try {
+          const { data: customGroups, error: cgError } = await supabase
+            .from("asset_customization_groups")
+            .select(`
+              id, group_name, customization_type, asset_feed_spec, customization_rules,
+              ad_set_name, market, phase_name, platform, status, language_mappings, default_language,
+              asset_customization_group_members(
+                id, creative_id, delivery_bucket, aspect_ratio, language, mapped_placements, position, assignment_id
+              )
+            `)
+            .eq("campaign_id", campaign.id)
+            .ilike("platform", "meta")
+            .eq("market", entry.market)
+            .eq("phase_name", entry.phase_name)
+            .in("status", PUSHABLE_ASSET_CUSTOMIZATION_STATUSES);
+
+          if (cgError) {
+            console.error(`[push-creatives] Failed to load asset customization groups:`, cgError);
+          } else {
+            scopedCustomGroups = (customGroups || []).filter((group: any) =>
+              groupMatchesScopedAssignments(group, scopedAssignments, entry.entity_name, resolvedLaunchAdSetConfig),
+            );
+
+            for (const group of scopedCustomGroups) {
+              const members = (group as any).asset_customization_group_members || [];
+              for (const member of members) {
+                const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                if (inferredAssignmentId) groupAssignmentIds.add(inferredAssignmentId);
+              }
+            }
+
+            if (scopedCustomGroups.length > 0) {
+              console.log(
+                `[push-creatives] Matched ${scopedCustomGroups.length} asset customization group(s) and ${groupAssignmentIds.size} grouped assignment(s) for ${entry.market}/${entry.phase_name}`,
+              );
+            }
+          }
+        } catch (cgPreloadError) {
+          console.error(`[push-creatives] Asset customization preload failed:`, cgPreloadError);
+        }
+      }
+
       if (platformKey === "meta" && pendingAssignments.length > 0) {
         const targetAdSetNames = Array.from(
           new Set(
@@ -889,6 +973,10 @@ const handler = async (req: Request): Promise<Response> => {
       const standaloneAssignments: any[] = [];
 
       for (const a of pendingAssignments) {
+        if (groupAssignmentIds.has(normalizeUuidLike(a.id))) {
+          continue;
+        }
+
         const cgId = (a as any).carousel_group_id;
         if (cgId) {
           if (!carouselGroups.has(cgId)) carouselGroups.set(cgId, []);
@@ -900,8 +988,8 @@ const handler = async (req: Request): Promise<Response> => {
 
       // ========== ENFORCE SLOT LIMIT ON STANDALONE ASSIGNMENTS ==========
       // If we have more standalone assignments than available slots, trim and mark excess as error
-      if (platformKey === "meta" && standaloneAssignments.length + carouselGroups.size > availableSlots) {
-        const slotsForStandalone = Math.max(0, availableSlots - carouselGroups.size);
+      if (platformKey === "meta" && standaloneAssignments.length + carouselGroups.size + scopedCustomGroups.length > availableSlots) {
+        const slotsForStandalone = Math.max(0, availableSlots - carouselGroups.size - scopedCustomGroups.length);
         if (standaloneAssignments.length > slotsForStandalone) {
           const excess = standaloneAssignments.splice(slotsForStandalone);
           const excessIds = excess.map((a: any) => a.id);
@@ -917,7 +1005,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      console.log(`[push-creatives] Found ${carouselGroups.size} carousel group(s) and ${standaloneAssignments.length} standalone assignment(s)`);
+      console.log(`[push-creatives] Found ${scopedCustomGroups.length} asset customization group(s), ${carouselGroups.size} carousel group(s), and ${standaloneAssignments.length} standalone assignment(s)`);
 
       // ========== PUSH CAROUSEL GROUPS ==========
       for (const [carouselGroupId, carouselCards] of carouselGroups) {
@@ -1336,96 +1424,55 @@ const handler = async (req: Request): Promise<Response> => {
       // ========== PUSH ASSET CUSTOMIZATION GROUPS ==========
       // Asset customization groups (flexible, language, placement) use Meta's asset_feed_spec
       // to push multiple creatives as a single ad with customization rules.
-      if (platformKey === "meta") {
+      if (platformKey === "meta" && scopedCustomGroups.length > 0) {
         try {
-          // Fetch asset customization groups for this campaign/market/phase.
-          // Platform is matched case-insensitively because older rows may store "Meta".
-          const { data: customGroups, error: cgError } = await supabase
-            .from("asset_customization_groups")
-            .select(`
-              id, group_name, customization_type, asset_feed_spec, customization_rules,
-              ad_set_name, market, phase_name, platform, status, language_mappings, default_language,
-              asset_customization_group_members(
-                id, creative_id, delivery_bucket, aspect_ratio, language, mapped_placements, position, assignment_id
-              )
-            `)
-            .eq("campaign_id", campaign.id)
-            .ilike("platform", "meta")
-            .eq("market", entry.market)
-            .eq("phase_name", entry.phase_name)
-            .in("status", PUSHABLE_ASSET_CUSTOMIZATION_STATUSES);
+          console.log(`[push-creatives] Pushing ${scopedCustomGroups.length} asset customization group(s) for ${entry.market}/${entry.phase_name}`);
 
-          const groupAssignmentIds = new Set<string>();
-
-          const scopedCustomGroups = !cgError && customGroups
-            ? customGroups.filter((group: any) => groupMatchesLaunchAdSet(group, entry.entity_name, resolvedLaunchAdSetConfig))
-            : [];
-
-          if (!cgError && scopedCustomGroups.length > 0) {
-            console.log(`[push-creatives] Found ${scopedCustomGroups.length} asset customization group(s) for ${entry.market}/${entry.phase_name}`);
-
-            // Exclude grouped assignments from standalone processing immediately so they can never
-            // fall through into per-asset ad creation even if group push later errors.
-            for (const group of scopedCustomGroups) {
-              const members = (group as any).asset_customization_group_members || [];
-              for (const member of members) {
-                const inferredAssignmentId = inferAssignmentIdFromMember(member);
-                if (inferredAssignmentId) groupAssignmentIds.add(inferredAssignmentId);
-              }
+          for (const group of scopedCustomGroups) {
+            if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
+              timedOut = true;
+              hasMoreWork = true;
+              break;
             }
 
-            if (groupAssignmentIds.size > 0) {
-              const filteredStandalone = standaloneAssignments.filter((a: any) => !groupAssignmentIds.has(a.id));
-              console.log(`[push-creatives] Pre-filtered ${standaloneAssignments.length - filteredStandalone.length} grouped assignments out of standalone processing`);
-              standaloneAssignments.length = 0;
-              standaloneAssignments.push(...filteredStandalone);
+            const members = (group as any).asset_customization_group_members || [];
+            if (members.length === 0) {
+              console.log(`[push-creatives] Skipping empty customization group ${group.group_name}`);
+              continue;
             }
 
-            for (const group of scopedCustomGroups) {
-              if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
-                timedOut = true;
-                hasMoreWork = true;
-                break;
-              }
+            // Use the pre-compiled asset_feed_spec from the database
+            const assetFeedSpec = JSON.parse(JSON.stringify(group.asset_feed_spec));
+            if (!assetFeedSpec) {
+              console.warn(`[push-creatives] Group ${group.group_name} has no compiled asset_feed_spec, skipping`);
+              continue;
+            }
 
-              const members = (group as any).asset_customization_group_members || [];
-              if (members.length === 0) {
-                console.log(`[push-creatives] Skipping empty customization group ${group.group_name}`);
-                continue;
-              }
+            const resolvedAdAccount =
+              (market as any)?.adAccountId || (market as any)?.ad_account_id ||
+              platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+            const adAccountPath = resolvedAdAccount
+              ? String(resolvedAdAccount).startsWith("act_")
+                ? String(resolvedAdAccount)
+                : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`
+              : null;
 
-              // Use the pre-compiled asset_feed_spec from the database
-              const assetFeedSpec = JSON.parse(JSON.stringify(group.asset_feed_spec));
-              if (!assetFeedSpec) {
-                console.warn(`[push-creatives] Group ${group.group_name} has no compiled asset_feed_spec, skipping`);
-                continue;
-              }
+            if (!adAccountPath) {
+              console.error(`[push-creatives] No ad account for asset customization group ${group.group_name}`);
+              await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing ad account" }] }).eq("id", group.id);
+              continue;
+            }
 
-              const resolvedAdAccount =
-                (market as any)?.adAccountId || (market as any)?.ad_account_id ||
-                platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
-              const adAccountPath = resolvedAdAccount
-                ? String(resolvedAdAccount).startsWith("act_")
-                  ? String(resolvedAdAccount)
-                  : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`
-                : null;
+            const memberCreativeIds = members.map((m: any) => m.creative_id).filter(Boolean);
+            const { data: memberCreatives } = await supabase
+              .from("creatives")
+              .select("id, media_type, media_urls, platform_image_hash, platform_video_id, platform_thumbnail_id, thumbnail_url")
+              .in("id", memberCreativeIds);
 
-              if (!adAccountPath) {
-                console.error(`[push-creatives] No ad account for asset customization group ${group.group_name}`);
-                await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing ad account" }] }).eq("id", group.id);
-                continue;
-              }
-
-              const memberCreativeIds = members.map((m: any) => m.creative_id).filter(Boolean);
-              const { data: memberCreatives } = await supabase
-                .from("creatives")
-                .select("id, media_type, media_urls, platform_image_hash, platform_video_id, platform_thumbnail_id, thumbnail_url")
-                .in("id", memberCreativeIds);
-
-              const creativeMap = new Map<string, any>();
-              for (const mc of (memberCreatives || [])) {
-                creativeMap.set(mc.id, mc);
-              }
+            const creativeMap = new Map<string, any>();
+            for (const mc of (memberCreatives || [])) {
+              creativeMap.set(mc.id, mc);
+            }
 
               let mediaResolutionFailed = false;
               const sortedMembers = [...members].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
