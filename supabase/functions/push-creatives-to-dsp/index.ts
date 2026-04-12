@@ -458,6 +458,69 @@ function pruneUnusedLabeledEntries(entries: unknown, activeLabelNames: Set<strin
     .filter(Boolean);
 }
 
+function assetFeedTargetsInstagram(assetFeedSpec: any): boolean {
+  return Boolean(
+    Array.isArray(assetFeedSpec?.asset_customization_rules)
+      && assetFeedSpec.asset_customization_rules.some((rule: any) =>
+        Array.isArray(rule?.customization_spec?.instagram_positions)
+        && rule.customization_spec.instagram_positions.length > 0,
+      ),
+  );
+}
+
+async function resolveMetaIdentityDefaults(
+  supabase: any,
+  campaign: any,
+  resolvedAdAccount: string | null,
+): Promise<{ pageId: string | null; instagramActorId: string | null }> {
+  let pageId: string | null = null;
+  let instagramActorId: string | null = null;
+
+  const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
+  const adAccountIdWithPrefix = adAccountIdRaw ? `act_${adAccountIdRaw}` : "";
+
+  if (adAccountIdRaw) {
+    const { data: accountRows } = await supabase
+      .from("meta_ad_accounts")
+      .select("default_page_id, default_instagram_account_id")
+      .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
+      .order("synced_at", { ascending: false });
+
+    const matchedAccount = accountRows?.find(
+      (row: any) => row?.default_page_id || row?.default_instagram_account_id,
+    ) || accountRows?.[0] || null;
+
+    pageId = matchedAccount?.default_page_id || null;
+    instagramActorId = matchedAccount?.default_instagram_account_id || null;
+  }
+
+  if (!pageId) {
+    const { data: latestPage } = await supabase
+      .from("meta_pages")
+      .select("page_id")
+      .eq("user_id", campaign.user_id)
+      .order("synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    pageId = latestPage?.page_id || null;
+  }
+
+  if (!instagramActorId) {
+    const { data: latestInstagramAccount } = await supabase
+      .from("meta_instagram_accounts")
+      .select("instagram_account_id")
+      .eq("user_id", campaign.user_id)
+      .order("synced_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    instagramActorId = latestInstagramAccount?.instagram_account_id || null;
+  }
+
+  return { pageId, instagramActorId };
+}
+
 function normalizeAssetCustomizationRules(assetFeedSpec: any) {
   if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
 
@@ -2054,19 +2117,14 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               let pageId = resolveConfiguredMetaPageId(null, phase, market);
+              let instagramActorId: string | null = null;
+
+              const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null);
+
               if (!pageId) {
-                const adAccountIdRaw = String(resolvedAdAccount).replace(/^act_/, "");
-                const { data: adAccRows } = await supabase
-                  .from("meta_ad_accounts").select("default_page_id")
-                  .or(`account_id.eq.${adAccountIdRaw},account_id.eq.act_${adAccountIdRaw}`)
-                  .order("synced_at", { ascending: false }).limit(1);
-                pageId = adAccRows?.[0]?.default_page_id;
+                pageId = identityDefaults.pageId;
               }
-              if (!pageId) {
-                const { data: latestPage } = await supabase.from("meta_pages").select("page_id")
-                  .eq("user_id", campaign.user_id).order("synced_at", { ascending: false }).limit(1).maybeSingle();
-                pageId = latestPage?.page_id || null;
-              }
+              instagramActorId = identityDefaults.instagramActorId;
 
               if (!pageId) {
                 console.error(`[push-creatives] No page ID for asset customization group ${group.group_name}`);
@@ -2163,6 +2221,7 @@ const handler = async (req: Request): Promise<Response> => {
                 name: group.group_name,
                 object_story_spec: {
                   page_id: pageId,
+                  ...(assetFeedTargetsInstagram(assetFeedSpec) && instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
                 },
                 asset_feed_spec: assetFeedSpec,
               };
