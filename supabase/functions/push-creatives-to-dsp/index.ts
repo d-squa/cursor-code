@@ -1711,6 +1711,12 @@ const handler = async (req: Request): Promise<Response> => {
                 }
               }
 
+              // Meta requires exactly one ad format — cannot mix images and videos
+              if (assetFeedSpec.images && assetFeedSpec.videos) {
+                console.warn(`[push-creatives] asset_feed_spec has both images (${assetFeedSpec.images.length}) and videos (${assetFeedSpec.videos.length}). Keeping only videos to satisfy single-format requirement.`);
+                delete assetFeedSpec.images;
+              }
+
               const groupCreativePayload: any = {
                 name: group.group_name,
                 object_story_spec: {
