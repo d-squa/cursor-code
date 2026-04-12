@@ -1716,7 +1716,7 @@ const handler = async (req: Request): Promise<Response> => {
                 }
               }
 
-              // Meta requires exactly one media collection in asset_feed_spec
+              // Meta requires exactly one media collection and exactly one ad format in asset_feed_spec
               const imageCount = Array.isArray(assetFeedSpec.images) ? assetFeedSpec.images.length : 0;
               const videoCount = Array.isArray(assetFeedSpec.videos) ? assetFeedSpec.videos.length : 0;
 
@@ -1737,12 +1737,32 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Meta rejects the ad_formats values we've been sending for asset_feed_spec creatives.
-              // Keep the payload on a single media type and let Meta infer the exact format from the feed assets.
-              if (assetFeedSpec.ad_formats) {
-                console.log(`[push-creatives] Removing asset_feed_spec.ad_formats before Meta creative creation: ${JSON.stringify(assetFeedSpec.ad_formats)}`);
-                delete assetFeedSpec.ad_formats;
+              if (imageCount === 0 && videoCount === 0) {
+                const errMsg = "Grouped asset feed has no resolved image or video assets.";
+                console.error(`[push-creatives] ${errMsg}`);
+                await supabase.from("asset_customization_groups").update({
+                  status: "error",
+                  validation_errors: [{ message: errMsg }],
+                }).eq("id", group.id);
+                for (const member of members) {
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
+                    localFailed++;
+                  }
+                }
+                continue;
               }
+
+              if (imageCount > 0) {
+                delete assetFeedSpec.videos;
+              } else {
+                delete assetFeedSpec.images;
+              }
+
+              const inferredAdFormat = videoCount > 0 ? "SINGLE_VIDEO" : "SINGLE_IMAGE";
+              assetFeedSpec.ad_formats = [inferredAdFormat];
+              console.log(`[push-creatives] Normalized asset_feed_spec for group "${group.group_name}" to ${inferredAdFormat}`);
 
               const groupCreativePayload: any = {
                 name: group.group_name,
