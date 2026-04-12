@@ -247,6 +247,67 @@ function normalizeMetaPositions(
   ));
 }
 
+function mergeAdLabels(...labelGroups: unknown[]): Array<{ name: string }> | undefined {
+  const merged = new Map<string, { name: string }>();
+
+  for (const group of labelGroups) {
+    if (!Array.isArray(group)) continue;
+    for (const label of group) {
+      const name = typeof label?.name === "string" ? label.name.trim() : "";
+      if (!name) continue;
+      merged.set(name, { name });
+    }
+  }
+
+  return merged.size > 0 ? Array.from(merged.values()) : undefined;
+}
+
+function dedupeLabeledAssetEntries(
+  entries: unknown,
+  getKey: (entry: any) => string | null,
+): any[] | undefined {
+  if (!Array.isArray(entries)) return undefined;
+
+  const deduped = new Map<string, any>();
+  const passthrough: any[] = [];
+
+  for (const entry of entries) {
+    const key = getKey(entry);
+    if (!key) {
+      passthrough.push(entry);
+      continue;
+    }
+
+    const existing = deduped.get(key);
+    if (existing) {
+      existing.adlabels = mergeAdLabels(existing.adlabels, entry?.adlabels);
+    } else {
+      deduped.set(key, {
+        ...entry,
+        ...(mergeAdLabels(entry?.adlabels) ? { adlabels: mergeAdLabels(entry?.adlabels) } : {}),
+      });
+    }
+  }
+
+  return [...deduped.values(), ...passthrough];
+}
+
+function dedupeStringValues(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const value of values) {
+    const normalized = String(value ?? "").trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    deduped.push(normalized);
+  }
+
+  return deduped;
+}
+
 function normalizeAssetCustomizationRules(assetFeedSpec: any) {
   if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
 
@@ -291,6 +352,47 @@ function normalizeAssetCustomizationRules(assetFeedSpec: any) {
 
     spec.publisher_platforms = publisherPlatforms.size > 0 ? Array.from(publisherPlatforms) : ["facebook", "instagram"];
   }
+}
+
+function normalizeAssetFeedSpecValues(assetFeedSpec: any) {
+  assetFeedSpec.images = dedupeLabeledAssetEntries(assetFeedSpec.images, (entry) => entry?.hash || entry?.url || null);
+  assetFeedSpec.videos = dedupeLabeledAssetEntries(assetFeedSpec.videos, (entry) => entry?.video_id || null);
+  assetFeedSpec.bodies = dedupeLabeledAssetEntries(assetFeedSpec.bodies, (entry) => {
+    const text = typeof entry?.text === "string" ? entry.text.trim() : "";
+    return text || null;
+  });
+  assetFeedSpec.titles = dedupeLabeledAssetEntries(assetFeedSpec.titles, (entry) => {
+    const text = typeof entry?.text === "string" ? entry.text.trim() : "";
+    return text || null;
+  });
+  assetFeedSpec.descriptions = dedupeLabeledAssetEntries(assetFeedSpec.descriptions, (entry) => {
+    const text = typeof entry?.text === "string" ? entry.text.trim() : "";
+    return text || null;
+  });
+  assetFeedSpec.link_urls = dedupeLabeledAssetEntries(assetFeedSpec.link_urls, (entry) => {
+    const url = typeof entry?.website_url === "string" ? entry.website_url.trim() : "";
+    return url || null;
+  });
+
+  const dedupedCtas = dedupeStringValues(assetFeedSpec.call_to_action_types);
+  if (dedupedCtas.length > 0) {
+    assetFeedSpec.call_to_action_types = dedupedCtas;
+  } else {
+    delete assetFeedSpec.call_to_action_types;
+  }
+
+  if (Array.isArray(assetFeedSpec.asset_customization_rules) && dedupedCtas.length <= 1) {
+    for (const rule of assetFeedSpec.asset_customization_rules) {
+      delete rule.call_to_action_type_label;
+    }
+  }
+
+  if (!assetFeedSpec.images?.length) delete assetFeedSpec.images;
+  if (!assetFeedSpec.videos?.length) delete assetFeedSpec.videos;
+  if (!assetFeedSpec.bodies?.length) delete assetFeedSpec.bodies;
+  if (!assetFeedSpec.titles?.length) delete assetFeedSpec.titles;
+  if (!assetFeedSpec.descriptions?.length) delete assetFeedSpec.descriptions;
+  if (!assetFeedSpec.link_urls?.length) delete assetFeedSpec.link_urls;
 }
 
 function getEffectiveAdSetConfigs(
@@ -1836,23 +1938,21 @@ const handler = async (req: Request): Promise<Response> => {
               ]);
               if (assetFeedSpec.call_to_action_types && Array.isArray(assetFeedSpec.call_to_action_types)) {
                 const normalized = assetFeedSpec.call_to_action_types.map((cta: any) => {
-                  // Extract string from object if needed
                   let raw = typeof cta === "object" && cta !== null ? (cta.value || cta.type || "") : String(cta || "");
-                  // Normalize: "Learn More" → "LEARN_MORE", "shop-now" → "SHOP_NOW"
                   raw = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
                   return raw;
                 }).filter((cta: string) => VALID_META_CTAS.has(cta));
-                
+
                 if (normalized.length > 0) {
                   assetFeedSpec.call_to_action_types = normalized;
                 } else {
-                  // Remove invalid CTAs entirely rather than sending bad data
                   console.warn(`[push-creatives] Removing invalid call_to_action_types from asset_feed_spec:`, assetFeedSpec.call_to_action_types);
                   delete assetFeedSpec.call_to_action_types;
                 }
               }
 
               normalizeAssetCustomizationRules(assetFeedSpec);
+              normalizeAssetFeedSpecValues(assetFeedSpec);
 
               // Meta requires exactly one media collection and exactly one ad format in asset_feed_spec
               const imageCount = Array.isArray(assetFeedSpec.images) ? assetFeedSpec.images.length : 0;
@@ -1894,25 +1994,11 @@ const handler = async (req: Request): Promise<Response> => {
 
               if (imageCount > 0) {
                 delete assetFeedSpec.videos;
-                // Deduplicate images by hash — Meta rejects duplicate asset values
-                const seenHashes = new Set<string>();
-                assetFeedSpec.images = assetFeedSpec.images.filter((img: any) => {
-                  const key = img.hash || img.url || JSON.stringify(img);
-                  if (seenHashes.has(key)) return false;
-                  seenHashes.add(key);
-                  return true;
-                });
               } else {
                 delete assetFeedSpec.images;
-                // Deduplicate videos by video_id
-                const seenVids = new Set<string>();
-                assetFeedSpec.videos = assetFeedSpec.videos.filter((v: any) => {
-                  const key = v.video_id || JSON.stringify(v);
-                  if (seenVids.has(key)) return false;
-                  seenVids.add(key);
-                  return true;
-                });
               }
+
+              normalizeAssetFeedSpecValues(assetFeedSpec);
 
               const inferredAdFormat = videoCount > 0 ? "SINGLE_VIDEO" : "SINGLE_IMAGE";
               assetFeedSpec.ad_formats = [inferredAdFormat];
