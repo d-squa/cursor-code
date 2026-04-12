@@ -157,6 +157,142 @@ function normalizeComparableLabel(value: unknown): string {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+const META_FACEBOOK_POSITION_MAP: Record<string, string> = {
+  facebook_feed: "feed",
+  feed: "feed",
+  facebook_stories: "story",
+  stories: "story",
+  story: "story",
+  facebook_reels: "reels",
+  reels: "reels",
+  facebook_marketplace: "marketplace",
+  marketplace: "marketplace",
+  facebook_search: "search",
+  search: "search",
+  search_results: "search",
+  facebook_right_column: "right_hand_column",
+  right_column: "right_hand_column",
+  right_hand_column: "right_hand_column",
+  facebook_instant_article: "instant_article",
+  instant_article: "instant_article",
+  facebook_instream_video: "instream_video",
+  instream_video: "instream_video",
+  facebook_video_feeds: "video_feeds",
+  video_feeds: "video_feeds",
+};
+
+const META_INSTAGRAM_POSITION_MAP: Record<string, string> = {
+  instagram_feed: "stream",
+  feed: "stream",
+  stream: "stream",
+  instagram_stories: "story",
+  stories: "story",
+  story: "story",
+  instagram_reels: "reels",
+  reels: "reels",
+  reels_overlay: "reels_overlay",
+  instagram_explore: "explore",
+  explore: "explore",
+  explore_home: "explore_home",
+  instagram_search: "ig_search",
+  search: "ig_search",
+  ig_search: "ig_search",
+  instagram_shop: "shop",
+  shop: "shop",
+  instagram_profile_feed: "profile_feed",
+  profile_feed: "profile_feed",
+  instagram_profile_reels: "profile_reels",
+  profile_reels: "profile_reels",
+  effect_tray: "effect_tray",
+};
+
+const VALID_META_FACEBOOK_POSITIONS = new Set([
+  "feed",
+  "instant_article",
+  "instream_video",
+  "marketplace",
+  "search",
+  "video_feeds",
+  "story",
+  "reels",
+  "right_hand_column",
+]);
+
+const VALID_META_INSTAGRAM_POSITIONS = new Set([
+  "reels",
+  "reels_overlay",
+  "stream",
+  "story",
+  "explore",
+  "explore_home",
+  "ig_search",
+  "shop",
+  "profile_feed",
+  "profile_reels",
+  "effect_tray",
+]);
+
+function normalizeMetaPositions(
+  positions: unknown,
+  mapping: Record<string, string>,
+  validPositions: Set<string>,
+): string[] {
+  if (!Array.isArray(positions)) return [];
+
+  return Array.from(new Set(
+    positions
+      .map((position) => normalizeComparableLabel(position).replace(/\s+/g, "_"))
+      .map((position) => mapping[position] || position)
+      .filter((position) => validPositions.has(position)),
+  ));
+}
+
+function normalizeAssetCustomizationRules(assetFeedSpec: any) {
+  if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
+
+  for (const rule of assetFeedSpec.asset_customization_rules) {
+    const spec = rule?.customization_spec;
+    if (!spec || typeof spec !== "object") continue;
+
+    const facebookPositions = normalizeMetaPositions(
+      spec.facebook_positions,
+      META_FACEBOOK_POSITION_MAP,
+      VALID_META_FACEBOOK_POSITIONS,
+    );
+    const instagramPositions = normalizeMetaPositions(
+      spec.instagram_positions,
+      META_INSTAGRAM_POSITION_MAP,
+      VALID_META_INSTAGRAM_POSITIONS,
+    );
+
+    if (facebookPositions.length > 0) {
+      spec.facebook_positions = facebookPositions;
+    } else {
+      delete spec.facebook_positions;
+    }
+
+    if (instagramPositions.length > 0) {
+      spec.instagram_positions = instagramPositions;
+    } else {
+      delete spec.instagram_positions;
+    }
+
+    const publisherPlatforms = new Set<string>(Array.isArray(spec.publisher_platforms) ? spec.publisher_platforms : []);
+    if (facebookPositions.length > 0) {
+      publisherPlatforms.add("facebook");
+    } else {
+      publisherPlatforms.delete("facebook");
+    }
+    if (instagramPositions.length > 0) {
+      publisherPlatforms.add("instagram");
+    } else {
+      publisherPlatforms.delete("instagram");
+    }
+
+    spec.publisher_platforms = publisherPlatforms.size > 0 ? Array.from(publisherPlatforms) : ["facebook", "instagram"];
+  }
+}
+
 function getEffectiveAdSetConfigs(
   campaign: any,
   platformKey: PlatformKey,
@@ -1715,6 +1851,8 @@ const handler = async (req: Request): Promise<Response> => {
                   delete assetFeedSpec.call_to_action_types;
                 }
               }
+
+              normalizeAssetCustomizationRules(assetFeedSpec);
 
               // Meta requires exactly one media collection and exactly one ad format in asset_feed_spec
               const imageCount = Array.isArray(assetFeedSpec.images) ? assetFeedSpec.images.length : 0;
