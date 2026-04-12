@@ -472,6 +472,7 @@ async function resolveMetaIdentityDefaults(
   supabase: any,
   campaign: any,
   resolvedAdAccount: string | null,
+  accessToken?: string | null,
 ): Promise<{ pageId: string | null; instagramActorId: string | null }> {
   let pageId: string | null = null;
   let instagramActorId: string | null = null;
@@ -519,6 +520,31 @@ async function resolveMetaIdentityDefaults(
   }
 
   return { pageId, instagramActorId };
+}
+
+/**
+ * Query the Meta Graph API for the Instagram business account connected to a
+ * specific Facebook Page.  This is the only reliable source for the
+ * `instagram_actor_id` — stored defaults may reference an IG account that
+ * belongs to the user but is not linked to the Page used in the creative.
+ */
+async function resolveInstagramActorFromPage(
+  pageId: string,
+  accessToken: string,
+): Promise<string | null> {
+  try {
+    const url = `https://graph.facebook.com/v22.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const igId = data?.instagram_business_account?.id;
+    if (igId) {
+      console.log(`[push-creatives] Resolved Instagram actor ${igId} from page ${pageId}`);
+      return String(igId);
+    }
+  } catch (err) {
+    console.warn(`[push-creatives] Failed to resolve Instagram actor from page ${pageId}:`, err);
+  }
+  return null;
 }
 
 function normalizeAssetCustomizationRules(assetFeedSpec: any) {
@@ -2119,12 +2145,20 @@ const handler = async (req: Request): Promise<Response> => {
               let pageId = resolveConfiguredMetaPageId(null, phase, market);
               let instagramActorId: string | null = null;
 
-              const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null);
+              const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null, platform.access_token);
 
               if (!pageId) {
                 pageId = identityDefaults.pageId;
               }
-              instagramActorId = identityDefaults.instagramActorId;
+
+              // Resolve Instagram actor from the Page via Graph API (most reliable)
+              if (pageId && platform.access_token) {
+                instagramActorId = await resolveInstagramActorFromPage(pageId, platform.access_token);
+              }
+              // Fall back to stored defaults only if Graph API didn't return one
+              if (!instagramActorId) {
+                instagramActorId = identityDefaults.instagramActorId;
+              }
 
               if (!pageId) {
                 console.error(`[push-creatives] No page ID for asset customization group ${group.group_name}`);
