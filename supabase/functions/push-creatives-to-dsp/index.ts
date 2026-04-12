@@ -23,7 +23,7 @@ const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 200; // Reduced delay between batches for faster processing
 const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before auto-continuing (25s safety margin)
 const AUTO_RETRY_DELAY_MS = 2000; // Delay before auto-retry to prevent rate limiting
-const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled"];
+const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled", "error"];
 
 type PlatformKey = "meta" | "tiktok";
 
