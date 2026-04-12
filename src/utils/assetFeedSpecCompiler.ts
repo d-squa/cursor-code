@@ -50,10 +50,8 @@ interface AssetFeedLinkUrl {
   adlabels?: Array<{ name: string }>;
 }
 
-interface AssetFeedCallToActionType {
-  value: string;
-  adlabels?: Array<{ name: string }>;
-}
+// Meta expects call_to_action_types as plain strings e.g. ["SHOP_NOW"]
+type AssetFeedCallToActionType = string;
 
 interface AssetCustomizationRule {
   customization_spec: Record<string, any>;
