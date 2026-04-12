@@ -1717,6 +1717,15 @@ const handler = async (req: Request): Promise<Response> => {
                 delete assetFeedSpec.images;
               }
 
+              // ad_formats is REQUIRED by Meta — infer from media present
+              if (!assetFeedSpec.ad_formats) {
+                if (assetFeedSpec.videos && assetFeedSpec.videos.length > 0) {
+                  assetFeedSpec.ad_formats = ["SINGLE_VIDEO"];
+                } else if (assetFeedSpec.images && assetFeedSpec.images.length > 0) {
+                  assetFeedSpec.ad_formats = ["SINGLE_IMAGE"];
+                }
+              }
+
               const groupCreativePayload: any = {
                 name: group.group_name,
                 object_story_spec: {
