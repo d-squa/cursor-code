@@ -151,14 +151,34 @@ function compilePlacement(
       ctaTypes.push(String(row.callToAction));
     }
 
+    // Map internal placement names to Meta API position values
+    const INSTAGRAM_POSITION_MAP: Record<string, string> = {
+      feed: 'stream', stories: 'story', reels: 'reels', explore: 'explore',
+      explore_home: 'explore_home', search: 'ig_search', shop: 'shop',
+      profile_feed: 'profile_feed', profile_reels: 'profile_reels',
+    };
+    const FACEBOOK_POSITION_MAP: Record<string, string> = {
+      feed: 'feed', stories: 'story', reels: 'reels', marketplace: 'marketplace',
+      search: 'search_results', right_column: 'right_hand_column',
+      instant_article: 'instant_article', instream_video: 'instream_video',
+      video_feeds: 'video_feeds',
+    };
+
+    const rawFb = placements.filter(p => p.startsWith('facebook_')).map(p => p.replace('facebook_', ''));
+    const rawIg = placements.filter(p => p.startsWith('instagram_')).map(p => p.replace('instagram_', ''));
+    const fbPos = rawFb.map(p => FACEBOOK_POSITION_MAP[p] || p).filter(Boolean);
+    const igPos = rawIg.map(p => INSTAGRAM_POSITION_MAP[p] || p).filter(Boolean);
+
+    const publishers: string[] = [];
+    if (fbPos.length > 0) publishers.push('facebook');
+    if (igPos.length > 0) publishers.push('instagram');
+
     // Build customization rule
     const rule: AssetCustomizationRule = {
       customization_spec: {
-        publisher_platforms: ['facebook', 'instagram'],
-        ...(placements.length > 0 ? {
-          facebook_positions: placements.filter(p => p.startsWith('facebook_')).map(p => p.replace('facebook_', '')),
-          instagram_positions: placements.filter(p => p.startsWith('instagram_')).map(p => p.replace('instagram_', '')),
-        } : {}),
+        publisher_platforms: publishers.length > 0 ? publishers : ['facebook', 'instagram'],
+        ...(fbPos.length > 0 ? { facebook_positions: fbPos } : {}),
+        ...(igPos.length > 0 ? { instagram_positions: igPos } : {}),
       },
     };
 
