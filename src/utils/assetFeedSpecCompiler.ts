@@ -50,10 +50,8 @@ interface AssetFeedLinkUrl {
   adlabels?: Array<{ name: string }>;
 }
 
-interface AssetFeedCallToActionType {
-  value: string;
-  adlabels?: Array<{ name: string }>;
-}
+// Meta expects call_to_action_types as plain strings e.g. ["SHOP_NOW"]
+type AssetFeedCallToActionType = string;
 
 interface AssetCustomizationRule {
   customization_spec: Record<string, any>;
@@ -150,7 +148,7 @@ function compilePlacement(
       linkUrls.push({ website_url: row.destinationUrl, adlabels });
     }
     if (row.callToAction) {
-      ctaTypes.push({ value: String(row.callToAction), adlabels });
+      ctaTypes.push(String(row.callToAction));
     }
 
     // Build customization rule
@@ -257,7 +255,7 @@ function compileLanguage(
     if (headline) titles.push({ text: headline, adlabels });
     if (description) descriptions.push({ text: description, adlabels });
     if (destinationUrl) linkUrls.push({ website_url: destinationUrl, adlabels });
-    if (callToAction) ctaTypes.push({ value: String(callToAction), adlabels });
+    if (callToAction) ctaTypes.push(String(callToAction));
 
     const rule: AssetCustomizationRule = {
       customization_spec: {
@@ -351,7 +349,7 @@ function compileFlexible(
       const url = fields.website_url || fields.destinationUrl;
       if (url && !seenUrls.has(url)) { linkUrls.push({ website_url: url }); seenUrls.add(url); }
       const cta = fields.call_to_action || fields.callToAction;
-      if (cta && !seenCtas.has(cta)) { ctaTypes.push({ value: cta }); seenCtas.add(cta); }
+      if (cta && !seenCtas.has(cta)) { ctaTypes.push(cta); seenCtas.add(cta); }
     }
   } else {
     // Fallback: collect from row data
@@ -366,7 +364,7 @@ function compileFlexible(
       if (row.headline && !seenTitles.has(row.headline)) { titles.push({ text: row.headline }); seenTitles.add(row.headline); }
       if (row.description && !seenDescriptions.has(row.description)) { descriptions.push({ text: row.description }); seenDescriptions.add(row.description); }
       if (row.destinationUrl && !seenUrls.has(row.destinationUrl)) { linkUrls.push({ website_url: row.destinationUrl }); seenUrls.add(row.destinationUrl); }
-      if (row.callToAction && !seenCtas.has(String(row.callToAction))) { ctaTypes.push({ value: String(row.callToAction) }); seenCtas.add(String(row.callToAction)); }
+      if (row.callToAction && !seenCtas.has(String(row.callToAction))) { ctaTypes.push(String(row.callToAction)); seenCtas.add(String(row.callToAction)); }
     }
   }
 

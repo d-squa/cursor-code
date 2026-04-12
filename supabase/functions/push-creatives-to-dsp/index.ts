@@ -1676,6 +1676,13 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
+              // Normalize call_to_action_types to plain strings (Meta rejects objects like {value:"SHOP_NOW"})
+              if (assetFeedSpec.call_to_action_types && Array.isArray(assetFeedSpec.call_to_action_types)) {
+                assetFeedSpec.call_to_action_types = assetFeedSpec.call_to_action_types.map((cta: any) =>
+                  typeof cta === "object" && cta !== null ? (cta.value || cta.type || "LEARN_MORE") : cta
+                );
+              }
+
               const groupCreativePayload: any = {
                 name: group.group_name,
                 object_story_spec: {
