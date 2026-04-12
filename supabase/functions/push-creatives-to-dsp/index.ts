@@ -1894,8 +1894,24 @@ const handler = async (req: Request): Promise<Response> => {
 
               if (imageCount > 0) {
                 delete assetFeedSpec.videos;
+                // Deduplicate images by hash — Meta rejects duplicate asset values
+                const seenHashes = new Set<string>();
+                assetFeedSpec.images = assetFeedSpec.images.filter((img: any) => {
+                  const key = img.hash || img.url || JSON.stringify(img);
+                  if (seenHashes.has(key)) return false;
+                  seenHashes.add(key);
+                  return true;
+                });
               } else {
                 delete assetFeedSpec.images;
+                // Deduplicate videos by video_id
+                const seenVids = new Set<string>();
+                assetFeedSpec.videos = assetFeedSpec.videos.filter((v: any) => {
+                  const key = v.video_id || JSON.stringify(v);
+                  if (seenVids.has(key)) return false;
+                  seenVids.add(key);
+                  return true;
+                });
               }
 
               const inferredAdFormat = videoCount > 0 ? "SINGLE_VIDEO" : "SINGLE_IMAGE";
