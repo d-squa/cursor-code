@@ -214,7 +214,8 @@ function assignmentMatchesAdSetConfig(assignment: any, adSetConfig: any): boolea
 
 function groupMatchesLaunchAdSet(group: any, entryEntityName: string | null | undefined, adSetConfig: any): boolean {
   const groupAdSetName = normalizeComparableLabel(group?.ad_set_name);
-  if (!groupAdSetName) return !adSetConfig;
+  // If the group has no ad_set_name and there's no config, let assignment-ID matching decide
+  if (!groupAdSetName) return false;
 
   const configId = normalizeComparableLabel(adSetConfig?.id);
   const configName = normalizeComparableLabel(adSetConfig?.name);
@@ -229,7 +230,8 @@ function groupMatchesLaunchAdSet(group: any, entryEntityName: string | null | un
       || entryName.includes(groupAdSetName);
   }
 
-  return !adSetConfig;
+  // Don't default to true — let assignment-ID matching in groupMatchesScopedAssignments decide
+  return false;
 }
 
 function groupMatchesScopedAssignments(
