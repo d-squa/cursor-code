@@ -23,7 +23,7 @@ const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 200; // Reduced delay between batches for faster processing
 const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before auto-continuing (25s safety margin)
 const AUTO_RETRY_DELAY_MS = 2000; // Delay before auto-retry to prevent rate limiting
-const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled"];
+const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled", "error"];
 
 type PlatformKey = "meta" | "tiktok";
 
@@ -1484,6 +1484,11 @@ const handler = async (req: Request): Promise<Response> => {
                   .from("creative_assignments")
                   .update({ status: "pushing", dsp_creative_id: null, error_message: null })
                   .in("id", memberAssignmentIds);
+              } else {
+                await supabase
+                  .from("creative_assignments")
+                  .update({ status: "pushing", error_message: null })
+                  .in("id", memberAssignmentIds);
               }
             }
 
@@ -1711,19 +1716,32 @@ const handler = async (req: Request): Promise<Response> => {
                 }
               }
 
-              // Meta requires exactly one ad format — cannot mix images and videos
-              if (assetFeedSpec.images && assetFeedSpec.videos) {
-                console.warn(`[push-creatives] asset_feed_spec has both images (${assetFeedSpec.images.length}) and videos (${assetFeedSpec.videos.length}). Keeping only videos to satisfy single-format requirement.`);
-                delete assetFeedSpec.images;
+              // Meta requires exactly one media collection in asset_feed_spec
+              const imageCount = Array.isArray(assetFeedSpec.images) ? assetFeedSpec.images.length : 0;
+              const videoCount = Array.isArray(assetFeedSpec.videos) ? assetFeedSpec.videos.length : 0;
+
+              if (imageCount > 0 && videoCount > 0) {
+                const errMsg = `Grouped asset feed mixes images (${imageCount}) and videos (${videoCount}), which Meta does not allow in one ad.`;
+                console.error(`[push-creatives] ${errMsg}`);
+                await supabase.from("asset_customization_groups").update({
+                  status: "error",
+                  validation_errors: [{ message: errMsg }],
+                }).eq("id", group.id);
+                for (const member of members) {
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
+                    localFailed++;
+                  }
+                }
+                continue;
               }
 
-              // ad_formats is REQUIRED by Meta — infer from media present
-              if (!assetFeedSpec.ad_formats) {
-                if (assetFeedSpec.videos && assetFeedSpec.videos.length > 0) {
-                  assetFeedSpec.ad_formats = ["SINGLE_VIDEO"];
-                } else if (assetFeedSpec.images && assetFeedSpec.images.length > 0) {
-                  assetFeedSpec.ad_formats = ["SINGLE_IMAGE"];
-                }
+              // Meta rejects the ad_formats values we've been sending for asset_feed_spec creatives.
+              // Keep the payload on a single media type and let Meta infer the exact format from the feed assets.
+              if (assetFeedSpec.ad_formats) {
+                console.log(`[push-creatives] Removing asset_feed_spec.ad_formats before Meta creative creation: ${JSON.stringify(assetFeedSpec.ad_formats)}`);
+                delete assetFeedSpec.ad_formats;
               }
 
               const groupCreativePayload: any = {
@@ -1793,7 +1811,10 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              await supabase.from("asset_customization_groups").update({ status: "pushed" }).eq("id", group.id);
+              await supabase.from("asset_customization_groups").update({
+                status: "pushed",
+                validation_errors: null,
+              }).eq("id", group.id);
               for (const member of members) {
                 const inferredAssignmentId = inferAssignmentIdFromMember(member);
                 if (inferredAssignmentId) {
