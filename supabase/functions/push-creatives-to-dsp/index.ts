@@ -308,6 +308,156 @@ function dedupeStringValues(values: unknown): string[] {
   return deduped;
 }
 
+function getRuleLabelName(rule: any): string {
+  const labelFields = [
+    "image_label",
+    "video_label",
+    "body_label",
+    "title_label",
+    "description_label",
+    "link_url_label",
+    "call_to_action_type_label",
+  ];
+
+  for (const field of labelFields) {
+    const name = typeof rule?.[field]?.name === "string" ? rule[field].name.trim() : "";
+    if (name) return name;
+  }
+
+  return "";
+}
+
+function inferPlacementRulePriority(rule: any): number {
+  const label = normalizeComparableLabel(getRuleLabelName(rule)).replace(/\s+/g, "_");
+
+  if (label.includes("fullscreen")) return 400;
+  if (label.includes("vertical")) return 300;
+  if (label.includes("square")) return 200;
+  if (label.includes("horizontal") || label.includes("landscape")) return 100;
+
+  return 0;
+}
+
+function hasPlacementTargets(rule: any): boolean {
+  const spec = rule?.customization_spec;
+  if (!spec || typeof spec !== "object") return false;
+
+  return Array.isArray(spec.facebook_positions)
+    || Array.isArray(spec.instagram_positions)
+    || Array.isArray(spec.publisher_platforms);
+}
+
+function syncPublisherPlatforms(spec: any) {
+  const publisherPlatforms: string[] = [];
+
+  if (Array.isArray(spec?.facebook_positions) && spec.facebook_positions.length > 0) {
+    publisherPlatforms.push("facebook");
+  }
+  if (Array.isArray(spec?.instagram_positions) && spec.instagram_positions.length > 0) {
+    publisherPlatforms.push("instagram");
+  }
+
+  if (publisherPlatforms.length > 0) {
+    spec.publisher_platforms = publisherPlatforms;
+  } else {
+    delete spec.publisher_platforms;
+  }
+}
+
+function dedupePlacementRuleTargets(rules: any[]): any[] {
+  const prioritizedRules = rules
+    .map((rule, index) => ({ rule, index, priority: inferPlacementRulePriority(rule) }))
+    .sort((a, b) => b.priority - a.priority || a.index - b.index);
+
+  const claimedFacebookPositions = new Set<string>();
+  const claimedInstagramPositions = new Set<string>();
+
+  for (const { rule } of prioritizedRules) {
+    const spec = rule?.customization_spec;
+    if (!spec || typeof spec !== "object") continue;
+
+    if (Array.isArray(spec.facebook_positions)) {
+      const nextFacebookPositions = spec.facebook_positions.filter((position: string) => {
+        if (claimedFacebookPositions.has(position)) return false;
+        claimedFacebookPositions.add(position);
+        return true;
+      });
+
+      if (nextFacebookPositions.length > 0) {
+        spec.facebook_positions = nextFacebookPositions;
+      } else {
+        delete spec.facebook_positions;
+      }
+    }
+
+    if (Array.isArray(spec.instagram_positions)) {
+      const nextInstagramPositions = spec.instagram_positions.filter((position: string) => {
+        if (claimedInstagramPositions.has(position)) return false;
+        claimedInstagramPositions.add(position);
+        return true;
+      });
+
+      if (nextInstagramPositions.length > 0) {
+        spec.instagram_positions = nextInstagramPositions;
+      } else {
+        delete spec.instagram_positions;
+      }
+    }
+
+    syncPublisherPlatforms(spec);
+  }
+
+  return rules.filter((rule) => {
+    if (!hasPlacementTargets(rule)) return true;
+
+    const spec = rule?.customization_spec;
+    return Boolean(
+      (Array.isArray(spec?.facebook_positions) && spec.facebook_positions.length > 0)
+      || (Array.isArray(spec?.instagram_positions) && spec.instagram_positions.length > 0),
+    );
+  });
+}
+
+function filterActiveAdLabels(labels: unknown, activeLabelNames: Set<string>): Array<{ name: string }> | undefined {
+  if (!Array.isArray(labels)) return undefined;
+
+  const filtered = labels
+    .map((label) => (typeof label?.name === "string" ? label.name.trim() : ""))
+    .filter((name) => name && activeLabelNames.has(name))
+    .map((name) => ({ name }));
+
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+function collectActiveRuleLabels(rules: any[]): Set<string> {
+  const activeLabels = new Set<string>();
+
+  for (const rule of rules) {
+    const labelName = getRuleLabelName(rule);
+    if (labelName) activeLabels.add(labelName);
+  }
+
+  return activeLabels;
+}
+
+function pruneUnusedLabeledEntries(entries: unknown, activeLabelNames: Set<string>): any[] | undefined {
+  if (!Array.isArray(entries)) return undefined;
+  if (activeLabelNames.size === 0) return entries;
+
+  return entries
+    .map((entry) => {
+      const filteredLabels = filterActiveAdLabels(entry?.adlabels, activeLabelNames);
+      if (Array.isArray(entry?.adlabels) && !filteredLabels) return null;
+
+      if (filteredLabels) {
+        return { ...entry, adlabels: filteredLabels };
+      }
+
+      return entry;
+    })
+    .filter(Boolean);
+}
+
 function normalizeAssetCustomizationRules(assetFeedSpec: any) {
   if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
 
@@ -338,19 +488,24 @@ function normalizeAssetCustomizationRules(assetFeedSpec: any) {
       delete spec.instagram_positions;
     }
 
-    const publisherPlatforms = new Set<string>(Array.isArray(spec.publisher_platforms) ? spec.publisher_platforms : []);
-    if (facebookPositions.length > 0) {
-      publisherPlatforms.add("facebook");
-    } else {
-      publisherPlatforms.delete("facebook");
-    }
-    if (instagramPositions.length > 0) {
-      publisherPlatforms.add("instagram");
-    } else {
-      publisherPlatforms.delete("instagram");
-    }
+    syncPublisherPlatforms(spec);
+  }
 
-    spec.publisher_platforms = publisherPlatforms.size > 0 ? Array.from(publisherPlatforms) : ["facebook", "instagram"];
+  const hasPlacementRules = assetFeedSpec.asset_customization_rules.some((rule: any) => hasPlacementTargets(rule));
+  if (!hasPlacementRules) return;
+
+  assetFeedSpec.asset_customization_rules = dedupePlacementRuleTargets(assetFeedSpec.asset_customization_rules);
+
+  const activeRuleLabels = collectActiveRuleLabels(assetFeedSpec.asset_customization_rules);
+  assetFeedSpec.images = pruneUnusedLabeledEntries(assetFeedSpec.images, activeRuleLabels);
+  assetFeedSpec.videos = pruneUnusedLabeledEntries(assetFeedSpec.videos, activeRuleLabels);
+  assetFeedSpec.bodies = pruneUnusedLabeledEntries(assetFeedSpec.bodies, activeRuleLabels);
+  assetFeedSpec.titles = pruneUnusedLabeledEntries(assetFeedSpec.titles, activeRuleLabels);
+  assetFeedSpec.descriptions = pruneUnusedLabeledEntries(assetFeedSpec.descriptions, activeRuleLabels);
+  assetFeedSpec.link_urls = pruneUnusedLabeledEntries(assetFeedSpec.link_urls, activeRuleLabels);
+
+  if (!assetFeedSpec.asset_customization_rules.length) {
+    delete assetFeedSpec.asset_customization_rules;
   }
 }
 
