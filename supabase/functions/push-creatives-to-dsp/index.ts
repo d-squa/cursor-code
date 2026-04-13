@@ -3373,8 +3373,6 @@ const handler = async (req: Request): Promise<Response> => {
                   ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 };
             }
-            console.log("FINAL PAYLOAD:", JSON.stringify(creativePayload, null, 2));
-
             // URL parameters are handled via url_tags at the creative level, NOT appended to URLs
             let finalDestinationUrl = baseDestinationUrl;
 
@@ -3500,7 +3498,8 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
 
-            console.log(`[push-creatives] Creating ad creative with payload:`, JSON.stringify(creativePayload, null, 2));
+            // NEW: log final single-creative payload immediately before the Meta API call
+            console.log("FINAL PAYLOAD:", JSON.stringify(creativePayload, null, 2));
 
             const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
               adAccountPath,
