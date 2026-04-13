@@ -2384,6 +2384,7 @@ const handler = async (req: Request): Promise<Response> => {
                 );
                 instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
               }
+              const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
               if (targetsInstagramPlacements && !instagramActorId) {
                 console.warn(`[push-creatives] Instagram placements requested but no linked Instagram account was found for page ${pageId}; continuing without instagram_actor_id.`);
@@ -2478,10 +2479,11 @@ const handler = async (req: Request): Promise<Response> => {
                 name: group.group_name,
                 object_story_spec: {
                   page_id: pageId,
-                  ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                  ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 },
                 asset_feed_spec: assetFeedSpec,
               };
+              console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
               const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
                 adAccountPath,
