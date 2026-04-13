@@ -2144,6 +2144,7 @@ const handler = async (req: Request): Promise<Response> => {
 
               let pageId = resolveConfiguredMetaPageId(null, phase, market);
               let instagramActorId: string | null = null;
+              const targetsInstagramPlacements = assetFeedTargetsInstagram(assetFeedSpec);
 
               const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null, platform.access_token);
 
@@ -2151,18 +2152,33 @@ const handler = async (req: Request): Promise<Response> => {
                 pageId = identityDefaults.pageId;
               }
 
-              // Resolve Instagram actor from the Page via Graph API (most reliable)
-              if (pageId && platform.access_token) {
-                instagramActorId = await resolveInstagramActorFromPage(pageId, platform.access_token);
-              }
-              // Fall back to stored defaults only if Graph API didn't return one
-              if (!instagramActorId) {
-                instagramActorId = identityDefaults.instagramActorId;
-              }
-
               if (!pageId) {
                 console.error(`[push-creatives] No page ID for asset customization group ${group.group_name}`);
                 await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing Facebook page ID" }] }).eq("id", group.id);
+                continue;
+              }
+
+              // Only use an Instagram actor that is explicitly linked to the selected page.
+              // Stored defaults can point to an unrelated IG account and Meta rejects those IDs.
+              if (targetsInstagramPlacements && platform.access_token) {
+                instagramActorId = await resolveInstagramActorFromPage(pageId, platform.access_token);
+              }
+
+              if (targetsInstagramPlacements && !instagramActorId) {
+                const errMsg = `The selected Facebook Page (${pageId}) is not linked to a valid Instagram business account for asset customization placements.`;
+                console.error(`[push-creatives] ${errMsg}`);
+                await supabase.from("asset_customization_groups").update({
+                  status: "error",
+                  validation_errors: [{ message: errMsg }],
+                }).eq("id", group.id);
+
+                for (const member of members) {
+                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
+                  if (inferredAssignmentId) {
+                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
+                    localFailed++;
+                  }
+                }
                 continue;
               }
 
@@ -2255,7 +2271,7 @@ const handler = async (req: Request): Promise<Response> => {
                 name: group.group_name,
                 object_story_spec: {
                   page_id: pageId,
-                  ...(assetFeedTargetsInstagram(assetFeedSpec) && instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                  ...(targetsInstagramPlacements && instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
                 },
                 asset_feed_spec: assetFeedSpec,
               };
