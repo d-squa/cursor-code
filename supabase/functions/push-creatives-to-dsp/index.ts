@@ -622,6 +622,7 @@ async function resolveInstagramActorId(
     const rawInstagramActorId = String(data?.instagram_business_account?.id || "").trim();
     const instagramActorId = /^\d{8,}$/.test(rawInstagramActorId) ? rawInstagramActorId : null;
     console.log("Resolved IG Actor ID:", instagramActorId);
+    console.log("Type of IG Actor ID:", typeof instagramActorId);
 
     if (rawInstagramActorId && !instagramActorId) {
       console.warn(`[push-creatives] Invalid Instagram actor ID format for page ${pageId}:`, rawInstagramActorId);
@@ -637,6 +638,23 @@ async function resolveInstagramActorId(
     console.log("Resolved IG Actor ID:", null);
     return null;
   }
+}
+
+// NEW: normalize and validate instagram_actor_id before injecting into object_story_spec
+function getValidatedInstagramActorId(instagramActorId: unknown): string | null {
+  const normalizedInstagramActorId = typeof instagramActorId === "string"
+    ? instagramActorId.trim()
+    : instagramActorId == null
+      ? ""
+      : String(instagramActorId).trim();
+
+  const isValidIG =
+    normalizedInstagramActorId &&
+    typeof normalizedInstagramActorId === "string" &&
+    normalizedInstagramActorId.length > 10 &&
+    /^\d+$/.test(normalizedInstagramActorId);
+
+  return isValidIG ? String(normalizedInstagramActorId) : null;
 }
 
 // UPDATED: preserve existing helper references while resolving exclusively from the Page
@@ -1799,6 +1817,7 @@ const handler = async (req: Request): Promise<Response> => {
               );
               instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
+            const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
             // Build child_attachments for each carousel card
             const childAttachments: any[] = [];
@@ -1900,7 +1919,7 @@ const handler = async (req: Request): Promise<Response> => {
               ...(globalUrlParams ? { url_tags: globalUrlParams } : {}),
               object_story_spec: {
                 page_id: pageId,
-                ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 link_data: {
                   message: firstResolvedText.primaryText,
                   link: normalizeHttpUrl(firstResolvedText.destinationUrl || defaultLandingPage) || childAttachments[0]?.link,
@@ -1909,6 +1928,7 @@ const handler = async (req: Request): Promise<Response> => {
                 },
               },
             };
+            console.log("FINAL PAYLOAD:", JSON.stringify(carouselCreativePayload, null, 2));
 
             const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
               adAccountPath,
@@ -2364,6 +2384,7 @@ const handler = async (req: Request): Promise<Response> => {
                 );
                 instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
               }
+              const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
               if (targetsInstagramPlacements && !instagramActorId) {
                 console.warn(`[push-creatives] Instagram placements requested but no linked Instagram account was found for page ${pageId}; continuing without instagram_actor_id.`);
@@ -2458,10 +2479,11 @@ const handler = async (req: Request): Promise<Response> => {
                 name: group.group_name,
                 object_story_spec: {
                   page_id: pageId,
-                  ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                  ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 },
                 asset_feed_spec: assetFeedSpec,
               };
+              console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
               const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
                 adAccountPath,
@@ -2626,6 +2648,7 @@ const handler = async (req: Request): Promise<Response> => {
             );
             instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
           }
+          const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
           // Build asset_feed_spec from all creatives in this ad-set group
           const afImages: any[] = [];
@@ -2787,10 +2810,11 @@ const handler = async (req: Request): Promise<Response> => {
             ...(finalUrlParameters ? { url_tags: finalUrlParameters } : {}),
             object_story_spec: {
               page_id: pageId,
-              ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+              ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
             },
             asset_feed_spec: assetFeedSpec,
           };
+          console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
           const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
             adAccountPath,
@@ -3162,6 +3186,7 @@ const handler = async (req: Request): Promise<Response> => {
               );
               instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
+            const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
             // Step 1: Create ad creative
             // Note: standard_enhancements is deprecated - Meta now requires individual feature settings
@@ -3260,7 +3285,7 @@ const handler = async (req: Request): Promise<Response> => {
                   // Use video_data structure for the ad creative
                   creativePayload.object_story_spec = {
                     page_id: pageId,
-                    ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                    ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                     video_data: {
                       video_id: uploadedVideoId,
                       message: resolvedText.primaryText || creative.primary_text || "",
@@ -3345,10 +3370,9 @@ const handler = async (req: Request): Promise<Response> => {
               // Build new object_story_spec for dark posts
                 creativePayload.object_story_spec = {
                   page_id: pageId,
-                  ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                  ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 };
             }
-
             // URL parameters are handled via url_tags at the creative level, NOT appended to URLs
             let finalDestinationUrl = baseDestinationUrl;
 
@@ -3474,7 +3498,8 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
 
-            console.log(`[push-creatives] Creating ad creative with payload:`, JSON.stringify(creativePayload, null, 2));
+            // NEW: log final single-creative payload immediately before the Meta API call
+            console.log("FINAL PAYLOAD:", JSON.stringify(creativePayload, null, 2));
 
             const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
               adAccountPath,
