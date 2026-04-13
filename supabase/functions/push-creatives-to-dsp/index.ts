@@ -532,13 +532,43 @@ function assetFeedTargetsInstagram(assetFeedSpec: any): boolean {
   );
 }
 
+// NEW: normalize explicit Meta selection IDs
+function normalizeMetaSelectionId(value: unknown): string | null {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+// NEW: determine whether Instagram was explicitly selected anywhere in the Meta config stack
+function resolveConfiguredMetaInstagramAccountId(
+  phase: any,
+  market: any,
+  accountDefaults?: { default_instagram_account_id?: string | null; selectedInstagramAccountId?: string | null } | null,
+): string | null {
+  const candidates = [
+    phase?.metaInstagramAccountId,
+    phase?.instagramActorId,
+    market?.metaInstagramAccountId,
+    market?.instagramActorId,
+    accountDefaults?.default_instagram_account_id,
+    accountDefaults?.selectedInstagramAccountId,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeMetaSelectionId(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 async function resolveMetaIdentityDefaults(
   supabase: any,
   campaign: any,
   resolvedAdAccount: string | null,
   accessToken?: string | null,
-): Promise<{ pageId: string | null; instagramActorId: string | null }> {
+): Promise<{ pageId: string | null; instagramActorId: string | null; selectedInstagramAccountId: string | null }> {
   let pageId: string | null = null;
+  let selectedInstagramAccountId: string | null = null;
 
   const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
   const adAccountIdWithPrefix = adAccountIdRaw ? `act_${adAccountIdRaw}` : "";
@@ -546,7 +576,7 @@ async function resolveMetaIdentityDefaults(
   if (adAccountIdRaw) {
     const { data: accountRows } = await supabase
       .from("meta_ad_accounts")
-      .select("default_page_id")
+      .select("default_page_id, default_instagram_account_id")
       .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
       .order("synced_at", { ascending: false });
 
@@ -555,6 +585,7 @@ async function resolveMetaIdentityDefaults(
     ) || accountRows?.[0] || null;
 
     pageId = matchedAccount?.default_page_id || null;
+    selectedInstagramAccountId = normalizeMetaSelectionId(matchedAccount?.default_instagram_account_id);
   }
 
   if (!pageId) {
@@ -569,7 +600,7 @@ async function resolveMetaIdentityDefaults(
     pageId = latestPage?.page_id || null;
   }
 
-  return { pageId, instagramActorId: null };
+  return { pageId, instagramActorId: null, selectedInstagramAccountId };
 }
 
 // NEW: Resolve the selected page access token before resolving instagram_actor_id
@@ -692,6 +723,62 @@ function withoutInstagramActorId(payload: any): any {
     delete clonedPayload.object_story_spec.instagram_actor_id;
   }
   return clonedPayload;
+}
+
+// NEW: strip Instagram placements for Facebook-only payloads
+function removeInstagramPlacementTargets(assetFeedSpec: any) {
+  if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
+
+  assetFeedSpec.asset_customization_rules = assetFeedSpec.asset_customization_rules.filter((rule: any) => {
+    const spec = rule?.customization_spec;
+    if (!spec || typeof spec !== "object") return true;
+
+    const hadInstagramPositions = Array.isArray(spec.instagram_positions) && spec.instagram_positions.length > 0;
+
+    delete spec.instagram_positions;
+
+    if (Array.isArray(spec.publisher_platforms)) {
+      const nextPublisherPlatforms = spec.publisher_platforms.filter((platform: string) => platform !== "instagram");
+      if (nextPublisherPlatforms.length > 0) {
+        spec.publisher_platforms = nextPublisherPlatforms;
+      } else {
+        delete spec.publisher_platforms;
+      }
+    }
+
+    syncPublisherPlatforms(spec);
+
+    if (hadInstagramPositions) {
+      return Array.isArray(spec.facebook_positions) && spec.facebook_positions.length > 0;
+    }
+
+    return true;
+  });
+}
+
+// NEW: keep placements and instagram_actor_id aligned before sending payloads
+function enforceMetaInstagramPayloadConsistency(creativePayload: any, instagramSelected: boolean) {
+  if (!creativePayload || typeof creativePayload !== "object") return;
+
+  if (!instagramSelected && creativePayload.asset_feed_spec) {
+    removeInstagramPlacementTargets(creativePayload.asset_feed_spec);
+  }
+
+  const rawInstagramActorId = creativePayload?.object_story_spec?.instagram_actor_id;
+  if (
+    !instagramSelected
+    || rawInstagramActorId == null
+    || String(rawInstagramActorId).trim().length === 0
+  ) {
+    if (creativePayload?.object_story_spec && typeof creativePayload.object_story_spec === "object") {
+      delete creativePayload.object_story_spec.instagram_actor_id;
+    }
+  }
+
+  const hasIGPlacements = JSON.stringify(creativePayload).includes("instagram_positions");
+  if (hasIGPlacements && !creativePayload?.object_story_spec?.instagram_actor_id) {
+    console.warn("Invalid state: IG placements without instagram_actor_id");
+  }
 }
 
 // NEW: create Meta ad creative with automatic fallback when Meta rejects instagram_actor_id
