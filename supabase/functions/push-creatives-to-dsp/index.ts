@@ -1818,7 +1818,6 @@ const handler = async (req: Request): Promise<Response> => {
               instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
             const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
-            const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
             // Build child_attachments for each carousel card
             const childAttachments: any[] = [];
