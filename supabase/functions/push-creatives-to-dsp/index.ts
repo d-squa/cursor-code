@@ -539,7 +539,6 @@ async function resolveMetaIdentityDefaults(
   accessToken?: string | null,
 ): Promise<{ pageId: string | null; instagramActorId: string | null }> {
   let pageId: string | null = null;
-  let instagramActorId: string | null = null;
 
   const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
   const adAccountIdWithPrefix = adAccountIdRaw ? `act_${adAccountIdRaw}` : "";
@@ -547,16 +546,15 @@ async function resolveMetaIdentityDefaults(
   if (adAccountIdRaw) {
     const { data: accountRows } = await supabase
       .from("meta_ad_accounts")
-      .select("default_page_id, default_instagram_account_id")
+      .select("default_page_id")
       .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
       .order("synced_at", { ascending: false });
 
     const matchedAccount = accountRows?.find(
-      (row: any) => row?.default_page_id || row?.default_instagram_account_id,
+      (row: any) => row?.default_page_id,
     ) || accountRows?.[0] || null;
 
     pageId = matchedAccount?.default_page_id || null;
-    instagramActorId = matchedAccount?.default_instagram_account_id || null;
   }
 
   if (!pageId) {
@@ -571,19 +569,36 @@ async function resolveMetaIdentityDefaults(
     pageId = latestPage?.page_id || null;
   }
 
-  if (!instagramActorId) {
-    const { data: latestInstagramAccount } = await supabase
-      .from("meta_instagram_accounts")
-      .select("instagram_account_id")
-      .eq("user_id", campaign.user_id)
-      .order("synced_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  return { pageId, instagramActorId: null };
+}
 
-    instagramActorId = latestInstagramAccount?.instagram_account_id || null;
+// NEW: Resolve the selected page access token before resolving instagram_actor_id
+async function resolveMetaPageAccessToken(
+  supabase: any,
+  campaign: any,
+  pageId: string,
+  resolvedAdAccount: string | null,
+  fallbackAccessToken: string,
+): Promise<string> {
+  const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
+  const adAccountIdWithPrefix = adAccountIdRaw ? `act_${adAccountIdRaw}` : "";
+
+  let pageQuery = supabase
+    .from("meta_pages")
+    .select("access_token, ad_account_id")
+    .eq("user_id", campaign.user_id)
+    .eq("page_id", pageId)
+    .order("synced_at", { ascending: false });
+
+  if (adAccountIdRaw) {
+    pageQuery = pageQuery.or(`ad_account_id.eq.${adAccountIdRaw},ad_account_id.eq.${adAccountIdWithPrefix},ad_account_id.is.null`);
   }
 
-  return { pageId, instagramActorId };
+  const { data: pageRows } = await pageQuery.limit(5);
+  const matchedPage = pageRows?.find((row: any) => typeof row?.access_token === "string" && row.access_token.trim().length > 0) || null;
+
+  console.log(`[push-creatives] Page token source for ${pageId}:`, matchedPage?.ad_account_id || "platform_access_token");
+  return matchedPage?.access_token || fallbackAccessToken;
 }
 
 // NEW: Resolve Instagram Actor ID from Page
@@ -604,8 +619,13 @@ async function resolveInstagramActorId(
       return null;
     }
 
-    const instagramActorId = data?.instagram_business_account?.id || null;
+    const rawInstagramActorId = String(data?.instagram_business_account?.id || "").trim();
+    const instagramActorId = /^\d{8,}$/.test(rawInstagramActorId) ? rawInstagramActorId : null;
     console.log("Resolved IG Actor ID:", instagramActorId);
+
+    if (rawInstagramActorId && !instagramActorId) {
+      console.warn(`[push-creatives] Invalid Instagram actor ID format for page ${pageId}:`, rawInstagramActorId);
+    }
 
     if (!instagramActorId) {
       console.warn("No Instagram account linked to page:", pageId);
@@ -625,6 +645,17 @@ async function resolveInstagramActorFromPage(
   accessToken: string,
 ): Promise<string | null> {
   return await resolveInstagramActorId(pageId, accessToken);
+}
+
+// FIX: keep instagram_actor_id when the payload explicitly targets Instagram placements
+function payloadRequiresInstagramActor(payload: any): boolean {
+  return Boolean(
+    Array.isArray(payload?.asset_feed_spec?.asset_customization_rules)
+      && payload.asset_feed_spec.asset_customization_rules.some((rule: any) =>
+        Array.isArray(rule?.customization_spec?.instagram_positions)
+        && rule.customization_spec.instagram_positions.length > 0,
+      ),
+  );
 }
 
 // NEW: detect Meta's invalid instagram_actor_id rejection so we can retry safely without it
@@ -679,6 +710,13 @@ async function createMetaAdCreativeWithInstagramFallback(params: {
     payload?.object_story_spec?.instagram_actor_id &&
     isInvalidInstagramActorError(primaryResult.creativeData)
   ) {
+    if (payloadRequiresInstagramActor(payload)) {
+      console.warn(
+        `[push-creatives] ${logLabel} requires instagram_actor_id for Instagram placements; skipping fallback retry without instagram_actor_id.`,
+      );
+      return primaryResult;
+    }
+
     console.warn(
       `[push-creatives] ${logLabel} rejected instagram_actor_id ${payload.object_story_spec.instagram_actor_id} for page ${payload.object_story_spec.page_id}; retrying without instagram_actor_id.`,
     );
@@ -1749,10 +1787,17 @@ const handler = async (req: Request): Promise<Response> => {
 
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
 
-            // NEW: Resolve Instagram Actor ID from Page
+            // FIX: Resolve instagram_actor_id from the selected Facebook Page using the page token
             let instagramActorId: string | null = null;
             if (platform.access_token) {
-              instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+              const instagramResolutionToken = await resolveMetaPageAccessToken(
+                supabase,
+                campaign,
+                pageId,
+                resolvedAdAccount ? String(resolvedAdAccount) : null,
+                platform.access_token,
+              );
+              instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
 
             // Build child_attachments for each carousel card
@@ -2308,9 +2353,16 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // UPDATED: resolve instagram_actor_id from the selected Facebook Page only
+              // FIX: resolve instagram_actor_id from the selected Facebook Page only
               if (platform.access_token) {
-                instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+                const instagramResolutionToken = await resolveMetaPageAccessToken(
+                  supabase,
+                  campaign,
+                  pageId,
+                  resolvedAdAccount ? String(resolvedAdAccount) : null,
+                  platform.access_token,
+                );
+                instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
               }
 
               if (targetsInstagramPlacements && !instagramActorId) {
