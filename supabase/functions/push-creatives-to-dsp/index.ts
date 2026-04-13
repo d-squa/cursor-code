@@ -3042,6 +3042,7 @@ const handler = async (req: Request): Promise<Response> => {
                 default_pixel_id,
                 default_landing_page_url,
                 default_page_id,
+                default_instagram_account_id,
                 synced_at
               `)
               .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
@@ -3269,9 +3270,10 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            // NEW: Resolve Instagram Actor ID from Page
+            // FIX: Resolve instagram_actor_id only when Instagram was explicitly selected
+            const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, metaAdAccountDefaults));
             let instagramActorId: string | null = null;
-            if (platform.access_token) {
+            if (instagramSelected && platform.access_token) {
               const instagramResolutionToken = await resolveMetaPageAccessToken(
                 supabase,
                 campaign,
@@ -3592,6 +3594,8 @@ const handler = async (req: Request): Promise<Response> => {
                 };
               }
             }
+
+            enforceMetaInstagramPayloadConsistency(creativePayload, instagramSelected);
 
             // NEW: log final single-creative payload immediately before the Meta API call
             console.log("FINAL PAYLOAD:", JSON.stringify(creativePayload, null, 2));
