@@ -2699,7 +2699,7 @@ const handler = async (req: Request): Promise<Response> => {
           const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
           const { data: allAdAccRows } = await supabase
             .from("meta_ad_accounts")
-            .select("default_utm_mode, default_url_parameters, default_pixel_id, default_landing_page_url, default_page_id, synced_at")
+            .select("default_utm_mode, default_url_parameters, default_pixel_id, default_landing_page_url, default_page_id, default_instagram_account_id, synced_at")
             .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
             .order("synced_at", { ascending: false });
           const metaDefaults = allAdAccRows?.find((r: any) => r.default_landing_page_url || r.default_page_id) || allAdAccRows?.[0] || null;
@@ -2730,8 +2730,9 @@ const handler = async (req: Request): Promise<Response> => {
             continue;
           }
 
+          const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, metaDefaults));
           let instagramActorId: string | null = null;
-          if (platform.access_token) {
+          if (instagramSelected && platform.access_token) {
             const instagramResolutionToken = await resolveMetaPageAccessToken(
               supabase,
               campaign,
@@ -2907,6 +2908,7 @@ const handler = async (req: Request): Promise<Response> => {
             },
             asset_feed_spec: assetFeedSpec,
           };
+          enforceMetaInstagramPayloadConsistency(groupCreativePayload, instagramSelected);
           console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
           const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
