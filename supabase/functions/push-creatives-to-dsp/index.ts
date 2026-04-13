@@ -627,6 +627,69 @@ async function resolveInstagramActorFromPage(
   return await resolveInstagramActorId(pageId, accessToken);
 }
 
+// NEW: detect Meta's invalid instagram_actor_id rejection so we can retry safely without it
+function isInvalidInstagramActorError(errorResponse: any): boolean {
+  const rawMessage = String(
+    errorResponse?.error?.error_user_msg || errorResponse?.error?.message || "",
+  ).toLowerCase();
+
+  return rawMessage.includes("instagram_actor_id") && rawMessage.includes("valid instagram account id");
+}
+
+// NEW: remove instagram_actor_id from object_story_spec without altering the original payload
+function withoutInstagramActorId(payload: any): any {
+  const clonedPayload = JSON.parse(JSON.stringify(payload || {}));
+  if (clonedPayload?.object_story_spec && typeof clonedPayload.object_story_spec === "object") {
+    delete clonedPayload.object_story_spec.instagram_actor_id;
+  }
+  return clonedPayload;
+}
+
+// NEW: create Meta ad creative with automatic fallback when Meta rejects instagram_actor_id
+async function createMetaAdCreativeWithInstagramFallback(params: {
+  adAccountPath: string;
+  accessToken: string;
+  payload: any;
+  logLabel: string;
+}) {
+  const { adAccountPath, accessToken, payload, logLabel } = params;
+
+  const postCreative = async (creativePayload: any, attempt: "primary" | "fallback") => {
+    console.log(`[push-creatives] ${logLabel} endpoint (${attempt}): POST https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`);
+    console.log(`[push-creatives] ${logLabel} payload (${attempt}):`, JSON.stringify(creativePayload, null, 2));
+
+    const creativeResponse = await fetch(
+      `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${accessToken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(creativePayload),
+      },
+    );
+
+    const creativeData = await creativeResponse.json();
+    console.log(`[push-creatives] ${logLabel} response (${attempt}):`, JSON.stringify(creativeData));
+
+    return { creativeData, creativePayload };
+  };
+
+  const primaryResult = await postCreative(payload, "primary");
+  if (
+    !primaryResult.creativeData?.id &&
+    payload?.object_story_spec?.instagram_actor_id &&
+    isInvalidInstagramActorError(primaryResult.creativeData)
+  ) {
+    console.warn(
+      `[push-creatives] ${logLabel} rejected instagram_actor_id ${payload.object_story_spec.instagram_actor_id} for page ${payload.object_story_spec.page_id}; retrying without instagram_actor_id.`,
+    );
+
+    const fallbackPayload = withoutInstagramActorId(payload);
+    return await postCreative(fallbackPayload, "fallback");
+  }
+
+  return primaryResult;
+}
+
 function normalizeAssetCustomizationRules(assetFeedSpec: any) {
   if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
 
@@ -1802,14 +1865,12 @@ const handler = async (req: Request): Promise<Response> => {
               },
             };
 
-            console.log(`[push-creatives] Creating Meta carousel adcreative with ${childAttachments.length} cards:`, JSON.stringify(carouselCreativePayload, null, 2));
-
-            const creativeResponse = await fetch(
-              `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(carouselCreativePayload) },
-            );
-            const creativeData = await creativeResponse.json();
-            console.log(`[push-creatives] Meta carousel creative response:`, JSON.stringify(creativeData));
+            const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
+              adAccountPath,
+              accessToken: platform.access_token,
+              payload: carouselCreativePayload,
+              logLabel: `Meta carousel creative (${firstCreative.name})`,
+            });
 
             if (!creativeData.id) {
               const errMsg = creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create Meta carousel creative";
@@ -2350,14 +2411,12 @@ const handler = async (req: Request): Promise<Response> => {
                 asset_feed_spec: assetFeedSpec,
               };
 
-              console.log(`[push-creatives] Creating Meta asset customization ad creative for group "${group.group_name}":`, JSON.stringify(groupCreativePayload, null, 2));
-
-              const creativeResponse = await fetch(
-                `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
-                { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(groupCreativePayload) },
-              );
-              const creativeData = await creativeResponse.json();
-              console.log(`[push-creatives] Asset customization creative response:`, JSON.stringify(creativeData));
+              const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
+                adAccountPath,
+                accessToken: platform.access_token,
+                payload: groupCreativePayload,
+                logLabel: `Asset customization creative (${group.group_name})`,
+              });
 
               if (!creativeData.id) {
                 const errMsg = creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create asset customization creative";
@@ -2674,15 +2733,12 @@ const handler = async (req: Request): Promise<Response> => {
             asset_feed_spec: assetFeedSpec,
           };
 
-          console.log(`[push-creatives] ASSET_FEED creative endpoint: POST https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`);
-          console.log(`[push-creatives] ASSET_FEED creative payload:`, JSON.stringify(groupCreativePayload, null, 2));
-
-          const creativeResponse = await fetch(
-            `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
-            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(groupCreativePayload) },
-          );
-          const creativeData = await creativeResponse.json();
-          console.log(`[push-creatives] ASSET_FEED creative response:`, JSON.stringify(creativeData));
+          const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
+            adAccountPath,
+            accessToken: platform.access_token,
+            payload: groupCreativePayload,
+            logLabel: `ASSET_FEED creative (${firstAssignment.ad_set_name || entry.entity_name || firstCreative.name})`,
+          });
 
           if (!creativeData.id) {
             const errMsg = creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create asset_feed adcreative";
@@ -3354,17 +3410,12 @@ const handler = async (req: Request): Promise<Response> => {
 
             console.log(`[push-creatives] Creating ad creative with payload:`, JSON.stringify(creativePayload, null, 2));
 
-            const creativeResponse = await fetch(
-              `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(creativePayload),
-              },
-            );
-
-            const creativeData = await creativeResponse.json();
-            console.log(`[push-creatives] Creative creation response:`, JSON.stringify(creativeData));
+            const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
+              adAccountPath,
+              accessToken: platform.access_token,
+              payload: creativePayload,
+              logLabel: `Creative creation (${creative.name})`,
+            });
             
             if (!creativeData.id) {
               console.error(`[push-creatives] Ad creative creation failed:`, JSON.stringify(creativeData));
