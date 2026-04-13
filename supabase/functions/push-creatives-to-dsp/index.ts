@@ -1847,7 +1847,7 @@ const handler = async (req: Request): Promise<Response> => {
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
             const { data: allMetaAdAccountRows } = await supabase
               .from("meta_ad_accounts")
-              .select("default_page_id, default_landing_page_url, default_url_parameters, default_utm_mode, default_pixel_id")
+              .select("default_page_id, default_landing_page_url, default_url_parameters, default_utm_mode, default_pixel_id, default_instagram_account_id")
               .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
               .order("synced_at", { ascending: false });
             const metaAdAccountDefaults = allMetaAdAccountRows?.find(
@@ -1892,9 +1892,10 @@ const handler = async (req: Request): Promise<Response> => {
 
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
 
-            // FIX: Resolve instagram_actor_id from the selected Facebook Page using the page token
+            // FIX: Resolve instagram_actor_id only when Instagram was explicitly selected
+            const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, metaAdAccountDefaults));
             let instagramActorId: string | null = null;
-            if (platform.access_token) {
+            if (instagramSelected && platform.access_token) {
               const instagramResolutionToken = await resolveMetaPageAccessToken(
                 supabase,
                 campaign,
@@ -2015,6 +2016,7 @@ const handler = async (req: Request): Promise<Response> => {
                 },
               },
             };
+            enforceMetaInstagramPayloadConsistency(carouselCreativePayload, instagramSelected);
             console.log("FINAL PAYLOAD:", JSON.stringify(carouselCreativePayload, null, 2));
 
             const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
