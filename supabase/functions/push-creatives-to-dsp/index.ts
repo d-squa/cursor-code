@@ -16,6 +16,7 @@ const inputSchema = z.object({
   campaignId: z.string().uuid(),
   jobId: z.string().uuid().optional(), // For continuation from existing job
   isAutoRetry: z.boolean().optional(), // Flag for auto-retry invocations
+  mode: z.enum(["single", "asset_feed"]).optional(),
 });
 
 // Batch size for processing creatives to avoid resource exhaustion
@@ -24,6 +25,23 @@ const BATCH_DELAY_MS = 200; // Reduced delay between batches for faster processi
 const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before auto-continuing (25s safety margin)
 const AUTO_RETRY_DELAY_MS = 2000; // Delay before auto-retry to prevent rate limiting
 const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled", "error"];
+
+const VALID_META_CTAS = new Set([
+  "OPEN_LINK","LIKE_PAGE","SHOP_NOW","PLAY_GAME","INSTALL_APP","USE_APP","CALL","CALL_ME",
+  "VIDEO_CALL","INSTALL_MOBILE_APP","USE_MOBILE_APP","MOBILE_DOWNLOAD","BOOK_TRAVEL",
+  "LISTEN_MUSIC","WATCH_VIDEO","LEARN_MORE","SIGN_UP","DOWNLOAD","WATCH_MORE","NO_BUTTON",
+  "VISIT_PAGES_FEED","CALL_NOW","APPLY_NOW","CONTACT","BUY_NOW","GET_OFFER","GET_OFFER_VIEW",
+  "BUY_TICKETS","UPDATE_APP","GET_DIRECTIONS","BUY","SEND_UPDATES","MESSAGE_PAGE","DONATE",
+  "SUBSCRIBE","SAY_THANKS","SELL_NOW","SHARE","DONATE_NOW","GET_QUOTE","CONTACT_US",
+  "ORDER_NOW","START_ORDER","ADD_TO_CART","VIEW_CART","VIEW_IN_CART","RECORD_NOW",
+  "INQUIRE_NOW","CONFIRM","REFER_FRIENDS","REQUEST_TIME","GET_SHOWTIMES","LISTEN_NOW",
+  "SEE_SHOP","GET_DETAILS","FIND_OUT_MORE","VISIT_WEBSITE","BROWSE_SHOP","EVENT_RSVP",
+  "WHATSAPP_MESSAGE","SEE_MORE","BOOK_NOW","FOLLOW_PAGE","SEND_A_GIFT","GET_STARTED",
+  "OPEN_INSTANT_APP","AUDIO_CALL","GET_PROMOTIONS","JOIN_CHANNEL","MAKE_AN_APPOINTMENT",
+  "ASK_ABOUT_SERVICES","BOOK_A_CONSULTATION","GET_A_QUOTE","BUY_VIA_MESSAGE",
+  "ASK_FOR_MORE_INFO","CHAT_WITH_US","VIEW_PRODUCT","VIEW_CHANNEL","GET_IN_TOUCH",
+  "ASK_A_QUESTION","START_A_CHAT","CHAT_NOW","ASK_US","WATCH_LIVE_VIDEO","SHOP_WITH_AI",
+]);
 
 type PlatformKey = "meta" | "tiktok";
 
@@ -60,6 +78,52 @@ function normalizeHttpUrl(input: unknown): string | null {
   const normalizedProtocol = raw.replace(/^https?:\/\//i, (m) => m.toLowerCase());
   if (/^https?:\/\//i.test(normalizedProtocol)) return normalizedProtocol;
   return `https://${raw}`;
+}
+
+function normalizeMetaCallToActionType(value: unknown): string | null {
+  const raw = typeof value === "object" && value !== null
+    ? String((value as any).value || (value as any).type || "")
+    : String(value || "");
+  const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return normalized && VALID_META_CTAS.has(normalized) ? normalized : null;
+}
+
+// NEW: grouping logic
+function groupAssignmentsByAdSet(assignments: any[], fallbackAdSetId: string | null | undefined): Map<string, any[]> {
+  const grouped = new Map<string, any[]>();
+
+  for (const assignment of assignments) {
+    const adSetId = String(assignment?.ad_set_id || fallbackAdSetId || "").trim();
+    const groupKey = adSetId || `missing_adset:${assignment?.id || crypto.randomUUID()}`;
+    if (!grouped.has(groupKey)) grouped.set(groupKey, []);
+    grouped.get(groupKey)!.push(assignment);
+  }
+
+  return grouped;
+}
+
+function sanitizeAssetFeedFormatLabel(value: unknown, fallback: string): string {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
+
+  return normalized || fallback;
+}
+
+function buildAssetFeedFormatLabel(assignment: any, creative: any, index: number): string {
+  const platformMeta = (creative?.platform_metadata as Record<string, any> | null) || null;
+  const candidate =
+    creative?.format ||
+    platformMeta?.format ||
+    platformMeta?.asset_feed_format ||
+    platformMeta?.placement_format ||
+    platformMeta?.aspect_ratio ||
+    assignment?.format ||
+    creative?.media_type;
+
+  return sanitizeAssetFeedFormatLabel(candidate, `format_${index + 1}`);
 }
 
 /**
