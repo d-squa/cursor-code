@@ -43,6 +43,54 @@ const VALID_META_CTAS = new Set([
   "ASK_A_QUESTION","START_A_CHAT","CHAT_NOW","ASK_US","WATCH_LIVE_VIDEO","SHOP_WITH_AI",
 ]);
 
+const META_LOCALE_TO_LANGUAGE_ID: Record<string, number> = {
+  ar: 1,
+  ar_ar: 1,
+  da: 3,
+  cs: 4,
+  de: 5,
+  de_de: 5,
+  en: 6,
+  en_xx: 6,
+  en_us: 6,
+  fr: 7,
+  fr_xx: 7,
+  fi: 8,
+  el: 9,
+  es: 10,
+  es_xx: 10,
+  he: 11,
+  hu: 12,
+  hi: 13,
+  hi_in: 13,
+  ja: 14,
+  ja_jp: 14,
+  pt: 15,
+  pt_xx: 15,
+  it: 16,
+  it_it: 16,
+  ko: 19,
+  ko_kr: 19,
+  nl: 20,
+  nl_nl: 20,
+  ro: 21,
+  ru: 22,
+  ru_ru: 22,
+  en_gb: 24,
+  zh_cn: 25,
+  zh_tw: 26,
+  sv: 27,
+  pl: 28,
+  tr: 29,
+  tr_tr: 29,
+  no: 30,
+  th: 32,
+  uk: 50,
+  vi: 51,
+  ms: 61,
+  id: 62,
+};
+
 type PlatformKey = "meta" | "tiktok";
 
 function toPlatformKey(platformLabel: string): PlatformKey | null {
@@ -372,6 +420,77 @@ function dedupeStringValues(values: unknown): string[] {
   return deduped;
 }
 
+function normalizeMetaLocaleIds(locales: unknown): number[] {
+  if (!Array.isArray(locales)) return [];
+
+  const normalizedIds = new Set<number>();
+
+  for (const locale of locales) {
+    if (typeof locale === "number" && Number.isFinite(locale)) {
+      normalizedIds.add(locale);
+      continue;
+    }
+
+    const rawLocale = String(locale ?? "").trim();
+    if (!rawLocale) continue;
+
+    const parsed = Number(rawLocale);
+    if (Number.isFinite(parsed)) {
+      normalizedIds.add(parsed);
+      continue;
+    }
+
+    const normalizedKey = rawLocale.toLowerCase().replace(/[-\s]+/g, "_");
+    const mappedId = META_LOCALE_TO_LANGUAGE_ID[normalizedKey];
+    if (mappedId) normalizedIds.add(mappedId);
+  }
+
+  return Array.from(normalizedIds);
+}
+
+function requiresDynamicCreativeAdSet(effectiveMode: string, scopedCustomGroups: any[]): boolean {
+  if (effectiveMode === "asset_feed") return true;
+  return scopedCustomGroups.some((group: any) => String(group?.customization_type || "") === "flexible_creative");
+}
+
+async function ensureMetaAdSetSupportsDynamicCreative(adSetId: string, accessToken: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const currentResp = await fetch(
+      `https://graph.facebook.com/v22.0/${adSetId}?fields=is_dynamic_creative&access_token=${accessToken}`,
+    );
+    const currentData = await currentResp.json();
+
+    if (currentData?.is_dynamic_creative === true) {
+      return { success: true };
+    }
+
+    console.log(`[push-creatives] Enabling dynamic creative on ad set ${adSetId}`);
+    const patchResp = await fetch(`https://graph.facebook.com/v22.0/${adSetId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        is_dynamic_creative: true,
+        access_token: accessToken,
+      }),
+    });
+    const patchData = await patchResp.json();
+
+    if (patchData?.error) {
+      return {
+        success: false,
+        error: patchData.error?.error_user_msg || patchData.error?.message || "Failed to enable dynamic creative on ad set",
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: (error as any)?.message || "Failed to enable dynamic creative on ad set",
+    };
+  }
+}
+
 function getRuleLabelName(rule: any): string {
   const labelFields = [
     "image_label",
@@ -549,7 +668,6 @@ function resolveConfiguredMetaInstagramAccountId(
     phase?.instagramActorId,
     market?.metaInstagramAccountId,
     market?.instagramActorId,
-    accountDefaults?.default_instagram_account_id,
     accountDefaults?.selectedInstagramAccountId,
   ];
 
@@ -566,9 +684,10 @@ async function resolveMetaIdentityDefaults(
   campaign: any,
   resolvedAdAccount: string | null,
   accessToken?: string | null,
-): Promise<{ pageId: string | null; instagramActorId: string | null; selectedInstagramAccountId: string | null }> {
+): Promise<{ pageId: string | null; instagramActorId: string | null; selectedInstagramAccountId: string | null; defaultLandingPageUrl: string | null }> {
   let pageId: string | null = null;
   let selectedInstagramAccountId: string | null = null;
+  let defaultLandingPageUrl: string | null = null;
 
   const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
   const adAccountIdWithPrefix = adAccountIdRaw ? `act_${adAccountIdRaw}` : "";
@@ -576,7 +695,7 @@ async function resolveMetaIdentityDefaults(
   if (adAccountIdRaw) {
     const { data: accountRows } = await supabase
       .from("meta_ad_accounts")
-      .select("default_page_id, default_instagram_account_id")
+      .select("default_page_id, default_instagram_account_id, default_landing_page_url")
       .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
       .order("synced_at", { ascending: false });
 
@@ -586,6 +705,7 @@ async function resolveMetaIdentityDefaults(
 
     pageId = matchedAccount?.default_page_id || null;
     selectedInstagramAccountId = normalizeMetaSelectionId(matchedAccount?.default_instagram_account_id);
+    defaultLandingPageUrl = normalizeHttpUrl(matchedAccount?.default_landing_page_url);
   }
 
   if (!pageId) {
@@ -600,7 +720,7 @@ async function resolveMetaIdentityDefaults(
     pageId = latestPage?.page_id || null;
   }
 
-  return { pageId, instagramActorId: null, selectedInstagramAccountId };
+  return { pageId, instagramActorId: null, selectedInstagramAccountId, defaultLandingPageUrl };
 }
 
 // NEW: Resolve the selected page access token before resolving instagram_actor_id
@@ -639,7 +759,7 @@ async function resolveInstagramActorId(
 ): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`,
+      `https://graph.facebook.com/v19.0/${pageId}?fields=instagram_business_account,connected_instagram_account&access_token=${accessToken}`,
     );
 
     const data = await res.json();
@@ -650,8 +770,14 @@ async function resolveInstagramActorId(
       return null;
     }
 
-    const rawInstagramActorId = String(data?.instagram_business_account?.id || "").trim();
+    const rawInstagramActorId = String(
+      data?.instagram_business_account?.id || data?.connected_instagram_account?.id || "",
+    ).trim();
     const instagramActorId = /^\d{8,}$/.test(rawInstagramActorId) ? rawInstagramActorId : null;
+    console.log("Resolved IG account candidates:", JSON.stringify({
+      instagram_business_account: data?.instagram_business_account?.id || null,
+      connected_instagram_account: data?.connected_instagram_account?.id || null,
+    }));
     console.log("Resolved IG Actor ID:", instagramActorId);
     console.log("Type of IG Actor ID:", typeof instagramActorId);
 
@@ -725,6 +851,14 @@ function withoutInstagramActorId(payload: any): any {
   return clonedPayload;
 }
 
+function withoutInstagramDelivery(payload: any): any {
+  const clonedPayload = withoutInstagramActorId(payload);
+  if (clonedPayload?.asset_feed_spec) {
+    removeInstagramPlacementTargets(clonedPayload.asset_feed_spec);
+  }
+  return clonedPayload;
+}
+
 // NEW: strip Instagram placements for Facebook-only payloads
 function removeInstagramPlacementTargets(assetFeedSpec: any) {
   if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
@@ -760,15 +894,16 @@ function removeInstagramPlacementTargets(assetFeedSpec: any) {
 function enforceMetaInstagramPayloadConsistency(creativePayload: any, instagramSelected: boolean) {
   if (!creativePayload || typeof creativePayload !== "object") return;
 
-  if (!instagramSelected && creativePayload.asset_feed_spec) {
+  const rawInstagramActorId = creativePayload?.object_story_spec?.instagram_actor_id;
+  const hasValidInstagramActor = typeof rawInstagramActorId === "string" && rawInstagramActorId.trim().length > 0;
+
+  if ((!instagramSelected || !hasValidInstagramActor) && creativePayload.asset_feed_spec) {
     removeInstagramPlacementTargets(creativePayload.asset_feed_spec);
   }
 
-  const rawInstagramActorId = creativePayload?.object_story_spec?.instagram_actor_id;
   if (
     !instagramSelected
-    || rawInstagramActorId == null
-    || String(rawInstagramActorId).trim().length === 0
+    || !hasValidInstagramActor
   ) {
     if (creativePayload?.object_story_spec && typeof creativePayload.object_story_spec === "object") {
       delete creativePayload.object_story_spec.instagram_actor_id;
@@ -817,9 +952,10 @@ async function createMetaAdCreativeWithInstagramFallback(params: {
   ) {
     if (payloadRequiresInstagramActor(payload)) {
       console.warn(
-        `[push-creatives] ${logLabel} requires instagram_actor_id for Instagram placements; skipping fallback retry without instagram_actor_id.`,
+        `[push-creatives] ${logLabel} rejected instagram_actor_id while targeting Instagram placements; retrying with Facebook-only placement payload.`,
       );
-      return primaryResult;
+      const fallbackPayload = withoutInstagramDelivery(payload);
+      return await postCreative(fallbackPayload, "facebook_only_fallback");
     }
 
     console.warn(
@@ -863,6 +999,13 @@ function normalizeAssetCustomizationRules(assetFeedSpec: any) {
       delete spec.instagram_positions;
     }
 
+    const localeIds = normalizeMetaLocaleIds(spec.locales);
+    if (localeIds.length > 0) {
+      spec.locales = localeIds;
+    } else {
+      delete spec.locales;
+    }
+
     syncPublisherPlatforms(spec);
   }
 
@@ -900,7 +1043,7 @@ function normalizeAssetFeedSpecValues(assetFeedSpec: any) {
     return text || null;
   });
   assetFeedSpec.link_urls = dedupeLabeledAssetEntries(assetFeedSpec.link_urls, (entry) => {
-    const url = typeof entry?.website_url === "string" ? entry.website_url.trim() : "";
+    const url = normalizeHttpUrl(entry?.website_url);
     return url || null;
   });
 
@@ -1688,6 +1831,44 @@ const handler = async (req: Request): Promise<Response> => {
       // ========== PRE-FLIGHT: CHECK AD SET AD COUNT LIMIT ==========
       // Meta limits each ad set to 50 ads (including paused/inactive/turned off).
       // Query Meta for the current ad count before pushing to avoid "Too Many Ads" errors.
+      const needsDynamicCreative = platformKey === "meta"
+        && !!targetEntityId
+        && requiresDynamicCreativeAdSet(effectiveMode, scopedCustomGroups);
+
+      if (needsDynamicCreative && targetEntityId) {
+        const dynamicCreativeResult = await ensureMetaAdSetSupportsDynamicCreative(targetEntityId, platform.access_token);
+        if (!dynamicCreativeResult.success) {
+          const dynamicCreativeError = dynamicCreativeResult.error || "Dynamic Creative requires a Dynamic Creative Ad Set.";
+          const pendingIds = pendingAssignments.map((assignment: any) => assignment.id);
+          if (pendingIds.length > 0) {
+            await supabase
+              .from("creative_assignments")
+              .update({ status: "error", error_message: dynamicCreativeError })
+              .in("id", pendingIds);
+          }
+          for (const group of scopedCustomGroups) {
+            if (String(group?.customization_type || "") === "flexible_creative") {
+              await supabase
+                .from("asset_customization_groups")
+                .update({ status: "error", validation_errors: [{ message: dynamicCreativeError }] })
+                .eq("id", group.id);
+            }
+          }
+          failedCount += pendingIds.length;
+          results.push({
+            platform: entry.platform,
+            market: entry.market,
+            phase: entry.phase_name,
+            pushed: 0,
+            failed: pendingIds.length,
+            success: false,
+            error: dynamicCreativeError,
+            hasUserAuth: !!requestAuthHeader,
+          });
+          continue;
+        }
+      }
+
       const META_AD_SET_LIMIT = 50;
       let existingAdCount = 0;
       let availableSlots = META_AD_SET_LIMIT;
@@ -2451,7 +2632,7 @@ const handler = async (req: Request): Promise<Response> => {
               const targetsInstagramPlacements = assetFeedTargetsInstagram(assetFeedSpec);
 
               const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null, platform.access_token);
-              const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, identityDefaults));
+              const instagramSelected = targetsInstagramPlacements || Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, identityDefaults));
 
               if (!pageId) {
                 pageId = identityDefaults.pageId;
@@ -2461,6 +2642,23 @@ const handler = async (req: Request): Promise<Response> => {
                 console.error(`[push-creatives] No page ID for asset customization group ${group.group_name}`);
                 await supabase.from("asset_customization_groups").update({ status: "error", validation_errors: [{ message: "Missing Facebook page ID" }] }).eq("id", group.id);
                 continue;
+              }
+
+              if (!assetFeedSpec.link_urls || assetFeedSpec.link_urls.length === 0) {
+                const fallbackLinkUrl = normalizeHttpUrl(
+                  (phase as any)?.metaLandingPageUrl ||
+                  (phase as any)?.meta_landing_page_url ||
+                  (phase as any)?.landingPageUrl ||
+                  (phase as any)?.landing_page_url ||
+                  (market as any)?.metaLandingPageUrl ||
+                  (market as any)?.meta_landing_page_url ||
+                  (market as any)?.landingPageUrl ||
+                  (market as any)?.landing_page_url ||
+                  identityDefaults.defaultLandingPageUrl,
+                );
+                if (fallbackLinkUrl) {
+                  assetFeedSpec.link_urls = [{ website_url: fallbackLinkUrl }];
+                }
               }
 
               // FIX: resolve instagram_actor_id only when Instagram was explicitly selected
@@ -2872,6 +3070,9 @@ const handler = async (req: Request): Promise<Response> => {
           }
           if (!groupError && afBodies.length === 0) {
             groupError = "At least one primary text is required for asset_feed";
+          }
+          if (!groupError && afLinkUrls.length === 0) {
+            groupError = "A destination URL is required for asset_feed";
           }
 
           if (groupError) {
@@ -3579,6 +3780,18 @@ const handler = async (req: Request): Promise<Response> => {
                 
                 // URL parameters are handled via url_tags at the creative level
               } else {
+                if (!finalDestinationUrl) {
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: "Image ads require a destination URL. Set it on the assignment, creative, phase, market, or ad account defaults.",
+                    })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
+
                 creativePayload.object_story_spec.link_data = {
                   image_hash: creative.platform_image_hash,
                   link: finalDestinationUrl,
