@@ -622,6 +622,7 @@ async function resolveInstagramActorId(
     const rawInstagramActorId = String(data?.instagram_business_account?.id || "").trim();
     const instagramActorId = /^\d{8,}$/.test(rawInstagramActorId) ? rawInstagramActorId : null;
     console.log("Resolved IG Actor ID:", instagramActorId);
+    console.log("Type of IG Actor ID:", typeof instagramActorId);
 
     if (rawInstagramActorId && !instagramActorId) {
       console.warn(`[push-creatives] Invalid Instagram actor ID format for page ${pageId}:`, rawInstagramActorId);
@@ -637,6 +638,23 @@ async function resolveInstagramActorId(
     console.log("Resolved IG Actor ID:", null);
     return null;
   }
+}
+
+// NEW: normalize and validate instagram_actor_id before injecting into object_story_spec
+function getValidatedInstagramActorId(instagramActorId: unknown): string | null {
+  const normalizedInstagramActorId = typeof instagramActorId === "string"
+    ? instagramActorId.trim()
+    : instagramActorId == null
+      ? ""
+      : String(instagramActorId).trim();
+
+  const isValidIG =
+    normalizedInstagramActorId &&
+    typeof normalizedInstagramActorId === "string" &&
+    normalizedInstagramActorId.length > 10 &&
+    /^\d+$/.test(normalizedInstagramActorId);
+
+  return isValidIG ? String(normalizedInstagramActorId) : null;
 }
 
 // UPDATED: preserve existing helper references while resolving exclusively from the Page
