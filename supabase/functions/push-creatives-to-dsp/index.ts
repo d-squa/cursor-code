@@ -2451,6 +2451,7 @@ const handler = async (req: Request): Promise<Response> => {
               const targetsInstagramPlacements = assetFeedTargetsInstagram(assetFeedSpec);
 
               const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null, platform.access_token);
+              const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, identityDefaults));
 
               if (!pageId) {
                 pageId = identityDefaults.pageId;
@@ -2462,8 +2463,8 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // FIX: resolve instagram_actor_id from the selected Facebook Page only
-              if (platform.access_token) {
+              // FIX: resolve instagram_actor_id only when Instagram was explicitly selected
+              if (instagramSelected && platform.access_token) {
                 const instagramResolutionToken = await resolveMetaPageAccessToken(
                   supabase,
                   campaign,
@@ -2475,7 +2476,9 @@ const handler = async (req: Request): Promise<Response> => {
               }
               const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
-              if (targetsInstagramPlacements && !instagramActorId) {
+              if (!instagramSelected && targetsInstagramPlacements) {
+                console.warn(`[push-creatives] Instagram placements detected without an Instagram selection for group ${group.group_name}; stripping instagram_positions and forcing Facebook-only payload.`);
+              } else if (targetsInstagramPlacements && !instagramActorId) {
                 console.warn(`[push-creatives] Instagram placements requested but no linked Instagram account was found for page ${pageId}; continuing without instagram_actor_id.`);
               }
 
@@ -2572,6 +2575,7 @@ const handler = async (req: Request): Promise<Response> => {
                 },
                 asset_feed_spec: assetFeedSpec,
               };
+              enforceMetaInstagramPayloadConsistency(groupCreativePayload, instagramSelected);
               console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
               const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
