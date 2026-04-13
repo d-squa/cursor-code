@@ -2648,6 +2648,7 @@ const handler = async (req: Request): Promise<Response> => {
             );
             instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
           }
+          const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
           // Build asset_feed_spec from all creatives in this ad-set group
           const afImages: any[] = [];
@@ -2809,10 +2810,11 @@ const handler = async (req: Request): Promise<Response> => {
             ...(finalUrlParameters ? { url_tags: finalUrlParameters } : {}),
             object_story_spec: {
               page_id: pageId,
-              ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+              ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
             },
             asset_feed_spec: assetFeedSpec,
           };
+          console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
           const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
             adAccountPath,
