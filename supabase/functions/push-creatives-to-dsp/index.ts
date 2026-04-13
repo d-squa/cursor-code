@@ -586,29 +586,45 @@ async function resolveMetaIdentityDefaults(
   return { pageId, instagramActorId };
 }
 
-/**
- * Query the Meta Graph API for the Instagram business account connected to a
- * specific Facebook Page.  This is the only reliable source for the
- * `instagram_actor_id` — stored defaults may reference an IG account that
- * belongs to the user but is not linked to the Page used in the creative.
- */
-async function resolveInstagramActorFromPage(
+// NEW: Resolve Instagram Actor ID from Page
+async function resolveInstagramActorId(
   pageId: string,
   accessToken: string,
 ): Promise<string | null> {
   try {
-    const url = `https://graph.facebook.com/v22.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`;
-    const res = await fetch(url);
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`,
+    );
+
     const data = await res.json();
-    const igId = data?.instagram_business_account?.id;
-    if (igId) {
-      console.log(`[push-creatives] Resolved Instagram actor ${igId} from page ${pageId}`);
-      return String(igId);
+
+    if (!res.ok || data?.error) {
+      console.error(`[push-creatives] Failed to resolve Instagram actor ID for page ${pageId}:`, data?.error || data);
+      console.log("Resolved IG Actor ID:", null);
+      return null;
     }
-  } catch (err) {
-    console.warn(`[push-creatives] Failed to resolve Instagram actor from page ${pageId}:`, err);
+
+    const instagramActorId = data?.instagram_business_account?.id || null;
+    console.log("Resolved IG Actor ID:", instagramActorId);
+
+    if (!instagramActorId) {
+      console.warn("No Instagram account linked to page:", pageId);
+    }
+
+    return instagramActorId;
+  } catch (error) {
+    console.error(`[push-creatives] Failed to resolve Instagram actor ID for page ${pageId}:`, error);
+    console.log("Resolved IG Actor ID:", null);
+    return null;
   }
-  return null;
+}
+
+// UPDATED: preserve existing helper references while resolving exclusively from the Page
+async function resolveInstagramActorFromPage(
+  pageId: string,
+  accessToken: string,
+): Promise<string | null> {
+  return await resolveInstagramActorId(pageId, accessToken);
 }
 
 function normalizeAssetCustomizationRules(assetFeedSpec: any) {
@@ -1670,6 +1686,12 @@ const handler = async (req: Request): Promise<Response> => {
 
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
 
+            // NEW: Resolve Instagram Actor ID from Page
+            let instagramActorId: string | null = null;
+            if (platform.access_token) {
+              instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+            }
+
             // Build child_attachments for each carousel card
             const childAttachments: any[] = [];
             let carouselCardsFailed = 0;
@@ -1770,6 +1792,7 @@ const handler = async (req: Request): Promise<Response> => {
               ...(globalUrlParams ? { url_tags: globalUrlParams } : {}),
               object_story_spec: {
                 page_id: pageId,
+                ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
                 link_data: {
                   message: firstResolvedText.primaryText,
                   link: normalizeHttpUrl(firstResolvedText.destinationUrl || defaultLandingPage) || childAttachments[0]?.link,
@@ -2224,28 +2247,13 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // Only use an Instagram actor that is explicitly linked to the selected page.
-              // Stored defaults can point to an unrelated IG account and Meta rejects those IDs.
-              if (targetsInstagramPlacements && platform.access_token) {
-                instagramActorId = await resolveInstagramActorFromPage(pageId, platform.access_token);
+              // UPDATED: resolve instagram_actor_id from the selected Facebook Page only
+              if (platform.access_token) {
+                instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
               }
 
               if (targetsInstagramPlacements && !instagramActorId) {
-                const errMsg = `The selected Facebook Page (${pageId}) is not linked to a valid Instagram business account for asset customization placements.`;
-                console.error(`[push-creatives] ${errMsg}`);
-                await supabase.from("asset_customization_groups").update({
-                  status: "error",
-                  validation_errors: [{ message: errMsg }],
-                }).eq("id", group.id);
-
-                for (const member of members) {
-                  const inferredAssignmentId = inferAssignmentIdFromMember(member);
-                  if (inferredAssignmentId) {
-                    await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).eq("id", inferredAssignmentId);
-                    localFailed++;
-                  }
-                }
-                continue;
+                console.warn(`[push-creatives] Instagram placements requested but no linked Instagram account was found for page ${pageId}; continuing without instagram_actor_id.`);
               }
 
               // Normalize call_to_action_types to valid Meta enum strings
@@ -2337,7 +2345,7 @@ const handler = async (req: Request): Promise<Response> => {
                 name: group.group_name,
                 object_story_spec: {
                   page_id: pageId,
-                  ...(targetsInstagramPlacements && instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                  ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
                 },
                 asset_feed_spec: assetFeedSpec,
               };
@@ -2498,7 +2506,7 @@ const handler = async (req: Request): Promise<Response> => {
 
           let instagramActorId: string | null = null;
           if (platform.access_token) {
-            instagramActorId = await resolveInstagramActorFromPage(pageId, platform.access_token);
+            instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
           }
 
           // Build asset_feed_spec from all creatives in this ad-set group
@@ -3027,6 +3035,12 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
+            // NEW: Resolve Instagram Actor ID from Page
+            let instagramActorId: string | null = null;
+            if (platform.access_token) {
+              instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+            }
+
             // Step 1: Create ad creative
             // Note: standard_enhancements is deprecated - Meta now requires individual feature settings
             const baseDestinationUrl = normalizeHttpUrl(
@@ -3124,6 +3138,7 @@ const handler = async (req: Request): Promise<Response> => {
                   // Use video_data structure for the ad creative
                   creativePayload.object_story_spec = {
                     page_id: pageId,
+                    ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
                     video_data: {
                       video_id: uploadedVideoId,
                       message: resolvedText.primaryText || creative.primary_text || "",
@@ -3206,9 +3221,10 @@ const handler = async (req: Request): Promise<Response> => {
               }
             } else {
               // Build new object_story_spec for dark posts
-              creativePayload.object_story_spec = {
-                page_id: pageId,
-              };
+                creativePayload.object_story_spec = {
+                  page_id: pageId,
+                  ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                };
             }
 
             // URL parameters are handled via url_tags at the creative level, NOT appended to URLs
