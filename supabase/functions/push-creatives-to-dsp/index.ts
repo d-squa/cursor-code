@@ -3186,6 +3186,7 @@ const handler = async (req: Request): Promise<Response> => {
               );
               instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
+            const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
             // Step 1: Create ad creative
             // Note: standard_enhancements is deprecated - Meta now requires individual feature settings
