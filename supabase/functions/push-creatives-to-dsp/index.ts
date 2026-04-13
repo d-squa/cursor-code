@@ -916,7 +916,9 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { campaignId, jobId: existingJobId, isAutoRetry } = parsed.data;
+    const { campaignId, jobId: existingJobId, isAutoRetry, mode: pushMode } = parsed.data;
+    const effectiveMode = pushMode || "single";
+    console.log(`[push-creatives] mode=${effectiveMode}`);
     const requestAuthHeader = req.headers.get("authorization");
     
     // For auto-retry, we use service role auth
@@ -1553,7 +1555,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      console.log(`[push-creatives] Found ${scopedCustomGroups.length} asset customization group(s), ${carouselGroups.size} carousel group(s), and ${standaloneAssignments.length} standalone assignment(s)`);
+      console.log(`[push-creatives] Found ${scopedCustomGroups.length} asset customization group(s), ${carouselGroups.size} carousel group(s), and ${standaloneAssignments.length} standalone assignment(s) (mode=${effectiveMode})`);
 
       // ========== PUSH CAROUSEL GROUPS ==========
       for (const [carouselGroupId, carouselCards] of carouselGroups) {
@@ -2418,6 +2420,303 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       // ========== PUSH STANDALONE ASSIGNMENTS ==========
+      if (platformKey === "meta" && effectiveMode === "asset_feed" && standaloneAssignments.length > 0) {
+        // NEW: asset_feed mode — group all standalone assignments by ad_set_id,
+        // build ONE asset_feed_spec per group, create ONE adcreative + ONE ad per ad set.
+        const adSetGrouped = groupAssignmentsByAdSet(standaloneAssignments, targetEntityId);
+        console.log(`[push-creatives] asset_feed mode: ${adSetGrouped.size} ad-set group(s) from ${standaloneAssignments.length} standalone assignments`);
+
+        for (const [groupAdSetId, groupedAssignments] of adSetGrouped) {
+          if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
+            timedOut = true;
+            hasMoreWork = true;
+            break;
+          }
+
+          const sortedGroup = [...groupedAssignments].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+          const assignmentIds = sortedGroup.map((a: any) => a.id);
+          const firstAssignment = sortedGroup[0];
+          const firstCreative = firstAssignment?.creative;
+          if (!firstCreative) continue;
+
+          const effectiveAdSetId = (!groupAdSetId || groupAdSetId.startsWith("missing_adset:")) ? targetEntityId : groupAdSetId;
+          if (!effectiveAdSetId) {
+            await supabase.from("creative_assignments").update({ status: "error", error_message: "Missing adset_id for asset_feed group" }).in("id", assignmentIds);
+            localFailed += assignmentIds.length;
+            continue;
+          }
+
+          await supabase.from("creative_assignments").update({ status: "pushing", error_message: null }).in("id", assignmentIds);
+
+          // Resolve ad account
+          const resolvedAdAccount =
+            (market as any)?.adAccountId || (market as any)?.ad_account_id ||
+            platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+          const adAccountPath = resolvedAdAccount
+            ? String(resolvedAdAccount).startsWith("act_") ? String(resolvedAdAccount) : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`
+            : null;
+          if (!adAccountPath) {
+            await supabase.from("creative_assignments").update({ status: "error", error_message: "Missing Meta ad account id" }).in("id", assignmentIds);
+            localFailed += assignmentIds.length;
+            continue;
+          }
+
+          const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
+          const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
+          const { data: allAdAccRows } = await supabase
+            .from("meta_ad_accounts")
+            .select("default_utm_mode, default_url_parameters, default_pixel_id, default_landing_page_url, default_page_id, synced_at")
+            .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
+            .order("synced_at", { ascending: false });
+          const metaDefaults = allAdAccRows?.find((r: any) => r.default_landing_page_url || r.default_page_id) || allAdAccRows?.[0] || null;
+
+          const utmMode = firstAssignment.utm_mode || metaDefaults?.default_utm_mode || "auto";
+          let finalUrlParameters = firstAssignment.url_parameters || firstCreative.url_parameters;
+          if (utmMode === "auto") {
+            finalUrlParameters = "utm_source={{site_source_name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{adset.name}}";
+          } else if (!finalUrlParameters && metaDefaults?.default_url_parameters) {
+            finalUrlParameters = metaDefaults.default_url_parameters;
+          }
+
+          const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaDefaults?.default_pixel_id;
+          const metaLandingPageUrl = normalizeHttpUrl(
+            (phase as any)?.metaLandingPageUrl || (phase as any)?.meta_landing_page_url ||
+            (market as any)?.metaLandingPageUrl || (market as any)?.meta_landing_page_url ||
+            metaDefaults?.default_landing_page_url,
+          );
+
+          let pageId = resolveConfiguredMetaPageId(firstCreative, phase, market) || metaDefaults?.default_page_id;
+          if (!pageId) {
+            const { data: latestPage } = await supabase.from("meta_pages").select("page_id").eq("user_id", campaign.user_id).order("synced_at", { ascending: false }).limit(1).maybeSingle();
+            pageId = latestPage?.page_id || null;
+          }
+          if (!pageId) {
+            await supabase.from("creative_assignments").update({ status: "error", error_message: "Missing Meta page ID" }).in("id", assignmentIds);
+            localFailed += assignmentIds.length;
+            continue;
+          }
+
+          let instagramActorId: string | null = null;
+          if (platform.access_token) {
+            instagramActorId = await resolveInstagramActorFromPage(pageId, platform.access_token);
+          }
+
+          // Build asset_feed_spec from all creatives in this ad-set group
+          const afImages: any[] = [];
+          const afVideos: any[] = [];
+          const afBodies: any[] = [];
+          const afTitles: any[] = [];
+          const afDescriptions: any[] = [];
+          const afLinkUrls: any[] = [];
+          const afCtaTypes: string[] = [];
+          let groupError: string | null = null;
+
+          const seenBodyTexts = new Set<string>();
+          const seenTitleTexts = new Set<string>();
+          const seenDescTexts = new Set<string>();
+          const seenLinkUrls = new Set<string>();
+          const seenCtaTypes = new Set<string>();
+
+          for (let idx = 0; idx < sortedGroup.length; idx++) {
+            const assignment = sortedGroup[idx];
+            const creative = assignment?.creative;
+            if (!creative) continue;
+
+            // Auto-upload missing assets
+            const isOrganicPost = creative.creative_type === "existing_post" && creative.external_post_id;
+            if (isOrganicPost) {
+              groupError = `Organic post "${creative.name}" is not compatible with asset_feed mode. Use mode "single" for this ad set.`;
+              break;
+            }
+
+            let hasAsset = creative.platform_image_hash || creative.platform_video_id;
+            if (!hasAsset) {
+              try {
+                const { data: fullCreative } = await supabase.from("creatives").select("media_urls, media_type").eq("id", creative.id).single();
+                if (!fullCreative?.media_urls?.[0]) throw new Error(`No media URL for creative ${creative.id}`);
+                const mediaUrl = fullCreative.media_urls[0];
+                const urlLower = mediaUrl.toLowerCase();
+                const isVideoFile = /\.(mp4|mov|avi|wmv|flv|webm|m4v)(\?|$)/.test(urlLower) || (!/\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/.test(urlLower) && fullCreative.media_type === "video");
+                const mediaResponse = await fetch(mediaUrl);
+                if (!mediaResponse.ok) throw new Error(`Download failed: ${mediaResponse.status}`);
+                const mediaBlob = await mediaResponse.blob();
+                const fileName = mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
+
+                if (isVideoFile) {
+                  const fd = new FormData();
+                  fd.append('access_token', platform.access_token);
+                  fd.append('source', mediaBlob, fileName);
+                  const uploadRes = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/advideos`, { method: 'POST', body: fd });
+                  const uploadResult = await uploadRes.json();
+                  if (!uploadResult.id) throw new Error(uploadResult.error?.message || "Video upload failed");
+                  await supabase.from("creatives").update({ platform_video_id: uploadResult.id, dsp_upload_status: "uploaded", dsp_uploaded_at: new Date().toISOString() }).eq("id", creative.id);
+                  creative.platform_video_id = uploadResult.id;
+                } else {
+                  const fd = new FormData();
+                  fd.append('access_token', platform.access_token);
+                  fd.append('filename', fileName);
+                  fd.append('bytes', await blobToBase64(mediaBlob));
+                  const uploadRes = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adimages`, { method: 'POST', body: fd });
+                  const uploadResult = await uploadRes.json();
+                  const imgData = uploadResult.images?.[fileName] || Object.values(uploadResult.images || {})[0] as any;
+                  if (!imgData?.hash) throw new Error(uploadResult.error?.message || "Image upload failed");
+                  await supabase.from("creatives").update({ platform_image_hash: imgData.hash, dsp_upload_status: "uploaded", dsp_uploaded_at: new Date().toISOString() }).eq("id", creative.id);
+                  creative.platform_image_hash = imgData.hash;
+                }
+              } catch (uploadErr) {
+                groupError = `Auto-upload failed for creative ${creative.name}: ${(uploadErr as any).message}`;
+                break;
+              }
+            }
+
+            // Format label for adlabels (VERY IMPORTANT for Meta placement mapping)
+            const formatLabel = buildAssetFeedFormatLabel(assignment, creative, idx);
+            const adlabels = [{ name: formatLabel }];
+
+            if (creative.platform_image_hash) {
+              afImages.push({ hash: creative.platform_image_hash, adlabels });
+            }
+            if (creative.platform_video_id) {
+              const videoEntry: any = { video_id: creative.platform_video_id, adlabels };
+              if (creative.platform_thumbnail_id) {
+                videoEntry.thumbnail_hash = creative.platform_thumbnail_id;
+              } else if (creative.thumbnail_url && !/\.(mp4|mov|avi|webm|mkv|m4v)$/i.test(creative.thumbnail_url)) {
+                videoEntry.thumbnail_url = creative.thumbnail_url;
+              }
+              afVideos.push(videoEntry);
+            }
+
+            // Collect text assets (deduplicated)
+            const textFields = [
+              { value: assignment.primary_text || creative.primary_text, set: seenBodyTexts, arr: afBodies, key: "text" },
+              { value: assignment.primary_text_2, set: seenBodyTexts, arr: afBodies, key: "text" },
+              { value: assignment.primary_text_3, set: seenBodyTexts, arr: afBodies, key: "text" },
+              { value: assignment.primary_text_4, set: seenBodyTexts, arr: afBodies, key: "text" },
+              { value: assignment.primary_text_5, set: seenBodyTexts, arr: afBodies, key: "text" },
+            ];
+            for (const tf of textFields) {
+              const v = typeof tf.value === "string" ? tf.value.trim() : "";
+              if (v && !tf.set.has(v)) { tf.set.add(v); tf.arr.push({ [tf.key]: v }); }
+            }
+
+            const headlineFields = [
+              assignment.headline || creative.headline,
+              assignment.headline_2, assignment.headline_3, assignment.headline_4, assignment.headline_5,
+            ];
+            for (const h of headlineFields) {
+              const v = typeof h === "string" ? h.trim() : "";
+              if (v && !seenTitleTexts.has(v)) { seenTitleTexts.add(v); afTitles.push({ text: v }); }
+            }
+
+            const descFields = [
+              assignment.description || creative.description,
+              assignment.description_2, assignment.description_3, assignment.description_4, assignment.description_5,
+            ];
+            for (const d of descFields) {
+              const v = typeof d === "string" ? d.trim() : "";
+              if (v && !seenDescTexts.has(v)) { seenDescTexts.add(v); afDescriptions.push({ text: v }); }
+            }
+
+            const destUrl = normalizeHttpUrl(assignment.destination_url || creative.destination_url || metaLandingPageUrl);
+            if (destUrl && !seenLinkUrls.has(destUrl)) { seenLinkUrls.add(destUrl); afLinkUrls.push({ website_url: destUrl }); }
+
+            const cta = normalizeMetaCallToActionType(assignment.call_to_action || creative.call_to_action);
+            if (cta && !seenCtaTypes.has(cta)) { seenCtaTypes.add(cta); afCtaTypes.push(cta); }
+          }
+
+          if (!groupError && afImages.length === 0 && afVideos.length === 0) {
+            groupError = "No media assets resolved for asset_feed group";
+          }
+          if (!groupError && afBodies.length === 0) {
+            groupError = "At least one primary text is required for asset_feed";
+          }
+
+          if (groupError) {
+            console.error(`[push-creatives] asset_feed group error for adset ${effectiveAdSetId}: ${groupError}`);
+            await supabase.from("creative_assignments").update({ status: "error", error_message: groupError }).in("id", assignmentIds);
+            localFailed += assignmentIds.length;
+            continue;
+          }
+
+          // Determine ad_formats
+          const adFormats: string[] = [];
+          if (afImages.length > 0) adFormats.push("SINGLE_IMAGE");
+          if (afVideos.length > 0) adFormats.push("SINGLE_VIDEO");
+
+          const assetFeedSpec: any = {
+            ...(afImages.length > 0 ? { images: afImages } : {}),
+            ...(afVideos.length > 0 ? { videos: afVideos } : {}),
+            bodies: afBodies,
+            ...(afTitles.length > 0 ? { titles: afTitles } : {}),
+            ...(afDescriptions.length > 0 ? { descriptions: afDescriptions } : {}),
+            ...(afLinkUrls.length > 0 ? { link_urls: afLinkUrls } : {}),
+            ...(afCtaTypes.length > 0 ? { call_to_action_types: afCtaTypes } : {}),
+            ...(adFormats.length > 0 ? { ad_formats: adFormats } : {}),
+            optimization_type: "REGULAR",
+          };
+
+          // UPDATED: creative payload — uses asset_feed_spec instead of object_story_spec with link_data/video_data
+          const groupCreativePayload: any = {
+            name: `${firstAssignment.ad_set_name || entry.entity_name || firstCreative.name} - Asset Feed`,
+            ...(finalUrlParameters ? { url_tags: finalUrlParameters } : {}),
+            object_story_spec: {
+              page_id: pageId,
+              ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+            },
+            asset_feed_spec: assetFeedSpec,
+          };
+
+          console.log(`[push-creatives] ASSET_FEED creative endpoint: POST https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`);
+          console.log(`[push-creatives] ASSET_FEED creative payload:`, JSON.stringify(groupCreativePayload, null, 2));
+
+          const creativeResponse = await fetch(
+            `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(groupCreativePayload) },
+          );
+          const creativeData = await creativeResponse.json();
+          console.log(`[push-creatives] ASSET_FEED creative response:`, JSON.stringify(creativeData));
+
+          if (!creativeData.id) {
+            const errMsg = creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create asset_feed adcreative";
+            console.error(`[push-creatives] ASSET_FEED creative creation failed: ${errMsg}`);
+            await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).in("id", assignmentIds);
+            localFailed += assignmentIds.length;
+            continue;
+          }
+
+          // ONE ad per adset
+          const adPayload = {
+            name: `${firstAssignment.ad_set_name || firstCreative.name} - Asset Feed Ad`,
+            adset_id: effectiveAdSetId,
+            creative: { creative_id: creativeData.id },
+            status: "PAUSED",
+            tracking_specs: pixelId ? [{ "action.type": ["offsite_conversion"], fb_pixel: [pixelId] }] : undefined,
+          };
+
+          console.log(`[push-creatives] ASSET_FEED ad endpoint: POST https://graph.facebook.com/v22.0/${adAccountPath}/ads`);
+          console.log(`[push-creatives] ASSET_FEED ad payload:`, JSON.stringify(adPayload, null, 2));
+
+          const adResponse = await fetch(
+            `https://graph.facebook.com/v22.0/${adAccountPath}/ads?access_token=${platform.access_token}`,
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(adPayload) },
+          );
+          const adData = await adResponse.json();
+          console.log(`[push-creatives] ASSET_FEED ad response:`, JSON.stringify(adData));
+
+          if (!adData.id) {
+            const errMsg = adData?.error?.error_user_msg || adData?.error?.message || "Failed to create asset_feed ad";
+            await supabase.from("creative_assignments").update({ status: "error", error_message: errMsg }).in("id", assignmentIds);
+            localFailed += assignmentIds.length;
+            continue;
+          }
+
+          // Mark ALL assignments in the group as pushed with the single ad ID
+          await supabase.from("creative_assignments").update({ status: "pushed", dsp_creative_id: adData.id, error_message: null }).in("id", assignmentIds);
+          localPushed += assignmentIds.length;
+          console.log(`[push-creatives] ✅ ASSET_FEED pushed: ${assignmentIds.length} assignments → 1 creative (${creativeData.id}) → 1 ad (${adData.id}) for adset ${effectiveAdSetId}`);
+        }
+      } else {
+      // Original single mode: one creative + one ad per assignment
       const batches = chunkArray(standaloneAssignments, BATCH_SIZE);
       
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -4437,6 +4736,7 @@ const handler = async (req: Request): Promise<Response> => {
           await delay(BATCH_DELAY_MS);
         }
       }
+      } // end if/else asset_feed vs single
 
       console.log(`[push-creatives] Completed: ${localPushed} pushed, ${localFailed} failed`);
 
