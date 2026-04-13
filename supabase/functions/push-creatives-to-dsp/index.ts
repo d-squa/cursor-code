@@ -2617,7 +2617,14 @@ const handler = async (req: Request): Promise<Response> => {
 
           let instagramActorId: string | null = null;
           if (platform.access_token) {
-            instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+            const instagramResolutionToken = await resolveMetaPageAccessToken(
+              supabase,
+              campaign,
+              pageId,
+              resolvedAdAccount ? String(resolvedAdAccount) : null,
+              platform.access_token,
+            );
+            instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
           }
 
           // Build asset_feed_spec from all creatives in this ad-set group
@@ -3146,7 +3153,14 @@ const handler = async (req: Request): Promise<Response> => {
             // NEW: Resolve Instagram Actor ID from Page
             let instagramActorId: string | null = null;
             if (platform.access_token) {
-              instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+              const instagramResolutionToken = await resolveMetaPageAccessToken(
+                supabase,
+                campaign,
+                pageId,
+                resolvedAdAccount ? String(resolvedAdAccount) : null,
+                platform.access_token,
+              );
+              instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
 
             // Step 1: Create ad creative
