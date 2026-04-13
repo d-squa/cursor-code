@@ -1818,6 +1818,7 @@ const handler = async (req: Request): Promise<Response> => {
               instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
             const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
+            const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
             // Build child_attachments for each carousel card
             const childAttachments: any[] = [];
@@ -3284,7 +3285,7 @@ const handler = async (req: Request): Promise<Response> => {
                   // Use video_data structure for the ad creative
                   creativePayload.object_story_spec = {
                     page_id: pageId,
-                    ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                    ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                     video_data: {
                       video_id: uploadedVideoId,
                       message: resolvedText.primaryText || creative.primary_text || "",
@@ -3369,9 +3370,10 @@ const handler = async (req: Request): Promise<Response> => {
               // Build new object_story_spec for dark posts
                 creativePayload.object_story_spec = {
                   page_id: pageId,
-                  ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                  ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 };
             }
+            console.log("FINAL PAYLOAD:", JSON.stringify(creativePayload, null, 2));
 
             // URL parameters are handled via url_tags at the creative level, NOT appended to URLs
             let finalDestinationUrl = baseDestinationUrl;
