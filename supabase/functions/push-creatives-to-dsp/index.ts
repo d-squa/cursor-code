@@ -532,13 +532,43 @@ function assetFeedTargetsInstagram(assetFeedSpec: any): boolean {
   );
 }
 
+// NEW: normalize explicit Meta selection IDs
+function normalizeMetaSelectionId(value: unknown): string | null {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+// NEW: determine whether Instagram was explicitly selected anywhere in the Meta config stack
+function resolveConfiguredMetaInstagramAccountId(
+  phase: any,
+  market: any,
+  accountDefaults?: { default_instagram_account_id?: string | null; selectedInstagramAccountId?: string | null } | null,
+): string | null {
+  const candidates = [
+    phase?.metaInstagramAccountId,
+    phase?.instagramActorId,
+    market?.metaInstagramAccountId,
+    market?.instagramActorId,
+    accountDefaults?.default_instagram_account_id,
+    accountDefaults?.selectedInstagramAccountId,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeMetaSelectionId(candidate);
+    if (normalized) return normalized;
+  }
+
+  return null;
+}
+
 async function resolveMetaIdentityDefaults(
   supabase: any,
   campaign: any,
   resolvedAdAccount: string | null,
   accessToken?: string | null,
-): Promise<{ pageId: string | null; instagramActorId: string | null }> {
+): Promise<{ pageId: string | null; instagramActorId: string | null; selectedInstagramAccountId: string | null }> {
   let pageId: string | null = null;
+  let selectedInstagramAccountId: string | null = null;
 
   const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
   const adAccountIdWithPrefix = adAccountIdRaw ? `act_${adAccountIdRaw}` : "";
@@ -546,7 +576,7 @@ async function resolveMetaIdentityDefaults(
   if (adAccountIdRaw) {
     const { data: accountRows } = await supabase
       .from("meta_ad_accounts")
-      .select("default_page_id")
+      .select("default_page_id, default_instagram_account_id")
       .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
       .order("synced_at", { ascending: false });
 
@@ -555,6 +585,7 @@ async function resolveMetaIdentityDefaults(
     ) || accountRows?.[0] || null;
 
     pageId = matchedAccount?.default_page_id || null;
+    selectedInstagramAccountId = normalizeMetaSelectionId(matchedAccount?.default_instagram_account_id);
   }
 
   if (!pageId) {
@@ -569,7 +600,7 @@ async function resolveMetaIdentityDefaults(
     pageId = latestPage?.page_id || null;
   }
 
-  return { pageId, instagramActorId: null };
+  return { pageId, instagramActorId: null, selectedInstagramAccountId };
 }
 
 // NEW: Resolve the selected page access token before resolving instagram_actor_id
@@ -692,6 +723,62 @@ function withoutInstagramActorId(payload: any): any {
     delete clonedPayload.object_story_spec.instagram_actor_id;
   }
   return clonedPayload;
+}
+
+// NEW: strip Instagram placements for Facebook-only payloads
+function removeInstagramPlacementTargets(assetFeedSpec: any) {
+  if (!Array.isArray(assetFeedSpec?.asset_customization_rules)) return;
+
+  assetFeedSpec.asset_customization_rules = assetFeedSpec.asset_customization_rules.filter((rule: any) => {
+    const spec = rule?.customization_spec;
+    if (!spec || typeof spec !== "object") return true;
+
+    const hadInstagramPositions = Array.isArray(spec.instagram_positions) && spec.instagram_positions.length > 0;
+
+    delete spec.instagram_positions;
+
+    if (Array.isArray(spec.publisher_platforms)) {
+      const nextPublisherPlatforms = spec.publisher_platforms.filter((platform: string) => platform !== "instagram");
+      if (nextPublisherPlatforms.length > 0) {
+        spec.publisher_platforms = nextPublisherPlatforms;
+      } else {
+        delete spec.publisher_platforms;
+      }
+    }
+
+    syncPublisherPlatforms(spec);
+
+    if (hadInstagramPositions) {
+      return Array.isArray(spec.facebook_positions) && spec.facebook_positions.length > 0;
+    }
+
+    return true;
+  });
+}
+
+// NEW: keep placements and instagram_actor_id aligned before sending payloads
+function enforceMetaInstagramPayloadConsistency(creativePayload: any, instagramSelected: boolean) {
+  if (!creativePayload || typeof creativePayload !== "object") return;
+
+  if (!instagramSelected && creativePayload.asset_feed_spec) {
+    removeInstagramPlacementTargets(creativePayload.asset_feed_spec);
+  }
+
+  const rawInstagramActorId = creativePayload?.object_story_spec?.instagram_actor_id;
+  if (
+    !instagramSelected
+    || rawInstagramActorId == null
+    || String(rawInstagramActorId).trim().length === 0
+  ) {
+    if (creativePayload?.object_story_spec && typeof creativePayload.object_story_spec === "object") {
+      delete creativePayload.object_story_spec.instagram_actor_id;
+    }
+  }
+
+  const hasIGPlacements = JSON.stringify(creativePayload).includes("instagram_positions");
+  if (hasIGPlacements && !creativePayload?.object_story_spec?.instagram_actor_id) {
+    console.warn("Invalid state: IG placements without instagram_actor_id");
+  }
 }
 
 // NEW: create Meta ad creative with automatic fallback when Meta rejects instagram_actor_id
@@ -1760,7 +1847,7 @@ const handler = async (req: Request): Promise<Response> => {
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
             const { data: allMetaAdAccountRows } = await supabase
               .from("meta_ad_accounts")
-              .select("default_page_id, default_landing_page_url, default_url_parameters, default_utm_mode, default_pixel_id")
+              .select("default_page_id, default_landing_page_url, default_url_parameters, default_utm_mode, default_pixel_id, default_instagram_account_id")
               .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
               .order("synced_at", { ascending: false });
             const metaAdAccountDefaults = allMetaAdAccountRows?.find(
@@ -1805,9 +1892,10 @@ const handler = async (req: Request): Promise<Response> => {
 
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
 
-            // FIX: Resolve instagram_actor_id from the selected Facebook Page using the page token
+            // FIX: Resolve instagram_actor_id only when Instagram was explicitly selected
+            const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, metaAdAccountDefaults));
             let instagramActorId: string | null = null;
-            if (platform.access_token) {
+            if (instagramSelected && platform.access_token) {
               const instagramResolutionToken = await resolveMetaPageAccessToken(
                 supabase,
                 campaign,
@@ -1928,6 +2016,7 @@ const handler = async (req: Request): Promise<Response> => {
                 },
               },
             };
+            enforceMetaInstagramPayloadConsistency(carouselCreativePayload, instagramSelected);
             console.log("FINAL PAYLOAD:", JSON.stringify(carouselCreativePayload, null, 2));
 
             const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
@@ -2362,6 +2451,7 @@ const handler = async (req: Request): Promise<Response> => {
               const targetsInstagramPlacements = assetFeedTargetsInstagram(assetFeedSpec);
 
               const identityDefaults = await resolveMetaIdentityDefaults(supabase, campaign, resolvedAdAccount ? String(resolvedAdAccount) : null, platform.access_token);
+              const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, identityDefaults));
 
               if (!pageId) {
                 pageId = identityDefaults.pageId;
@@ -2373,8 +2463,8 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // FIX: resolve instagram_actor_id from the selected Facebook Page only
-              if (platform.access_token) {
+              // FIX: resolve instagram_actor_id only when Instagram was explicitly selected
+              if (instagramSelected && platform.access_token) {
                 const instagramResolutionToken = await resolveMetaPageAccessToken(
                   supabase,
                   campaign,
@@ -2386,7 +2476,9 @@ const handler = async (req: Request): Promise<Response> => {
               }
               const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
-              if (targetsInstagramPlacements && !instagramActorId) {
+              if (!instagramSelected && targetsInstagramPlacements) {
+                console.warn(`[push-creatives] Instagram placements detected without an Instagram selection for group ${group.group_name}; stripping instagram_positions and forcing Facebook-only payload.`);
+              } else if (targetsInstagramPlacements && !instagramActorId) {
                 console.warn(`[push-creatives] Instagram placements requested but no linked Instagram account was found for page ${pageId}; continuing without instagram_actor_id.`);
               }
 
@@ -2483,6 +2575,7 @@ const handler = async (req: Request): Promise<Response> => {
                 },
                 asset_feed_spec: assetFeedSpec,
               };
+              enforceMetaInstagramPayloadConsistency(groupCreativePayload, instagramSelected);
               console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
               const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
@@ -2606,7 +2699,7 @@ const handler = async (req: Request): Promise<Response> => {
           const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
           const { data: allAdAccRows } = await supabase
             .from("meta_ad_accounts")
-            .select("default_utm_mode, default_url_parameters, default_pixel_id, default_landing_page_url, default_page_id, synced_at")
+            .select("default_utm_mode, default_url_parameters, default_pixel_id, default_landing_page_url, default_page_id, default_instagram_account_id, synced_at")
             .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
             .order("synced_at", { ascending: false });
           const metaDefaults = allAdAccRows?.find((r: any) => r.default_landing_page_url || r.default_page_id) || allAdAccRows?.[0] || null;
@@ -2637,8 +2730,9 @@ const handler = async (req: Request): Promise<Response> => {
             continue;
           }
 
+          const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, metaDefaults));
           let instagramActorId: string | null = null;
-          if (platform.access_token) {
+          if (instagramSelected && platform.access_token) {
             const instagramResolutionToken = await resolveMetaPageAccessToken(
               supabase,
               campaign,
@@ -2814,6 +2908,7 @@ const handler = async (req: Request): Promise<Response> => {
             },
             asset_feed_spec: assetFeedSpec,
           };
+          enforceMetaInstagramPayloadConsistency(groupCreativePayload, instagramSelected);
           console.log("FINAL PAYLOAD:", JSON.stringify(groupCreativePayload, null, 2));
 
           const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
@@ -2947,6 +3042,7 @@ const handler = async (req: Request): Promise<Response> => {
                 default_pixel_id,
                 default_landing_page_url,
                 default_page_id,
+                default_instagram_account_id,
                 synced_at
               `)
               .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
@@ -3174,9 +3270,10 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            // NEW: Resolve Instagram Actor ID from Page
+            // FIX: Resolve instagram_actor_id only when Instagram was explicitly selected
+            const instagramSelected = Boolean(resolveConfiguredMetaInstagramAccountId(phase, market, metaAdAccountDefaults));
             let instagramActorId: string | null = null;
-            if (platform.access_token) {
+            if (instagramSelected && platform.access_token) {
               const instagramResolutionToken = await resolveMetaPageAccessToken(
                 supabase,
                 campaign,
@@ -3497,6 +3594,8 @@ const handler = async (req: Request): Promise<Response> => {
                 };
               }
             }
+
+            enforceMetaInstagramPayloadConsistency(creativePayload, instagramSelected);
 
             // NEW: log final single-creative payload immediately before the Meta API call
             console.log("FINAL PAYLOAD:", JSON.stringify(creativePayload, null, 2));
