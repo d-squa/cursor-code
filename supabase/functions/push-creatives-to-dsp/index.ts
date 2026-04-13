@@ -1787,10 +1787,17 @@ const handler = async (req: Request): Promise<Response> => {
 
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
 
-            // NEW: Resolve Instagram Actor ID from Page
+            // FIX: Resolve instagram_actor_id from the selected Facebook Page using the page token
             let instagramActorId: string | null = null;
             if (platform.access_token) {
-              instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+              const instagramResolutionToken = await resolveMetaPageAccessToken(
+                supabase,
+                campaign,
+                pageId,
+                resolvedAdAccount ? String(resolvedAdAccount) : null,
+                platform.access_token,
+              );
+              instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
 
             // Build child_attachments for each carousel card
@@ -2346,9 +2353,16 @@ const handler = async (req: Request): Promise<Response> => {
                 continue;
               }
 
-              // UPDATED: resolve instagram_actor_id from the selected Facebook Page only
+              // FIX: resolve instagram_actor_id from the selected Facebook Page only
               if (platform.access_token) {
-                instagramActorId = await resolveInstagramActorId(pageId, platform.access_token);
+                const instagramResolutionToken = await resolveMetaPageAccessToken(
+                  supabase,
+                  campaign,
+                  pageId,
+                  resolvedAdAccount ? String(resolvedAdAccount) : null,
+                  platform.access_token,
+                );
+                instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
               }
 
               if (targetsInstagramPlacements && !instagramActorId) {
