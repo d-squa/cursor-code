@@ -1817,6 +1817,7 @@ const handler = async (req: Request): Promise<Response> => {
               );
               instagramActorId = await resolveInstagramActorId(pageId, instagramResolutionToken);
             }
+            const validatedInstagramActorId = getValidatedInstagramActorId(instagramActorId);
 
             // Build child_attachments for each carousel card
             const childAttachments: any[] = [];
@@ -1918,7 +1919,7 @@ const handler = async (req: Request): Promise<Response> => {
               ...(globalUrlParams ? { url_tags: globalUrlParams } : {}),
               object_story_spec: {
                 page_id: pageId,
-                ...(instagramActorId ? { instagram_actor_id: instagramActorId } : {}),
+                ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 link_data: {
                   message: firstResolvedText.primaryText,
                   link: normalizeHttpUrl(firstResolvedText.destinationUrl || defaultLandingPage) || childAttachments[0]?.link,
@@ -1927,6 +1928,7 @@ const handler = async (req: Request): Promise<Response> => {
                 },
               },
             };
+            console.log("FINAL PAYLOAD:", JSON.stringify(carouselCreativePayload, null, 2));
 
             const { creativeData } = await createMetaAdCreativeWithInstagramFallback({
               adAccountPath,
