@@ -436,6 +436,11 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         const { error: assignmentError } = await supabase
           .from('creative_assignments')
           .update({
+            primary_text: row.primaryText || null,
+            headline: row.headline || null,
+            description: row.description || null,
+            call_to_action: row.callToAction || null,
+            destination_url: row.destinationUrl || null,
             carousel_group_id: row.carouselGroupId || null,
             carousel_card_headline: (row as any).carouselCardHeadline || null,
             carousel_card_description: (row as any).carouselCardDescription || null,
