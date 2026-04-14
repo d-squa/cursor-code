@@ -176,6 +176,19 @@ export interface CreativeTextAssetRow {
   displayLink?: string;
   displayPath?: string;
   displayName?: string;
+
+  // Meta Advantage+ assignment-level settings
+  advantage_plus_video_touchups?: boolean;
+  advantage_plus_text_improvements?: boolean;
+  advantage_plus_product_tags?: boolean;
+  advantage_plus_video_effects?: boolean;
+  advantage_plus_relevant_comments?: boolean;
+  advantage_plus_enhance_cta?: boolean;
+  advantage_plus_reveal_details?: boolean;
+  advantage_plus_show_spotlights?: boolean;
+  advantage_plus_optimize_text_per_person?: boolean;
+  advantage_plus_sitelinks?: boolean;
+  advantage_plus_products?: boolean;
   
   // Validation
   isValid: boolean;
@@ -211,6 +224,22 @@ export interface CreativeTextAssetRow {
   processingGroupId?: string;
   processingGroupType?: 'carousel' | 'asset_customization';
 }
+
+export const ADVANTAGE_PLUS_ASSIGNMENT_FIELDS = [
+  'advantage_plus_video_touchups',
+  'advantage_plus_text_improvements',
+  'advantage_plus_product_tags',
+  'advantage_plus_video_effects',
+  'advantage_plus_relevant_comments',
+  'advantage_plus_enhance_cta',
+  'advantage_plus_reveal_details',
+  'advantage_plus_show_spotlights',
+  'advantage_plus_optimize_text_per_person',
+  'advantage_plus_sitelinks',
+  'advantage_plus_products',
+] as const satisfies readonly (keyof CreativeTextAssetRow)[];
+
+export type AdvantagePlusAssignmentField = typeof ADVANTAGE_PLUS_ASSIGNMENT_FIELDS[number];
 
 // UTM Builder config
 export interface UtmConfig {
