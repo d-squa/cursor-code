@@ -450,9 +450,26 @@ export function QCCheckSection({
                               {market}
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              {Object.entries(phases).map(([phase, entityGroups]) => {
+                              {Object.entries(phases).map(([phase, phaseItems]) => {
                                 const phaseKey = `${platform}|${market}|${phase}`;
                                 const isPhaseExpanded = expandedPhases[phaseKey] ?? true;
+
+                                // Separate campaigns, ad sets, and ads
+                                const campaigns = phaseItems.filter(i => i.entity_type === 'campaign');
+                                const adsets = phaseItems.filter(i => i.entity_type === 'adset');
+                                const ads = phaseItems.filter(i => i.entity_type === 'ad');
+
+                                // Group ads by their ad_set_name (fallback: parse from entity_name "Ad in {name}")
+                                const adsByAdSet: Record<string, QCTrackingItem[]> = {};
+                                for (const ad of ads) {
+                                  let adSetKey = ad.ad_set_name;
+                                  if (!adSetKey && ad.entity_name?.startsWith('Ad in ')) {
+                                    adSetKey = ad.entity_name.substring(6);
+                                  }
+                                  adSetKey = adSetKey || '_unassigned';
+                                  if (!adsByAdSet[adSetKey]) adsByAdSet[adSetKey] = [];
+                                  adsByAdSet[adSetKey].push(ad);
+                                }
 
                                 return (
                                   <div key={phase} className="ml-4">
@@ -463,8 +480,10 @@ export function QCCheckSection({
                                           {phase}
                                         </CollapsibleTrigger>
                                         <CollapsibleContent>
-                                          <EntityGroupContent
-                                            entityGroups={entityGroups}
+                                          <HierarchicalEntityContent
+                                            campaigns={campaigns}
+                                            adsets={adsets}
+                                            adsByAdSet={adsByAdSet}
                                             expandedEntities={expandedEntities}
                                             toggleEntity={toggleEntity}
                                             getChecklist={getChecklist}
@@ -480,8 +499,10 @@ export function QCCheckSection({
                                         </CollapsibleContent>
                                       </Collapsible>
                                     ) : (
-                                      <EntityGroupContent
-                                        entityGroups={entityGroups}
+                                      <HierarchicalEntityContent
+                                        campaigns={campaigns}
+                                        adsets={adsets}
+                                        adsByAdSet={adsByAdSet}
                                         expandedEntities={expandedEntities}
                                         toggleEntity={toggleEntity}
                                         getChecklist={getChecklist}
@@ -514,10 +535,12 @@ export function QCCheckSection({
   );
 }
 
-// ─── Entity Group Content ───────────────────────────────────────────────────
+// ─── Hierarchical Entity Content (Campaign > Ad Set > Ad) ───────────────────
 
-interface EntityGroupContentProps {
-  entityGroups: Record<string, QCTrackingItem[]>;
+interface HierarchicalEntityContentProps {
+  campaigns: QCTrackingItem[];
+  adsets: QCTrackingItem[];
+  adsByAdSet: Record<string, QCTrackingItem[]>;
   expandedEntities: Record<string, boolean>;
   toggleEntity: (id: string) => void;
   getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
@@ -531,8 +554,10 @@ interface EntityGroupContentProps {
   qcEnforceIndividual?: boolean;
 }
 
-function EntityGroupContent({
-  entityGroups,
+function HierarchicalEntityContent({
+  campaigns,
+  adsets,
+  adsByAdSet,
   expandedEntities,
   toggleEntity,
   getChecklist,
@@ -544,25 +569,26 @@ function EntityGroupContent({
   onUpdateState,
   onBulkCheckAndAdvance,
   qcEnforceIndividual = false,
-}: EntityGroupContentProps) {
+}: HierarchicalEntityContentProps) {
+  const allAds = Object.values(adsByAdSet).flat();
+
   return (
     <>
-      {Object.entries(entityGroups).map(([entityType, entityItems]) => (
-        <div key={entityType} className="ml-2 space-y-0.5">
-            <div className="flex items-center justify-between px-2 py-0.5">
-              <div className="text-xs font-medium text-muted-foreground/70 capitalize">
-                {entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns'}
-              </div>
-              {!qcEnforceIndividual && (
-                <BulkCheckAllButton
-                  entityItems={entityItems}
-                  entityType={entityType}
-                  getChecklist={getChecklist}
-                  onBulkCheckAndAdvance={onBulkCheckAndAdvance}
-                />
-              )}
+      {/* Campaigns */}
+      {campaigns.length > 0 && (
+        <div className="ml-2 space-y-0.5">
+          <div className="flex items-center justify-between px-2 py-0.5">
+            <div className="text-xs font-medium text-muted-foreground/70">Campaigns</div>
+            {!qcEnforceIndividual && (
+              <BulkCheckAllButton
+                entityItems={campaigns}
+                entityType="campaign"
+                getChecklist={getChecklist}
+                onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+              />
+            )}
           </div>
-          {entityItems.map(item => (
+          {campaigns.map(item => (
             <EntityRow
               key={item.id}
               item={item}
@@ -580,7 +606,97 @@ function EntityGroupContent({
             />
           ))}
         </div>
-      ))}
+      )}
+
+      {/* Ad Sets with nested Ads */}
+      {adsets.length > 0 && (
+        <div className="ml-2 space-y-0.5">
+          <div className="flex items-center justify-between px-2 py-0.5">
+            <div className="text-xs font-medium text-muted-foreground/70">Ad Sets</div>
+            {!qcEnforceIndividual && (
+              <BulkCheckAllButton
+                entityItems={[...adsets, ...allAds]}
+                entityType="adset"
+                getChecklist={getChecklist}
+                onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+              />
+            )}
+          </div>
+          {adsets.map(adsetItem => {
+            const adsetName = adsetItem.entity_name || '';
+            const childAds = adsByAdSet[adsetName] || [];
+
+            return (
+              <div key={adsetItem.id}>
+                <EntityRow
+                  item={adsetItem}
+                  isExpanded={expandedEntities[adsetItem.id] ?? false}
+                  onToggleExpand={() => toggleEntity(adsetItem.id)}
+                  checklist={getChecklist(adsetItem.platform, adsetItem.entity_type)}
+                  completions={getCompletions(adsetItem.id)}
+                  completionCount={getCompletionCount(adsetItem.id, getChecklist(adsetItem.platform, adsetItem.entity_type))}
+                  allChecked={isAllChecked(adsetItem.id, getChecklist(adsetItem.platform, adsetItem.entity_type))}
+                  onToggleItem={(key, checked) => onToggleItem(adsetItem.id, key, checked)}
+                  onToggleAll={(checked) => onToggleAll(adsetItem.id, getChecklist(adsetItem.platform, adsetItem.entity_type), checked)}
+                  onUpdateState={(state) => onUpdateState(adsetItem.id, state)}
+                  onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(adsetItem.id, getChecklist(adsetItem.platform, adsetItem.entity_type), adsetItem.current_state)}
+                  qcEnforceIndividual={qcEnforceIndividual}
+                />
+                {childAds.length > 0 && (
+                  <div className="ml-6 space-y-0.5">
+                    <div className="flex items-center justify-between px-2 py-0.5">
+                      <div className="text-[10px] font-medium text-muted-foreground/50">Ads ({childAds.length})</div>
+                    </div>
+                    {childAds.map(ad => (
+                      <EntityRow
+                        key={ad.id}
+                        item={ad}
+                        isExpanded={expandedEntities[ad.id] ?? false}
+                        onToggleExpand={() => toggleEntity(ad.id)}
+                        checklist={getChecklist(ad.platform, ad.entity_type)}
+                        completions={getCompletions(ad.id)}
+                        completionCount={getCompletionCount(ad.id, getChecklist(ad.platform, ad.entity_type))}
+                        allChecked={isAllChecked(ad.id, getChecklist(ad.platform, ad.entity_type))}
+                        onToggleItem={(key, checked) => onToggleItem(ad.id, key, checked)}
+                        onToggleAll={(checked) => onToggleAll(ad.id, getChecklist(ad.platform, ad.entity_type), checked)}
+                        onUpdateState={(state) => onUpdateState(ad.id, state)}
+                        onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
+                        qcEnforceIndividual={qcEnforceIndividual}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Orphan Ads (no matching ad set) */}
+      {adsByAdSet['_unassigned'] && adsByAdSet['_unassigned'].length > 0 && adsets.length === 0 && (
+        <div className="ml-2 space-y-0.5">
+          <div className="flex items-center justify-between px-2 py-0.5">
+            <div className="text-xs font-medium text-muted-foreground/70">Ads</div>
+          </div>
+          {adsByAdSet['_unassigned'].map(ad => (
+            <EntityRow
+              key={ad.id}
+              item={ad}
+              isExpanded={expandedEntities[ad.id] ?? false}
+              onToggleExpand={() => toggleEntity(ad.id)}
+              checklist={getChecklist(ad.platform, ad.entity_type)}
+              completions={getCompletions(ad.id)}
+              completionCount={getCompletionCount(ad.id, getChecklist(ad.platform, ad.entity_type))}
+              allChecked={isAllChecked(ad.id, getChecklist(ad.platform, ad.entity_type))}
+              onToggleItem={(key, checked) => onToggleItem(ad.id, key, checked)}
+              onToggleAll={(checked) => onToggleAll(ad.id, getChecklist(ad.platform, ad.entity_type), checked)}
+              onUpdateState={(state) => onUpdateState(ad.id, state)}
+              onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
+              qcEnforceIndividual={qcEnforceIndividual}
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -793,7 +909,7 @@ function getStateDotColor(state: QCState): string {
   }
 }
 
-type TreeStructure = Record<string, Record<string, Record<string, Record<string, QCTrackingItem[]>>>>;
+type TreeStructure = Record<string, Record<string, Record<string, QCTrackingItem[]>>>;
 
 function buildTree(items: QCTrackingItem[]): TreeStructure {
   const tree: TreeStructure = {};
@@ -801,13 +917,11 @@ function buildTree(items: QCTrackingItem[]): TreeStructure {
     const platform = item.platform;
     const market = item.market || 'Unknown';
     const phase = item.phase_name || '_none';
-    const entityType = item.entity_type;
 
     if (!tree[platform]) tree[platform] = {};
     if (!tree[platform][market]) tree[platform][market] = {};
-    if (!tree[platform][market][phase]) tree[platform][market][phase] = {};
-    if (!tree[platform][market][phase][entityType]) tree[platform][market][phase][entityType] = [];
-    tree[platform][market][phase][entityType].push(item);
+    if (!tree[platform][market][phase]) tree[platform][market][phase] = [];
+    tree[platform][market][phase].push(item);
   }
   return tree;
 }

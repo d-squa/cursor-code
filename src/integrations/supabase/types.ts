@@ -3259,6 +3259,7 @@ export type Database = {
       }
       qc_tracking: {
         Row: {
+          ad_set_name: string | null
           auto_completed: boolean | null
           auto_completed_at: string | null
           campaign_id: string
@@ -3284,6 +3285,7 @@ export type Database = {
           validation_error: string | null
         }
         Insert: {
+          ad_set_name?: string | null
           auto_completed?: boolean | null
           auto_completed_at?: string | null
           campaign_id: string
@@ -3309,6 +3311,7 @@ export type Database = {
           validation_error?: string | null
         }
         Update: {
+          ad_set_name?: string | null
           auto_completed?: boolean | null
           auto_completed_at?: string | null
           campaign_id?: string

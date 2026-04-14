@@ -1,0 +1,1 @@
+ALTER TABLE public.qc_tracking ADD COLUMN IF NOT EXISTS ad_set_name TEXT;
