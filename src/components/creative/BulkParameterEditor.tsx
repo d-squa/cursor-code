@@ -1,7 +1,8 @@
 // Bulk Parameter Editor for Creative Content
 // Allows users to write parameter values and apply them to different levels of the campaign structure
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -159,6 +160,42 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
   // Advantage+ settings state
   const [advantagePlusOpen, setAdvantagePlusOpen] = useState(false);
   const [advantagePlusValues, setAdvantagePlusValues] = useState<Record<string, boolean>>({});
+  const [defaultsLoaded, setDefaultsLoaded] = useState(false);
+
+  // NEW: Auto-load Advantage+ defaults from meta_ad_accounts when Meta rows exist
+  const hasMetaRows = useMemo(() => rows.some(r => r.platform.toLowerCase() === 'meta'), [rows]);
+
+  useEffect(() => {
+    if (!hasMetaRows || defaultsLoaded) return;
+    
+    const loadDefaults = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('meta_ad_accounts')
+          .select('advantage_plus_video_touchups, advantage_plus_text_improvements, advantage_plus_product_tags, advantage_plus_video_effects, advantage_plus_relevant_comments, advantage_plus_enhance_cta, advantage_plus_reveal_details, advantage_plus_show_spotlights, advantage_plus_optimize_text_per_person, advantage_plus_sitelinks, advantage_plus_products')
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          const defaults: Record<string, boolean> = {};
+          ADVANTAGE_PLUS_FEATURES.forEach(f => {
+            const val = (data as any)[f.key];
+            if (val !== null && val !== undefined) {
+              defaults[f.key] = Boolean(val);
+            }
+          });
+          if (Object.keys(defaults).length > 0) {
+            setAdvantagePlusValues(defaults);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load Advantage+ defaults:', err);
+      }
+      setDefaultsLoaded(true);
+    };
+    
+    loadDefaults();
+  }, [hasMetaRows, defaultsLoaded]);
   
   // Dialog for showing skipped entities
   const [showSkippedDialog, setShowSkippedDialog] = useState(false);
