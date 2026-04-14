@@ -698,6 +698,15 @@ function HierarchicalEntityContent({
                   <div className="ml-6 space-y-0.5">
                     <div className="flex items-center justify-between px-2 py-0.5">
                       <div className="text-[10px] font-medium text-muted-foreground/50">Ads ({childAds.length})</div>
+                      {!qcEnforceIndividual && childAds.length > 1 && (
+                        <ScopedBulkCheckMenu
+                          getChecklist={getChecklist}
+                          onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+                          scopes={[
+                            { label: 'All ads in this ad set', items: childAds },
+                          ]}
+                        />
+                      )}
                     </div>
                     {childAds.map(ad => (
                       <EntityRow
