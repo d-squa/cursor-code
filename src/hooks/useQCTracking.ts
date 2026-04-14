@@ -221,6 +221,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           phase_name: seed.phase_name,
           entity_type: seed.entity_type,
           entity_name: seed.entity_name,
+          ad_set_name: seed.ad_set_name,
           dsp_entity_id: seed.dsp_entity_id,
           current_state: "waiting_for_final_qc",
           is_valid: true,
