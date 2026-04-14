@@ -597,7 +597,7 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
                   size="sm" 
                   className="w-full"
                   onClick={handleApplyAdvantagePlus}
-                  disabled={enabledAdvantagePlusCount === 0 || selectedRowIds.size === 0}
+                  disabled={selectedRowIds.size === 0}
                 >
                   Apply to {selectedRowIds.size} selected
                 </Button>
