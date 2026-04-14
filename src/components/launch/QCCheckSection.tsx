@@ -810,7 +810,7 @@ function getStateDotColor(state: QCState): string {
   }
 }
 
-type TreeStructure = Record<string, Record<string, Record<string, Record<string, QCTrackingItem[]>>>>;
+type TreeStructure = Record<string, Record<string, Record<string, QCTrackingItem[]>>>;
 
 function buildTree(items: QCTrackingItem[]): TreeStructure {
   const tree: TreeStructure = {};
@@ -818,13 +818,11 @@ function buildTree(items: QCTrackingItem[]): TreeStructure {
     const platform = item.platform;
     const market = item.market || 'Unknown';
     const phase = item.phase_name || '_none';
-    const entityType = item.entity_type;
 
     if (!tree[platform]) tree[platform] = {};
     if (!tree[platform][market]) tree[platform][market] = {};
-    if (!tree[platform][market][phase]) tree[platform][market][phase] = {};
-    if (!tree[platform][market][phase][entityType]) tree[platform][market][phase][entityType] = [];
-    tree[platform][market][phase][entityType].push(item);
+    if (!tree[platform][market][phase]) tree[platform][market][phase] = [];
+    tree[platform][market][phase].push(item);
   }
   return tree;
 }
