@@ -540,6 +540,7 @@ export default function LaunchStatus() {
 
       // Refresh data to show updated statuses
       await loadData();
+      await initializeTracking();
       // Refetch the limits since we just pushed
       await refetchLimits();
     } catch (error: any) {
@@ -821,6 +822,7 @@ export default function LaunchStatus() {
           description: `Pushed: ${data.pushedCount || 0}, Failed: ${data.failedCount || 0}. Some creatives may need another push.`,
         });
         await loadData();
+        await initializeTracking();
         return;
       }
       
@@ -840,6 +842,7 @@ export default function LaunchStatus() {
       }
       
       await loadData();
+      await initializeTracking();
     } catch (error: any) {
       console.error("Push creatives error:", error);
       toast.error("Failed to push creatives: " + (error?.message || "Unknown error"));
