@@ -72,7 +72,7 @@ interface QCCheckSectionProps {
   getCompletionCount: (trackingId: string, items: QCChecklistItem[]) => { checked: number; total: number };
   isAllChecked: (trackingId: string, items: QCChecklistItem[]) => boolean;
   onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => void;
-  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
+  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod?: string) => void;
   onUpdateState: (trackingId: string, newState: QCState) => void;
   onInitialize: () => void;
 }
@@ -295,8 +295,8 @@ export function QCCheckSection({
   };
 
   // Auto-advance handler: check all + move to Checked
-  const handleBulkCheckAndAdvance = (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => {
-    onToggleAll(trackingId, checklist, true);
+  const handleBulkCheckAndAdvance = (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod: string = 'bulk') => {
+    onToggleAll(trackingId, checklist, true, checkMethod);
     if (currentState === 'waiting_for_final_qc') {
       // Small delay to let the toggle persist first
       setTimeout(() => onUpdateState(trackingId, 'qc'), 100);
@@ -554,9 +554,9 @@ interface HierarchicalEntityContentProps {
   getCompletionCount: (trackingId: string, items: QCChecklistItem[]) => { checked: number; total: number };
   isAllChecked: (trackingId: string, items: QCChecklistItem[]) => boolean;
   onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => void;
-  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean) => void;
+  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod?: string) => void;
   onUpdateState: (trackingId: string, newState: QCState) => void;
-  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => void;
   qcEnforceIndividual?: boolean;
 }
 
@@ -954,7 +954,7 @@ interface BulkCheckScope {
 
 interface ScopedBulkCheckMenuProps {
   getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
-  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => void;
   scopes: BulkCheckScope[];
 }
 
@@ -964,7 +964,7 @@ function ScopedBulkCheckMenu({ getChecklist, onBulkCheckAndAdvance, scopes }: Sc
   const handleBulkCheck = (scope: BulkCheckScope) => {
     for (const item of scope.items) {
       const checklist = getChecklist(item.platform, item.entity_type);
-      onBulkCheckAndAdvance(item.id, checklist, item.current_state);
+      onBulkCheckAndAdvance(item.id, checklist, item.current_state, 'scoped_bulk');
     }
     setConfirmScope(null);
   };
