@@ -3620,7 +3620,7 @@ const handler = async (req: Request): Promise<Response> => {
                     video_data: {
                       video_id: uploadedVideoId,
                       message: resolvedText.primaryText || creative.primary_text || "",
-                      title: resolvedText.headline || creative.headline || "",
+                      ...(resolvedText.headline || creative.headline ? { title: resolvedText.headline || creative.headline } : {}),
                       ...(thumbnailUrl ? { image_url: thumbnailUrl } : {}),
                     },
                   };
@@ -3682,7 +3682,7 @@ const handler = async (req: Request): Promise<Response> => {
                 // For other organic posts (FB posts, IG images), CTA goes at root level
                 if ((creative as any)._instagramVideoUploaded && creativePayload.object_story_spec?.video_data) {
                   creativePayload.object_story_spec.video_data.call_to_action = {
-                    type: resolvedText.callToAction || "LEARN_MORE",
+                    type: normalizeMetaCallToActionType(resolvedText.callToAction) || "LEARN_MORE",
                     value: {
                       link: ctaLink,
                     },
@@ -3690,7 +3690,7 @@ const handler = async (req: Request): Promise<Response> => {
                   console.log(`[push-creatives] Added CTA to video_data for uploaded Instagram video`);
                 } else {
                   creativePayload.call_to_action = {
-                    type: resolvedText.callToAction || "LEARN_MORE",
+                    type: normalizeMetaCallToActionType(resolvedText.callToAction) || "LEARN_MORE",
                     value: {
                       link: ctaLink,
                     },
