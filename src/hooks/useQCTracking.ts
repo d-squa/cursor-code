@@ -12,6 +12,7 @@ export interface QCTrackingItem {
   phase_name: string | null;
   entity_type: string;
   entity_name: string | null;
+  ad_set_name: string | null;
   dsp_entity_id: string | null;
   current_state: QCState;
   previous_state: QCState | null;
@@ -53,6 +54,7 @@ type TrackingSeed = {
   phase_name: string | null;
   entity_type: string;
   entity_name: string | null;
+  ad_set_name: string | null;
   dsp_entity_id: string | null;
 };
 
