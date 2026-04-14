@@ -450,9 +450,22 @@ export function QCCheckSection({
                               {market}
                             </CollapsibleTrigger>
                             <CollapsibleContent>
-                              {Object.entries(phases).map(([phase, entityGroups]) => {
+                              {Object.entries(phases).map(([phase, phaseItems]) => {
                                 const phaseKey = `${platform}|${market}|${phase}`;
                                 const isPhaseExpanded = expandedPhases[phaseKey] ?? true;
+
+                                // Separate campaigns, ad sets, and ads
+                                const campaigns = phaseItems.filter(i => i.entity_type === 'campaign');
+                                const adsets = phaseItems.filter(i => i.entity_type === 'adset');
+                                const ads = phaseItems.filter(i => i.entity_type === 'ad');
+
+                                // Group ads by their ad_set_name
+                                const adsByAdSet: Record<string, QCTrackingItem[]> = {};
+                                for (const ad of ads) {
+                                  const adSetKey = ad.ad_set_name || '_unassigned';
+                                  if (!adsByAdSet[adSetKey]) adsByAdSet[adSetKey] = [];
+                                  adsByAdSet[adSetKey].push(ad);
+                                }
 
                                 return (
                                   <div key={phase} className="ml-4">
@@ -463,8 +476,10 @@ export function QCCheckSection({
                                           {phase}
                                         </CollapsibleTrigger>
                                         <CollapsibleContent>
-                                          <EntityGroupContent
-                                            entityGroups={entityGroups}
+                                          <HierarchicalEntityContent
+                                            campaigns={campaigns}
+                                            adsets={adsets}
+                                            adsByAdSet={adsByAdSet}
                                             expandedEntities={expandedEntities}
                                             toggleEntity={toggleEntity}
                                             getChecklist={getChecklist}
@@ -480,8 +495,10 @@ export function QCCheckSection({
                                         </CollapsibleContent>
                                       </Collapsible>
                                     ) : (
-                                      <EntityGroupContent
-                                        entityGroups={entityGroups}
+                                      <HierarchicalEntityContent
+                                        campaigns={campaigns}
+                                        adsets={adsets}
+                                        adsByAdSet={adsByAdSet}
                                         expandedEntities={expandedEntities}
                                         toggleEntity={toggleEntity}
                                         getChecklist={getChecklist}
