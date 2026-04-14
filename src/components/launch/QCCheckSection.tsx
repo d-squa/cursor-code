@@ -459,10 +459,14 @@ export function QCCheckSection({
                                 const adsets = phaseItems.filter(i => i.entity_type === 'adset');
                                 const ads = phaseItems.filter(i => i.entity_type === 'ad');
 
-                                // Group ads by their ad_set_name
+                                // Group ads by their ad_set_name (fallback: parse from entity_name "Ad in {name}")
                                 const adsByAdSet: Record<string, QCTrackingItem[]> = {};
                                 for (const ad of ads) {
-                                  const adSetKey = ad.ad_set_name || '_unassigned';
+                                  let adSetKey = ad.ad_set_name;
+                                  if (!adSetKey && ad.entity_name?.startsWith('Ad in ')) {
+                                    adSetKey = ad.entity_name.substring(6);
+                                  }
+                                  adSetKey = adSetKey || '_unassigned';
                                   if (!adsByAdSet[adSetKey]) adsByAdSet[adSetKey] = [];
                                   adsByAdSet[adSetKey].push(ad);
                                 }
