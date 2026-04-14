@@ -179,6 +179,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
             phase_name: item.phase_name,
             entity_type: item.entity_type,
             entity_name: null,
+            ad_set_name: null,
             dsp_entity_id: item.dsp_entity_id,
           })
         )
@@ -192,6 +193,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           phase_name: launchStatus.phase_name,
           entity_type: launchStatus.entity_type,
           entity_name: launchStatus.entity_name,
+          ad_set_name: null,
           dsp_entity_id: launchStatus.dsp_entity_id,
         };
         candidateSeeds.set(buildTrackingKey(seed), seed);
@@ -204,6 +206,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           phase_name: assignment.phase_name,
           entity_type: "ad",
           entity_name: assignment.display_name || `Ad in ${assignment.ad_set_name}`,
+          ad_set_name: assignment.ad_set_name,
           dsp_entity_id: assignment.id,
         };
         candidateSeeds.set(buildTrackingKey(seed), seed);
