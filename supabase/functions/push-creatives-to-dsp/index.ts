@@ -194,12 +194,21 @@ function buildMetaCreativeFeaturesSpec(features: {
 }): Record<string, any> {
   const opt = (flag: boolean) => flag ? "OPT_IN" : "OPT_OUT";
 
-  // Meta API only accepts these 5 keys in creative_features_spec:
-  // PROFILE_CARD, PRODUCT_METADATA_AUTOMATION, STANDARD_ENHANCEMENTS_CATALOG,
-  // IG_VIDEO_NATIVE_SUBTITLE, TEXT_OVERLAY_TRANSLATION
-  // All other "Advantage+" toggles (CTA, comments, sitelinks, text improvements, etc.)
-  // are controlled by standard_enhancements within STANDARD_ENHANCEMENTS_CATALOG.
+  // v22.0+ uses lowercase individual feature keys (standard_enhancements bundle is deprecated).
+  // Reference: https://developers.facebook.com/docs/marketing-api/reference/ad-creative-features-spec/
   const dofFeatures: Record<string, any> = {
+    // "Relevant comments" — display relevant comments below the ad
+    inline_comment: { enroll_status: opt(features.relevantComments) },
+    // "Enhance CTA" — AI-generated CTA text from ad copy
+    enhance_cta: { enroll_status: opt(features.enhanceCta) },
+    // "Adjust brightness and contrast" (Visual touch-ups)
+    image_brightness_and_contrast: { enroll_status: opt(features.videoTouchups) },
+    // "Image touch-ups" — auto-crop / uncrop for placements
+    image_touchups: { enroll_status: opt(features.videoTouchups) },
+    // "Text improvements" — optimise text per person
+    text_optimizations: { enroll_status: opt(features.textImprovements) },
+    // "Add overlays" — image templates
+    image_templates: { enroll_status: opt(features.optimizeTextPerPerson) },
     // Profile end card + Highlight carousel card
     PROFILE_CARD: { enroll_status: opt(features.showSpotlights) },
     // IG video subtitles / video effects
@@ -208,8 +217,6 @@ function buildMetaCreativeFeaturesSpec(features: {
     PRODUCT_METADATA_AUTOMATION: { enroll_status: opt(features.productTags) },
     // Catalog / product enhancements
     STANDARD_ENHANCEMENTS_CATALOG: { enroll_status: opt(features.products) },
-    // Text overlay translation
-    TEXT_OVERLAY_TRANSLATION: { enroll_status: "OPT_OUT" },
   };
 
   console.log("[push-creatives] creative_features_spec:", JSON.stringify(dofFeatures));
