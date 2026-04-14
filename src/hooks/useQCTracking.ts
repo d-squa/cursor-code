@@ -58,14 +58,107 @@ type TrackingSeed = {
   dsp_entity_id: string | null;
 };
 
-const buildTrackingKey = (seed: TrackingSeed) =>
-  [
-    seed.platform,
-    seed.entity_type,
-    seed.market || "",
-    seed.phase_name || "",
-    seed.dsp_entity_id || "",
+const normalizeKeyPart = (value: string | null | undefined) =>
+  String(value || "").trim().toLowerCase();
+
+const normalizeTrackingPlatform = (platform: string | null | undefined) => {
+  const normalized = normalizeKeyPart(platform);
+
+  if (normalized.includes("meta") || normalized.includes("facebook") || normalized.includes("instagram")) {
+    return "meta";
+  }
+
+  if (normalized.includes("tiktok")) return "tiktok";
+  if (normalized.includes("linkedin")) return "linkedin";
+  if (normalized.includes("google")) return "google";
+  if (normalized.includes("snap")) return "snapchat";
+  if (normalized === "x" || normalized.includes("twitter")) return "x";
+
+  return normalized;
+};
+
+const normalizeTrackingEntityType = (entityType: string | null | undefined) => {
+  const normalized = normalizeKeyPart(entityType);
+
+  if (normalized.includes("campaign")) return "campaign";
+  if (normalized.includes("ad_set") || normalized.includes("adset") || normalized.includes("ad_group") || normalized.includes("adgroup")) {
+    return "adset";
+  }
+  if (normalized === "ad" || normalized === "ads" || normalized.includes("creative")) return "ad";
+
+  return normalized;
+};
+
+const buildTrackingKey = (seed: TrackingSeed) => {
+  const normalizedEntityType = normalizeTrackingEntityType(seed.entity_type);
+
+  return [
+    normalizeTrackingPlatform(seed.platform),
+    normalizedEntityType,
+    normalizeKeyPart(seed.market),
+    normalizeKeyPart(seed.phase_name),
+    normalizeKeyPart(
+      normalizedEntityType === "ad"
+        ? seed.dsp_entity_id || seed.ad_set_name || seed.entity_name
+        : seed.entity_name || seed.ad_set_name
+    ),
   ].join("::");
+};
+
+const ENTITY_SORT_ORDER: Record<string, number> = {
+  campaign: 0,
+  adset: 1,
+  ad: 2,
+};
+
+const normalizeTrackingItem = (item: QCTrackingItem): QCTrackingItem => ({
+  ...item,
+  platform: normalizeTrackingPlatform(item.platform),
+  entity_type: normalizeTrackingEntityType(item.entity_type),
+});
+
+const compareTrackingItems = (a: QCTrackingItem, b: QCTrackingItem) => {
+  const sortPairs: Array<[string | number, string | number]> = [
+    [normalizeTrackingPlatform(a.platform), normalizeTrackingPlatform(b.platform)],
+    [normalizeKeyPart(a.market), normalizeKeyPart(b.market)],
+    [normalizeKeyPart(a.phase_name), normalizeKeyPart(b.phase_name)],
+    [ENTITY_SORT_ORDER[normalizeTrackingEntityType(a.entity_type)] ?? 99, ENTITY_SORT_ORDER[normalizeTrackingEntityType(b.entity_type)] ?? 99],
+    [normalizeKeyPart(a.entity_name), normalizeKeyPart(b.entity_name)],
+    [normalizeKeyPart(a.ad_set_name), normalizeKeyPart(b.ad_set_name)],
+    [normalizeKeyPart(a.dsp_entity_id), normalizeKeyPart(b.dsp_entity_id)],
+  ];
+
+  for (const [left, right] of sortPairs) {
+    if (left < right) return -1;
+    if (left > right) return 1;
+  }
+
+  return 0;
+};
+
+const dedupeTrackingItems = (rows: QCTrackingItem[]) => {
+  const deduped = new Map<string, QCTrackingItem>();
+
+  for (const row of rows) {
+    const normalizedRow = normalizeTrackingItem(row);
+    const key = buildTrackingKey(normalizedRow);
+    const existing = deduped.get(key);
+
+    if (!existing) {
+      deduped.set(key, normalizedRow);
+      continue;
+    }
+
+    const existingUpdatedAt = new Date(existing.updated_at).getTime();
+    const rowUpdatedAt = new Date(normalizedRow.updated_at).getTime();
+
+    if (rowUpdatedAt >= existingUpdatedAt) {
+      deduped.set(key, normalizedRow);
+    }
+  }
+
+  return Array.from(deduped.values()).sort(compareTrackingItems);
+};
 
 export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptions) {
   const { user } = useAuth();
@@ -99,7 +192,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       if (trackingRes.error) throw trackingRes.error;
       if (transitionsRes.error) throw transitionsRes.error;
 
-      setItems((trackingRes.data || []) as unknown as QCTrackingItem[]);
+      setItems(dedupeTrackingItems((trackingRes.data || []) as unknown as QCTrackingItem[]));
       setTransitions((transitionsRes.data || []) as unknown as QCTransition[]);
     } catch (error) {
       console.error("Error loading QC tracking:", error);
@@ -156,7 +249,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           .single(),
         supabase
           .from("qc_tracking")
-          .select("platform, entity_type, market, phase_name, dsp_entity_id")
+          .select("platform, entity_type, market, phase_name, entity_name, ad_set_name, dsp_entity_id")
           .eq("campaign_id", campaignId),
         supabase
           .from("creative_assignments")

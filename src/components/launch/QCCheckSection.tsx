@@ -571,6 +571,43 @@ function HierarchicalEntityContent({
   qcEnforceIndividual = false,
 }: HierarchicalEntityContentProps) {
   const allAds = Object.values(adsByAdSet).flat();
+  const adGroups = Object.entries(adsByAdSet).map(([groupName, groupAds]) => ({
+    groupName,
+    ads: groupAds,
+    normalizedName: normalizeHierarchyKey(groupName),
+    languageBucket: inferAdSetLanguageBucket(groupName),
+  }));
+  const remainingGroups = new Map(adGroups.map((group) => [group.groupName, group]));
+  const childAdsByAdSetId = new Map<string, QCTrackingItem[]>();
+
+  for (const adset of adsets) {
+    const exactMatchKeys = new Set(
+      [adset.entity_name, adset.ad_set_name]
+        .map(normalizeHierarchyKey)
+        .filter(Boolean)
+    );
+
+    let matchedGroup = adGroups.find(
+      (group) => remainingGroups.has(group.groupName) && exactMatchKeys.has(group.normalizedName)
+    );
+
+    if (!matchedGroup) {
+      const languageBucket = inferAdSetLanguageBucket(adset.entity_name || adset.ad_set_name);
+      if (languageBucket) {
+        matchedGroup = adGroups.find(
+          (group) => remainingGroups.has(group.groupName) && group.languageBucket === languageBucket
+        );
+      }
+    }
+
+    if (matchedGroup) {
+      childAdsByAdSetId.set(adset.id, matchedGroup.ads);
+      remainingGroups.delete(matchedGroup.groupName);
+    }
+  }
+
+  const unmatchedAdGroups = Array.from(remainingGroups.values()).filter((group) => group.groupName !== '_unassigned');
+  const orphanAds = remainingGroups.get('_unassigned')?.ads || [];
 
   return (
     <>
@@ -623,8 +660,7 @@ function HierarchicalEntityContent({
             )}
           </div>
           {adsets.map(adsetItem => {
-            const adsetName = adsetItem.entity_name || '';
-            const childAds = adsByAdSet[adsetName] || [];
+            const childAds = childAdsByAdSetId.get(adsetItem.id) || [];
 
             return (
               <div key={adsetItem.id}>
@@ -672,13 +708,46 @@ function HierarchicalEntityContent({
         </div>
       )}
 
-      {/* Orphan Ads (no matching ad set) */}
-      {adsByAdSet['_unassigned'] && adsByAdSet['_unassigned'].length > 0 && adsets.length === 0 && (
+      {/* Unmatched Ad Groups */}
+      {unmatchedAdGroups.length > 0 && (
         <div className="ml-2 space-y-0.5">
           <div className="flex items-center justify-between px-2 py-0.5">
             <div className="text-xs font-medium text-muted-foreground/70">Ads</div>
           </div>
-          {adsByAdSet['_unassigned'].map(ad => (
+          {unmatchedAdGroups.map((group) => (
+            <div key={group.groupName} className="ml-4 space-y-0.5">
+              <div className="px-2 py-0.5 text-[10px] font-medium text-muted-foreground/50">
+                {group.groupName} ({group.ads.length})
+              </div>
+              {group.ads.map(ad => (
+                <EntityRow
+                  key={ad.id}
+                  item={ad}
+                  isExpanded={expandedEntities[ad.id] ?? false}
+                  onToggleExpand={() => toggleEntity(ad.id)}
+                  checklist={getChecklist(ad.platform, ad.entity_type)}
+                  completions={getCompletions(ad.id)}
+                  completionCount={getCompletionCount(ad.id, getChecklist(ad.platform, ad.entity_type))}
+                  allChecked={isAllChecked(ad.id, getChecklist(ad.platform, ad.entity_type))}
+                  onToggleItem={(key, checked) => onToggleItem(ad.id, key, checked)}
+                  onToggleAll={(checked) => onToggleAll(ad.id, getChecklist(ad.platform, ad.entity_type), checked)}
+                  onUpdateState={(state) => onUpdateState(ad.id, state)}
+                  onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
+                  qcEnforceIndividual={qcEnforceIndividual}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Orphan Ads (no matching ad set key at all) */}
+      {orphanAds.length > 0 && (
+        <div className="ml-2 space-y-0.5">
+          <div className="flex items-center justify-between px-2 py-0.5">
+            <div className="text-xs font-medium text-muted-foreground/70">Unassigned Ads</div>
+          </div>
+          {orphanAds.map(ad => (
             <EntityRow
               key={ad.id}
               item={ad}
@@ -934,4 +1003,28 @@ function groupByCategory(items: QCChecklistItem[]): [string, QCChecklistItem[]][
     groups[cat].push(item);
   }
   return Object.entries(groups);
+}
+
+function normalizeHierarchyKey(value: string | null | undefined): string {
+  return String(value || '').trim().toLowerCase();
+}
+
+function inferAdSetLanguageBucket(value: string | null | undefined): string {
+  const normalized = String(value || '').trim().toUpperCase();
+
+  if (!normalized) return '';
+
+  if (/(^|[_\s-])ARA(BIC)?($|[_\s-])/.test(normalized) || /(^|[_\s-])AR($|[_\s-])/.test(normalized)) {
+    return 'ara';
+  }
+
+  if (/(^|[_\s-])ENG(LISH)?($|[_\s-])/.test(normalized) || /(^|[_\s-])EN($|[_\s-])/.test(normalized)) {
+    return 'eng';
+  }
+
+  if (normalized.includes('ALL') || normalized.includes('ESFRDE') || normalized.includes('MULTI')) {
+    return 'all';
+  }
+
+  return '';
 }
