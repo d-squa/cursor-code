@@ -370,15 +370,6 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
       return;
     }
     
-    const enabledFeatures = Object.entries(advantagePlusValues)
-      .filter(([, enabled]) => enabled)
-      .map(([key]) => key);
-    
-    if (enabledFeatures.length === 0) {
-      toast.error('Enable at least one Advantage+ feature');
-      return;
-    }
-    
     // Only apply to Meta rows
     const metaRows = rows.filter(r => 
       selectedRowIds.has(r.id) && r.platform.toLowerCase().includes('meta')
@@ -389,14 +380,17 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
       return;
     }
     
+    // Send ALL feature keys — both true AND false — so disabled features
+    // are explicitly written to the assignment, preventing fallback to ad account defaults
     const updates: Partial<CreativeTextAssetRow> = {};
-    enabledFeatures.forEach(key => {
-      (updates as any)[key] = true;
+    ADVANTAGE_PLUS_FEATURES.forEach(f => {
+      (updates as any)[f.key] = Boolean(advantagePlusValues[f.key]);
     });
     
     onBulkUpdate(metaRows.map(r => r.id), updates);
-    toast.success(`Applied ${enabledFeatures.length} Advantage+ features to ${metaRows.length} creatives`);
-    setAdvantagePlusValues({});
+    const enabledCount = Object.values(advantagePlusValues).filter(Boolean).length;
+    const disabledCount = ADVANTAGE_PLUS_FEATURES.length - enabledCount;
+    toast.success(`Applied Advantage+ settings to ${metaRows.length} creatives (${enabledCount} on, ${disabledCount} off)`);
   }, [selectedRowIds, advantagePlusValues, rows, onBulkUpdate]);
 
   const activeConfig = PARAMETERS.find(p => p.key === activeParameter)!;
