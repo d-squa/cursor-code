@@ -1416,6 +1416,19 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    // Reset all errored assignments (without DSP creative ID) back to pending
+    // so stale error messages are cleared and they're cleanly re-queued
+    const { count: resetCount } = await supabase
+      .from("creative_assignments")
+      .update({ status: "pending", error_message: null })
+      .eq("campaign_id", campaignId)
+      .eq("status", "error")
+      .is("dsp_creative_id", null)
+      .select("id", { count: "exact", head: true });
+    if (resetCount) {
+      console.log(`[push-creatives] Reset ${resetCount} errored assignments to pending`);
+    }
+
     // Get or create job record
     let jobId = existingJobId;
     if (!jobId) {
