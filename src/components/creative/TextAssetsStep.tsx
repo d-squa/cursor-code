@@ -13,7 +13,7 @@ import { Save, Check, AlertCircle, Loader2, Plus, Image, Video, Rocket } from 'l
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
-import type { CreativeTextAssetRow, CreativeFormat, AdFormat } from '@/types/creativeTextAssets';
+import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat, type AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
 import { detectAdFormat } from '@/utils/adFormatDetection';
@@ -112,6 +112,17 @@ export function TextAssetsStep({
               position,
               ad_set_id,
               ad_set_name,
+              advantage_plus_video_touchups,
+              advantage_plus_text_improvements,
+              advantage_plus_product_tags,
+              advantage_plus_video_effects,
+              advantage_plus_relevant_comments,
+              advantage_plus_enhance_cta,
+              advantage_plus_reveal_details,
+              advantage_plus_show_spotlights,
+              advantage_plus_optimize_text_per_person,
+              advantage_plus_sitelinks,
+              advantage_plus_products,
               creatives (
                 id,
                 name,
@@ -463,6 +474,17 @@ export function TextAssetsStep({
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
             organicMessage: creative?.caption || undefined,
+            advantage_plus_video_touchups: assignment.advantage_plus_video_touchups ?? undefined,
+            advantage_plus_text_improvements: assignment.advantage_plus_text_improvements ?? undefined,
+            advantage_plus_product_tags: assignment.advantage_plus_product_tags ?? undefined,
+            advantage_plus_video_effects: assignment.advantage_plus_video_effects ?? undefined,
+            advantage_plus_relevant_comments: assignment.advantage_plus_relevant_comments ?? undefined,
+            advantage_plus_enhance_cta: assignment.advantage_plus_enhance_cta ?? undefined,
+            advantage_plus_reveal_details: assignment.advantage_plus_reveal_details ?? undefined,
+            advantage_plus_show_spotlights: assignment.advantage_plus_show_spotlights ?? undefined,
+            advantage_plus_optimize_text_per_person: assignment.advantage_plus_optimize_text_per_person ?? undefined,
+            advantage_plus_sitelinks: assignment.advantage_plus_sitelinks ?? undefined,
+            advantage_plus_products: assignment.advantage_plus_products ?? undefined,
           };
         });
 
@@ -716,6 +738,11 @@ export function TextAssetsStep({
         const assignmentId = row.assignmentId;
         if (!assignmentId) continue;
 
+        const advantagePlusUpdates = ADVANTAGE_PLUS_ASSIGNMENT_FIELDS.reduce<Record<string, boolean | undefined>>((acc, field) => {
+          acc[field] = row[field];
+          return acc;
+        }, {});
+
         await supabase
           .from('creative_assignments')
           .update({
@@ -724,6 +751,7 @@ export function TextAssetsStep({
             carousel_card_description: (row as any).carouselCardDescription || null,
             carousel_card_website_url: (row as any).carouselCardWebsiteUrl || null,
             carousel_card_cta: (row as any).carouselCardCta || null,
+            ...advantagePlusUpdates,
           })
           .eq('id', assignmentId);
       }
