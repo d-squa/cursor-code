@@ -623,11 +623,18 @@ function HierarchicalEntityContent({
           <div className="flex items-center justify-between px-2 py-0.5">
             <div className="text-xs font-medium text-muted-foreground/70">Campaigns</div>
             {!qcEnforceIndividual && (
-              <BulkCheckAllButton
-                entityItems={campaigns}
-                entityType="campaign"
+              <ScopedBulkCheckMenu
                 getChecklist={getChecklist}
                 onBulkCheckAndAdvance={onBulkCheckAndAdvance}
+                scopes={[
+                  { label: 'All campaigns', items: campaigns },
+                  ...(adsets.length > 0 ? [{ label: 'All ad sets', items: adsets }] : []),
+                  ...(allAds.length > 0 ? [{ label: 'All ads', items: allAds }] : []),
+                  ...(adsets.length > 0 && allAds.length > 0 ? [{ label: 'All ad sets & ads', items: [...adsets, ...allAds] }] : []),
+                  ...(adsets.length + allAds.length > 0
+                    ? [{ label: 'Everything', items: [...campaigns, ...adsets, ...allAds] }]
+                    : []),
+                ]}
               />
             )}
           </div>
