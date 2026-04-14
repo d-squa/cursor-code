@@ -194,32 +194,22 @@ function buildMetaCreativeFeaturesSpec(features: {
 }): Record<string, any> {
   const opt = (flag: boolean) => flag ? "OPT_IN" : "OPT_OUT";
 
-  // FIX: Map ALL Advantage+ creative features to Meta API creative_features_spec keys.
-  // Previously only 4 of 11 features were mapped; the rest were silently ignored,
-  // causing Meta to apply its own account-level defaults (usually ON).
+  // Meta API only accepts these 5 keys in creative_features_spec:
+  // PROFILE_CARD, PRODUCT_METADATA_AUTOMATION, STANDARD_ENHANCEMENTS_CATALOG,
+  // IG_VIDEO_NATIVE_SUBTITLE, TEXT_OVERLAY_TRANSLATION
+  // All other "Advantage+" toggles (CTA, comments, sitelinks, text improvements, etc.)
+  // are controlled by standard_enhancements within STANDARD_ENHANCEMENTS_CATALOG.
   const dofFeatures: Record<string, any> = {
-    // Profile end card + Highlight carousel card → PROFILE_CARD
+    // Profile end card + Highlight carousel card
     PROFILE_CARD: { enroll_status: opt(features.showSpotlights) },
-    // Relevant comments → INLINE_COMMENT
-    INLINE_COMMENT: { enroll_status: opt(features.relevantComments) },
-    // Enhance CTA → CTA_OPTIMIZATION (essential enhancement)
-    CTA_OPTIMIZATION: { enroll_status: opt(features.enhanceCta) },
-    // Video touch-ups → IMAGE_AUTO_CROP (visual touch-ups / smart cropping)
-    IMAGE_AUTO_CROP: { enroll_status: opt(features.videoTouchups) },
-    // Video effects / IG subtitles → IG_VIDEO_NATIVE_SUBTITLE
+    // IG video subtitles / video effects
     IG_VIDEO_NATIVE_SUBTITLE: { enroll_status: opt(features.videoEffects) },
-    // Text improvements → TEXT_OPTIMIZATIONS
-    TEXT_OPTIMIZATIONS: { enroll_status: opt(features.textImprovements) },
-    // Optimize text per person → DYNAMIC_DESCRIPTION (dynamic description)
-    DYNAMIC_DESCRIPTION: { enroll_status: opt(features.optimizeTextPerPerson) },
-    // Reveal details over time → MEDIA_ENHANCEMENTS
-    MEDIA_ENHANCEMENTS: { enroll_status: opt(features.revealDetails) },
-    // Product tags → PRODUCT_METADATA_AUTOMATION
+    // Product tags automation
     PRODUCT_METADATA_AUTOMATION: { enroll_status: opt(features.productTags) },
-    // Products / catalog enhancements → STANDARD_ENHANCEMENTS_CATALOG
+    // Catalog / product enhancements
     STANDARD_ENHANCEMENTS_CATALOG: { enroll_status: opt(features.products) },
-    // Sitelinks → SITE_EXTENSIONS
-    SITE_EXTENSIONS: { enroll_status: opt(features.sitelinks) },
+    // Text overlay translation
+    TEXT_OVERLAY_TRANSLATION: { enroll_status: "OPT_OUT" },
   };
 
   console.log("[push-creatives] creative_features_spec:", JSON.stringify(dofFeatures));
