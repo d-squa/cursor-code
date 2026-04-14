@@ -271,8 +271,8 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
             market: item.market,
             phase_name: item.phase_name,
             entity_type: item.entity_type,
-            entity_name: null,
-            ad_set_name: null,
+            entity_name: item.entity_name,
+            ad_set_name: item.ad_set_name,
             dsp_entity_id: item.dsp_entity_id,
           })
         )
