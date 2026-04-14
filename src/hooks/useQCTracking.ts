@@ -340,15 +340,17 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
   useEffect(() => {
     if (!campaignId || !enabled || !user || loading) return;
 
-    if (items.length > 0) {
+    // If no items exist and we haven't tried yet, do initial seed
+    if (items.length === 0 && initAttemptedForCampaignRef.current !== campaignId) {
       initAttemptedForCampaignRef.current = campaignId;
+      void initializeTracking();
       return;
     }
 
-    if (initAttemptedForCampaignRef.current === campaignId) return;
-
-    initAttemptedForCampaignRef.current = campaignId;
-    void initializeTracking();
+    // Always mark as attempted once items exist
+    if (items.length > 0) {
+      initAttemptedForCampaignRef.current = campaignId;
+    }
   }, [campaignId, enabled, user, loading, items.length, initializeTracking]);
 
   const updateState = useCallback(async (trackingId: string, newState: QCState) => {

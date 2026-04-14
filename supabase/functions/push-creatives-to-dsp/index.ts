@@ -2215,6 +2215,9 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
+            // Resolve carousel-level CTA
+            const carouselLevelCta = normalizeMetaCallToActionType(firstResolvedText.callToAction);
+
             const carouselCreativePayload: any = {
               name: `Carousel - ${firstCreative.name}`,
               // Use url_tags for tracking parameters instead of appending to URLs
@@ -2223,10 +2226,16 @@ const handler = async (req: Request): Promise<Response> => {
                 page_id: pageId,
                 ...(validatedInstagramActorId ? { instagram_actor_id: String(validatedInstagramActorId) } : {}),
                 link_data: {
-                  message: firstResolvedText.primaryText,
+                  ...(firstResolvedText.primaryText ? { message: firstResolvedText.primaryText } : {}),
                   link: normalizeHttpUrl(firstResolvedText.destinationUrl || defaultLandingPage) || childAttachments[0]?.link,
                   child_attachments: childAttachments,
                   multi_share_optimized: true,
+                  call_to_action: {
+                    type: carouselLevelCta || "LEARN_MORE",
+                    value: {
+                      link: normalizeHttpUrl(firstResolvedText.destinationUrl || defaultLandingPage) || childAttachments[0]?.link,
+                    },
+                  },
                 },
               },
             };
