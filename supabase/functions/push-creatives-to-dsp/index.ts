@@ -2181,17 +2181,20 @@ const handler = async (req: Request): Promise<Response> => {
               let cardLink = cardUrl;
 
               const isVideo = !!creative.platform_video_id;
+              const cardHeadline = (card as any).carousel_card_headline || card.headline || creative.headline || "";
+              const cardDescription = (card as any).carousel_card_description || card.description || creative.description || "";
               const childAttachment: any = {
                 ...(isVideo
                   ? { video_id: creative.platform_video_id }
                   : { image_hash: creative.platform_image_hash }),
-                name: (card as any).carousel_card_headline || card.headline || creative.headline || creative.name,
-                description: (card as any).carousel_card_description || card.description || creative.description || "",
+                ...(cardHeadline ? { name: cardHeadline } : {}),
+                ...(cardDescription ? { description: cardDescription } : {}),
                 link: cardLink,
               };
-              const cta = (card as any).carousel_card_cta || card.call_to_action || creative.call_to_action;
-              if (cta) {
-                childAttachment.call_to_action = { type: cta, value: { link: cardLink } };
+              const rawCta = (card as any).carousel_card_cta || card.call_to_action || creative.call_to_action;
+              const normalizedCta = normalizeMetaCallToActionType(rawCta);
+              if (normalizedCta) {
+                childAttachment.call_to_action = { type: normalizedCta, value: { link: cardLink } };
               }
               if (isVideo && creative.platform_thumbnail_id) {
                 childAttachment.image_hash = creative.platform_thumbnail_id;
@@ -3790,11 +3793,11 @@ const handler = async (req: Request): Promise<Response> => {
                 
                 creativePayload.object_story_spec.video_data = {
                   video_id: creative.platform_video_id,
-                  title: resolvedText.headline || creative.name,
+                  ...(resolvedText.headline ? { title: resolvedText.headline } : {}),
                   message: resolvedText.primaryText,
                   // Meta requires call_to_action with link for video ads - default to LEARN_MORE if no CTA specified
                   call_to_action: {
-                    type: resolvedText.callToAction || "LEARN_MORE",
+                    type: normalizeMetaCallToActionType(resolvedText.callToAction) || "LEARN_MORE",
                     value: {
                       link: destinationLink,
                     },
@@ -3822,18 +3825,21 @@ const handler = async (req: Request): Promise<Response> => {
                   continue;
                 }
 
+                const normalizedLinkCta = normalizeMetaCallToActionType(resolvedText.callToAction);
                 creativePayload.object_story_spec.link_data = {
                   image_hash: creative.platform_image_hash,
                   link: finalDestinationUrl,
                   message: resolvedText.primaryText,
-                  name: resolvedText.headline,
-                  description: resolvedText.description,
-                  call_to_action: resolvedText.callToAction
+                  ...(resolvedText.headline ? { name: resolvedText.headline } : {}),
+                  ...(resolvedText.description ? { description: resolvedText.description } : {}),
+                  ...(normalizedLinkCta
                     ? {
-                        type: resolvedText.callToAction,
-                        value: { link: finalDestinationUrl },
+                        call_to_action: {
+                          type: normalizedLinkCta,
+                          value: { link: finalDestinationUrl },
+                        },
                       }
-                    : undefined,
+                    : {}),
                 };
               }
             }
