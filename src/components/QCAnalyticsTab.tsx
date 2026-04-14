@@ -211,11 +211,13 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
   const totalToDelivering = tracking.filter(t => t.current_state === 'delivering').length;
   const autoCompletedCount = tracking.filter(t => t.auto_completed).length;
 
-  // PWR (Pencil Whip Rate) calculation
+  // PWR (Pencil Whip Rate) calculation — includes both 'bulk' and 'scoped_bulk'
+  const scopedBulkChecks = checkCompletions.filter(c => c.check_method === 'scoped_bulk').length;
   const bulkChecks = checkCompletions.filter(c => c.check_method === 'bulk').length;
   const individualChecks = checkCompletions.filter(c => c.check_method === 'individual').length;
-  const totalChecks = bulkChecks + individualChecks;
-  const pwrRate = totalChecks > 0 ? ((bulkChecks / totalChecks) * 100).toFixed(1) : '0.0';
+  const totalBulkChecks = bulkChecks + scopedBulkChecks;
+  const totalChecks = totalBulkChecks + individualChecks;
+  const pwrRate = totalChecks > 0 ? ((totalBulkChecks / totalChecks) * 100).toFixed(1) : '0.0';
   const pwrColor = parseFloat(pwrRate) > 50 ? 'text-destructive' : parseFloat(pwrRate) > 25 ? 'text-amber-600' : 'text-green-600';
 
   return (
