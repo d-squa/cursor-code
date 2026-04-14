@@ -945,49 +945,107 @@ function EntityRow({
   );
 }
 
-// ─── Bulk Check All Button with Confirmation + Auto-Advance ────────────────
+// ─── Scoped Bulk Check Menu with Confirmation ─────────────────────────────
 
-interface BulkCheckAllButtonProps {
-  entityItems: QCTrackingItem[];
-  entityType: string;
-  getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
-  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+interface BulkCheckScope {
+  label: string;
+  items: QCTrackingItem[];
 }
 
-function BulkCheckAllButton({ entityItems, entityType, getChecklist, onBulkCheckAndAdvance }: BulkCheckAllButtonProps) {
-  const label = entityType === 'adset' ? 'Ad Sets' : entityType === 'ad' ? 'Ads' : 'Campaigns';
+interface ScopedBulkCheckMenuProps {
+  getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState) => void;
+  scopes: BulkCheckScope[];
+}
 
-  const handleBulkCheck = () => {
-    for (const item of entityItems) {
+function ScopedBulkCheckMenu({ getChecklist, onBulkCheckAndAdvance, scopes }: ScopedBulkCheckMenuProps) {
+  const [confirmScope, setConfirmScope] = useState<BulkCheckScope | null>(null);
+
+  const handleBulkCheck = (scope: BulkCheckScope) => {
+    for (const item of scope.items) {
       const checklist = getChecklist(item.platform, item.entity_type);
       onBulkCheckAndAdvance(item.id, checklist, item.current_state);
     }
+    setConfirmScope(null);
   };
 
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={(e) => e.stopPropagation()}>
+  // If only one scope, render a simple button with confirmation
+  if (scopes.length === 1) {
+    const scope = scopes[0];
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 text-[10px] px-1.5"
+          onClick={(e) => { e.stopPropagation(); setConfirmScope(scope); }}
+        >
           <CheckCheck className="h-3 w-3 mr-0.5" />
-          Check All {label}
+          Check {scope.label}
         </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Bulk Check All {label}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            You are about to mark all checklist items as checked for {entityItems.length} {label.toLowerCase()} and automatically advance them to <strong>Checked</strong> state. 
-            This action is your responsibility — please ensure all items have been properly reviewed before confirming.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleBulkCheck}>
-            Yes, Check All & Advance
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        <AlertDialog open={!!confirmScope} onOpenChange={(open) => !open && setConfirmScope(null)}>
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Bulk Check: {confirmScope?.label}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You are about to mark all checklist items as checked for {confirmScope?.items.length} entities and automatically advance them to <strong>Checked</strong> state.
+                This action is your responsibility — please ensure all items have been properly reviewed before confirming.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => confirmScope && handleBulkCheck(confirmScope)}>
+                Yes, Check & Advance
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
+  // Multiple scopes: render a dropdown
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={(e) => e.stopPropagation()}>
+            <CheckCheck className="h-3 w-3 mr-0.5" />
+            Check All
+            <ChevronDown className="h-2.5 w-2.5 ml-0.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {scopes.map((scope) => (
+            <DropdownMenuItem
+              key={scope.label}
+              className="text-xs"
+              onClick={() => setConfirmScope(scope)}
+            >
+              {scope.label} ({scope.items.length})
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={!!confirmScope} onOpenChange={(open) => !open && setConfirmScope(null)}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bulk Check: {confirmScope?.label}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to mark all checklist items as checked for {confirmScope?.items.length} entities and automatically advance them to <strong>Checked</strong> state.
+              This action is your responsibility — please ensure all items have been properly reviewed before confirming.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmScope && handleBulkCheck(confirmScope)}>
+              Yes, Check & Advance
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
