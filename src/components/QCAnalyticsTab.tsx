@@ -211,11 +211,13 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
   const totalToDelivering = tracking.filter(t => t.current_state === 'delivering').length;
   const autoCompletedCount = tracking.filter(t => t.auto_completed).length;
 
-  // PWR (Pencil Whip Rate) calculation
+  // PWR (Pencil Whip Rate) calculation — includes both 'bulk' and 'scoped_bulk'
+  const scopedBulkChecks = checkCompletions.filter(c => c.check_method === 'scoped_bulk').length;
   const bulkChecks = checkCompletions.filter(c => c.check_method === 'bulk').length;
   const individualChecks = checkCompletions.filter(c => c.check_method === 'individual').length;
-  const totalChecks = bulkChecks + individualChecks;
-  const pwrRate = totalChecks > 0 ? ((bulkChecks / totalChecks) * 100).toFixed(1) : '0.0';
+  const totalBulkChecks = bulkChecks + scopedBulkChecks;
+  const totalChecks = totalBulkChecks + individualChecks;
+  const pwrRate = totalChecks > 0 ? ((totalBulkChecks / totalChecks) * 100).toFixed(1) : '0.0';
   const pwrColor = parseFloat(pwrRate) > 50 ? 'text-destructive' : parseFloat(pwrRate) > 25 ? 'text-amber-600' : 'text-green-600';
 
   return (
@@ -265,7 +267,7 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground" title={`Bulk: ${bulkChecks} | Individual: ${individualChecks}. High rate may indicate checks are being rushed.`}>
+              <p className="text-sm text-muted-foreground" title={`Entity Bulk: ${bulkChecks} | Scoped Bulk: ${scopedBulkChecks} | Individual: ${individualChecks}. High rate may indicate checks are being rushed.`}>
                 PWR (Pencil Whip Rate)
               </p>
               <p className={`text-2xl font-bold ${pwrColor}`}>{pwrRate}%</p>
@@ -286,14 +288,20 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div className="text-center p-3 bg-muted/20 rounded-md border">
               <p className="text-xs text-muted-foreground">Individual Checks</p>
               <p className="text-xl font-bold">{individualChecks}</p>
             </div>
             <div className="text-center p-3 bg-muted/20 rounded-md border">
-              <p className="text-xs text-muted-foreground">Bulk Checks</p>
+              <p className="text-xs text-muted-foreground">Entity Bulk Checks</p>
               <p className="text-xl font-bold">{bulkChecks}</p>
+              <p className="text-[10px] text-muted-foreground">Single entity "Check All"</p>
+            </div>
+            <div className="text-center p-3 bg-muted/20 rounded-md border">
+              <p className="text-xs text-muted-foreground">Scoped Bulk Checks</p>
+              <p className="text-xl font-bold">{scopedBulkChecks}</p>
+              <p className="text-[10px] text-muted-foreground">Multi-entity scope actions</p>
             </div>
             <div className="text-center p-3 bg-muted/20 rounded-md border">
               <p className="text-xs text-muted-foreground">PWR Score</p>
@@ -306,17 +314,19 @@ export function QCAnalyticsTab({ userId, selectedCampaign, dateRange }: QCAnalyt
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={[
-                { name: 'Individual', count: individualChecks, fill: 'hsl(var(--primary))' },
-                { name: 'Bulk', count: bulkChecks, fill: 'hsl(var(--accent))' },
+                { name: 'Individual', count: individualChecks },
+                { name: 'Entity Bulk', count: bulkChecks },
+                { name: 'Scoped Bulk', count: scopedBulkChecks },
               ]}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="count" name="Checks">
                   {[
                     <Cell key="individual" fill="hsl(var(--primary))" />,
                     <Cell key="bulk" fill="hsl(var(--accent))" />,
+                    <Cell key="scoped" fill="hsl(var(--destructive))" />,
                   ]}
                 </Bar>
               </BarChart>

@@ -151,7 +151,7 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
   }, [user, completions]);
 
   // Check/uncheck all items for a tracking entity
-  const toggleAll = useCallback(async (trackingId: string, items: QCChecklistItem[], checked: boolean) => {
+  const toggleAll = useCallback(async (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod: string = 'bulk') => {
     if (!user) return;
 
     try {
@@ -164,7 +164,7 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
               is_checked: checked,
               checked_by: checked ? user.id : null,
               checked_at: checked ? new Date().toISOString() : null,
-              check_method: 'bulk',
+              check_method: checkMethod,
             } as any)
             .eq("id", existing.id);
         } else {
@@ -176,7 +176,7 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
               is_checked: checked,
               checked_by: checked ? user.id : null,
               checked_at: checked ? new Date().toISOString() : null,
-              check_method: 'bulk',
+              check_method: checkMethod,
             } as any);
         }
       }
