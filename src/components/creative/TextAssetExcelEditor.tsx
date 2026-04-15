@@ -126,6 +126,7 @@ const HIERARCHY_COLUMNS: GridColumn[] = [
   { key: 'market', label: 'Market', width: 80, editable: false, type: 'text', sticky: true },
   { key: 'phase', label: 'Phase', width: 100, editable: false, type: 'text', sticky: true },
   { key: 'adSet', label: 'Ad Set', width: 140, editable: false, type: 'text', sticky: true },
+  { key: 'pushStatus', label: 'Status', width: 90, editable: false, type: 'text', sticky: true },
   { key: 'creativeName', label: 'Creative', width: 180, editable: false, type: 'text', sticky: true },
   { key: 'originalFilename', label: 'Upload Path', width: 280, editable: false, type: 'text', sticky: true },
   { key: 'folderPath', label: 'Folder Path', width: 220, editable: false, type: 'text', sticky: true },
