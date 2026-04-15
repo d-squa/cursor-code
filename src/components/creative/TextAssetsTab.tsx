@@ -290,6 +290,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             isOrganic,
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
+            // Push status
+            pushStatus: assignment.status || 'draft',
             // Carousel group info from DB
             carouselGroupId: assignment.carousel_group_id || undefined,
             carouselCardHeadline: assignment.carousel_card_headline || undefined,
