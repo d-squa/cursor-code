@@ -2187,7 +2187,7 @@ export function TextAssetExcelEditor({
                         {/* Creative Name with order badge and Thumbnail Preview */}
                         <div
                           className="px-2 py-1.5 flex items-center gap-1 border-r shrink-0"
-                          style={{ width: HIERARCHY_COLUMNS[6].width }}
+                          style={{ width: HIERARCHY_COLUMNS[7].width }}
                         >
                           {item.groupOrder && (
                             <Badge variant="outline" className="text-[9px] px-1 h-4 shrink-0 border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400 font-mono">
