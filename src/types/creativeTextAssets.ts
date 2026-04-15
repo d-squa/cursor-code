@@ -216,6 +216,9 @@ export interface CreativeTextAssetRow {
   organicMessage?: string;
   organicPermalink?: string;
   
+  // Push / DSP status
+  pushStatus?: 'draft' | 'pending' | 'pushed' | 'published' | 'error' | string;
+  
   // Creative processing groups
   // A row can belong to both a carousel group and an asset customization group.
   carouselGroupId?: string;
