@@ -2278,7 +2278,7 @@ export function TextAssetExcelEditor({
                         {/* Original Filename */}
                         <div
                           className="px-2 py-1.5 flex items-center border-r shrink-0"
-                          style={{ width: HIERARCHY_COLUMNS[7].width }}
+                          style={{ width: HIERARCHY_COLUMNS[8].width }}
                         >
                           <span className="text-xs truncate text-muted-foreground" title={row.originalFilename || ''}>
                             {row.originalFilename || '—'}
@@ -2288,7 +2288,7 @@ export function TextAssetExcelEditor({
                         {/* Folder Path */}
                         <div
                           className="px-2 py-1.5 flex items-center border-r shrink-0"
-                          style={{ width: HIERARCHY_COLUMNS[8].width }}
+                          style={{ width: HIERARCHY_COLUMNS[9].width }}
                         >
                           <span className="text-xs truncate text-muted-foreground" title={row.folderPath || ''}>
                             {row.folderPath || '—'}
