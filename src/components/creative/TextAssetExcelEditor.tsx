@@ -126,6 +126,7 @@ const HIERARCHY_COLUMNS: GridColumn[] = [
   { key: 'market', label: 'Market', width: 80, editable: false, type: 'text', sticky: true },
   { key: 'phase', label: 'Phase', width: 100, editable: false, type: 'text', sticky: true },
   { key: 'adSet', label: 'Ad Set', width: 140, editable: false, type: 'text', sticky: true },
+  { key: 'pushStatus', label: 'Status', width: 90, editable: false, type: 'text', sticky: true },
   { key: 'creativeName', label: 'Creative', width: 180, editable: false, type: 'text', sticky: true },
   { key: 'originalFilename', label: 'Upload Path', width: 280, editable: false, type: 'text', sticky: true },
   { key: 'folderPath', label: 'Folder Path', width: 220, editable: false, type: 'text', sticky: true },
@@ -2160,11 +2161,33 @@ export function TextAssetExcelEditor({
                         >
                           <span className="text-xs truncate" title={row.adSet}>{row.adSet}</span>
                         </div>
+
+                        {/* Push Status */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[6].width }}
+                        >
+                          <Badge
+                            variant={
+                              row.pushStatus === 'pushed' || row.pushStatus === 'published' ? 'default' :
+                              row.pushStatus === 'pending' ? 'secondary' :
+                              row.pushStatus === 'error' ? 'destructive' : 'outline'
+                            }
+                            className={cn(
+                              "text-[10px] px-1.5 py-0 h-5",
+                              row.pushStatus === 'pushed' && "bg-green-600 hover:bg-green-600",
+                              row.pushStatus === 'published' && "bg-green-600 hover:bg-green-600",
+                              row.pushStatus === 'pending' && "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30",
+                            )}
+                          >
+                            {(row.pushStatus || 'draft').replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
                         
                         {/* Creative Name with order badge and Thumbnail Preview */}
                         <div
                           className="px-2 py-1.5 flex items-center gap-1 border-r shrink-0"
-                          style={{ width: HIERARCHY_COLUMNS[6].width }}
+                          style={{ width: HIERARCHY_COLUMNS[7].width }}
                         >
                           {item.groupOrder && (
                             <Badge variant="outline" className="text-[9px] px-1 h-4 shrink-0 border-blue-400 text-blue-600 dark:border-blue-600 dark:text-blue-400 font-mono">
@@ -2255,7 +2278,7 @@ export function TextAssetExcelEditor({
                         {/* Original Filename */}
                         <div
                           className="px-2 py-1.5 flex items-center border-r shrink-0"
-                          style={{ width: HIERARCHY_COLUMNS[7].width }}
+                          style={{ width: HIERARCHY_COLUMNS[8].width }}
                         >
                           <span className="text-xs truncate text-muted-foreground" title={row.originalFilename || ''}>
                             {row.originalFilename || '—'}
@@ -2265,7 +2288,7 @@ export function TextAssetExcelEditor({
                         {/* Folder Path */}
                         <div
                           className="px-2 py-1.5 flex items-center border-r shrink-0"
-                          style={{ width: HIERARCHY_COLUMNS[8].width }}
+                          style={{ width: HIERARCHY_COLUMNS[9].width }}
                         >
                           <span className="text-xs truncate text-muted-foreground" title={row.folderPath || ''}>
                             {row.folderPath || '—'}

@@ -135,6 +135,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             phase_name,
             ad_set_name,
             position,
+            status,
             carousel_group_id,
             carousel_card_headline,
             carousel_card_description,
@@ -186,7 +187,12 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           from += pageSize;
         }
 
-        const assignments = allAssignments;
+        // Filter out assignments that were already pushed live / published
+        const PUSHED_LIVE_STATUSES = ['published', 'pushed_live', 'delivering'];
+        const assignments = allAssignments.filter((a: any) => {
+          const s = (a.status || '').toLowerCase();
+          return !PUSHED_LIVE_STATUSES.includes(s);
+        });
 
 
         // Transform to CreativeTextAssetRow format
@@ -284,6 +290,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             isOrganic,
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
+            // Push status
+            pushStatus: assignment.status || 'draft',
             // Carousel group info from DB
             carouselGroupId: assignment.carousel_group_id || undefined,
             carouselCardHeadline: assignment.carousel_card_headline || undefined,
