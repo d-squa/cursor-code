@@ -56,6 +56,7 @@ export function PushConfirmationDialog({
   adCount = 0,
   campaignCount = 0,
   pages = [],
+  accounts = [],
   adSummary,
   isLoading = false,
 }: PushConfirmationDialogProps) {
