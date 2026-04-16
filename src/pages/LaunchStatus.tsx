@@ -1510,6 +1510,7 @@ export default function LaunchStatus() {
         onConfirm={handleConfirmedCampaignPush}
         type="campaign"
         campaignCount={pendingEntities.length}
+        accounts={campaignPushAccounts}
         isLoading={pushing}
       />
 
