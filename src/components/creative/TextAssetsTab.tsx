@@ -18,6 +18,7 @@ import {
   ASSET_CUSTOMIZATION_VISIBLE_STATUSES,
   toAssetCustomizationMemberBucket,
 } from '@/utils/assetCustomizationPersistence';
+import { isAssignmentPushedLive, normalizeAssignmentPushStatus } from '@/utils/creativeAssignmentStatus';
 
 interface Campaign {
   id: string;
@@ -136,6 +137,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             ad_set_name,
             position,
             status,
+              dsp_creative_id,
             carousel_group_id,
             carousel_card_headline,
             carousel_card_description,
@@ -187,11 +189,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           from += pageSize;
         }
 
-        // Filter out assignments that were already pushed live / published
-        const PUSHED_LIVE_STATUSES = ['published', 'pushed_live', 'pushed', 'delivering'];
         const assignments = allAssignments.filter((a: any) => {
-          const s = (a.status || '').toLowerCase();
-          return !PUSHED_LIVE_STATUSES.includes(s);
+          return !isAssignmentPushedLive(a.status, a.dsp_creative_id);
         });
 
 
@@ -291,7 +290,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
             // Push status
-            pushStatus: assignment.status || 'draft',
+            pushStatus: normalizeAssignmentPushStatus(assignment.status, assignment.dsp_creative_id),
             // Carousel group info from DB
             carouselGroupId: assignment.carousel_group_id || undefined,
             carouselCardHeadline: assignment.carousel_card_headline || undefined,
