@@ -29,6 +29,12 @@ interface AdSummary {
   carousel: number;
 }
 
+interface AdAccountInfo {
+  platform: 'meta' | 'tiktok';
+  accountId: string;
+  accountName?: string;
+}
+
 interface PushConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +43,7 @@ interface PushConfirmationDialogProps {
   adCount?: number;
   campaignCount?: number;
   pages?: PageInfo[];
+  accounts?: AdAccountInfo[];
   adSummary?: AdSummary;
   isLoading?: boolean;
 }
