@@ -28,6 +28,7 @@ import {
   ASSET_CUSTOMIZATION_VISIBLE_STATUSES,
   toAssetCustomizationMemberBucket,
 } from '@/utils/assetCustomizationPersistence';
+import { isAssignmentPushedLive, normalizeAssignmentPushStatus } from '@/utils/creativeAssignmentStatus';
 
 interface SavedAssignment {
   id: string;
@@ -112,6 +113,8 @@ export function TextAssetsStep({
               position,
               ad_set_id,
               ad_set_name,
+               status,
+               dsp_creative_id,
               advantage_plus_video_touchups,
               advantage_plus_text_improvements,
               advantage_plus_product_tags,
@@ -195,7 +198,9 @@ export function TextAssetsStep({
           throw campaignResult.error;
         }
 
-        const assignments = assignmentsResult.data || [];
+        const assignments = (assignmentsResult.data || []).filter((assignment: any) => (
+          !isAssignmentPushedLive(assignment.status, assignment.dsp_creative_id)
+        ));
         const campaign = campaignResult.data;
 
         console.log('TextAssetsStep: Fetched assignments:', assignments);
@@ -474,6 +479,7 @@ export function TextAssetsStep({
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
             organicMessage: creative?.caption || undefined,
+            pushStatus: normalizeAssignmentPushStatus(assignment.status, assignment.dsp_creative_id),
             advantage_plus_video_touchups: assignment.advantage_plus_video_touchups ?? undefined,
             advantage_plus_text_improvements: assignment.advantage_plus_text_improvements ?? undefined,
             advantage_plus_product_tags: assignment.advantage_plus_product_tags ?? undefined,
