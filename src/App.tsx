@@ -49,6 +49,7 @@ import { AIAssistantSidebar } from "./components/AIAssistantSidebar";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 import { TourDataProvider } from "./contexts/TourDataContext";
 import { TourResumeButton } from "./components/TourResumeButton";
+import { OnboardingTour } from "./components/OnboardingTour";
 import { MarketingGTM } from "./components/MarketingGTM";
 import { DataLayerUserID } from "./components/DataLayerUserID";
 
@@ -121,6 +122,7 @@ const App = () => (
           {/* Global floating components */}
           <BugReportButton />
           <AIAssistantSidebar />
+          <OnboardingTour />
           <TourResumeButton onResume={() => (window as any).__resumeOnboardingTour?.()} />
         </TourDataProvider>
       </BrowserRouter>
