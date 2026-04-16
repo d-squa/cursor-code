@@ -55,17 +55,19 @@ export async function logCampaignActivity({
 }: CampaignActivityEntryInput) {
   if (!campaignId || !userId) return;
 
-  const { error } = await supabase.from("activity_logs").insert({
+  const payload: Record<string, unknown> = {
     campaign_id: campaignId,
     user_id: userId,
     action_type: actionType,
     title,
     description: description ?? null,
-    affected_platforms: affectedPlatforms ?? null,
-    affected_markets: affectedMarkets ?? null,
-    affected_phases: affectedPhases ?? null,
     metadata: metadata ?? {},
-  });
+  };
+  if (affectedPlatforms?.length) payload.affected_platforms = affectedPlatforms;
+  if (affectedMarkets?.length) payload.affected_markets = affectedMarkets;
+  if (affectedPhases?.length) payload.affected_phases = affectedPhases;
+
+  const { error } = await (supabase.from("activity_logs") as any).insert(payload);
 
   if (error) {
     console.error("Failed to log campaign activity entry:", error);
