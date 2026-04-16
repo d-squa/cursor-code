@@ -30,9 +30,10 @@ interface AdSummary {
 }
 
 interface AdAccountInfo {
-  platform: 'meta' | 'tiktok';
+  platform: 'meta' | 'tiktok' | 'google';
   accountId: string;
   accountName?: string;
+  entityCount?: number;
 }
 
 interface PushConfirmationDialogProps {
