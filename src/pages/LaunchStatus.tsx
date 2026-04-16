@@ -38,6 +38,7 @@ import { DspConfigChangesView } from "@/components/launch/DspConfigChangesView";
 import { useDspConfigSync } from "@/hooks/useDspConfigSync";
 import { useQCTracking } from "@/hooks/useQCTracking";
 import { useQCChecklist } from "@/hooks/useQCChecklist";
+import { logCampaignActivity, logCampaignHistoryEntry } from "@/utils/campaignHistory";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
 import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
@@ -539,6 +540,29 @@ export default function LaunchStatus() {
       }
 
       // Refresh data to show updated statuses
+      const finalStatus = data?.finalStatus || (data?.hasErrors ? "partially_pushed" : "pushed_to_dsp");
+      await Promise.all([
+        logCampaignHistoryEntry({
+          campaignId,
+          userId: user?.id,
+          action: finalStatus,
+          changeType: "launch",
+          description: `Campaign shell push completed with status ${finalStatus}`,
+        }),
+        logCampaignActivity({
+          campaignId,
+          userId: user?.id,
+          actionType: "campaign_shell_push",
+          title: "Campaign pushed to DSP",
+          description: `Campaign shell push completed with status ${finalStatus}`,
+          metadata: {
+            finalStatus,
+            resultCount: data?.results?.length || 0,
+            hasErrors: Boolean(data?.hasErrors),
+          },
+        }),
+      ]);
+
       await loadData();
       await initializeTracking();
       // Refetch the limits since we just pushed
@@ -840,6 +864,28 @@ export default function LaunchStatus() {
       } else {
         toast.success(`Creatives push completed! ${data?.pushedCount || 0} creative(s) pushed.`);
       }
+
+      await Promise.all([
+        logCampaignHistoryEntry({
+          campaignId,
+          userId: user?.id,
+          action: "creatives_pushed_to_dsp",
+          changeType: "launch",
+          description: `Creative push completed. Pushed: ${data?.pushedCount || 0}, Failed: ${data?.failedCount || 0}`,
+        }),
+        logCampaignActivity({
+          campaignId,
+          userId: user?.id,
+          actionType: "creative_push",
+          title: "Creatives pushed to DSP",
+          description: `Creative push completed. Pushed: ${data?.pushedCount || 0}, Failed: ${data?.failedCount || 0}`,
+          metadata: {
+            pushedCount: data?.pushedCount || 0,
+            failedCount: data?.failedCount || 0,
+            partial: Boolean(data?.partial),
+          },
+        }),
+      ]);
       
       await loadData();
       await initializeTracking();

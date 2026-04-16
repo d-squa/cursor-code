@@ -17,6 +17,7 @@ import { Loader2, CalendarIcon, Clock, Users, TrendingUp, AlertTriangle, Timer, 
 import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
 import { formatActiveTime } from "@/hooks/useActiplanTimeTracking";
+import { QCAnalyticsTab } from "@/components/QCAnalyticsTab";
 
 interface ActiPlanSummary {
   id: string;
@@ -208,6 +209,22 @@ export default function OperationsReports() {
       const { data: activityLogs, error: actError } = await actQuery;
       if (actError) throw actError;
 
+      let historyQuery = supabase
+        .from("campaign_change_history")
+        .select(`
+          id, action, change_type, user_id, created_at, description,
+          campaigns!inner(id, name, team_id, platforms, market_splits)
+        `)
+        .in('campaign_id', campaignIdsForWorkspace)
+        .order("created_at", { ascending: false });
+
+      if (selectedCampaign !== 'all') {
+        historyQuery = historyQuery.eq('campaign_id', selectedCampaign);
+      }
+
+      const { data: historyLogs, error: historyError } = await historyQuery;
+      if (historyError) throw historyError;
+
       // Collect all user IDs
       const userIds = new Set<string>();
       modRequests?.forEach(r => {
@@ -215,6 +232,7 @@ export default function OperationsReports() {
         if (r.completed_by) userIds.add(r.completed_by);
       });
       activityLogs?.forEach(a => userIds.add(a.user_id));
+      historyLogs?.forEach((h: any) => userIds.add(h.user_id));
 
       // Fetch user emails
       const { data: profiles } = await supabase
@@ -232,6 +250,10 @@ export default function OperationsReports() {
       });
       activityLogs?.forEach(a => {
         const campaign = a.campaigns as any;
+        if (campaign?.team_id) teamIds.add(campaign.team_id);
+      });
+      historyLogs?.forEach((h: any) => {
+        const campaign = h.campaigns as any;
         if (campaign?.team_id) teamIds.add(campaign.team_id);
       });
 
@@ -305,6 +327,34 @@ export default function OperationsReports() {
           created_at: a.created_at,
           estimated_hours: a.estimated_hours || undefined,
           actual_hours: a.actual_hours || undefined,
+          status: 'logged',
+          campaign_id: campaign?.id,
+          campaign_name: campaign?.name,
+          team_id: campaign?.team_id,
+          team_name: campaign?.team_id ? teamMap[campaign.team_id] : undefined,
+          platforms,
+          markets,
+        });
+      });
+
+      historyLogs?.forEach((h: any) => {
+        const campaign = h.campaigns as any;
+        const platforms = (campaign?.platforms || []).map((p: any) => p.name || p.id).filter(Boolean);
+        const markets = Object.values(campaign?.market_splits || {})
+          .flat()
+          .map((m: any) => m?.name || m?.id)
+          .filter(Boolean);
+
+        platforms.forEach((p: string) => platformSet.add(p));
+        markets.forEach((m: string) => marketSet.add(m));
+
+        combinedOperations.push({
+          id: `history-${h.id}`,
+          type: 'logged_action',
+          subtype: h.change_type || h.action,
+          requester_id: h.user_id,
+          requester_email: emailMap[h.user_id],
+          created_at: h.created_at,
           status: 'logged',
           campaign_id: campaign?.id,
           campaign_name: campaign?.name,
@@ -860,6 +910,12 @@ export default function OperationsReports() {
                     </Table>
                   </CardContent>
                 </Card>
+
+                <QCAnalyticsTab
+                  userId={user?.id || ''}
+                  selectedCampaign={selectedCampaign}
+                  dateRange={dateRange}
+                />
               </>
             )}
           </>
