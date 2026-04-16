@@ -98,7 +98,16 @@ export function MediaPlanEditor() {
   const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [clients, setClients] = useState<Array<{ id: string; name: string; industry?: string }>>([]);
+  const [clients, setClients] = useState<Array<{
+    id: string;
+    name: string;
+    industry?: string;
+    client_logo_url?: string | null;
+    agency_logo_url?: string | null;
+    brand_font_color?: string | null;
+    brand_background_color?: string | null;
+    brand_foreground_color?: string | null;
+  }>>([]);
   const [campaignName, setCampaignName] = useState<string>("");
   const [boNumber, setBoNumber] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("");
@@ -192,7 +201,7 @@ export function MediaPlanEditor() {
         const { data } = await supabase
           .from("clients")
           .select(
-            "id, name, industry, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages",
+            "id, name, industry, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages, client_logo_url, agency_logo_url, brand_font_color, brand_background_color, brand_foreground_color",
           )
           .order("name");
         setClients(data || []);
