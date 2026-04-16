@@ -177,20 +177,36 @@ export function PushConfirmationDialog({
                       className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
                     >
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className={acc.platform === 'meta' ? 'bg-blue-600 text-white' : 'bg-black text-white'}>
-                          {(acc.accountName || acc.accountId)?.charAt(0) || (acc.platform === 'meta' ? 'M' : 'T')}
+                        <AvatarFallback
+                          className={
+                            acc.platform === 'meta'
+                              ? 'bg-blue-600 text-white'
+                              : acc.platform === 'google'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-black text-white'
+                          }
+                        >
+                          {(acc.accountName || acc.accountId)?.charAt(0) ||
+                            (acc.platform === 'meta' ? 'M' : acc.platform === 'google' ? 'G' : 'T')}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {acc.accountName || 'Unknown account'}
-                        </p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium truncate">
+                            {acc.accountName || 'Unknown account'}
+                          </p>
+                          {typeof acc.entityCount === 'number' && (
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {acc.entityCount} {acc.entityCount === 1 ? 'entity' : 'entities'}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary" className="text-xs capitalize">
-                            {acc.platform === 'meta' ? 'Meta' : 'TikTok'}
+                            {acc.platform === 'meta' ? 'Meta' : acc.platform === 'google' ? 'Google Ads' : 'TikTok'}
                           </Badge>
                           <span className="text-xs text-muted-foreground truncate">
-                            {acc.platform === 'meta' ? 'Ad account:' : 'Advertiser:'} {acc.accountId}
+                            {acc.platform === 'tiktok' ? 'Advertiser:' : 'Ad account:'} {acc.accountId}
                           </span>
                         </div>
                       </div>
