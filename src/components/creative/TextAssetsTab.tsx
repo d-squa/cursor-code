@@ -188,7 +188,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
         }
 
         // Filter out assignments that were already pushed live / published
-        const PUSHED_LIVE_STATUSES = ['published', 'pushed_live', 'delivering'];
+        const PUSHED_LIVE_STATUSES = ['published', 'pushed_live', 'pushed', 'delivering'];
         const assignments = allAssignments.filter((a: any) => {
           const s = (a.status || '').toLowerCase();
           return !PUSHED_LIVE_STATUSES.includes(s);
