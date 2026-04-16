@@ -525,8 +525,8 @@ export async function generateMediaPlanPDF(data: MediaPlanData): Promise<Blob> {
   return doc.output('blob');
 }
 
-export function downloadMediaPlanPDF(data: MediaPlanData): void {
-  const blob = generateMediaPlanPDF(data);
+export async function downloadMediaPlanPDF(data: MediaPlanData): Promise<void> {
+  const blob = await generateMediaPlanPDF(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
