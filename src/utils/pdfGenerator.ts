@@ -83,7 +83,32 @@ export interface MediaPlanData {
   };
 }
 
-export function generateMediaPlanPDF(data: MediaPlanData): Blob {
+async function fetchImageAsDataUrl(url: string): Promise<{ dataUrl: string; format: string; width: number; height: number } | null> {
+  try {
+    const res = await fetch(url, { mode: "cors" });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.width, height: img.height });
+      img.onerror = () => resolve({ width: 100, height: 40 });
+      img.src = dataUrl;
+    });
+    const mime = blob.type || "image/png";
+    const format = mime.includes("png") ? "PNG" : mime.includes("jpeg") || mime.includes("jpg") ? "JPEG" : mime.includes("webp") ? "WEBP" : "PNG";
+    return { dataUrl, format, ...dims };
+  } catch {
+    return null;
+  }
+}
+
+export async function generateMediaPlanPDF(data: MediaPlanData): Promise<Blob> {
   const doc = new jsPDF();
   let yPos = 20;
 
@@ -98,23 +123,48 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
     : [66, 139, 202];
   const fontColorHex = branding?.brand_font_color || "#1a1a2e";
   const fontColorRgb = hexToRgb(fontColorHex);
+  const bgColorRgb: [number, number, number] | null = branding?.brand_background_color
+    ? hexToRgb(branding.brand_background_color)
+    : null;
 
-  // Header with logos
-  if (branding?.client_logo_url || branding?.agency_logo_url) {
-    // We can't easily embed external URLs in jsPDF without async image loading,
-    // so we add text placeholders for logo positions
-    doc.setFontSize(8);
-    doc.setTextColor(...fontColorRgb);
-    if (branding?.name) {
-      doc.text(branding.name, 20, yPos);
-    }
-    yPos += 5;
+  // Branded header band
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const headerHeight = 32;
+  if (bgColorRgb) {
+    doc.setFillColor(...bgColorRgb);
+    doc.rect(0, 0, pageWidth, headerHeight, "F");
   }
+
+  // Logos (fetched async)
+  const [clientImg, agencyImg] = await Promise.all([
+    branding?.client_logo_url ? fetchImageAsDataUrl(branding.client_logo_url) : Promise.resolve(null),
+    branding?.agency_logo_url ? fetchImageAsDataUrl(branding.agency_logo_url) : Promise.resolve(null),
+  ]);
+
+  const logoMaxH = 18;
+  if (clientImg) {
+    const ratio = clientImg.width / clientImg.height;
+    const h = logoMaxH;
+    const w = h * ratio;
+    try { doc.addImage(clientImg.dataUrl, clientImg.format, 12, 7, w, h); } catch {}
+  }
+  if (agencyImg) {
+    const ratio = agencyImg.width / agencyImg.height;
+    const h = logoMaxH;
+    const w = h * ratio;
+    try { doc.addImage(agencyImg.dataUrl, agencyImg.format, pageWidth - w - 12, 7, w, h); } catch {}
+  }
+
+  // Accent bar under header
+  doc.setFillColor(...accentColor);
+  doc.rect(0, headerHeight, pageWidth, 2, "F");
+
+  yPos = headerHeight + 12;
 
   // Title
   doc.setFontSize(20);
   doc.setTextColor(...fontColorRgb);
-  doc.text('Media Plan', 105, yPos, { align: 'center' });
+  doc.text(branding?.name ? `${branding.name} — Media Plan` : 'Media Plan', 105, yPos, { align: 'center' });
   yPos += 15;
 
   // Plan Details
@@ -475,8 +525,8 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
   return doc.output('blob');
 }
 
-export function downloadMediaPlanPDF(data: MediaPlanData): void {
-  const blob = generateMediaPlanPDF(data);
+export async function downloadMediaPlanPDF(data: MediaPlanData): Promise<void> {
+  const blob = await generateMediaPlanPDF(data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

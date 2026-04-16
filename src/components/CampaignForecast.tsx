@@ -767,7 +767,7 @@ export function CampaignForecast({
     const planData = getPlanData();
     try {
       const { generateMediaPlanPDF } = await import("@/utils/pdfGenerator");
-      const blob = generateMediaPlanPDF(planData);
+      const blob = await generateMediaPlanPDF(planData);
       
       return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -811,7 +811,7 @@ export function CampaignForecast({
 
     try {
       const { generateMediaPlanPDF } = await import("@/utils/pdfGenerator");
-      const blob = generateMediaPlanPDF(planData);
+      const blob = await generateMediaPlanPDF(planData);
       
       // If we have a campaign ID, upload PDF to storage
       if (campaignId) {
@@ -838,7 +838,7 @@ export function CampaignForecast({
       }
       
       // Download PDF
-      downloadMediaPlanPDF(planData);
+      await downloadMediaPlanPDF(planData);
       
       toast.success("PDF downloaded successfully!");
     } catch (error) {
