@@ -161,7 +161,7 @@ export default function LaunchStatus() {
     }>
   >([]);
   const [campaignPushAccounts, setCampaignPushAccounts] = useState<
-    Array<{ platform: 'meta' | 'tiktok'; accountId: string; accountName?: string }>
+    Array<{ platform: 'meta' | 'tiktok' | 'google'; accountId: string; accountName?: string; entityCount?: number }>
   >([]);
 
   // Use the new real-time progress hook
