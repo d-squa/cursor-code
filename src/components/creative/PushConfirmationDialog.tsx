@@ -29,6 +29,12 @@ interface AdSummary {
   carousel: number;
 }
 
+interface AdAccountInfo {
+  platform: 'meta' | 'tiktok';
+  accountId: string;
+  accountName?: string;
+}
+
 interface PushConfirmationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +43,7 @@ interface PushConfirmationDialogProps {
   adCount?: number;
   campaignCount?: number;
   pages?: PageInfo[];
+  accounts?: AdAccountInfo[];
   adSummary?: AdSummary;
   isLoading?: boolean;
 }
@@ -49,6 +56,7 @@ export function PushConfirmationDialog({
   adCount = 0,
   campaignCount = 0,
   pages = [],
+  accounts = [],
   adSummary,
   isLoading = false,
 }: PushConfirmationDialogProps) {
@@ -157,11 +165,46 @@ export function PushConfirmationDialog({
         )}
 
         {type === 'campaign' && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              Campaigns will be created in PAUSED status. You can activate them from the DSP dashboard.
-            </p>
+          <div className="space-y-4 py-2">
+            {accounts.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Target Ad Accounts:</p>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {accounts.map((acc, idx) => (
+                    <div
+                      key={`${acc.platform}-${acc.accountId}-${idx}`}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className={acc.platform === 'meta' ? 'bg-blue-600 text-white' : 'bg-black text-white'}>
+                          {(acc.accountName || acc.accountId)?.charAt(0) || (acc.platform === 'meta' ? 'M' : 'T')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {acc.accountName || 'Unknown account'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs capitalize">
+                            {acc.platform === 'meta' ? 'Meta' : 'TikTok'}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {acc.platform === 'meta' ? 'Ad account:' : 'Advertiser:'} {acc.accountId}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Campaigns will be created in PAUSED status. You can activate them from the DSP dashboard.
+              </p>
+            </div>
           </div>
         )}
 
