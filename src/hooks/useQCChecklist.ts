@@ -5,6 +5,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import type { QCChecklistItem } from "@/config/qcChecklists";
 import { getChecklistForEntity, normalizePlatform, normalizeEntityType } from "@/config/qcChecklists";
 import type { QCState } from "@/utils/qcUtils";
+import { logCampaignActivity, logCampaignHistoryEntry } from "@/utils/campaignHistory";
 
 export interface QCCompletionRecord {
   id: string;
@@ -127,6 +128,29 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
           } as any);
       }
 
+      if (campaignId) {
+        const action = checked ? "qc_check_completed" : "qc_check_reopened";
+        const description = `${checked ? "Checked" : "Unchecked"} QC item \"${itemKey}\"`;
+
+        await Promise.all([
+          logCampaignHistoryEntry({
+            campaignId,
+            userId: user.id,
+            action,
+            changeType: "quality_check",
+            description,
+          }),
+          logCampaignActivity({
+            campaignId,
+            userId: user.id,
+            actionType: action,
+            title: checked ? "QC item checked" : "QC item unchecked",
+            description,
+            metadata: { trackingId, itemKey, checkMethod: "individual" },
+          }),
+        ]);
+      }
+
       // Update local state
       setCompletions(prev => {
         const idx = prev.findIndex(c => c.qc_tracking_id === trackingId && c.item_key === itemKey);
@@ -179,6 +203,29 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
               check_method: checkMethod,
             } as any);
         }
+      }
+
+      if (campaignId) {
+        const action = checked ? "qc_bulk_check_completed" : "qc_bulk_check_reopened";
+        const description = `${checked ? "Checked" : "Unchecked"} ${items.length} QC item(s) using ${checkMethod}`;
+
+        await Promise.all([
+          logCampaignHistoryEntry({
+            campaignId,
+            userId: user.id,
+            action,
+            changeType: "quality_check",
+            description,
+          }),
+          logCampaignActivity({
+            campaignId,
+            userId: user.id,
+            actionType: action,
+            title: checked ? "Bulk QC update" : "Bulk QC reset",
+            description,
+            metadata: { trackingId, count: items.length, checkMethod },
+          }),
+        ]);
       }
 
       // Update local state

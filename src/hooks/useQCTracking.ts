@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { QCState } from "@/utils/qcUtils";
 import type { Database } from "@/integrations/supabase/types";
+import { QC_STATE_LABELS } from "@/utils/qcUtils";
+import { logCampaignActivity, logCampaignHistoryEntry } from "@/utils/campaignHistory";
 
 export interface QCTrackingItem {
   id: string;
@@ -378,6 +380,36 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         impressions_at_transition: item.impressions_count,
         metadata: { set_by: user.id },
       });
+
+      const entityLabel = item.entity_name || item.ad_set_name || item.dsp_entity_id || item.entity_type;
+      const description = `${entityLabel} moved from ${item.current_state ? QC_STATE_LABELS[item.current_state] : "Unknown"} to ${QC_STATE_LABELS[newState]}`;
+
+      await Promise.all([
+        logCampaignHistoryEntry({
+          campaignId,
+          userId: user.id,
+          action: "qc_transition",
+          changeType: "quality_check",
+          description,
+        }),
+        logCampaignActivity({
+          campaignId,
+          userId: user.id,
+          actionType: "qc_transition",
+          title: `QC moved to ${QC_STATE_LABELS[newState]}`,
+          description,
+          affectedPlatforms: item.platform ? [item.platform] : undefined,
+          affectedMarkets: item.market ? [item.market] : undefined,
+          affectedPhases: item.phase_name ? [item.phase_name] : undefined,
+          metadata: {
+            trackingId,
+            entityType: item.entity_type,
+            entityName: item.entity_name,
+            fromState: item.current_state,
+            toState: newState,
+          },
+        }),
+      ]);
 
       setItems((prev) =>
         prev.map((entry) =>
