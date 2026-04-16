@@ -902,22 +902,109 @@ export default function LaunchStatus() {
 
   // Show confirmation before pushing campaign shell
   const handlePushCampaignClick = async () => {
-    // Limit to platforms that actually have pending entities
-    const pendingPlatforms = new Set(
-      pendingEntities.map((e) => e.platform?.toLowerCase()).filter(Boolean),
-    );
-    const pages = await getPageInfoForPush();
-    const seen = new Set<string>();
-    const accounts: Array<{ platform: 'meta' | 'tiktok'; accountId: string; accountName?: string }> = [];
-    for (const p of pages) {
-      if (!p.adAccountId) continue;
-      if (pendingPlatforms.size > 0 && !pendingPlatforms.has(p.platform)) continue;
-      const key = `${p.platform}:${p.adAccountId}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      accounts.push({ platform: p.platform, accountId: p.adAccountId, accountName: p.adAccountName });
+    type Plat = 'meta' | 'tiktok' | 'google';
+    const accountsMap = new Map<
+      string,
+      { platform: Plat; accountId: string; accountName?: string; entityCount: number }
+    >();
+
+    try {
+      const { data: campaignData } = await supabase
+        .from('campaigns')
+        .select('market_splits')
+        .eq('id', campaignId!)
+        .single();
+
+      const marketSplits = (campaignData?.market_splits || {}) as Record<string, any>;
+
+      // Build (platform, market) -> { accountId, accountName }
+      const marketAccount = new Map<string, { platform: Plat; accountId: string; accountName?: string }>();
+
+      for (const [platformKey, markets] of Object.entries(marketSplits)) {
+        if (!Array.isArray(markets)) continue;
+        const pk = String(platformKey).toLowerCase();
+        let platform: Plat | null = null;
+        if (pk.includes('meta') || pk.includes('facebook') || pk.includes('instagram')) platform = 'meta';
+        else if (pk.includes('tiktok')) platform = 'tiktok';
+        else if (pk.includes('google')) platform = 'google';
+        if (!platform) continue;
+
+        for (const market of markets as any[]) {
+          const marketName = market?.market || market?.name || market?.country;
+          const accountId =
+            market?.adAccountId ??
+            market?.ad_account_id ??
+            market?.tiktokAdvertiserId ??
+            market?.tiktok_advertiser_id ??
+            market?.advertiser_id ??
+            market?.googleCustomerId ??
+            market?.google_customer_id ??
+            market?.customerId ??
+            market?.customer_id;
+          const accountName = market?.accountName ?? market?.adAccountName ?? market?.account_name;
+          if (!marketName || !accountId) continue;
+
+          marketAccount.set(`${platform}:${String(marketName).toLowerCase()}`, {
+            platform,
+            accountId: String(accountId),
+            accountName: accountName ? String(accountName) : undefined,
+          });
+        }
+      }
+
+      // Count pending entities per (platform, market) account
+      for (const e of pendingEntities) {
+        const ep = String(e.platform || '').toLowerCase();
+        let platform: Plat | null = null;
+        if (ep.includes('meta') || ep.includes('facebook') || ep.includes('instagram')) platform = 'meta';
+        else if (ep.includes('tiktok')) platform = 'tiktok';
+        else if (ep.includes('google')) platform = 'google';
+        if (!platform) continue;
+
+        const key = `${platform}:${String(e.market || '').toLowerCase()}`;
+        const acc = marketAccount.get(key);
+        if (!acc) continue;
+
+        const aggKey = `${platform}:${acc.accountId}`;
+        const existing = accountsMap.get(aggKey);
+        if (existing) {
+          existing.entityCount += 1;
+        } else {
+          accountsMap.set(aggKey, { ...acc, entityCount: 1 });
+        }
+      }
+
+      // Resolve missing account names (Meta + TikTok + Google) from connected_platforms
+      const needNames = Array.from(accountsMap.values()).filter((a) => !a.accountName);
+      if (needNames.length > 0) {
+        const ids = Array.from(new Set(needNames.flatMap((a) => [a.accountId, a.accountId.replace(/^act_/, '')])));
+        const { data: cps } = await supabase
+          .from('connected_platforms')
+          .select('platform_type, ad_account_id, ad_account_name')
+          .in('ad_account_id', ids);
+        const nameMap = new Map<string, string>();
+        (cps || []).forEach((c: any) => {
+          if (c?.ad_account_id && c?.ad_account_name) {
+            nameMap.set(`${String(c.platform_type).toLowerCase()}:${c.ad_account_id}`, c.ad_account_name);
+            nameMap.set(
+              `${String(c.platform_type).toLowerCase()}:${String(c.ad_account_id).replace(/^act_/, '')}`,
+              c.ad_account_name,
+            );
+          }
+        });
+        accountsMap.forEach((acc) => {
+          if (!acc.accountName) {
+            acc.accountName =
+              nameMap.get(`${acc.platform}:${acc.accountId}`) ||
+              nameMap.get(`${acc.platform}:${acc.accountId.replace(/^act_/, '')}`);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Error building campaign push accounts:', err);
     }
-    setCampaignPushAccounts(accounts);
+
+    setCampaignPushAccounts(Array.from(accountsMap.values()));
     setShowCampaignPushConfirm(true);
   };
 
