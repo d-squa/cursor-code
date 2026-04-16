@@ -767,7 +767,7 @@ export function CampaignForecast({
     const planData = getPlanData();
     try {
       const { generateMediaPlanPDF } = await import("@/utils/pdfGenerator");
-      const blob = generateMediaPlanPDF(planData);
+      const blob = await generateMediaPlanPDF(planData);
       
       return new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
