@@ -901,7 +901,23 @@ export default function LaunchStatus() {
   };
 
   // Show confirmation before pushing campaign shell
-  const handlePushCampaignClick = () => {
+  const handlePushCampaignClick = async () => {
+    // Limit to platforms that actually have pending entities
+    const pendingPlatforms = new Set(
+      pendingEntities.map((e) => e.platform?.toLowerCase()).filter(Boolean),
+    );
+    const pages = await getPageInfoForPush();
+    const seen = new Set<string>();
+    const accounts: Array<{ platform: 'meta' | 'tiktok'; accountId: string; accountName?: string }> = [];
+    for (const p of pages) {
+      if (!p.adAccountId) continue;
+      if (pendingPlatforms.size > 0 && !pendingPlatforms.has(p.platform)) continue;
+      const key = `${p.platform}:${p.adAccountId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      accounts.push({ platform: p.platform, accountId: p.adAccountId, accountName: p.adAccountName });
+    }
+    setCampaignPushAccounts(accounts);
     setShowCampaignPushConfirm(true);
   };
 
