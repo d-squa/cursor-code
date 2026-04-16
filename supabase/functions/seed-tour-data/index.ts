@@ -105,8 +105,71 @@ Deno.serve(async (req) => {
       },
     ];
 
-    const { error: connError } = await supabase.from("connected_platforms").insert(platformConnections);
+    const { data: insertedPlatforms, error: connError } = await supabase
+      .from("connected_platforms")
+      .insert(platformConnections)
+      .select("id, platform_type");
     if (connError) console.error("Platform insert error:", connError);
+
+    const platformIdByType: Record<string, string | null> = { meta: null, tiktok: null, google: null };
+    (insertedPlatforms || []).forEach((p: any) => {
+      platformIdByType[p.platform_type] = p.id;
+    });
+
+    // ===== 1b. Seed dummy ad accounts in per-platform tables =====
+    const metaAdAccounts = [
+      {
+        user_id: userId, team_id: teamId, platform_id: platformIdByType.meta,
+        account_id: "act_sample_123456", account_name: "Demo Brand - Meta Ads (US)",
+        account_status: "ACTIVE", currency: "USD",
+        default_pixel_id: "sample_pixel_456", default_page_id: "sample_page_123",
+        main_markets: ["United States", "United Kingdom"],
+      },
+      {
+        user_id: userId, team_id: teamId, platform_id: platformIdByType.meta,
+        account_id: "act_sample_999888", account_name: "Demo Brand - Meta Ads (EU)",
+        account_status: "ACTIVE", currency: "EUR",
+        default_pixel_id: "sample_pixel_eu", default_page_id: "sample_page_uk",
+        main_markets: ["United Kingdom", "Germany"],
+      },
+    ];
+    const { error: metaErr } = await supabase.from("meta_ad_accounts").insert(metaAdAccounts);
+    if (metaErr) console.error("Meta ad accounts insert error:", metaErr);
+
+    const tiktokAdAccountsSeed = [
+      {
+        user_id: userId, team_id: teamId, platform_id: platformIdByType.tiktok,
+        account_id: "sample_tt_789012", account_name: "Demo Brand - TikTok (US)",
+        advertiser_id: "sample_tt_789012",
+        account_status: "STATUS_ENABLE", currency: "USD", timezone: "America/New_York",
+        default_pixel_id: "sample_tt_pixel",
+        main_markets: ["United States"],
+      },
+      {
+        user_id: userId, team_id: teamId, platform_id: platformIdByType.tiktok,
+        account_id: "sample_tt_445566", account_name: "Demo Brand - TikTok (DE)",
+        advertiser_id: "sample_tt_445566",
+        account_status: "STATUS_ENABLE", currency: "EUR", timezone: "Europe/Berlin",
+        default_pixel_id: "sample_tt_pixel_de",
+        main_markets: ["Germany"],
+      },
+    ];
+    const { error: ttErr } = await supabase.from("tiktok_ad_accounts").insert(tiktokAdAccountsSeed);
+    if (ttErr) console.error("TikTok ad accounts insert error:", ttErr);
+
+    const googleAdAccountsSeed = [
+      {
+        user_id: userId, team_id: teamId, platform_id: platformIdByType.google,
+        account_id: "sample_gads_345678", account_name: "Demo Brand - Google Ads (US)",
+        customer_id: "3456789012",
+        account_status: "ENABLED", currency: "USD", timezone: "America/New_York",
+        manager_customer_id: "1112223333",
+        descriptive_name: "Demo Brand Google Ads",
+        main_markets: ["United States", "United Kingdom"],
+      },
+    ];
+    const { error: gErr } = await supabase.from("google_ad_accounts").insert(googleAdAccountsSeed);
+    if (gErr) console.error("Google ad accounts insert error:", gErr);
 
     // ===== 2. Seed comprehensive Demo ActiPlan =====
     const now = new Date();
