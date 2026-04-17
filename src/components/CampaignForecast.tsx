@@ -2655,7 +2655,7 @@ export function CampaignForecast({
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {!loading && Object.keys(forecasts).length === 0 && (
+            {!isSampleMode && !loading && Object.keys(forecasts).length === 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
@@ -2670,7 +2670,7 @@ export function CampaignForecast({
                 )}
               </Button>
             )}
-            {!loading && Object.keys(forecasts).length > 0 && (
+            {!isSampleMode && !loading && Object.keys(forecasts).length > 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} variant="outline" disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
