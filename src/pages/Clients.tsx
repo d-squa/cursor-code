@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ClientForm from "@/components/ClientForm";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { FeatureGate } from "@/components/FeatureGate";
 
 interface Client {

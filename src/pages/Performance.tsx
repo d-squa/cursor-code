@@ -98,7 +98,7 @@ export default function Performance() {
       checkUserAccess();
       loadCampaigns();
     }
-  }, [user]);
+  }, [user, isSampleMode]);
 
   const checkUserAccess = async () => {
     try {
