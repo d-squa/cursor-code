@@ -41,6 +41,17 @@ export function StrategySelector({
   hasCatalog = false,
   hasKeywords = false,
 }: StrategySelectorProps) {
+  const { isSampleMode } = useSampleMode();
+
+  // In sample/tour mode, force the strategy to "auto-detect" on mount
+  useEffect(() => {
+    if (isSampleMode && strategy !== "auto-detect") {
+      const newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platformId, hasKeywords) || [];
+      onStrategyChange("auto-detect", newPhases, undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSampleMode]);
+
   const normalizedPlatform = useMemo(() => {
     const p = (platformId || "meta").toLowerCase();
     if (p.includes("tiktok")) return "tiktok";
