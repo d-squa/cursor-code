@@ -302,7 +302,7 @@ export default function PlatformConnections() {
     try {
       const sampleFlag = isSampleModeRef.current;
       // Build queries with workspace + sample-mode filtering
-      const platformsQuery: any = supabase
+      const platformsQuery: any = (supabase as any)
         .from("connected_platforms_safe")
         .select("*")
         .eq("is_active", true)
