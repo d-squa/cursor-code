@@ -18,6 +18,7 @@ import React, { useState, useEffect } from "react";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -71,6 +72,7 @@ export function PlatformMarketBudgetSelector({
   const [productSets, setProductSets] = useState<Array<{ id: string; name: string; catalogId: string }>>([]);
   const [loadingProductSets, setLoadingProductSets] = useState(false);
   const [conversionEvents, setConversionEvents] = useState<Array<{ pixelId: string; id: string; name: string; type: string }>>([]);
+  const { isSampleMode } = useSampleMode();
   const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
@@ -3013,7 +3015,7 @@ export function PlatformMarketBudgetSelector({
 
                             {/* Phase Scheduler - Per Market */}
                             {startDate && endDate && (
-                              <div className="mt-4 pt-4 border-t">
+                              <div className={`mt-4 pt-4 border-t ${isSampleMode ? "pointer-events-none opacity-90 select-none" : ""}`} aria-disabled={isSampleMode || undefined} title={isSampleMode ? "Read-only in tour mode" : undefined}>
                               <PhaseScheduler
                                   phases={market.phases || []}
                                   onPhasesChange={(phases) => updateMarketField(platformIndex, market.id, 'phases', phases)}

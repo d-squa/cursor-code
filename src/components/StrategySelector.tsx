@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Sparkles, Zap } from "lucide-react";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import {
   getStrategyGroupsForPlatform,
   getStrategyById,
@@ -40,6 +41,17 @@ export function StrategySelector({
   hasCatalog = false,
   hasKeywords = false,
 }: StrategySelectorProps) {
+  const { isSampleMode } = useSampleMode();
+
+  // In sample/tour mode, force the strategy to "auto-detect" on mount
+  useEffect(() => {
+    if (isSampleMode && strategy !== "auto-detect") {
+      const newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platformId, hasKeywords) || [];
+      onStrategyChange("auto-detect", newPhases, undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSampleMode]);
+
   const normalizedPlatform = useMemo(() => {
     const p = (platformId || "meta").toLowerCase();
     if (p.includes("tiktok")) return "tiktok";
@@ -110,7 +122,7 @@ export function StrategySelector({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Strategy Type</Label>
-          <Select value={strategy || "auto-detect"} onValueChange={handleStrategyTypeChange}>
+          <Select value={strategy || "auto-detect"} onValueChange={handleStrategyTypeChange} disabled={isSampleMode}>
             <SelectTrigger>
               <SelectValue placeholder="Select strategy type" />
             </SelectTrigger>

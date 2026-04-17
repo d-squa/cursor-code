@@ -2822,6 +2822,7 @@ export function MediaPlanEditor() {
                         }}
                       />
 
+                      <div className={isSampleMode ? "pointer-events-none opacity-90 select-none" : ""} aria-disabled={isSampleMode || undefined} title={isSampleMode ? "Read-only in tour mode" : undefined}>
                       <PhaseScheduler
                         phases={singleMarket.phases || []}
                         onPhasesChange={(phases) => {
@@ -2977,6 +2978,7 @@ export function MediaPlanEditor() {
                             parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100),
                         }}
                       />
+                      </div>
                     </div>
                   ) : null;
                 } else if (totalMarkets > 1) {
@@ -3265,6 +3267,7 @@ export function MediaPlanEditor() {
                             </Button>
                           </div>
 
+                                          <div className={isSampleMode ? "pointer-events-none opacity-90 select-none" : ""} aria-disabled={isSampleMode || undefined} title={isSampleMode ? "Read-only in tour mode" : undefined}>
                                           <PhaseScheduler
                                             phases={market.phases || []}
                                             onPhasesChange={(phases) => {
@@ -3443,6 +3446,7 @@ export function MediaPlanEditor() {
                                             }
                                             phaseExpandSignal={phaseExpandSignal}
                                           />
+                                          </div>
                                         </div>
                                       </CollapsibleContent>
                                     </Card>
