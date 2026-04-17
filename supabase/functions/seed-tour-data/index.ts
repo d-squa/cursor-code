@@ -551,7 +551,7 @@ Deno.serve(async (req) => {
     const campaignPayload = {
       user_id: userId,
       team_id: teamId,
-      name: "🎄 [Sample] Q4 Holiday Campaign 2025",
+      name: "🎄 Q4 Holiday Campaign 2025",
       total_budget: 75000,
       objective: "Multi-Objective",
       start_date: formatDate(startDate),
