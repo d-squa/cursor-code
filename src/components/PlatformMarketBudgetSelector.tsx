@@ -18,6 +18,7 @@ import React, { useState, useEffect } from "react";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
