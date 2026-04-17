@@ -302,9 +302,14 @@ export default function PlatformConnections() {
     try {
       const sampleFlag = isSampleModeRef.current;
       // Build queries with workspace + sample-mode filtering
+      // Note: query the base table (not connected_platforms_safe view) so we can
+      // filter by is_sample, which the safe view does not expose. Tokens are not
+      // selected here, keeping this safe for client-side use.
       const platformsQuery: any = (supabase as any)
-        .from("connected_platforms_safe")
-        .select("*")
+        .from("connected_platforms")
+        .select(
+          "id, user_id, platform_type, platform_name, ad_account_id, ad_account_name, business_manager_id, metadata, is_active, token_expires_at, created_at, updated_at, is_sample",
+        )
         .eq("is_active", true)
         .eq("is_sample", sampleFlag)
         .order("created_at", { ascending: false });
