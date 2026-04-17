@@ -5,6 +5,7 @@ import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { Feature } from '@/config/featureAccess';
 import { TIER_DISPLAY_NAMES } from '@/config/subscriptionTiers';
 import { Link } from 'react-router-dom';
+import { useSampleMode } from '@/contexts/SampleModeContext';
 
 interface LockedFeatureButtonProps {
   feature: Feature;
@@ -16,18 +17,22 @@ interface LockedFeatureButtonProps {
  * Wraps a button to show it as disabled with a lock icon and an upgrade tooltip 
  * when the user doesn't have access to the feature. The tooltip contains a 
  * hyperlink to the plans page.
+ *
+ * In Sample Mode, the gate is bypassed visually so tour users can browse
+ * locked features. Mutations remain blocked by `guardWrite`.
  */
 export function LockedFeatureButton({ feature, children, className }: LockedFeatureButtonProps) {
   const { hasAccess, getRequiredTierForFeature } = useFeatureAccess();
-  
-  const canAccess = hasAccess(feature);
-  
+  const { isSampleMode } = useSampleMode();
+
+  const canAccess = isSampleMode || hasAccess(feature);
+
   if (canAccess) {
     return <>{children}</>;
   }
-  
+
   const requiredTier = getRequiredTierForFeature(feature);
-  
+
   return (
     <TooltipProvider>
       <Tooltip delayDuration={0}>
@@ -39,12 +44,12 @@ export function LockedFeatureButton({ feature, children, className }: LockedFeat
             </span>
           </span>
         </TooltipTrigger>
-        <TooltipContent 
-          side="top" 
+        <TooltipContent
+          side="top"
           className="bg-background border border-border shadow-lg z-[100]"
         >
-          <Link 
-            to="/settings/plans" 
+          <Link
+            to="/settings/plans"
             className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
           >
             <Lock className="h-3.5 w-3.5 text-muted-foreground" />
