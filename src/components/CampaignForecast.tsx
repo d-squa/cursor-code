@@ -13,6 +13,7 @@ import { BudgetRecommendationDialog } from "./BudgetRecommendationDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useForecastVersions } from "@/hooks/useForecastVersions";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 import { downloadMediaPlanPDF } from "@/utils/pdfGenerator";
@@ -237,6 +238,7 @@ export function CampaignForecast({
   onBudgetOptimize,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
+  const { isSampleMode } = useSampleMode();
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
   const [actiplanForecast, setActiplanForecast] = useState<ActiplanForecast | null>(null);
@@ -562,6 +564,7 @@ export function CampaignForecast({
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
   useEffect(() => {
+    if (isSampleMode) return; // Tour mode: forecast is pre-loaded and read-only
     if (!existingLoadComplete) return;
     if (versionsLoading) return;
     if (loading) return;
@@ -572,7 +575,7 @@ export function CampaignForecast({
 
     // Trigger a single automatic fetch on first load of the Forecast step
     handleFetchForecasts(undefined);
-  }, [existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
+  }, [isSampleMode, existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
@@ -2652,7 +2655,7 @@ export function CampaignForecast({
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {!loading && Object.keys(forecasts).length === 0 && (
+            {!isSampleMode && !loading && Object.keys(forecasts).length === 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
@@ -2667,7 +2670,7 @@ export function CampaignForecast({
                 )}
               </Button>
             )}
-            {!loading && Object.keys(forecasts).length > 0 && (
+            {!isSampleMode && !loading && Object.keys(forecasts).length > 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} variant="outline" disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
