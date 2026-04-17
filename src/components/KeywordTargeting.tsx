@@ -76,6 +76,7 @@ export function KeywordTargeting({
   const [activePlatformTab, setActivePlatformTab] = useState<string>("all");
   const [activeMarketTab, setActiveMarketTab] = useState<string>("all");
   const [selectedPlatformFilter, setSelectedPlatformFilter] = useState<'all' | 'google' | 'tiktok'>('all');
+  const { isSampleMode } = useSampleMode();
 
   const hasSearchAccountIds = !!googleCustomerId || !!tiktokAdvertiserId;
   const canRenderKeywordTargeting = hasSearchAccountIds || showWithoutAccountIds;
