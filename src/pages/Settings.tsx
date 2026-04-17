@@ -3,6 +3,7 @@ import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { Feature, getRequiredTier } from "@/config/featureAccess";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { Button } from "@/components/ui/button";
