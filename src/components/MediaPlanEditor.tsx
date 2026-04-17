@@ -94,6 +94,7 @@ export function MediaPlanEditor() {
   const { user } = useAuth();
   const { activeWorkspaceId } = useWorkspace();
   const { hasAccess, getRequiredTierForFeature } = useFeatureAccess();
+  const { isSampleMode } = useSampleMode();
   const extensionMode = useExtensionModeOptional();
   const navigate = useNavigate();
   const location = useLocation();
