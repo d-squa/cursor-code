@@ -300,33 +300,36 @@ export default function PlatformConnections() {
     if (!activeWorkspaceId) return;
 
     try {
-      // Build queries with workspace filtering
-      const platformsQuery = supabase
+      const sampleFlag = isSampleModeRef.current;
+      // Build queries with workspace + sample-mode filtering
+      const platformsQuery: any = (supabase as any)
         .from("connected_platforms_safe")
         .select("*")
         .eq("is_active", true)
-        .eq("is_sample", isSampleModeRef.current)
+        .eq("is_sample", sampleFlag)
         .order("created_at", { ascending: false });
 
-      // Filter ad accounts by team_id (workspace)
-      const metaQuery = supabase
+      const metaQuery: any = supabase
         .from("meta_ad_accounts")
-        .select("id, account_id, account_name, account_status, client_id, team_id, clients(id, name)")
+        .select("id, account_id, account_name, account_status, client_id, team_id, is_sample, clients(id, name)")
         .eq("team_id", activeWorkspaceId)
+        .eq("is_sample", sampleFlag)
         .order("account_name");
 
-      const tiktokQuery = supabase
+      const tiktokQuery: any = supabase
         .from("tiktok_ad_accounts")
-        .select("id, account_id, account_name, advertiser_id, account_status, client_id, team_id, clients(id, name)")
+        .select("id, account_id, account_name, advertiser_id, account_status, client_id, team_id, is_sample, clients(id, name)")
         .eq("team_id", activeWorkspaceId)
+        .eq("is_sample", sampleFlag)
         .order("account_name");
 
-      const googleQuery = supabase
+      const googleQuery: any = supabase
         .from("google_ad_accounts")
         .select(
-          "id, account_id, account_name, customer_id, account_status, client_id, currency, timezone, team_id, clients(id, name)",
+          "id, account_id, account_name, customer_id, account_status, client_id, currency, timezone, team_id, is_sample, clients(id, name)",
         )
         .eq("team_id", activeWorkspaceId)
+        .eq("is_sample", sampleFlag)
         .order("account_name");
 
       const [platformsRes, metaAccountsRes, tiktokAccountsRes, googleAccountsRes] = await Promise.all([

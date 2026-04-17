@@ -93,6 +93,10 @@ export default function Performance() {
     }
   }, [user, loading, navigate]);
 
+  const { isSampleMode } = useSampleMode();
+  const isSampleModeRef = useRef(isSampleMode);
+  useEffect(() => { isSampleModeRef.current = isSampleMode; }, [isSampleMode]);
+
   useEffect(() => {
     if (user) {
       checkUserAccess();
