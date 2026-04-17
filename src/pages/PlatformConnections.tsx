@@ -113,6 +113,9 @@ export default function PlatformConnections() {
   const navigate = useNavigate();
   const { hasAccess } = useFeatureAccess();
   const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
+  const { isSampleMode } = useSampleMode();
+  const isSampleModeRef = useRef(isSampleMode);
+  useEffect(() => { isSampleModeRef.current = isSampleMode; }, [isSampleMode]);
   const canManageClients = hasAccess("client_management");
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
