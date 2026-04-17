@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Sparkles, Zap } from "lucide-react";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import {
   getStrategyGroupsForPlatform,
   getStrategyById,
