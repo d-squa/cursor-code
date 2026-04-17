@@ -65,15 +65,12 @@ interface CampaignInsight {
   fetched_at: string;
 }
 
-const SAMPLE_CAMPAIGN_ID = "sample-campaign-1";
-
 export default function PerformanceReport() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
-  // Automatically determine data source based on campaign ID
-  const isSampleCampaign = campaignId === SAMPLE_CAMPAIGN_ID;
+
+  const isSampleCampaign = false;
   
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [launchStatuses, setLaunchStatuses] = useState<LaunchStatusEntry[]>([]);
@@ -194,36 +191,14 @@ export default function PerformanceReport() {
 
   const loadData = useCallback(async () => {
     if (!campaignId || !user) return;
-    
-    // For sample campaign, generate sample data; for real campaigns, fetch live data
-    if (isSampleCampaign) {
-      // Generate sample campaign data
-      const sampleCampaignData: Campaign = {
-        id: SAMPLE_CAMPAIGN_ID,
-        name: "Q4 Holiday Campaign 2025",
-        status: "live",
-        total_budget: 80000,
-        start_date: "2025-12-16T00:00:00Z",
-        end_date: "2026-01-31T23:59:59Z",
-        objective: "conversions",
-        platforms: [
-          { name: "Meta", enabled: true, budgetPercentage: 62.5 },
-          { name: "TikTok", enabled: true, budgetPercentage: 37.5 },
-        ],
-      };
-      
-      const sampleStatuses: LaunchStatusEntry[] = [
-        { id: "s1", platform: "meta", market: "US", phase_name: "Awareness", entity_type: "campaign", entity_name: "Meta Campaign", dsp_entity_id: "123", status: "pushed_to_dsp", dsp_status: "ACTIVE", planned_budget: 50000, planned_impressions: 5000000, planned_reach: 2000000, planned_clicks: 50000, planned_conversions: 2500 },
-        { id: "s2", platform: "tiktok", market: "US", phase_name: "Consideration", entity_type: "campaign", entity_name: "TikTok Campaign", dsp_entity_id: "456", status: "pushed_to_dsp", dsp_status: "ACTIVE", planned_budget: 30000, planned_impressions: 3000000, planned_reach: 1200000, planned_clicks: 30000, planned_conversions: 1500 },
-      ];
-      
-      setCampaign(sampleCampaignData);
-      setLaunchStatuses(sampleStatuses);
-      setInsights(generateSampleInsights(sampleStatuses, sampleCampaignData));
-      setLoading(false);
+
+    // Legacy hardcoded sample card removed — redirect to overview
+    if (campaignId === "sample-campaign-1") {
+      navigate("/overview", { replace: true });
       return;
     }
-    
+
+
     try {
       const [
         { data: campaignData }, 
