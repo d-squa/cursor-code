@@ -143,6 +143,28 @@ export function UnifiedTargeting({
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok' | 'google'>('all');
+  const { isSampleMode } = useSampleMode();
+  const sampleSeededRef = useRef(false);
+
+  // Auto-prefill targeting & keywords when in Sample Mode (only if currently empty)
+  useEffect(() => {
+    if (!isSampleMode || sampleSeededRef.current) return;
+    const hasItems = (targeting.selectedItems?.length || 0) > 0;
+    const hasKeywords = (targeting.selectedKeywords?.length || 0) > 0;
+    if (hasItems && hasKeywords) {
+      sampleSeededRef.current = true;
+      return;
+    }
+    const updated = {
+      ...targeting,
+      selectedItems: hasItems ? targeting.selectedItems : (SAMPLE_INTEREST_ITEMS as UnifiedTargetingItem[]),
+      selectedKeywords: hasKeywords ? targeting.selectedKeywords : SAMPLE_KEYWORDS,
+    };
+    sampleSeededRef.current = true;
+    onUpdate(updated);
+    persistToLocalStorage(updated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSampleMode]);
   
   // State for CBO/ABO dialog
   const [pendingSplitSelection, setPendingSplitSelection] = useState<{
