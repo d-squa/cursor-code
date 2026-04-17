@@ -3267,6 +3267,7 @@ export function MediaPlanEditor() {
                             </Button>
                           </div>
 
+                                          <div className={isSampleMode ? "pointer-events-none opacity-90 select-none" : ""} aria-disabled={isSampleMode || undefined} title={isSampleMode ? "Read-only in tour mode" : undefined}>
                                           <PhaseScheduler
                                             phases={market.phases || []}
                                             onPhasesChange={(phases) => {
