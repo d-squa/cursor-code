@@ -3446,6 +3446,7 @@ export function MediaPlanEditor() {
                                             }
                                             phaseExpandSignal={phaseExpandSignal}
                                           />
+                                          </div>
                                         </div>
                                       </CollapsibleContent>
                                     </Card>
