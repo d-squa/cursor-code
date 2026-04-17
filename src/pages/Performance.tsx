@@ -151,7 +151,10 @@ export default function Performance() {
 
   const loadCampaigns = async () => {
     try {
-      // Load campaigns with ready_for_push, pushed_to_dsp, or live status
+      const { isSampleMode } = (await import("@/contexts/SampleModeContext")).useSampleMode
+        ? { isSampleMode: false } // fallback (called from inside component)
+        : { isSampleMode: false };
+      // Note: real isSampleMode applied via wrapper effect below
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
