@@ -48,8 +48,10 @@ import { SubscriptionGuard } from "./components/SubscriptionGuard";
 import { AIAssistantSidebar } from "./components/AIAssistantSidebar";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 import { TourDataProvider } from "./contexts/TourDataContext";
+import { SampleModeProvider } from "./contexts/SampleModeContext";
 import { TourResumeButton } from "./components/TourResumeButton";
-import { OnboardingTour } from "./components/OnboardingTour";
+import { TourRibbon } from "./components/TourRibbon";
+import { SampleModeBadge } from "./components/SampleModeBadge";
 import { MarketingGTM } from "./components/MarketingGTM";
 import { DataLayerUserID } from "./components/DataLayerUserID";
 
@@ -62,8 +64,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <TourDataProvider>
+          <SampleModeProvider>
           <MarketingGTM />
           <DataLayerUserID />
+          <TourRibbon />
+          <SampleModeBadge />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
@@ -122,8 +127,8 @@ const App = () => (
           {/* Global floating components */}
           <BugReportButton />
           <AIAssistantSidebar />
-          <OnboardingTour />
           <TourResumeButton onResume={() => (window as any).__resumeOnboardingTour?.()} />
+          </SampleModeProvider>
         </TourDataProvider>
       </BrowserRouter>
     </TooltipProvider>
