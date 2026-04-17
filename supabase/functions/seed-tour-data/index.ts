@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: metaErr } = await supabase.from("meta_ad_accounts").upsert(metaAdAccounts, { onConflict: "user_id,account_id", ignoreDuplicates: true });
+    const { error: metaErr } = await supabase.from("meta_ad_accounts").insert(metaAdAccounts);
     if (metaErr) console.error("Meta ad accounts insert error:", metaErr);
 
     const tiktokAdAccountsSeed = [
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: ttErr } = await supabase.from("tiktok_ad_accounts").upsert(tiktokAdAccountsSeed, { onConflict: "user_id,advertiser_id", ignoreDuplicates: true });
+    const { error: ttErr } = await supabase.from("tiktok_ad_accounts").insert(tiktokAdAccountsSeed);
     if (ttErr) console.error("TikTok ad accounts insert error:", ttErr);
 
     const googleAdAccountsSeed = [
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: gErr } = await supabase.from("google_ad_accounts").upsert(googleAdAccountsSeed, { onConflict: "user_id,customer_id", ignoreDuplicates: true });
+    const { error: gErr } = await supabase.from("google_ad_accounts").insert(googleAdAccountsSeed);
     if (gErr) console.error("Google ad accounts insert error:", gErr);
 
     // ===== 1c. Seed D-squad sample client =====
