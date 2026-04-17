@@ -171,12 +171,53 @@ Deno.serve(async (req) => {
     const { error: gErr } = await supabase.from("google_ad_accounts").insert(googleAdAccountsSeed);
     if (gErr) console.error("Google ad accounts insert error:", gErr);
 
-    // ===== 2. Seed comprehensive Demo ActiPlan =====
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - 45);
-    const endDate = new Date(now);
-    endDate.setDate(endDate.getDate() + 15);
+    // ===== 1c. Seed D-squad sample client =====
+    const { data: existingClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("name", "D-squad")
+      .maybeSingle();
+
+    let dsquadClientId: string | null = existingClient?.id || null;
+    if (!dsquadClientId) {
+      const { data: newClient, error: clientErr } = await supabase
+        .from("clients")
+        .insert({
+          user_id: userId,
+          name: "D-squad",
+          industry: "Fashion & Retail",
+          business_objective: "Drive Q4 holiday sales across US, UK and DE",
+          website: "https://d-squad.example.com",
+          markets: ["United States", "United Kingdom", "Germany"],
+          platforms: ["meta", "tiktok", "google"],
+          default_age_min: 18,
+          default_age_max: 54,
+          default_gender: "all",
+          default_languages: ["en", "de"],
+          default_devices: ["mobile", "desktop"],
+          brand_background_color: "#0F172A",
+          brand_foreground_color: "#3B82F6",
+          brand_font_color: "#FFFFFF",
+        })
+        .select("id")
+        .single();
+      if (clientErr) console.error("D-squad client insert error:", clientErr);
+      dsquadClientId = newClient?.id || null;
+
+      // Link client to team
+      if (dsquadClientId && teamId) {
+        await supabase.from("team_clients").insert({
+          team_id: teamId,
+          client_id: dsquadClientId,
+        });
+      }
+    }
+
+    // ===== 2. Seed comprehensive Q4 Holiday Campaign 2025 ActiPlan =====
+    // Q4 2025: Oct 1 - Dec 31
+    const startDate = new Date("2025-10-01T00:00:00Z");
+    const endDate = new Date("2025-12-31T00:00:00Z");
     const formatDate = (d: Date) => d.toISOString().split("T")[0];
 
     const sharedInterests = [
@@ -485,7 +526,8 @@ Deno.serve(async (req) => {
     const forecastData = generateForecastData(75000, platforms);
 
     const genericConfig = {
-      clientName: "Demo Brand Inc.",
+      clientName: "D-squad",
+      clientId: dsquadClientId,
       clientIndustry: "Fashion & Retail",
       searchKeywords: searchKeywords,
       selectedKeywords: searchKeywords.filter(k => !k.isNegative),
@@ -494,7 +536,7 @@ Deno.serve(async (req) => {
     const campaignPayload = {
       user_id: userId,
       team_id: teamId,
-      name: "🎓 [Demo] Q1 2026 Cross-Platform Campaign",
+      name: "🎄 [Sample] Q4 Holiday Campaign 2025",
       total_budget: 75000,
       objective: "Multi-Objective",
       start_date: formatDate(startDate),
@@ -510,7 +552,7 @@ Deno.serve(async (req) => {
       forecast_data: forecastData,
       generic_config: genericConfig,
       is_sample: true,
-      bo_number: "DEMO-2026-001",
+      bo_number: "DSQUAD-Q4-2025",
     };
 
     const { data: campaign, error: campError } = await supabase
