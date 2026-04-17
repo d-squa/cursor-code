@@ -303,7 +303,7 @@ Deno.serve(async (req) => {
         id: "meta", name: "Meta", enabled: true, budgetPercentage: 50,
         markets: [
           {
-            id: "meta-us", name: "United States", budgetPercentage: 60,
+            id: "meta-us", name: "US", budgetPercentage: 60,
             adAccountId: "act_sample_123456", accountName: "Sample Meta Ad Account",
             pageId: "sample_page_123", page: "Demo Brand US", pixel: "sample_pixel_456",
             countries: ["US"], ageMin: 18, ageMax: 65, gender: "all",
@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
             ],
           },
           {
-            id: "meta-uk", name: "United Kingdom", budgetPercentage: 40,
+            id: "meta-uk", name: "GB", budgetPercentage: 40,
             adAccountId: "act_sample_123456", accountName: "Sample Meta Ad Account",
             pageId: "sample_page_uk", page: "Demo Brand UK", pixel: "sample_pixel_uk",
             countries: ["GB"], ageMin: 18, ageMax: 55, gender: "all",
@@ -407,7 +407,7 @@ Deno.serve(async (req) => {
         id: "tiktok", name: "TikTok", enabled: true, budgetPercentage: 30,
         markets: [
           {
-            id: "tiktok-us", name: "United States", budgetPercentage: 70,
+            id: "tiktok-us", name: "US", budgetPercentage: 70,
             adAccountId: "sample_tt_789012", accountName: "Sample TikTok Ad Account",
             tiktokPixel: "sample_tt_pixel", countries: ["US"],
             ageMin: 18, ageMax: 45, gender: "all",
@@ -455,7 +455,7 @@ Deno.serve(async (req) => {
             ],
           },
           {
-            id: "tiktok-de", name: "Germany", budgetPercentage: 30,
+            id: "tiktok-de", name: "DE", budgetPercentage: 30,
             adAccountId: "sample_tt_789012", accountName: "Sample TikTok Ad Account",
             tiktokPixel: "sample_tt_pixel_de", countries: ["DE"],
             ageMin: 18, ageMax: 40, gender: "all",
@@ -485,7 +485,7 @@ Deno.serve(async (req) => {
         id: "google", name: "Google Ads", enabled: true, budgetPercentage: 20,
         markets: [
           {
-            id: "google-us", name: "United States", budgetPercentage: 65,
+            id: "google-us", name: "US", budgetPercentage: 65,
             adAccountId: "sample_gads_345678", accountName: "Sample Google Ads Account",
             countries: ["US"], ageMin: 18, ageMax: 65,
             adFormats: ["Search ads", "Display ads", "Performance Max"],
@@ -530,7 +530,7 @@ Deno.serve(async (req) => {
             ],
           },
           {
-            id: "google-uk", name: "United Kingdom", budgetPercentage: 35,
+            id: "google-uk", name: "GB", budgetPercentage: 35,
             adAccountId: "sample_gads_345678", accountName: "Sample Google Ads Account",
             countries: ["GB"],
             adFormats: ["Search ads", "Display ads"],
@@ -683,7 +683,7 @@ Deno.serve(async (req) => {
     const q1MarketSplits: Record<string, any[]> = {
       meta: [
         {
-          id: "q1-meta-us", name: "United States", budgetPercentage: 60,
+          id: "q1-meta-us", name: "US", budgetPercentage: 60,
           adAccountId: "act_sample_123456", accountName: "[Sample] D-squad — Meta US",
           pageId: "sample_page_123", page: "Demo Brand", pixel: "sample_pixel_456",
           countries: ["US"], ageMin: 18, ageMax: 54, gender: "all",
@@ -708,7 +708,7 @@ Deno.serve(async (req) => {
           ],
         },
         {
-          id: "q1-meta-uk", name: "United Kingdom", budgetPercentage: 40,
+          id: "q1-meta-uk", name: "GB", budgetPercentage: 40,
           adAccountId: "act_sample_999888", accountName: "[Sample] D-squad — Meta EU",
           pageId: "sample_page_uk", page: "Demo Brand UK", pixel: "sample_pixel_eu",
           countries: ["GB"], ageMin: 18, ageMax: 54, gender: "all",
@@ -730,7 +730,7 @@ Deno.serve(async (req) => {
       ],
       tiktok: [
         {
-          id: "q1-tt-us", name: "United States", budgetPercentage: 70,
+          id: "q1-tt-us", name: "US", budgetPercentage: 70,
           adAccountId: "sample_tt_789012", accountName: "[Sample] D-squad — TikTok US",
           tiktokPixel: "sample_tt_pixel", countries: ["US"],
           ageMin: 18, ageMax: 45, gender: "all", adFormats: ["In-Feed ads"],
@@ -750,7 +750,7 @@ Deno.serve(async (req) => {
           ],
         },
         {
-          id: "q1-tt-de", name: "Germany", budgetPercentage: 30,
+          id: "q1-tt-de", name: "DE", budgetPercentage: 30,
           adAccountId: "sample_tt_445566", accountName: "[Sample] D-squad — TikTok DE",
           tiktokPixel: "sample_tt_pixel_de", countries: ["DE"],
           ageMin: 18, ageMax: 40, gender: "all", adFormats: ["In-Feed ads"],
@@ -766,7 +766,7 @@ Deno.serve(async (req) => {
       ],
       google: [
         {
-          id: "q1-g-us", name: "United States", budgetPercentage: 65,
+          id: "q1-g-us", name: "US", budgetPercentage: 65,
           adAccountId: "sample_gads_345678", accountName: "[Sample] D-squad — Google Ads US",
           countries: ["US"], strategy: "full_funnel", strategyFocus: "search",
           phases: [
@@ -783,7 +783,7 @@ Deno.serve(async (req) => {
           ],
         },
         {
-          id: "q1-g-uk", name: "United Kingdom", budgetPercentage: 35,
+          id: "q1-g-uk", name: "GB", budgetPercentage: 35,
           adAccountId: "sample_gads_998877", accountName: "[Sample] D-squad — Google Ads EU",
           countries: ["GB"], strategy: "awareness", strategyFocus: "search",
           phases: [
