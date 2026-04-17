@@ -3,6 +3,7 @@ import { SampleDataBadge } from "@/components/TourDataBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -120,6 +121,7 @@ export default function ActiPlans() {
     refetch: refetchLimits,
   } = useActiplanLimits();
   const { activeWorkspaceId, workspaces, loading: workspacesLoading } = useWorkspace();
+  const { isSampleMode, guardWrite } = useSampleMode();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -145,7 +147,7 @@ export default function ActiPlans() {
     if (user && activeWorkspaceId) {
       loadCampaigns();
     }
-  }, [user, activeWorkspaceId]);
+  }, [user, activeWorkspaceId, isSampleMode]);
 
   // Handle deep links from emails
   useEffect(() => {
