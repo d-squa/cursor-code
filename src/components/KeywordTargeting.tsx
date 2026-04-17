@@ -529,13 +529,14 @@ export function KeywordTargeting({
         {/* Search */}
         <div className="flex gap-2">
           <Input
-            placeholder="Search keywords (e.g. running shoes, fitness app)..."
+            placeholder={isSampleMode ? "Search disabled in Demo Mode — sample keywords pre-loaded" : "Search keywords (e.g. running shoes, fitness app)..."}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            onKeyDown={(e) => e.key === "Enter" && !isSampleMode && handleSearch()}
             className="flex-1"
+            disabled={isSampleMode}
           />
-          <Select value={defaultMatchType} onValueChange={(v) => setDefaultMatchType(v as KeywordMatchType)}>
+          <Select value={defaultMatchType} onValueChange={(v) => setDefaultMatchType(v as KeywordMatchType)} disabled={isSampleMode}>
             <SelectTrigger className="w-[110px]">
               <SelectValue />
             </SelectTrigger>
@@ -545,10 +546,15 @@ export function KeywordTargeting({
               <SelectItem value="broad">Broad</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleSearch} disabled={searching}>
-            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          <Button onClick={handleSearch} disabled={searching || isSampleMode} title={isSampleMode ? "Disabled — Demo Mode" : undefined}>
+            {isSampleMode ? <Lock className="h-4 w-4" /> : searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           </Button>
         </div>
+        {isSampleMode && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            🎓 Demo Mode: keyword search is disabled. Sample keywords are pre-loaded below.
+          </p>
+        )}
 
         {/* Market info indicator */}
         {hasMultipleMarkets && markets.length > 0 && (
