@@ -72,6 +72,7 @@ export function PlatformMarketBudgetSelector({
   const [productSets, setProductSets] = useState<Array<{ id: string; name: string; catalogId: string }>>([]);
   const [loadingProductSets, setLoadingProductSets] = useState(false);
   const [conversionEvents, setConversionEvents] = useState<Array<{ pixelId: string; id: string; name: string; type: string }>>([]);
+  const { isSampleMode } = useSampleMode();
   const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
