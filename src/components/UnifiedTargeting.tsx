@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Search, X, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Search, X, CheckCircle2, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,28 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
 import { KeywordTargeting, KeywordItem, MarketInfo } from "./KeywordTargeting";
+import { useSampleMode } from "@/contexts/SampleModeContext";
+
+// Sample data prefill for demo / tour mode
+const SAMPLE_INTEREST_ITEMS: any[] = [
+  { id: "sample_int_1", name: "Online Shopping", category: "interest", platforms: ["meta", "tiktok"], description: "People interested in e-commerce and online retail" },
+  { id: "sample_int_2", name: "Holiday Gifts", category: "interest", platforms: ["meta", "tiktok", "google"], description: "Seasonal gift shoppers (Q4 focus)" },
+  { id: "sample_int_3", name: "Fashion & Apparel", category: "interest", platforms: ["meta", "tiktok"], description: "Clothing, accessories and style enthusiasts" },
+  { id: "sample_int_4", name: "Beauty & Cosmetics", category: "interest", platforms: ["meta", "tiktok"], description: "Skincare, makeup and beauty product buyers" },
+  { id: "sample_int_5", name: "Home & Garden", category: "interest", platforms: ["meta", "google"], description: "Home decor and lifestyle audience" },
+  { id: "sample_beh_1", name: "Engaged Shoppers", category: "behavior", platforms: ["meta"], description: "Clicked 'Shop Now' in last 7 days" },
+  { id: "sample_beh_2", name: "Recent Purchase Activity", category: "behavior", platforms: ["meta", "tiktok"], description: "Purchased online in last 30 days" },
+  { id: "sample_demo_1", name: "Parents (Children 0-12)", category: "demographic", platforms: ["meta"], description: "Households with young children" },
+];
+
+const SAMPLE_KEYWORDS: any[] = [
+  { id: "sample_kw_g_1", name: "holiday gift ideas", platform: "google", market: "AE", avgMonthlySearches: 90000, competition: "HIGH", cpcLow: 0.45, cpcHigh: 1.8, strategy: "generic", matchType: "broad", isNegative: false },
+  { id: "sample_kw_g_2", name: "best christmas deals 2025", platform: "google", market: "AE", avgMonthlySearches: 33000, competition: "HIGH", cpcLow: 0.6, cpcHigh: 2.1, strategy: "generic", matchType: "phrase", isNegative: false },
+  { id: "sample_kw_g_3", name: "d-squad official store", platform: "google", market: "AE", avgMonthlySearches: 4400, competition: "LOW", cpcLow: 0.12, cpcHigh: 0.4, strategy: "brand", matchType: "exact", isNegative: false },
+  { id: "sample_kw_g_4", name: "competitor brand sale", platform: "google", market: "AE", avgMonthlySearches: 12000, competition: "MEDIUM", cpcLow: 0.35, cpcHigh: 1.2, strategy: "competition", matchType: "phrase", isNegative: false },
+  { id: "sample_kw_t_1", name: "holiday outfit ideas", platform: "tiktok", market: "AE", avgMonthlySearches: 27000, competition: "MEDIUM", strategy: "generic", matchType: "broad", isNegative: false },
+  { id: "sample_kw_t_2", name: "d-squad haul", platform: "tiktok", market: "AE", avgMonthlySearches: 5600, competition: "LOW", strategy: "brand", matchType: "broad", isNegative: false },
+];
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -121,6 +143,28 @@ export function UnifiedTargeting({
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok' | 'google'>('all');
+  const { isSampleMode } = useSampleMode();
+  const sampleSeededRef = useRef(false);
+
+  // Auto-prefill targeting & keywords when in Sample Mode (only if currently empty)
+  useEffect(() => {
+    if (!isSampleMode || sampleSeededRef.current) return;
+    const hasItems = (targeting.selectedItems?.length || 0) > 0;
+    const hasKeywords = (targeting.selectedKeywords?.length || 0) > 0;
+    if (hasItems && hasKeywords) {
+      sampleSeededRef.current = true;
+      return;
+    }
+    const updated = {
+      ...targeting,
+      selectedItems: hasItems ? targeting.selectedItems : (SAMPLE_INTEREST_ITEMS as UnifiedTargetingItem[]),
+      selectedKeywords: hasKeywords ? targeting.selectedKeywords : SAMPLE_KEYWORDS,
+    };
+    sampleSeededRef.current = true;
+    onUpdate(updated);
+    persistToLocalStorage(updated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSampleMode]);
   
   // State for CBO/ABO dialog
   const [pendingSplitSelection, setPendingSplitSelection] = useState<{
@@ -378,15 +422,21 @@ export function UnifiedTargeting({
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Search interests, behaviors, demographics..."
+              placeholder={isSampleMode ? "Search disabled in Demo Mode — sample audiences pre-loaded" : "Search interests, behaviors, demographics..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && !isSampleMode && handleSearch()}
+              disabled={isSampleMode}
             />
-            <Button onClick={handleSearch} disabled={searching}>
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            <Button onClick={handleSearch} disabled={searching || isSampleMode} title={isSampleMode ? "Disabled — Demo Mode" : undefined}>
+              {isSampleMode ? <Lock className="h-4 w-4" /> : searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
+          {isSampleMode && (
+            <p className="text-xs text-muted-foreground">
+              🎓 Demo Mode: search is disabled. Sample audiences are pre-loaded below.
+            </p>
+          )}
 
           {searchResults.length > 0 && (
             <div className="space-y-3">
