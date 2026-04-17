@@ -237,6 +237,7 @@ export function CampaignForecast({
   onBudgetOptimize,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
+  const { isSampleMode } = useSampleMode();
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
   const [actiplanForecast, setActiplanForecast] = useState<ActiplanForecast | null>(null);
