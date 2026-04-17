@@ -134,14 +134,8 @@ export function TourRibbon() {
     else setTourActiveStep(null);
   }, [visible, currentStep]);
 
-  // Push body padding so app content isn't hidden under the ribbon
-  useEffect(() => {
-    const height = visible ? (expanded ? 152 : 56) : 0;
-    document.body.style.paddingTop = `${height}px`;
-    return () => {
-      document.body.style.paddingTop = "";
-    };
-  }, [visible, expanded]);
+  // Ribbon flows in normal document order at the top of the page so the page's
+  // sticky header naturally renders below it and isn't overlapped.
 
   const resumeTour = useCallback(() => setVisible(true), []);
 
@@ -209,7 +203,7 @@ export function TourRibbon() {
   const progress = ((currentStep + 1) / TOUR_STEPS.length) * 100;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] border-b border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-sm animate-in slide-in-from-top-2">
+    <div className="relative z-[60] border-b border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-sm animate-in slide-in-from-top-2">
       {/* Slim bar */}
       <div className="flex items-center gap-3 px-4 py-2">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
