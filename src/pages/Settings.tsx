@@ -3,6 +3,7 @@ import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { Feature, getRequiredTier } from "@/config/featureAccess";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { Button } from "@/components/ui/button";
@@ -104,9 +105,13 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
 export default function Settings() {
   const { user, loading } = useAuth();
   const { isAdmin, isOwner, loading: roleLoading } = useRole();
-  const { hasAccess, loading: featureLoading } = useFeatureAccess();
+  const { hasAccess: rawHasAccess, loading: featureLoading } = useFeatureAccess();
+  const { isSampleMode } = useSampleMode();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Sample Mode bypasses feature gates so users can explore everything during the tour
+  const hasAccess = (feature: any) => isSampleMode || rawHasAccess(feature);
 
   // Filter menu items based on role and feature access
   const accessibleMenuItems = useMemo(() => {
