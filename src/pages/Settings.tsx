@@ -104,9 +104,13 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
 export default function Settings() {
   const { user, loading } = useAuth();
   const { isAdmin, isOwner, loading: roleLoading } = useRole();
-  const { hasAccess, loading: featureLoading } = useFeatureAccess();
+  const { hasAccess: rawHasAccess, loading: featureLoading } = useFeatureAccess();
+  const { isSampleMode } = useSampleMode();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Sample Mode bypasses feature gates so users can explore everything during the tour
+  const hasAccess = (feature: any) => isSampleMode || rawHasAccess(feature);
 
   // Filter menu items based on role and feature access
   const accessibleMenuItems = useMemo(() => {
