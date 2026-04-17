@@ -2978,6 +2978,7 @@ export function MediaPlanEditor() {
                             parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100),
                         }}
                       />
+                      </div>
                     </div>
                   ) : null;
                 } else if (totalMarkets > 1) {
