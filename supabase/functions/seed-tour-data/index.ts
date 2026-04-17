@@ -260,6 +260,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ===== 1d. Link sample ad accounts to D-squad client across all platforms =====
+    if (dsquadClientId) {
+      await Promise.all([
+        supabase.from("meta_ad_accounts")
+          .update({ client_id: dsquadClientId })
+          .eq("user_id", userId)
+          .eq("is_sample", true),
+        supabase.from("tiktok_ad_accounts")
+          .update({ client_id: dsquadClientId })
+          .eq("user_id", userId)
+          .eq("is_sample", true),
+        supabase.from("google_ad_accounts")
+          .update({ client_id: dsquadClientId })
+          .eq("user_id", userId)
+          .eq("is_sample", true),
+      ]);
+    }
+
     // ===== 2. Seed comprehensive Q4 Holiday Campaign 2025 ActiPlan =====
     // Q4 2025: Oct 1 - Dec 31
     const startDate = new Date("2025-10-01T00:00:00Z");
