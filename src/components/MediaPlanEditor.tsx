@@ -1883,6 +1883,38 @@ export function MediaPlanEditor() {
     isHydrated,
   ]);
 
+  // Fallback: default any still-undefined budgetType to "lifetime"
+  useEffect(() => {
+    if (!isHydrated) return;
+    let hasChanges = false;
+    const updated = platformsWithMarkets.map((p) => ({
+      ...p,
+      markets: p.markets.map((m) => {
+        if (!m.phases || m.phases.length === 0) return m;
+        let marketChanged = false;
+        const phases = m.phases.map((ph) => {
+          if (ph.budgetType === undefined) {
+            hasChanges = true;
+            marketChanged = true;
+            return { ...ph, budgetType: "lifetime" as const };
+          }
+          return ph;
+        });
+        return marketChanged ? { ...m, phases } : m;
+      }),
+    }));
+    if (hasChanges) setPlatformsWithMarkets(updated);
+  }, [
+    platformsWithMarkets
+      .map((p) =>
+        p.markets
+          .map((m) => `${m.id}:${(m.phases || []).filter((ph) => ph.budgetType === undefined).length}`)
+          .join("|"),
+      )
+      .join("||"),
+    isHydrated,
+  ]);
+
   const saveCampaignDraft = async () => {
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
