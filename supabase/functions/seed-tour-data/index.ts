@@ -627,6 +627,34 @@ Deno.serve(async (req) => {
     const { error: caErr } = await supabase.from("creative_assignments").insert(sampleCreativeAssignments);
     if (caErr) console.error("Creative assignments insert error:", caErr);
 
+    // ===== 7c. Seed second sample ActiPlan: Q1 2026 Cross-Platform Campaign =====
+    const q1Start = new Date("2026-01-15T00:00:00Z");
+    const q1End = new Date("2026-03-31T00:00:00Z");
+    const q1Payload = {
+      user_id: userId,
+      team_id: teamId,
+      name: "🎓 [Demo] Q1 2026 Cross-Platform Campaign",
+      total_budget: 50000,
+      objective: "Multi-Objective",
+      start_date: formatDate(q1Start),
+      end_date: formatDate(q1End),
+      platforms: platforms,
+      budget_allocation: { meta: 45, tiktok: 35, google: 20 },
+      market_splits: { "United States": 60, "United Kingdom": 25, "Germany": 15 },
+      status: "draft",
+      forecast_data: generateForecastData(50000, platforms),
+      generic_config: genericConfig,
+      is_sample: true,
+      bo_number: "DSQUAD-Q1-2026",
+    };
+    const { data: q1Campaign, error: q1Err } = await supabase
+      .from("campaigns").insert(q1Payload).select().single();
+    if (q1Err) console.error("Q1 campaign insert error:", q1Err);
+    if (q1Campaign) {
+      const q1Launches = generateLaunchStatuses(q1Campaign.id, platforms);
+      await supabase.from("campaign_launch_status").insert(q1Launches);
+    }
+
     // ===== 8. Update tour state =====
     const { error: stateError } = await supabase.from("tour_data_state").upsert({
       user_id: userId,
