@@ -5,6 +5,7 @@ import { TIER_DISPLAY_NAMES } from '@/config/subscriptionTiers';
 import { Button } from '@/components/ui/button';
 import { Lock, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useSampleMode } from '@/contexts/SampleModeContext';
 
 interface FeatureGateProps {
   feature: Feature;
@@ -25,6 +26,7 @@ export function FeatureGate({
   renderIfNoAccess = false 
 }: FeatureGateProps) {
   const { hasAccess, getRequiredTierForFeature, loading } = useFeatureAccess();
+  const { isSampleMode } = useSampleMode();
   const navigate = useNavigate();
   
   // Show nothing while loading
@@ -32,7 +34,8 @@ export function FeatureGate({
     return null;
   }
   
-  const canAccess = hasAccess(feature);
+  // Sample Mode bypasses feature gates so all users can experience the tour
+  const canAccess = isSampleMode || hasAccess(feature);
   
   if (canAccess) {
     return <>{children}</>;
