@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: metaErr } = await supabase.from("meta_ad_accounts").insert(metaAdAccounts);
+    const { error: metaErr } = await supabase.from("meta_ad_accounts").upsert(metaAdAccounts, { onConflict: "user_id,account_id", ignoreDuplicates: true });
     if (metaErr) console.error("Meta ad accounts insert error:", metaErr);
 
     const tiktokAdAccountsSeed = [
