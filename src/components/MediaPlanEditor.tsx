@@ -948,7 +948,11 @@ export function MediaPlanEditor() {
 
       if (declaredPlatforms.length > 0) {
         const restoredPlatforms = declaredPlatforms.map((dp: any) => {
-          const markets = splits[dp.id] || [];
+          // Prefer market_splits if keyed by platform id; otherwise fall back to embedded markets on the platform object (legacy/sample data)
+          const splitMarkets = splits[dp.id];
+          const markets = Array.isArray(splitMarkets) && splitMarkets.length > 0
+            ? splitMarkets
+            : (Array.isArray(dp.markets) ? dp.markets : []);
           console.log(
             `  Platform ${dp.id} markets:`,
             markets.map((m: any) => ({
