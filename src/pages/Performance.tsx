@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -151,13 +152,10 @@ export default function Performance() {
 
   const loadCampaigns = async () => {
     try {
-      const { isSampleMode } = (await import("@/contexts/SampleModeContext")).useSampleMode
-        ? { isSampleMode: false } // fallback (called from inside component)
-        : { isSampleMode: false };
-      // Note: real isSampleMode applied via wrapper effect below
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("is_sample", isSampleModeRef.current)
         .in("status", ["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"])
         .order("created_at", { ascending: false });
 
