@@ -46,7 +46,7 @@ export function TourResumeButton({ onResume }: TourResumeButtonProps) {
   return (
     <Button
       onClick={onResume}
-      className="fixed bottom-24 right-6 z-50 shadow-lg gap-2 rounded-full px-5 py-3 animate-in fade-in slide-in-from-bottom-4"
+      className="fixed bottom-6 right-24 z-50 shadow-lg gap-2 rounded-full px-5 py-3 animate-in fade-in slide-in-from-bottom-4"
       size="lg"
     >
       <GraduationCap className="h-4 w-4" />
