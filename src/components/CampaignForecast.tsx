@@ -564,6 +564,7 @@ export function CampaignForecast({
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
   useEffect(() => {
+    if (isSampleMode) return; // Tour mode: forecast is pre-loaded and read-only
     if (!existingLoadComplete) return;
     if (versionsLoading) return;
     if (loading) return;
@@ -574,7 +575,7 @@ export function CampaignForecast({
 
     // Trigger a single automatic fetch on first load of the Forecast step
     handleFetchForecasts(undefined);
-  }, [existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
+  }, [isSampleMode, existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
