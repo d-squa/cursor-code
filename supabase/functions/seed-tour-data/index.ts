@@ -45,6 +45,32 @@ Deno.serve(async (req) => {
 
     const teamId = teamData?.id || null;
 
+    // ===== 0. Cleanup any existing sample data for this user (idempotent re-seed) =====
+    try {
+      // Delete sample campaigns by bo_number (cascades to insights/launch/assignments via FKs if set; otherwise delete explicitly)
+      const { data: existingSampleCampaigns } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("is_sample", true);
+      const sampleCampaignIds = (existingSampleCampaigns || []).map((c: any) => c.id);
+      if (sampleCampaignIds.length > 0) {
+        await supabase.from("activity_logs").delete().in("campaign_id", sampleCampaignIds);
+        await supabase.from("campaign_change_history").delete().in("campaign_id", sampleCampaignIds);
+        await supabase.from("campaign_insights").delete().in("campaign_id", sampleCampaignIds);
+        await supabase.from("campaign_launch_status").delete().in("campaign_id", sampleCampaignIds);
+        await supabase.from("creative_assignments").delete().in("campaign_id", sampleCampaignIds);
+        await supabase.from("modification_requests").delete().in("campaign_id", sampleCampaignIds);
+        await supabase.from("campaigns").delete().in("id", sampleCampaignIds);
+      }
+      await supabase.from("meta_ad_accounts").delete().eq("user_id", userId).eq("is_sample", true);
+      await supabase.from("tiktok_ad_accounts").delete().eq("user_id", userId).eq("is_sample", true);
+      await supabase.from("google_ad_accounts").delete().eq("user_id", userId).eq("is_sample", true);
+      await supabase.from("connected_platforms").delete().eq("user_id", userId).eq("is_sample", true);
+    } catch (cleanupErr) {
+      console.error("Sample cleanup warning:", cleanupErr);
+    }
+
     // ===== 1. Seed dummy platform connections =====
     const platformConnections = [
       {
@@ -135,7 +161,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: metaErr } = await supabase.from("meta_ad_accounts").upsert(metaAdAccounts, { onConflict: "user_id,account_id", ignoreDuplicates: true });
+    const { error: metaErr } = await supabase.from("meta_ad_accounts").insert(metaAdAccounts);
     if (metaErr) console.error("Meta ad accounts insert error:", metaErr);
 
     const tiktokAdAccountsSeed = [
@@ -158,7 +184,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: ttErr } = await supabase.from("tiktok_ad_accounts").upsert(tiktokAdAccountsSeed, { onConflict: "user_id,advertiser_id", ignoreDuplicates: true });
+    const { error: ttErr } = await supabase.from("tiktok_ad_accounts").insert(tiktokAdAccountsSeed);
     if (ttErr) console.error("TikTok ad accounts insert error:", ttErr);
 
     const googleAdAccountsSeed = [
@@ -183,7 +209,7 @@ Deno.serve(async (req) => {
         is_sample: true,
       },
     ];
-    const { error: gErr } = await supabase.from("google_ad_accounts").upsert(googleAdAccountsSeed, { onConflict: "user_id,customer_id", ignoreDuplicates: true });
+    const { error: gErr } = await supabase.from("google_ad_accounts").insert(googleAdAccountsSeed);
     if (gErr) console.error("Google ad accounts insert error:", gErr);
 
     // ===== 1c. Seed D-squad sample client =====
