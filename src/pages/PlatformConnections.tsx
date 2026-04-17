@@ -38,6 +38,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSubscription } from "@/hooks/useSubscription";
 import SwapCounterBadge from "@/components/SwapCounterBadge";
 import { TourDataBanner } from "@/components/TourDataBanner";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface MetaAdAccount {
   id: string;
@@ -112,6 +113,9 @@ export default function PlatformConnections() {
   const navigate = useNavigate();
   const { hasAccess } = useFeatureAccess();
   const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
+  const { isSampleMode } = useSampleMode();
+  const isSampleModeRef = useRef(isSampleMode);
+  useEffect(() => { isSampleModeRef.current = isSampleMode; }, [isSampleMode]);
   const canManageClients = hasAccess("client_management");
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
@@ -301,6 +305,7 @@ export default function PlatformConnections() {
         .from("connected_platforms_safe")
         .select("*")
         .eq("is_active", true)
+        .eq("is_sample", isSampleModeRef.current)
         .order("created_at", { ascending: false });
 
       // Filter ad accounts by team_id (workspace)

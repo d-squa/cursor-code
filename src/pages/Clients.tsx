@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ClientForm from "@/components/ClientForm";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { FeatureGate } from "@/components/FeatureGate";
 
 interface Client {
@@ -30,6 +31,7 @@ export default function Clients() {
   const { user, loading: authLoading } = useAuth();
   const { canManageClients, loading: roleLoading } = useRole();
   const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
+  const { isSampleMode } = useSampleMode();
   const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export default function Clients() {
     if (user && activeWorkspaceId) {
       loadClients();
     }
-  }, [user, activeWorkspaceId]);
+  }, [user, activeWorkspaceId, isSampleMode]);
 
   const loadClients = async () => {
     if (!activeWorkspaceId) {
@@ -68,7 +70,7 @@ export default function Clients() {
       if (tcError) throw tcError;
       
       // Extract and type cast clients from the join
-      const typedClients = (teamClients || [])
+      let typedClients = (teamClients || [])
         .map(tc => tc.clients)
         .filter(Boolean)
         .map((client: any) => ({
@@ -77,6 +79,11 @@ export default function Clients() {
           markets: Array.isArray(client.markets) ? client.markets as string[] : [],
         }))
         .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+      // Sample mode: only show D-squad. Real mode: hide D-squad.
+      typedClients = isSampleMode
+        ? typedClients.filter((c: any) => c.name === "D-squad")
+        : typedClients.filter((c: any) => c.name !== "D-squad");
       
       setClients(typedClients);
     } catch (error: any) {

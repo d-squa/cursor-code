@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -97,7 +98,7 @@ export default function Performance() {
       checkUserAccess();
       loadCampaigns();
     }
-  }, [user]);
+  }, [user, isSampleMode]);
 
   const checkUserAccess = async () => {
     try {
@@ -151,10 +152,10 @@ export default function Performance() {
 
   const loadCampaigns = async () => {
     try {
-      // Load campaigns with ready_for_push, pushed_to_dsp, or live status
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("is_sample", isSampleModeRef.current)
         .in("status", ["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"])
         .order("created_at", { ascending: false });
 

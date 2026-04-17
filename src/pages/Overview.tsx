@@ -29,6 +29,7 @@ import { PerformanceMetric, getPerformanceStatus } from "@/components/overview/P
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 import { TourDataBanner } from "@/components/TourDataBanner";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface Campaign {
   id: string;
@@ -173,6 +174,7 @@ const Overview = () => {
   const [searchParams] = useSearchParams();
   const { tier } = useFeatureAccess();
   const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
+  const { isSampleMode } = useSampleMode();
   const { dailyLimit, remaining, usedToday, canCreate } = useActiplanLimits();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -218,20 +220,20 @@ const Overview = () => {
       let campaignData: Campaign[] | null = null;
 
       if (activeWorkspaceId) {
-        // Filter by workspace team_id only - this ensures we only see campaigns for the active workspace
         const { data } = await supabase
           .from("campaigns")
           .select("*")
           .eq("team_id", activeWorkspaceId)
+          .eq("is_sample", isSampleMode)
           .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
           .order("updated_at", { ascending: false });
         campaignData = data;
       } else {
-        // No workspace selected - show user's own campaigns (fallback)
         const { data } = await supabase
           .from("campaigns")
           .select("*")
           .eq("user_id", user.id)
+          .eq("is_sample", isSampleMode)
           .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
           .order("updated_at", { ascending: false });
         campaignData = data;
@@ -276,7 +278,7 @@ const Overview = () => {
     setModRequests([]);
     setSavedAnalyses([]);
     loadData();
-  }, [user, activeWorkspaceId, workspaceLoading]);
+  }, [user, activeWorkspaceId, workspaceLoading, isSampleMode]);
 
   const handleRefresh = () => {
     setRefreshing(true);
