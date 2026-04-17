@@ -176,6 +176,7 @@ export default function ActiPlans() {
         .from("campaigns")
         .select("*")
         .eq("team_id", activeWorkspaceId)
+        .eq("is_sample", isSampleMode)
         .order("created_at", { ascending: false });
 
       if (campaignsError) throw campaignsError;
