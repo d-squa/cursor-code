@@ -122,7 +122,7 @@ export function StrategySelector({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Strategy Type</Label>
-          <Select value={strategy || "auto-detect"} onValueChange={handleStrategyTypeChange}>
+          <Select value={strategy || "auto-detect"} onValueChange={handleStrategyTypeChange} disabled={isSampleMode}>
             <SelectTrigger>
               <SelectValue placeholder="Select strategy type" />
             </SelectTrigger>
