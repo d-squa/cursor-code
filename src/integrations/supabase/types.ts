@@ -2133,6 +2133,7 @@ export type Database = {
           default_utm_mode: string | null
           descriptive_name: string | null
           id: string
+          is_sample: boolean
           main_markets: Json | null
           manager_customer_id: string | null
           platform_id: string | null
@@ -2176,6 +2177,7 @@ export type Database = {
           default_utm_mode?: string | null
           descriptive_name?: string | null
           id?: string
+          is_sample?: boolean
           main_markets?: Json | null
           manager_customer_id?: string | null
           platform_id?: string | null
@@ -2219,6 +2221,7 @@ export type Database = {
           default_utm_mode?: string | null
           descriptive_name?: string | null
           id?: string
+          is_sample?: boolean
           main_markets?: Json | null
           manager_customer_id?: string | null
           platform_id?: string | null
@@ -2400,6 +2403,7 @@ export type Database = {
           default_whatsapp_enabled: boolean | null
           default_whatsapp_number: string | null
           id: string
+          is_sample: boolean
           main_markets: Json | null
           platform_id: string | null
           synced_at: string
@@ -2461,6 +2465,7 @@ export type Database = {
           default_whatsapp_enabled?: boolean | null
           default_whatsapp_number?: string | null
           id?: string
+          is_sample?: boolean
           main_markets?: Json | null
           platform_id?: string | null
           synced_at?: string
@@ -2522,6 +2527,7 @@ export type Database = {
           default_whatsapp_enabled?: boolean | null
           default_whatsapp_number?: string | null
           id?: string
+          is_sample?: boolean
           main_markets?: Json | null
           platform_id?: string | null
           synced_at?: string
@@ -3442,6 +3448,7 @@ export type Database = {
           created_at: string
           currency: string | null
           id: string
+          is_sample: boolean
           metadata: Json | null
           organization_id: string | null
           team_id: string | null
@@ -3458,6 +3465,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           id?: string
+          is_sample?: boolean
           metadata?: Json | null
           organization_id?: string | null
           team_id?: string | null
@@ -3474,6 +3482,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           id?: string
+          is_sample?: boolean
           metadata?: Json | null
           organization_id?: string | null
           team_id?: string | null
@@ -3671,6 +3680,7 @@ export type Database = {
           default_whatsapp_number: string | null
           default_zalo_account_id: string | null
           id: string
+          is_sample: boolean
           main_markets: Json | null
           platform_id: string | null
           synced_at: string
@@ -3721,6 +3731,7 @@ export type Database = {
           default_whatsapp_number?: string | null
           default_zalo_account_id?: string | null
           id?: string
+          is_sample?: boolean
           main_markets?: Json | null
           platform_id?: string | null
           synced_at?: string
@@ -3771,6 +3782,7 @@ export type Database = {
           default_whatsapp_number?: string | null
           default_zalo_account_id?: string | null
           id?: string
+          is_sample?: boolean
           main_markets?: Json | null
           platform_id?: string | null
           synced_at?: string
