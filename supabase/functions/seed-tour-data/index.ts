@@ -617,7 +617,7 @@ Deno.serve(async (req) => {
     if (chError) console.error("Change history error:", chError);
 
     // ===== 5. Seed performance data (2 months) =====
-    const insightsData = generatePerformanceInsights(campaignId, startDate, now);
+    const insightsData = generatePerformanceInsights(campaignId, startDate, new Date());
     for (const insight of insightsData) {
       const { error: insErr } = await supabase.from("campaign_insights").insert(insight);
       if (insErr) console.error("Insight insert error:", insErr);
