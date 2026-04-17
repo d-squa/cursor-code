@@ -422,15 +422,21 @@ export function UnifiedTargeting({
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Search interests, behaviors, demographics..."
+              placeholder={isSampleMode ? "Search disabled in Demo Mode — sample audiences pre-loaded" : "Search interests, behaviors, demographics..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && !isSampleMode && handleSearch()}
+              disabled={isSampleMode}
             />
-            <Button onClick={handleSearch} disabled={searching}>
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            <Button onClick={handleSearch} disabled={searching || isSampleMode} title={isSampleMode ? "Disabled — Demo Mode" : undefined}>
+              {isSampleMode ? <Lock className="h-4 w-4" /> : searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
+          {isSampleMode && (
+            <p className="text-xs text-muted-foreground">
+              🎓 Demo Mode: search is disabled. Sample audiences are pre-loaded below.
+            </p>
+          )}
 
           {searchResults.length > 0 && (
             <div className="space-y-3">
