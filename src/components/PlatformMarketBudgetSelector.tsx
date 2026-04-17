@@ -3015,7 +3015,7 @@ export function PlatformMarketBudgetSelector({
 
                             {/* Phase Scheduler - Per Market */}
                             {startDate && endDate && (
-                              <div className="mt-4 pt-4 border-t">
+                              <div className={`mt-4 pt-4 border-t ${isSampleMode ? "pointer-events-none opacity-90 select-none" : ""}`} aria-disabled={isSampleMode || undefined} title={isSampleMode ? "Read-only in tour mode" : undefined}>
                               <PhaseScheduler
                                   phases={market.phases || []}
                                   onPhasesChange={(phases) => updateMarketField(platformIndex, market.id, 'phases', phases)}
