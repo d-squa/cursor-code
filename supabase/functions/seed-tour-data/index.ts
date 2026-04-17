@@ -63,10 +63,15 @@ Deno.serve(async (req) => {
         await supabase.from("modification_requests").delete().in("campaign_id", sampleCampaignIds);
         await supabase.from("campaigns").delete().in("id", sampleCampaignIds);
       }
-      await supabase.from("meta_ad_accounts").delete().eq("user_id", userId).eq("is_sample", true);
-      await supabase.from("tiktok_ad_accounts").delete().eq("user_id", userId).eq("is_sample", true);
-      await supabase.from("google_ad_accounts").delete().eq("user_id", userId).eq("is_sample", true);
-      await supabase.from("connected_platforms").delete().eq("user_id", userId).eq("is_sample", true);
+      // Match by sample flag OR by known sample identifiers (covers rows seeded before is_sample existed)
+      await supabase.from("meta_ad_accounts").delete().eq("user_id", userId)
+        .or("is_sample.eq.true,account_id.in.(act_sample_123456,act_sample_999888)");
+      await supabase.from("tiktok_ad_accounts").delete().eq("user_id", userId)
+        .or("is_sample.eq.true,advertiser_id.in.(sample_tt_789012,sample_tt_445566)");
+      await supabase.from("google_ad_accounts").delete().eq("user_id", userId)
+        .or("is_sample.eq.true,customer_id.in.(3456789012,9988776655)");
+      await supabase.from("connected_platforms").delete().eq("user_id", userId)
+        .or("is_sample.eq.true,ad_account_id.in.(act_sample_123456,sample_tt_789012,sample_gads_345678)");
     } catch (cleanupErr) {
       console.error("Sample cleanup warning:", cleanupErr);
     }
@@ -617,7 +622,7 @@ Deno.serve(async (req) => {
     if (chError) console.error("Change history error:", chError);
 
     // ===== 5. Seed performance data (2 months) =====
-    const insightsData = generatePerformanceInsights(campaignId, startDate, now);
+    const insightsData = generatePerformanceInsights(campaignId, startDate, new Date());
     for (const insight of insightsData) {
       const { error: insErr } = await supabase.from("campaign_insights").insert(insight);
       if (insErr) console.error("Insight insert error:", insErr);
