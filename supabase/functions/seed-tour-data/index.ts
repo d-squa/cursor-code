@@ -592,6 +592,26 @@ Deno.serve(async (req) => {
     const { error: modError } = await supabase.from("modification_requests").insert(modRequests);
     if (modError) console.error("Modification requests error:", modError);
 
+    // ===== 7b. Seed sample creative assignments (read-only display) =====
+    const sampleCreativeAssignments = [
+      { platform: "meta", market: "United States", phase_name: "Awareness", ad_set_name: "Broad 18-45", display_name: "Holiday Hero Video — US", primary_text: "Make this holiday unforgettable with D-squad ✨", headline: "Holiday Sale — Up to 50% Off", call_to_action: "SHOP_NOW", destination_url: "https://d-squad.example.com/holiday" },
+      { platform: "meta", market: "United States", phase_name: "Conversion", ad_set_name: "Retargeting 7d", display_name: "Cart Reminder Carousel — US", primary_text: "Your gifts are waiting 🎁 Free shipping on orders over $50.", headline: "Don't miss out — Holiday deals end soon", call_to_action: "SHOP_NOW", destination_url: "https://d-squad.example.com/cart" },
+      { platform: "meta", market: "United Kingdom", phase_name: "Awareness", ad_set_name: "Broad UK", display_name: "UK Festive Reel", primary_text: "Festive vibes start here. Discover D-squad's holiday edit.", headline: "New Holiday Collection", call_to_action: "LEARN_MORE", destination_url: "https://d-squad.example.com/uk" },
+      { platform: "tiktok", market: "United States", phase_name: "Awareness", ad_set_name: "Gen Z & Millennials", display_name: "TikTok Holiday Vibes", primary_text: "Holiday fits that hit different 🔥 #DsquadHoliday", call_to_action: "SHOP_NOW", destination_url: "https://d-squad.example.com" },
+      { platform: "tiktok", market: "Germany", phase_name: "Awareness", ad_set_name: "Broad DE", display_name: "Weihnachten mit D-squad", primary_text: "Die Feiertage starten jetzt mit D-squad 🎄", call_to_action: "SHOP_NOW", destination_url: "https://d-squad.example.com/de" },
+      { platform: "google", market: "United States", phase_name: "Search - Brand", ad_set_name: "Brand Keywords", display_name: "D-squad Brand Search", headline: "D-squad Official | Holiday Sale", description: "Free shipping over $50. Shop the new holiday collection.", destination_url: "https://d-squad.example.com" },
+      { platform: "google", market: "United States", phase_name: "Performance Max", ad_set_name: "PMax Asset Group", display_name: "PMax Holiday Asset Group", headline: "Holiday Deals — Up to 50% Off", description: "Shop D-squad's curated holiday edit.", destination_url: "https://d-squad.example.com/holiday" },
+    ].map((a) => ({
+      campaign_id: campaignId,
+      creative_id: "00000000-0000-0000-0000-000000000000",
+      assigned_by: userId,
+      is_sample: true,
+      status: "assigned",
+      ...a,
+    }));
+    const { error: caErr } = await supabase.from("creative_assignments").insert(sampleCreativeAssignments);
+    if (caErr) console.error("Creative assignments insert error:", caErr);
+
     // ===== 8. Update tour state =====
     const { error: stateError } = await supabase.from("tour_data_state").upsert({
       user_id: userId,
