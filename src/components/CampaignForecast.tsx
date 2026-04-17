@@ -13,6 +13,7 @@ import { BudgetRecommendationDialog } from "./BudgetRecommendationDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useForecastVersions } from "@/hooks/useForecastVersions";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 import { downloadMediaPlanPDF } from "@/utils/pdfGenerator";
