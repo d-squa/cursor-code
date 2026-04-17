@@ -15,6 +15,7 @@ import { StrategySelector } from "./StrategySelector";
 import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { TargetingConfigComponent } from "./TargetingConfig";
 
 import { AudienceCard } from "./AudienceCard";
@@ -2499,7 +2500,7 @@ export function MediaPlanEditor() {
                   await ensureDraft();
                   setCurrentStep(2);
                 }}
-                disabled={!isActivationDetailsComplete()}
+                disabled={!isSampleMode && !isActivationDetailsComplete()}
               >
                 Next: Targeting
               </Button>
@@ -3586,8 +3587,10 @@ export function MediaPlanEditor() {
                     setCurrentStep(4);
                   }}
                   disabled={
-                    !genericConfig.strategy ||
-                    (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus)
+                    !isSampleMode && (
+                      !genericConfig.strategy ||
+                      (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus)
+                    )
                   }
                 >
                   Next: Forecast & Save
