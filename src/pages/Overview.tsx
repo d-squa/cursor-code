@@ -387,21 +387,16 @@ const Overview = () => {
     loadData();
   };
 
-  // Get sample data
-  const sampleData = useMemo(() => generateSampleData(), []);
-
-  // Always include sample card first, then live campaigns
+  // Aggregate data (no more hardcoded sample card; the seeded tour ActiPlan
+  // already comes from the database when sample mode is enabled).
   const displayData = useMemo(() => {
-    const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = sampleData;
-
     return {
-      campaigns: [sampleCampaign, ...campaigns],
-      insights: [...sampleInsights, ...insights],
-      modRequests: [...sampleModRequests, ...modRequests],
-      savedAnalyses: [...sampleAnalyses, ...savedAnalyses],
-      sampleCampaignId: sampleCampaign.id,
+      campaigns,
+      insights,
+      modRequests,
+      savedAnalyses,
     };
-  }, [campaigns, insights, modRequests, savedAnalyses, sampleData]);
+  }, [campaigns, insights, modRequests, savedAnalyses]);
 
   // Sort campaigns: live first, then partially_pushed, then pushed_to_dsp, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
