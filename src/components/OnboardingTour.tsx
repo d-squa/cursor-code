@@ -81,7 +81,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Click 'Check Performance' on any card — or use this step's deep link — to open the full performance dashboard for an ActiPlan: time-series charts, funnel analysis, market & platform comparison, and downloadable reports.",
     icon: <BarChart3 className="h-6 w-6" />,
-    navigateTo: "/actiplans/:campaignId/report",
+    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
     isInteractive: true,
     tip: "Use the date range and breakdown filters at the top to slice the data.",
   },
