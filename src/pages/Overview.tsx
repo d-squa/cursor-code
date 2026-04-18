@@ -42,6 +42,7 @@ interface Campaign {
   platforms?: any;
   forecast_data?: any;
   bo_number?: string;
+  is_sample?: boolean;
 }
 
 interface CampaignInsight {
