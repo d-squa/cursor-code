@@ -56,6 +56,7 @@ export function TourResumeButton({ onResume }: TourResumeButtonProps) {
   if (!visible) return null;
 
   const handleClick = () => {
+    console.log("[TourResume] click, global handler?", typeof (window as any).__resumeOnboardingTour);
     if (onResume) onResume();
     resumeTour();
   };
