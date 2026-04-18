@@ -81,7 +81,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Click 'Check Performance' on any card — or use this step's deep link — to open the full performance dashboard for an ActiPlan: time-series charts, funnel analysis, market & platform comparison, and downloadable reports.",
     icon: <BarChart3 className="h-6 w-6" />,
-    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
+    navigateTo: "/actiplans/:campaignId/report",
     isInteractive: true,
     tip: "Use the date range and breakdown filters at the top to slice the data.",
   },
@@ -90,7 +90,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "AI-powered cross-platform analyses comparing time periods, breakdowns and platforms. We've pre-loaded a sample analysis — open the History tab to view its executive summary, per-platform highlights, recommendations and risks.",
     icon: <Lightbulb className="h-6 w-6" />,
-    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/insights",
+    navigateTo: "/actiplans/:campaignId/insights",
     isInteractive: true,
     tip: "Open the History tab to load the pre-filled sample analysis.",
   },
@@ -126,7 +126,22 @@ export function OnboardingTour() {
   const [visible, setVisible] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const navigate = useNavigate();
-  const { seedTourData, isSeeded } = useTourDataContext();
+  const { seedTourData, isSeeded, seededCampaignId } = useTourDataContext();
+
+  // Resolve a step's navigateTo, substituting :campaignId with the seeded ID.
+  // If a step deep-links to a campaign but no campaign is seeded yet, fall back
+  // to a sensible top-level route so we never navigate to a 404.
+  const resolveNavigateTo = useCallback(
+    (path: string | undefined): string | undefined => {
+      if (!path) return path;
+      if (!path.includes(":campaignId")) return path;
+      if (seededCampaignId) return path.replace(":campaignId", seededCampaignId);
+      if (path.endsWith("/insights")) return "/insights";
+      if (path.endsWith("/report")) return "/overview";
+      return "/actiplans";
+    },
+    [seededCampaignId]
+  );
 
   useEffect(() => {
     const completed = localStorage.getItem(TOUR_STORAGE_KEY);
@@ -175,13 +190,19 @@ export function OnboardingTour() {
     if (next.seedsData && !isSeeded) {
       setCurrentStep(nextStep);
       setSeeding(true);
-      await seedTourData();
+      const newCampaignId = await seedTourData();
       setSeeding(false);
-      // Auto-advance after seeding
       const stepAfterSeed = nextStep + 1;
       if (stepAfterSeed < TOUR_STEPS.length) {
         const navStep = TOUR_STEPS[stepAfterSeed];
-        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        if (navStep.navigateTo) {
+          // Substitute fresh campaign ID immediately (context state may not be flushed yet)
+          const resolved =
+            navStep.navigateTo.includes(":campaignId") && newCampaignId
+              ? navStep.navigateTo.replace(":campaignId", newCampaignId)
+              : resolveNavigateTo(navStep.navigateTo);
+          if (resolved) navigate(resolved);
+        }
         setCurrentStep(stepAfterSeed);
       }
       return;
@@ -192,25 +213,27 @@ export function OnboardingTour() {
       const stepAfterSeed = nextStep + 1;
       if (stepAfterSeed < TOUR_STEPS.length) {
         const navStep = TOUR_STEPS[stepAfterSeed];
-        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        const resolved = resolveNavigateTo(navStep.navigateTo);
+        if (resolved) navigate(resolved);
         setCurrentStep(stepAfterSeed);
       }
       return;
     }
 
-    if (next.navigateTo) navigate(next.navigateTo);
+    const resolved = resolveNavigateTo(next.navigateTo);
+    if (resolved) navigate(resolved);
     setCurrentStep(nextStep);
-  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip]);
+  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip, resolveNavigateTo]);
 
   const handlePrev = useCallback(() => {
     let prev = currentStep - 1;
-    // Skip the seeding step when going back
     if (prev >= 0 && TOUR_STEPS[prev].seedsData) prev--;
     if (prev < 0) prev = 0;
     const step = TOUR_STEPS[prev];
-    if (step.navigateTo) navigate(step.navigateTo);
+    const resolved = resolveNavigateTo(step.navigateTo);
+    if (resolved) navigate(resolved);
     setCurrentStep(prev);
-  }, [currentStep, navigate]);
+  }, [currentStep, navigate, resolveNavigateTo]);
 
   if (!visible) return null;
 
