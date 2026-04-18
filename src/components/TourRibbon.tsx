@@ -101,12 +101,12 @@ const TOUR_STEPS: TourStep[] = [
     tip: "AI-powered matching can auto-assign assets in real usage.",
   },
   {
-    title: "You're all set 🚀",
-    shortDesc: "Sample data stays visible until you turn it off.",
+    title: "Insights & Recommendations",
+    shortDesc: "AI-powered insights and optimization suggestions.",
     description:
-      "You now know the key workflow. Turn off Sample Mode from the badge in the top-right (or Settings) when you want to work with your real data.",
+      "Review automated insights and actionable recommendations generated from your campaign performance. Sample data is used so you can explore the full experience.",
     icon: <CheckCircle2 className="h-4 w-4" />,
-    navigateTo: "/overview",
+    navigateTo: "/insights",
   },
 ];
 
