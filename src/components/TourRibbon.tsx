@@ -134,15 +134,24 @@ export function TourRibbon() {
     else setTourActiveStep(null);
   }, [visible, currentStep]);
 
-  // Ribbon flows in normal document order at the top of the page so the page's
-  // sticky header naturally renders below it and isn't overlapped.
+  const resumeTour = useCallback(() => {
+    // Restore last active step if present, otherwise stay at current
+    const saved = localStorage.getItem("actiplan_tour_active_step");
+    if (saved !== null) {
+      const n = parseInt(saved);
+      if (!isNaN(n) && n >= 0 && n < TOUR_STEPS.length) setCurrentStep(n);
+    }
+    setVisible(true);
+  }, []);
 
-  const resumeTour = useCallback(() => setVisible(true), []);
-
+  // Expose resume both as a global and via custom event (for cross-tree calls)
   useEffect(() => {
     (window as any).__resumeOnboardingTour = resumeTour;
+    const handler = () => resumeTour();
+    window.addEventListener("tour-resume", handler);
     return () => {
       delete (window as any).__resumeOnboardingTour;
+      window.removeEventListener("tour-resume", handler);
     };
   }, [resumeTour]);
 
