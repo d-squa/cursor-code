@@ -954,7 +954,7 @@ const Overview = () => {
                 modificationRequests={data.modificationRequests}
                 completedByCategory={data.completedByCategory}
                 hasRecentAnalysis={data.hasRecentAnalysis}
-                isSampleData={data.campaign.id === displayData.sampleCampaignId}
+                isSampleData={data.campaign.is_sample}
                 statsByDateRange={data.statsByDateRange}
                 platformStatsByDateRange={data.platformStatsByDateRange}
               />
