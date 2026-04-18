@@ -18,6 +18,8 @@ import {
   Sparkles,
   Loader2,
   GraduationCap,
+  Lightbulb,
+  BarChart3,
 } from "lucide-react";
 import { useTourDataContext } from "@/contexts/TourDataContext";
 
@@ -66,13 +68,31 @@ const TOUR_STEPS: TourStep[] = [
     tip: "Click into the sample ActiPlan to explore targeting, budgets, and phases.",
   },
   {
-    title: "Performance Dashboard",
+    title: "Performance Overview Card",
     description:
-      "The Overview dashboard shows real-time pacing, performance metrics, and cross-platform insights. The sample data covers 2 months with realistic weekday/weekend patterns and gradual optimization improvements.",
+      "Each ActiPlan card shows overall pacing (time vs spend), per-platform pacing, and KPI status (under/on/over target) at a glance. The sample card highlights one platform overpacing, one on track, and one underpacing — exactly the kind of imbalance you want to catch early.",
     icon: <Rocket className="h-6 w-6" />,
     navigateTo: "/overview",
     isInteractive: true,
-    tip: "Try switching between platforms and date ranges to see the data change.",
+    tip: "Hover the pacing bars and KPI bars for detailed tooltips with absolute numbers.",
+  },
+  {
+    title: "Activity Stats & Modifications",
+    description:
+      "Below the pacing bars, every card aggregates Changes, Pending requests, Optimizations and Notes — both for the whole ActiPlan and split by platform. Use the Lifetime / Month / 7D toggle to spot recent activity spikes or stale campaigns.",
+    icon: <BarChart3 className="h-6 w-6" />,
+    navigateTo: "/overview",
+    isInteractive: true,
+    tip: "Expand 'By Platform' on a card to compare modification volume across Meta, TikTok and Google Ads.",
+  },
+  {
+    title: "Insights & Recommendations",
+    description:
+      "The Insights page generates AI-powered cross-platform analyses comparing time periods, breakdowns and platforms. We've pre-loaded a sample analysis so you can see the format: executive summary, per-platform highlights, recommendations and risks.",
+    icon: <Lightbulb className="h-6 w-6" />,
+    navigateTo: `/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/insights`,
+    isInteractive: true,
+    tip: "Open the History tab to load the pre-filled sample analysis.",
   },
   {
     title: "Set Up Your Clients",
