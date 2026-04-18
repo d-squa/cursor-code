@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,6 +85,7 @@ export default function UserManagement() {
 
   // Admins and owners can manage users (within the active workspace)
   const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
+  const { isSampleMode } = useSampleMode();
 
   const activeWorkspaceName = useMemo(() => activeWorkspace?.name ?? "Workspace", [activeWorkspace?.name]);
 
@@ -379,7 +381,7 @@ export default function UserManagement() {
         {canManageUsers && (
           <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={isSampleMode} title={isSampleMode ? "Disabled in Sample Mode" : undefined}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 Invite ActiPlanner
               </Button>
