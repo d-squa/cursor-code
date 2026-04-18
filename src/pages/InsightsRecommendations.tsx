@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -206,16 +207,18 @@ export default function InsightsRecommendations() {
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
 
-  // Feature access checks
-  const canAccessCrossPlatform = hasAccess('cross_platform_insights' as any) || 
+  const { isSampleMode } = useSampleMode();
+
+  // Feature access checks (Sample Mode bypasses all gates for the tour)
+  const canAccessCrossPlatform = isSampleMode || hasAccess('cross_platform_insights' as any) || 
     tier === 'enterprise' || tier === 'agency';
-  const canSaveUnlimited = hasAccess('unlimited_insights_saves' as any) || 
+  const canSaveUnlimited = isSampleMode || hasAccess('unlimited_insights_saves' as any) || 
     tier === 'enterprise' || tier === 'agency';
-  const canShareEmail = hasAccess('share_insights_email' as any) || 
+  const canShareEmail = isSampleMode || hasAccess('share_insights_email' as any) || 
     tier === 'enterprise' || tier === 'agency';
-  const canUseUnlimitedSegments = hasAccess('unlimited_segment_usage' as any) ||
+  const canUseUnlimitedSegments = isSampleMode || hasAccess('unlimited_segment_usage' as any) ||
     tier === 'enterprise' || tier === 'agency';
-  const canUseCompetitorAnalysis = tier === 'enterprise' || tier === 'agency';
+  const canUseCompetitorAnalysis = isSampleMode || tier === 'enterprise' || tier === 'agency';
   
   // Daily save limit for basic/freelancer
   const dailySaveLimit = canSaveUnlimited ? Infinity : 1;
