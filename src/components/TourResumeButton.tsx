@@ -14,6 +14,18 @@ export function setTourActiveStep(step: number | null) {
   window.dispatchEvent(new Event("tour-step-change"));
 }
 
+export function resumeTour() {
+  // Clear "completed" flag so the ribbon allows itself to show again
+  localStorage.removeItem("actiplan_tour_completed");
+  // Try the global handler first (works if TourRibbon is mounted)
+  const handler = (window as any).__resumeOnboardingTour;
+  if (typeof handler === "function") {
+    handler();
+  }
+  // Fire an event TourRibbon can listen to as a backup
+  window.dispatchEvent(new Event("tour-resume"));
+}
+
 export function getTourActiveStep(): number | null {
   const val = localStorage.getItem(TOUR_ACTIVE_KEY);
   return val !== null ? parseInt(val) : null;
