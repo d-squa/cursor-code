@@ -86,7 +86,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Two months of realistic synthetic performance data. Try filtering by platform and date range. All data is sample and read-only.",
     icon: <Rocket className="h-4 w-4" />,
-    navigateTo: "/overview",
+    navigateTo: "/performance",
     isInteractive: true,
     tip: "Switch platforms and date ranges to see how the dashboard reacts.",
   },
