@@ -68,29 +68,29 @@ const TOUR_STEPS: TourStep[] = [
     tip: "Click into the sample ActiPlan to explore targeting, budgets, and phases.",
   },
   {
-    title: "Performance Overview Card",
+    title: "Performance Overview",
     description:
-      "Each ActiPlan card shows overall pacing (time vs spend), per-platform pacing, and KPI status (under/on/over target) at a glance. The sample card highlights one platform overpacing, one on track, and one underpacing — exactly the kind of imbalance you want to catch early.",
+      "Each ActiPlan card shows overall pacing (time vs spend), per-platform pacing, KPI status (under/on/over target), and aggregated activity stats — Changes, Pending requests, Optimizations and Notes — both at the ActiPlan level and split by platform.",
     icon: <Rocket className="h-6 w-6" />,
     navigateTo: "/overview",
     isInteractive: true,
-    tip: "Hover the pacing bars and KPI bars for detailed tooltips with absolute numbers.",
+    tip: "Hover the bars for tooltips, expand 'By Platform', and toggle Lifetime / Month / 7D for the activity stats.",
   },
   {
-    title: "Activity Stats & Modifications",
+    title: "Performance Dashboard",
     description:
-      "Below the pacing bars, every card aggregates Changes, Pending requests, Optimizations and Notes — both for the whole ActiPlan and split by platform. Use the Lifetime / Month / 7D toggle to spot recent activity spikes or stale campaigns.",
+      "Click 'Check Performance' on any card — or use this step's deep link — to open the full performance dashboard for an ActiPlan: time-series charts, funnel analysis, market & platform comparison, and downloadable reports.",
     icon: <BarChart3 className="h-6 w-6" />,
-    navigateTo: "/overview",
+    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
     isInteractive: true,
-    tip: "Expand 'By Platform' on a card to compare modification volume across Meta, TikTok and Google Ads.",
+    tip: "Use the date range and breakdown filters at the top to slice the data.",
   },
   {
     title: "Insights & Recommendations",
     description:
-      "The Insights page generates AI-powered cross-platform analyses comparing time periods, breakdowns and platforms. We've pre-loaded a sample analysis so you can see the format: executive summary, per-platform highlights, recommendations and risks.",
+      "AI-powered cross-platform analyses comparing time periods, breakdowns and platforms. We've pre-loaded a sample analysis — open the History tab to view its executive summary, per-platform highlights, recommendations and risks.",
     icon: <Lightbulb className="h-6 w-6" />,
-    navigateTo: `/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/insights`,
+    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/insights",
     isInteractive: true,
     tip: "Open the History tab to load the pre-filled sample analysis.",
   },
