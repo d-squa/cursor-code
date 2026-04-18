@@ -85,6 +85,7 @@ export default function UserManagement() {
 
   // Admins and owners can manage users (within the active workspace)
   const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
+  const { isSampleMode } = useSampleMode();
 
   const activeWorkspaceName = useMemo(() => activeWorkspace?.name ?? "Workspace", [activeWorkspace?.name]);
 
