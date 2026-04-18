@@ -53,7 +53,16 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("user_id", userId)
         .eq("is_sample", true);
-      const sampleCampaignIds = (existingSampleCampaigns || []).map((c: any) => c.id);
+      // Also catch any prior campaign with the known sample bo_number that may not have the is_sample flag
+      const { data: existingByBoNumber } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("bo_number", "DSQUAD-Q4-2025");
+      const sampleCampaignIds = Array.from(new Set([
+        ...(existingSampleCampaigns || []).map((c: any) => c.id),
+        ...(existingByBoNumber || []).map((c: any) => c.id),
+      ]));
       if (sampleCampaignIds.length > 0) {
         await supabase.from("activity_logs").delete().in("campaign_id", sampleCampaignIds);
         await supabase.from("campaign_change_history").delete().in("campaign_id", sampleCampaignIds);
