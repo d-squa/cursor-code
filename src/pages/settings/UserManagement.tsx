@@ -381,7 +381,7 @@ export default function UserManagement() {
         {canManageUsers && (
           <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={isSampleMode} title={isSampleMode ? "Disabled in Sample Mode" : undefined}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 Invite ActiPlanner
               </Button>
