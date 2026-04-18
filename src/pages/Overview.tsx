@@ -42,6 +42,7 @@ interface Campaign {
   platforms?: any;
   forecast_data?: any;
   bo_number?: string;
+  is_sample?: boolean;
 }
 
 interface CampaignInsight {
@@ -84,89 +85,190 @@ interface CompletedRequestsByCategory {
   notesLast7Days: number;
 }
 
-// Generate sample data for mid-January scenario
-const generateSampleData = () => {
-  // Use the same sampleNow that pacing calculations use
-  const sampleNow = new Date("2026-01-16T12:00:00Z");
+// Curated demo overlay for the seeded tour ActiPlan (is_sample === true).
+// Showcases the value of this card: time ~50% elapsed, overall overpacing,
+// with one platform heavily overpacing, one on track, one underpacing.
+// KPIs per platform also include underachieving / on track / overachieving.
+interface DemoOverlay {
+  platformPacing: PlatformPacing[];
+  platformPerformance: PlatformPerformance[];
+  totalBudgetSpent: number;
+  totalTimePct: number;
+  totalBudgetPct: number;
+  totalPacingDiff: number;
+  totalDays: number;
+  elapsedDays: number;
+  modificationRequests: { total: number; pending: number };
+  completedByCategory: CompletedRequestsByCategory;
+  hasRecentAnalysis: boolean;
+  statsByDateRange: {
+    lifetime: { changes: number; pending: number; optimized: number; notes: number };
+    this_month: { changes: number; pending: number; optimized: number; notes: number };
+    last_7_days: { changes: number; pending: number; optimized: number; notes: number };
+  };
+  platformStatsByDateRange: Record<
+    string,
+    {
+      lifetime: { changes: number; pending: number; optimized: number; notes: number };
+      this_month: { changes: number; pending: number; optimized: number; notes: number };
+      last_7_days: { changes: number; pending: number; optimized: number; notes: number };
+    }
+  >;
+  pacingStatus: "on-track" | "overpacing" | "underpacing";
+  performanceStatus: ReturnType<typeof getPerformanceStatus> | null;
+}
 
-  const sampleCampaign: Campaign = {
-    id: "sample-campaign-1",
-    name: "Q4 Holiday Campaign 2025",
-    status: "live",
-    total_budget: 80000,
-    start_date: "2025-12-16T00:00:00Z",
-    end_date: "2026-01-31T23:59:59Z",
-    updated_at: sampleNow.toISOString(),
-    platforms: [
-      { name: "Meta", enabled: true, budgetPercentage: 62.5 }, // 50k of 80k
-      { name: "TikTok", enabled: true, budgetPercentage: 37.5 }, // 30k of 80k
-    ],
+const buildDemoOverlay = (campaign: Campaign): DemoOverlay => {
+  // Reference "now" sits roughly mid-flight of the campaign.
+  const start = new Date(campaign.start_date);
+  const end = new Date(campaign.end_date);
+  const totalDays = Math.max(differenceInDays(end, start), 1);
+  const elapsedDays = Math.round(totalDays * 0.5); // ~50% time elapsed
+  const timePct = (elapsedDays / totalDays) * 100;
+
+  const totalBudget = campaign.total_budget || 100000;
+
+  // Per-platform scenarios (budget % of totalBudget, pacing behavior).
+  const meta = {
+    name: "meta",
+    budgetTotal: totalBudget * 0.5,
+    // heavy overpacing: spent ~75% of budget at ~50% time → +25pp
+    budgetPct: timePct + 25,
+  };
+  const tiktok = {
+    name: "tiktok",
+    budgetTotal: totalBudget * 0.3,
+    // on track: spent matches time
+    budgetPct: timePct + 1,
+  };
+  const google = {
+    name: "google",
+    budgetTotal: totalBudget * 0.2,
+    // slightly underpacing
+    budgetPct: timePct - 9,
   };
 
-  // Simulate mid-January (Jan 16, 2026) - fetched_at relative to sampleNow
-  const sampleInsights: CampaignInsight[] = [
+  const platformPacing: PlatformPacing[] = [meta, tiktok, google].map((p) => {
+    const budgetSpent = (p.budgetTotal * p.budgetPct) / 100;
+    return {
+      platform: p.name,
+      budgetSpent,
+      budgetTotal: p.budgetTotal,
+      budgetPct: p.budgetPct,
+      timePct,
+      pacingDiff: p.budgetPct - timePct,
+      hasRecentImpressions: true,
+      lastImpressionAt: new Date().toISOString(),
+      startDate: campaign.start_date,
+      endDate: campaign.end_date,
+      totalDays,
+      elapsedDays,
+    };
+  });
+
+  const totalBudgetSpent = platformPacing.reduce((s, p) => s + p.budgetSpent, 0);
+  const totalBudgetPct = (totalBudgetSpent / totalBudget) * 100;
+  const totalPacingDiff = totalBudgetPct - timePct;
+
+  // KPI targets per platform — under / on / over.
+  // PerformanceBar status uses (actual / target) vs timePct. We pick actuals
+  // relative to timePct to land in the desired band.
+  const mkMetric = (
+    label: string,
+    kpi: string,
+    targetValue: number,
+    deltaPct: number, // delta from "on pace" (timePct), in percentage points
+  ): PerformanceMetric => ({
+    label,
+    kpi,
+    targetValue,
+    actualValue: targetValue * Math.max(0, (timePct + deltaPct) / 100),
+    timePct,
+  });
+
+  const platformPerformance: PlatformPerformance[] = [
     {
-      campaign_id: "sample-campaign-1",
       platform: "meta",
-      metrics: { spend: 41000, impressions: 2500000 },
-      fetched_at: new Date(sampleNow.getTime() - 30 * 60 * 1000).toISOString(), // 30 min before sampleNow
+      metrics: [
+        mkMetric("Impressions", "Impressions", 8_000_000, +18), // overachieving
+        mkMetric("Reach", "Reach", 3_500_000, +2), // on track
+        mkMetric("Conversions", "Conversions", 12_000, -22), // underachieving
+      ],
     },
     {
-      campaign_id: "sample-campaign-1",
       platform: "tiktok",
-      metrics: { spend: 14000, impressions: 1800000 },
-      fetched_at: new Date(sampleNow.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours before sampleNow
+      metrics: [
+        mkMetric("Impressions", "Impressions", 5_000_000, +1), // on track
+        mkMetric("Video Views", "Video Views", 2_000_000, +15), // overachieving
+        mkMetric("Clicks", "Clicks", 60_000, -18), // underachieving
+      ],
+    },
+    {
+      platform: "google",
+      metrics: [
+        mkMetric("Impressions", "Impressions", 4_000_000, -20), // underachieving
+        mkMetric("Clicks", "Clicks", 90_000, +1), // on track
+        mkMetric("Conversions", "Conversions", 5_500, +14), // overachieving
+      ],
     },
   ];
 
-  // Use dates relative to sampleNow so filters work correctly
-  // sampleNow = Jan 16, 2026
-  // thisMonthStart for sample = Jan 1, 2026
-  // last7Days for sample = Jan 9, 2026
-  const sampleModRequests: ModificationRequest[] = [
-    // Within last 7 days (Jan 14 - 2 days before Jan 16)
-    {
-      campaign_id: "sample-campaign-1",
-      status: "completed",
-      change_type: "budget",
-      updated_at: subDays(sampleNow, 2).toISOString(),
-    },
-    // Within this month but NOT last 7 days (Jan 5 - 11 days before Jan 16)
-    {
-      campaign_id: "sample-campaign-1",
-      status: "completed",
-      change_type: "targeting",
-      updated_at: subDays(sampleNow, 11).toISOString(),
-    },
-    // Within last 7 days (Jan 15 - 1 day before)
-    {
-      campaign_id: "sample-campaign-1",
-      status: "pending",
-      change_type: "creative",
-      updated_at: subDays(sampleNow, 1).toISOString(),
-    },
-    // Before this month - lifetime only (Dec 20, 2025 - 27 days before Jan 16)
-    {
-      campaign_id: "sample-campaign-1",
-      status: "completed",
-      change_type: "note",
-      updated_at: subDays(sampleNow, 27).toISOString(),
-    },
-    // Within last 7 days (Jan 13 - 3 days before)
-    {
-      campaign_id: "sample-campaign-1",
-      status: "completed",
-      change_type: "note",
-      updated_at: subDays(sampleNow, 3).toISOString(),
-    },
-  ];
+  // Activity stats — designed to read as an actively-managed campaign.
+  const statsByDateRange = {
+    lifetime: { changes: 14, pending: 2, optimized: 6, notes: 4 },
+    this_month: { changes: 7, pending: 2, optimized: 3, notes: 2 },
+    last_7_days: { changes: 3, pending: 1, optimized: 1, notes: 1 },
+  };
 
-  const sampleAnalyses: SavedAnalysis[] = [
-    { campaign_id: "sample-campaign-1", created_at: subDays(sampleNow, 2).toISOString() },
-  ];
+  const platformStatsByDateRange: DemoOverlay["platformStatsByDateRange"] = {
+    meta: {
+      lifetime: { changes: 7, pending: 1, optimized: 3, notes: 2 },
+      this_month: { changes: 4, pending: 1, optimized: 2, notes: 1 },
+      last_7_days: { changes: 2, pending: 1, optimized: 1, notes: 0 },
+    },
+    tiktok: {
+      lifetime: { changes: 4, pending: 0, optimized: 2, notes: 1 },
+      this_month: { changes: 2, pending: 0, optimized: 1, notes: 1 },
+      last_7_days: { changes: 1, pending: 0, optimized: 0, notes: 1 },
+    },
+    google: {
+      lifetime: { changes: 3, pending: 1, optimized: 1, notes: 1 },
+      this_month: { changes: 1, pending: 1, optimized: 0, notes: 0 },
+      last_7_days: { changes: 0, pending: 0, optimized: 0, notes: 0 },
+    },
+  };
 
-  return { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses };
+  const pacingStatus: "on-track" | "overpacing" | "underpacing" =
+    Math.abs(totalPacingDiff) <= 5 ? "on-track" : totalPacingDiff > 5 ? "overpacing" : "underpacing";
+
+  const performanceStatus = getPerformanceStatus(platformPerformance.flatMap((p) => p.metrics));
+
+  return {
+    platformPacing,
+    platformPerformance,
+    totalBudgetSpent,
+    totalTimePct: timePct,
+    totalBudgetPct,
+    totalPacingDiff,
+    totalDays,
+    elapsedDays,
+    modificationRequests: {
+      total: statsByDateRange.lifetime.changes,
+      pending: statsByDateRange.lifetime.pending,
+    },
+    completedByCategory: {
+      optimization: statsByDateRange.lifetime.optimized,
+      budget: 3,
+      notesLast7Days: statsByDateRange.last_7_days.notes,
+    },
+    hasRecentAnalysis: true,
+    statsByDateRange,
+    platformStatsByDateRange,
+    pacingStatus,
+    performanceStatus,
+  };
 };
+
 
 const Overview = () => {
   const { user, signOut } = useAuth();
@@ -285,21 +387,16 @@ const Overview = () => {
     loadData();
   };
 
-  // Get sample data
-  const sampleData = useMemo(() => generateSampleData(), []);
-
-  // Always include sample card first, then live campaigns
+  // Aggregate data (no more hardcoded sample card; the seeded tour ActiPlan
+  // already comes from the database when sample mode is enabled).
   const displayData = useMemo(() => {
-    const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = sampleData;
-
     return {
-      campaigns: [sampleCampaign, ...campaigns],
-      insights: [...sampleInsights, ...insights],
-      modRequests: [...sampleModRequests, ...modRequests],
-      savedAnalyses: [...sampleAnalyses, ...savedAnalyses],
-      sampleCampaignId: sampleCampaign.id,
+      campaigns,
+      insights,
+      modRequests,
+      savedAnalyses,
     };
-  }, [campaigns, insights, modRequests, savedAnalyses, sampleData]);
+  }, [campaigns, insights, modRequests, savedAnalyses]);
 
   // Sort campaigns: live first, then partially_pushed, then pushed_to_dsp, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
@@ -322,11 +419,9 @@ const Overview = () => {
   // Calculate pacing for each campaign
   const campaignPacingData = useMemo(() => {
     const realNow = new Date();
-    const sampleNow = new Date("2026-01-16T12:00:00Z");
 
     return sortedCampaigns.map((campaign) => {
-      // Use mid-January 2026 for sample campaign, real date for others
-      const now = campaign.id === "sample-campaign-1" ? sampleNow : realNow;
+      const now = realNow;
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const sevenDaysAgo = subDays(now, 7);
 
@@ -356,22 +451,6 @@ const Overview = () => {
             };
           }
         });
-      }
-
-      // For sample campaign, set platform-specific dates
-      if (campaign.id === "sample-campaign-1") {
-        platformConfig["tiktok"] = {
-          ...platformConfig["tiktok"],
-          budget: 30000,
-          startDate: "2026-01-01T00:00:00Z",
-          endDate: "2026-01-31T23:59:59Z",
-        };
-        platformConfig["meta"] = {
-          ...platformConfig["meta"],
-          budget: 50000,
-          startDate: "2025-12-16T00:00:00Z",
-          endDate: "2026-01-31T23:59:59Z",
-        };
       }
 
       campaignInsights.forEach((insight) => {
@@ -507,46 +586,12 @@ const Overview = () => {
         });
       }
 
-      // For sample campaign, add mock performance data
-      if (campaign.id === "sample-campaign-1") {
-        const metaTimePct = platformMap["meta"]?.timePct || timePct;
-        const tiktokTimePct = platformMap["tiktok"]?.timePct || timePct;
-
-        platformPerformance.push({
-          platform: "meta",
-          metrics: [
-            {
-              label: "Impressions",
-              kpi: "Impressions",
-              targetValue: 8000000,
-              actualValue: 2500000,
-              timePct: metaTimePct,
-            },
-            { label: "Reach", kpi: "Reach", targetValue: 3500000, actualValue: 1200000, timePct: metaTimePct },
-          ],
-        });
-        platformPerformance.push({
-          platform: "tiktok",
-          metrics: [
-            {
-              label: "Impressions",
-              kpi: "Impressions",
-              targetValue: 5000000,
-              actualValue: 1800000,
-              timePct: tiktokTimePct,
-            },
-            { label: "Views", kpi: "Video Views", targetValue: 2000000, actualValue: 850000, timePct: tiktokTimePct },
-          ],
-        });
-      }
-
       // Modification requests for this campaign
       const campaignModRequests = displayData.modRequests.filter((m) => m.campaign_id === campaign.id);
       const pendingRequests = campaignModRequests.filter((m) => m.status === "pending" || m.status === "sent").length;
 
       // Calculate stats by different date ranges
       const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
       const getStatsForDateRange = (requests: ModificationRequest[], rangeStart: Date | null) => {
         const filteredRequests = rangeStart
@@ -572,10 +617,7 @@ const Overview = () => {
       // Platform-level stats by date range
       const platformStatsByDateRange: Record<string, typeof statsByDateRange> = {};
       platformPacing.forEach((p) => {
-        // In a real scenario, mod requests would be tagged by platform
-        // For now, simulate platform distribution
         const platformRequests = campaignModRequests.filter((_, idx) => {
-          // Simple distribution: even indices for first platform, odd for second
           const platformIdx = platformPacing.findIndex((pp) => pp.platform === p.platform);
           return idx % platformPacing.length === platformIdx;
         });
@@ -586,7 +628,6 @@ const Overview = () => {
         };
       });
 
-      // Completed requests by category (legacy, kept for backward compat)
       const completedByCategory: CompletedRequestsByCategory = {
         optimization: campaignModRequests.filter(
           (m) => m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals"),
@@ -597,17 +638,24 @@ const Overview = () => {
         ).length,
       };
 
-      // Check for recent analysis this week
       const campaignAnalyses = displayData.savedAnalyses.filter((a) => a.campaign_id === campaign.id);
       const hasRecentAnalysis = campaignAnalyses.some((a) => isAfter(new Date(a.created_at), weekStart));
 
-      // Calculate pacing status
       const pacingStatus =
         Math.abs(totalPacingDiff) <= 5 ? "on-track" : totalPacingDiff > 5 ? "overpacing" : "underpacing";
 
-      // Calculate performance status
       const performanceStatus =
         platformPerformance.length > 0 ? getPerformanceStatus(platformPerformance.flatMap((p) => p.metrics)) : null;
+
+      // For the seeded tour ActiPlan, swap in the curated demo overlay so the
+      // card showcases the value of cross-platform pacing & KPI insights.
+      if (campaign.is_sample) {
+        const overlay = buildDemoOverlay(campaign);
+        return {
+          campaign,
+          ...overlay,
+        };
+      }
 
       return {
         campaign,
@@ -906,7 +954,7 @@ const Overview = () => {
                 modificationRequests={data.modificationRequests}
                 completedByCategory={data.completedByCategory}
                 hasRecentAnalysis={data.hasRecentAnalysis}
-                isSampleData={data.campaign.id === displayData.sampleCampaignId}
+                isSampleData={data.campaign.is_sample}
                 statsByDateRange={data.statsByDateRange}
                 platformStatsByDateRange={data.platformStatsByDateRange}
               />
