@@ -625,7 +625,7 @@ Deno.serve(async (req) => {
       forecast_data: forecastData,
       generic_config: genericConfig,
       is_sample: true,
-      bo_number: "DSQUAD-Q4-2025",
+      bo_number: `DSQUAD-Q4-2025-${userId.slice(0, 8)}`,
     };
 
     const { data: campaign, error: campError } = await supabase
