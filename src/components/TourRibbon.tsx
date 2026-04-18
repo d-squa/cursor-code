@@ -135,7 +135,7 @@ export function TourRibbon() {
   }, [visible, currentStep]);
 
   const resumeTour = useCallback(() => {
-    // Restore last active step if present, otherwise stay at current
+    console.log("[TourRibbon] resumeTour called");
     const saved = localStorage.getItem("actiplan_tour_active_step");
     if (saved !== null) {
       const n = parseInt(saved);
@@ -146,6 +146,7 @@ export function TourRibbon() {
 
   // Expose resume both as a global and via custom event (for cross-tree calls)
   useEffect(() => {
+    console.log("[TourRibbon] mounted, registering resume handler");
     (window as any).__resumeOnboardingTour = resumeTour;
     const handler = () => resumeTour();
     window.addEventListener("tour-resume", handler);
