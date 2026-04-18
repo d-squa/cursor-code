@@ -32,7 +32,7 @@ export function getTourActiveStep(): number | null {
 }
 
 interface TourResumeButtonProps {
-  onResume: () => void;
+  onResume?: () => void;
 }
 
 export function TourResumeButton({ onResume }: TourResumeButtonProps) {
@@ -55,10 +55,15 @@ export function TourResumeButton({ onResume }: TourResumeButtonProps) {
 
   if (!visible) return null;
 
+  const handleClick = () => {
+    if (onResume) onResume();
+    resumeTour();
+  };
+
   return (
     <Button
-      onClick={onResume}
-      className="fixed bottom-6 right-24 z-50 shadow-lg gap-2 rounded-full px-5 py-3 animate-in fade-in slide-in-from-bottom-4"
+      onClick={handleClick}
+      className="fixed bottom-6 right-24 z-[70] shadow-lg gap-2 rounded-full px-5 py-3 animate-in fade-in slide-in-from-bottom-4"
       size="lg"
     >
       <GraduationCap className="h-4 w-4" />
