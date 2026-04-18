@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
         .from("campaigns")
         .select("id")
         .eq("user_id", userId)
-        .eq("bo_number", "DSQUAD-Q4-2025");
+        .like("bo_number", "DSQUAD-Q4-2025%");
       const sampleCampaignIds = Array.from(new Set([
         ...(existingSampleCampaigns || []).map((c: any) => c.id),
         ...(existingByBoNumber || []).map((c: any) => c.id),
@@ -625,7 +625,7 @@ Deno.serve(async (req) => {
       forecast_data: forecastData,
       generic_config: genericConfig,
       is_sample: true,
-      bo_number: "DSQUAD-Q4-2025",
+      bo_number: `DSQUAD-Q4-2025-${userId.slice(0, 8)}`,
     };
 
     const { data: campaign, error: campError } = await supabase
