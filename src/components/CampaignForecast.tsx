@@ -563,8 +563,9 @@ export function CampaignForecast({
   }, [existingLoadComplete, versionsLoading, versions, hasExistingForecast, forecasts]);
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
+  // Note: we also auto-fetch in sample/tour mode so the seeded ActiPlan shows
+  // populated estimates instead of an empty "Click Fetch Forecasts" placeholder.
   useEffect(() => {
-    if (isSampleMode) return; // Tour mode: forecast is pre-loaded and read-only
     if (!existingLoadComplete) return;
     if (versionsLoading) return;
     if (loading) return;
@@ -575,7 +576,7 @@ export function CampaignForecast({
 
     // Trigger a single automatic fetch on first load of the Forecast step
     handleFetchForecasts(undefined);
-  }, [isSampleMode, existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
+  }, [existingLoadComplete, versionsLoading, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
