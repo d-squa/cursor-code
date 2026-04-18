@@ -71,10 +71,17 @@ export default function PerformanceReport() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
+  // Legacy hardcoded placeholder no longer exists — redirect away cleanly.
+  useEffect(() => {
+    if (campaignId === SAMPLE_CAMPAIGN_ID) {
+      navigate("/overview", { replace: true });
+    }
+  }, [campaignId, navigate]);
+
   // Automatically determine data source based on campaign ID
   const isSampleCampaign = campaignId === SAMPLE_CAMPAIGN_ID;
-  
+
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [launchStatuses, setLaunchStatuses] = useState<LaunchStatusEntry[]>([]);
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
