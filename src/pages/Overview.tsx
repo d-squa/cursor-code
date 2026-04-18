@@ -586,46 +586,12 @@ const Overview = () => {
         });
       }
 
-      // For sample campaign, add mock performance data
-      if (campaign.id === "sample-campaign-1") {
-        const metaTimePct = platformMap["meta"]?.timePct || timePct;
-        const tiktokTimePct = platformMap["tiktok"]?.timePct || timePct;
-
-        platformPerformance.push({
-          platform: "meta",
-          metrics: [
-            {
-              label: "Impressions",
-              kpi: "Impressions",
-              targetValue: 8000000,
-              actualValue: 2500000,
-              timePct: metaTimePct,
-            },
-            { label: "Reach", kpi: "Reach", targetValue: 3500000, actualValue: 1200000, timePct: metaTimePct },
-          ],
-        });
-        platformPerformance.push({
-          platform: "tiktok",
-          metrics: [
-            {
-              label: "Impressions",
-              kpi: "Impressions",
-              targetValue: 5000000,
-              actualValue: 1800000,
-              timePct: tiktokTimePct,
-            },
-            { label: "Views", kpi: "Video Views", targetValue: 2000000, actualValue: 850000, timePct: tiktokTimePct },
-          ],
-        });
-      }
-
       // Modification requests for this campaign
       const campaignModRequests = displayData.modRequests.filter((m) => m.campaign_id === campaign.id);
       const pendingRequests = campaignModRequests.filter((m) => m.status === "pending" || m.status === "sent").length;
 
       // Calculate stats by different date ranges
       const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
       const getStatsForDateRange = (requests: ModificationRequest[], rangeStart: Date | null) => {
         const filteredRequests = rangeStart
@@ -651,10 +617,7 @@ const Overview = () => {
       // Platform-level stats by date range
       const platformStatsByDateRange: Record<string, typeof statsByDateRange> = {};
       platformPacing.forEach((p) => {
-        // In a real scenario, mod requests would be tagged by platform
-        // For now, simulate platform distribution
         const platformRequests = campaignModRequests.filter((_, idx) => {
-          // Simple distribution: even indices for first platform, odd for second
           const platformIdx = platformPacing.findIndex((pp) => pp.platform === p.platform);
           return idx % platformPacing.length === platformIdx;
         });
@@ -665,7 +628,6 @@ const Overview = () => {
         };
       });
 
-      // Completed requests by category (legacy, kept for backward compat)
       const completedByCategory: CompletedRequestsByCategory = {
         optimization: campaignModRequests.filter(
           (m) => m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals"),
@@ -676,17 +638,24 @@ const Overview = () => {
         ).length,
       };
 
-      // Check for recent analysis this week
       const campaignAnalyses = displayData.savedAnalyses.filter((a) => a.campaign_id === campaign.id);
       const hasRecentAnalysis = campaignAnalyses.some((a) => isAfter(new Date(a.created_at), weekStart));
 
-      // Calculate pacing status
       const pacingStatus =
         Math.abs(totalPacingDiff) <= 5 ? "on-track" : totalPacingDiff > 5 ? "overpacing" : "underpacing";
 
-      // Calculate performance status
       const performanceStatus =
         platformPerformance.length > 0 ? getPerformanceStatus(platformPerformance.flatMap((p) => p.metrics)) : null;
+
+      // For the seeded tour ActiPlan, swap in the curated demo overlay so the
+      // card showcases the value of cross-platform pacing & KPI insights.
+      if (campaign.is_sample) {
+        const overlay = buildDemoOverlay(campaign);
+        return {
+          campaign,
+          ...overlay,
+        };
+      }
 
       return {
         campaign,
