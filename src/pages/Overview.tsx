@@ -419,11 +419,9 @@ const Overview = () => {
   // Calculate pacing for each campaign
   const campaignPacingData = useMemo(() => {
     const realNow = new Date();
-    const sampleNow = new Date("2026-01-16T12:00:00Z");
 
     return sortedCampaigns.map((campaign) => {
-      // Use mid-January 2026 for sample campaign, real date for others
-      const now = campaign.id === "sample-campaign-1" ? sampleNow : realNow;
+      const now = realNow;
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const sevenDaysAgo = subDays(now, 7);
 
@@ -453,22 +451,6 @@ const Overview = () => {
             };
           }
         });
-      }
-
-      // For sample campaign, set platform-specific dates
-      if (campaign.id === "sample-campaign-1") {
-        platformConfig["tiktok"] = {
-          ...platformConfig["tiktok"],
-          budget: 30000,
-          startDate: "2026-01-01T00:00:00Z",
-          endDate: "2026-01-31T23:59:59Z",
-        };
-        platformConfig["meta"] = {
-          ...platformConfig["meta"],
-          budget: 50000,
-          startDate: "2025-12-16T00:00:00Z",
-          endDate: "2026-01-31T23:59:59Z",
-        };
       }
 
       campaignInsights.forEach((insight) => {
