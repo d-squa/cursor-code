@@ -16,6 +16,7 @@ import {
   TikTokLocationConfig
 } from "@/utils/tiktokOptimizationLocationMapping";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface AdAccountDefaults {
   tiktokOptimizationLocation?: string;
@@ -47,6 +48,7 @@ interface TiktokPhaseConfigProps {
 export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: TiktokPhaseConfigProps) {
   const { hasAccess } = useFeatureAccess();
   const { user } = useAuth();
+  const { isSampleMode } = useSampleMode();
   const canInheritDefaults = hasAccess('bid_strategy_defaults');
   const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
   
@@ -266,7 +268,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   if (isReachOptimizationGoal) {
     console.log("✅ Rendering REACH frequency cap field only (placements auto-configured)");
     return (
-      <div className="space-y-4">
+      <fieldset disabled={isSampleMode} className={`space-y-4 ${isSampleMode ? "opacity-90 [&_*]:cursor-not-allowed" : ""}`}>
         <div className="space-y-2">
           <Label>Frequency Cap (impressions per 7 days)</Label>
           <Input
@@ -300,15 +302,18 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
             <strong>Placements:</strong> TikTok REACH campaigns are automatically configured to use TikTok placement only. Other placements (Pangle, Global App Bundle) are not available for this objective.
           </AlertDescription>
         </Alert>
-      </div>
+      </fieldset>
     );
   }
   
   return (
     <Card>
+      <fieldset disabled={isSampleMode} className={isSampleMode ? "opacity-90 [&_*]:cursor-not-allowed" : ""}>
       <CardHeader>
         <CardTitle className="text-base">TikTok Advanced Settings</CardTitle>
-        <CardDescription className="text-sm">Configure TikTok-specific campaign parameters</CardDescription>
+        <CardDescription className="text-sm">
+          {isSampleMode ? "Sample tour data — fields are read-only" : "Configure TikTok-specific campaign parameters"}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Optimization Location */}
@@ -980,6 +985,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
           </>
         )}
       </CardContent>
+      </fieldset>
     </Card>
   );
 }
