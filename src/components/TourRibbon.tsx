@@ -192,7 +192,8 @@ export function TourRibbon() {
       const stepAfterSeed = nextStep + 1;
       if (stepAfterSeed < TOUR_STEPS.length) {
         const navStep = TOUR_STEPS[stepAfterSeed];
-        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        const target = resolveNav(navStep.navigateTo);
+        if (target) navigate(target);
         setCurrentStep(stepAfterSeed);
       }
       return;
@@ -202,24 +203,27 @@ export function TourRibbon() {
       const stepAfterSeed = nextStep + 1;
       if (stepAfterSeed < TOUR_STEPS.length) {
         const navStep = TOUR_STEPS[stepAfterSeed];
-        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        const target = resolveNav(navStep.navigateTo);
+        if (target) navigate(target);
         setCurrentStep(stepAfterSeed);
       }
       return;
     }
 
-    if (next.navigateTo) navigate(next.navigateTo);
+    const target = resolveNav(next.navigateTo);
+    if (target) navigate(target);
     setCurrentStep(nextStep);
-  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip]);
+  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip, resolveNav]);
 
   const handlePrev = useCallback(() => {
     let prev = currentStep - 1;
     if (prev >= 0 && TOUR_STEPS[prev].seedsData) prev--;
     if (prev < 0) prev = 0;
     const step = TOUR_STEPS[prev];
-    if (step.navigateTo) navigate(step.navigateTo);
+    const target = resolveNav(step.navigateTo);
+    if (target) navigate(target);
     setCurrentStep(prev);
-  }, [currentStep, navigate]);
+  }, [currentStep, navigate, resolveNav]);
 
   if (!visible) return null;
 
