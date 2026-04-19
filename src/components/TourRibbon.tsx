@@ -86,7 +86,8 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Two months of realistic synthetic performance data. Try filtering by platform and date range. All data is sample and read-only.",
     icon: <Rocket className="h-4 w-4" />,
-    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
+    // navigateTo is resolved dynamically using the seeded campaign id
+    navigateTo: "__SAMPLE_CAMPAIGN_REPORT__",
     isInteractive: true,
     tip: "Switch platforms and date ranges to see how the dashboard reacts.",
   },
