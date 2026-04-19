@@ -49,7 +49,7 @@ import { AIAssistantSidebar } from "./components/AIAssistantSidebar";
 import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 import { TourDataProvider } from "./contexts/TourDataContext";
 import { SampleModeProvider } from "./contexts/SampleModeContext";
-import { TourResumeButton } from "./components/TourResumeButton";
+
 import { TourRibbon } from "./components/TourRibbon";
 import { SampleModeBadge } from "./components/SampleModeBadge";
 import { MarketingGTM } from "./components/MarketingGTM";
@@ -127,7 +127,6 @@ const App = () => (
           {/* Global floating components */}
           <BugReportButton />
           <AIAssistantSidebar />
-          <TourResumeButton onResume={() => (window as any).__resumeOnboardingTour?.()} />
           </SampleModeProvider>
         </TourDataProvider>
       </BrowserRouter>
