@@ -321,23 +321,27 @@ const Overview = () => {
       // RLS policies handle access control - we just need to filter to the right workspace
       let campaignData: Campaign[] | null = null;
 
+      const allowedStatuses = ["pushed_to_dsp", "partially_pushed", "live", "ended"];
       if (activeWorkspaceId) {
-        const { data } = await supabase
+        let q = supabase
           .from("campaigns")
           .select("*")
           .eq("team_id", activeWorkspaceId)
           .eq("is_sample", isSampleMode)
-          .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
           .order("updated_at", { ascending: false });
+        // In Sample Mode, bypass status filter so the seeded campaign always appears
+        if (!isSampleMode) q = q.in("status", allowedStatuses);
+        const { data } = await q;
         campaignData = data;
       } else {
-        const { data } = await supabase
+        let q = supabase
           .from("campaigns")
           .select("*")
           .eq("user_id", user.id)
           .eq("is_sample", isSampleMode)
-          .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
           .order("updated_at", { ascending: false });
+        if (!isSampleMode) q = q.in("status", allowedStatuses);
+        const { data } = await q;
         campaignData = data;
       }
 
