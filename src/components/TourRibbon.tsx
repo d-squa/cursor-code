@@ -288,14 +288,19 @@ export function TourRibbon() {
               Back
             </Button>
           )}
-          <Button size="sm" onClick={handleNext} className="h-8 gap-1" disabled={seeding}>
+          <Button
+            size="sm"
+            onClick={currentStep === TOUR_STEPS.length - 1 ? handleFinishAndDisable : handleNext}
+            className="h-8 gap-1"
+            disabled={seeding}
+          >
             {seeding ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin" />
                 Loading…
               </>
             ) : currentStep === TOUR_STEPS.length - 1 ? (
-              "Finish"
+              "Finish & turn off Sample Data"
             ) : (
               <>
                 Next
