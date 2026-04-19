@@ -86,7 +86,8 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Two months of realistic synthetic performance data. Try filtering by platform and date range. All data is sample and read-only.",
     icon: <Rocket className="h-4 w-4" />,
-    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
+    // navigateTo is resolved dynamically using the seeded campaign id
+    navigateTo: "__SAMPLE_CAMPAIGN_REPORT__",
     isInteractive: true,
     tip: "Switch platforms and date ranges to see how the dashboard reacts.",
   },
@@ -118,7 +119,20 @@ export function TourRibbon() {
   const [seeding, setSeeding] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
-  const { seedTourData, isSeeded } = useTourDataContext();
+  const { seedTourData, isSeeded, seededCampaignId } = useTourDataContext();
+
+  const resolveNav = useCallback(
+    (path?: string) => {
+      if (!path) return path;
+      if (path === "__SAMPLE_CAMPAIGN_REPORT__") {
+        return seededCampaignId
+          ? `/actiplans/${seededCampaignId}/report`
+          : "/actiplans";
+      }
+      return path;
+    },
+    [seededCampaignId]
+  );
 
   useEffect(() => {
     const completed = localStorage.getItem(TOUR_STORAGE_KEY);
@@ -178,7 +192,8 @@ export function TourRibbon() {
       const stepAfterSeed = nextStep + 1;
       if (stepAfterSeed < TOUR_STEPS.length) {
         const navStep = TOUR_STEPS[stepAfterSeed];
-        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        const target = resolveNav(navStep.navigateTo);
+        if (target) navigate(target);
         setCurrentStep(stepAfterSeed);
       }
       return;
@@ -188,24 +203,27 @@ export function TourRibbon() {
       const stepAfterSeed = nextStep + 1;
       if (stepAfterSeed < TOUR_STEPS.length) {
         const navStep = TOUR_STEPS[stepAfterSeed];
-        if (navStep.navigateTo) navigate(navStep.navigateTo);
+        const target = resolveNav(navStep.navigateTo);
+        if (target) navigate(target);
         setCurrentStep(stepAfterSeed);
       }
       return;
     }
 
-    if (next.navigateTo) navigate(next.navigateTo);
+    const target = resolveNav(next.navigateTo);
+    if (target) navigate(target);
     setCurrentStep(nextStep);
-  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip]);
+  }, [currentStep, isSeeded, seedTourData, navigate, handleSkip, resolveNav]);
 
   const handlePrev = useCallback(() => {
     let prev = currentStep - 1;
     if (prev >= 0 && TOUR_STEPS[prev].seedsData) prev--;
     if (prev < 0) prev = 0;
     const step = TOUR_STEPS[prev];
-    if (step.navigateTo) navigate(step.navigateTo);
+    const target = resolveNav(step.navigateTo);
+    if (target) navigate(target);
     setCurrentStep(prev);
-  }, [currentStep, navigate]);
+  }, [currentStep, navigate, resolveNav]);
 
   if (!visible) return null;
 

@@ -37,6 +37,7 @@ interface Campaign {
   platforms?: any;
   generic_config?: any;
   market_splits?: any;
+  is_sample?: boolean;
 }
 
 interface ConnectedPlatform {
@@ -331,7 +332,7 @@ export default function InsightsRecommendations() {
       const [campaignsRes, platformsRes, savedRes, clientsRes] = await Promise.all([
         supabase
           .from('campaigns')
-          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits')
+          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits, is_sample')
           .eq('user_id', user.id)
           .in('status', ['pushed_to_dsp', 'live', 'partially_pushed', 'approved', 'ready_for_push'])
           .order('created_at', { ascending: false }),
@@ -477,18 +478,24 @@ export default function InsightsRecommendations() {
 
   // Filter campaigns based on platform selection (for non-cross-platform tiers)
   const filteredCampaigns = useMemo(() => {
-    if (canAccessCrossPlatform) return campaigns;
-    
+    // In Sample Mode, restrict to the seeded tour campaign(s) only
+    let base = campaigns;
+    if (isSampleMode) {
+      base = campaigns.filter(c => (c as any).is_sample === true || /Q4 Holiday Campaign/i.test(c.name));
+    }
+
+    if (canAccessCrossPlatform) return base;
+
     // For basic/freelancer, only show campaigns that have selected platforms
-    return campaigns.filter(c => {
-      const campaignPlatforms = c.platforms?.map((p: any) => 
+    return base.filter(c => {
+      const campaignPlatforms = c.platforms?.map((p: any) =>
         (p.type || p.name || '').toLowerCase()
       ) || [];
-      return selectedPlatforms.some(sp => 
+      return selectedPlatforms.some(sp =>
         campaignPlatforms.includes(sp.toLowerCase())
       );
     });
-  }, [campaigns, selectedPlatforms, canAccessCrossPlatform]);
+  }, [campaigns, selectedPlatforms, canAccessCrossPlatform, isSampleMode]);
 
   const runAnalysis = async () => {
     if (selectedCampaignIds.length === 0) {
