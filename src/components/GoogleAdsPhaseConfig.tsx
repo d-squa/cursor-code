@@ -15,6 +15,7 @@ import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { KeywordItem, KeywordStrategy } from "./KeywordTargeting";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface GoogleAdsPhaseConfigProps {
   phase: Phase;
@@ -61,6 +62,7 @@ function formatVol(vol?: number) {
 }
 
 export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, selectedKeywords, googleDefaults }: GoogleAdsPhaseConfigProps) {
+  const { isSampleMode } = useSampleMode();
   const campaignTypes = getGoogleAdsCampaignTypes();
   const selectedType = phase.googleCampaignType || "";
   const subtypes = useMemo(() => selectedType ? getGoogleAdsSubtypes(selectedType) : [], [selectedType]);
@@ -224,11 +226,14 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
   }, [isSearchCampaign, selectedKeywords]);
 
   return (
-    <div className="space-y-4 border-t pt-4">
+    <fieldset disabled={isSampleMode} className={`space-y-4 border-t pt-4 ${isSampleMode ? "opacity-90 [&_*]:cursor-not-allowed" : ""}`}>
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-200">
           Google Ads
         </Badge>
+        {isSampleMode && (
+          <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">Sample tour — read-only</Badge>
+        )}
       </div>
 
       {/* Campaign Type */}
@@ -788,6 +793,6 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
           </div>
         </>
       )}
-    </div>
+    </fieldset>
   );
 }

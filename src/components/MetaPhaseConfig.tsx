@@ -10,6 +10,7 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { getOptimizationGoalsForObjective, getBillingEventForGoal } from "@/utils/objectiveOptimizationMapping";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface AdAccountDefaults {
   metaBidStrategy?: string;
@@ -35,6 +36,7 @@ interface MetaPhaseConfigProps {
 export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhaseConfigProps) {
   const { hasAccess } = useFeatureAccess();
   const { user } = useAuth();
+  const { isSampleMode } = useSampleMode();
   const canInheritDefaults = hasAccess('bid_strategy_defaults');
   
   // Catalog & Product Set data from DB
@@ -214,9 +216,12 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
 
   return (
     <Card>
+      <fieldset disabled={isSampleMode} className={isSampleMode ? "opacity-90 [&_*]:cursor-not-allowed" : ""}>
       <CardHeader>
         <CardTitle className="text-base">Meta Advanced Settings</CardTitle>
-        <CardDescription className="text-sm">Configure Meta-specific campaign parameters</CardDescription>
+        <CardDescription className="text-sm">
+          {isSampleMode ? "Sample tour data — fields are read-only" : "Configure Meta-specific campaign parameters"}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Advantage+ Campaign */}
@@ -499,6 +504,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
           )}
         </div>
       </CardContent>
+      </fieldset>
     </Card>
   );
 }
