@@ -119,7 +119,20 @@ export function TourRibbon() {
   const [seeding, setSeeding] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
-  const { seedTourData, isSeeded } = useTourDataContext();
+  const { seedTourData, isSeeded, seededCampaignId } = useTourDataContext();
+
+  const resolveNav = useCallback(
+    (path?: string) => {
+      if (!path) return path;
+      if (path === "__SAMPLE_CAMPAIGN_REPORT__") {
+        return seededCampaignId
+          ? `/actiplans/${seededCampaignId}/report`
+          : "/actiplans";
+      }
+      return path;
+    },
+    [seededCampaignId]
+  );
 
   useEffect(() => {
     const completed = localStorage.getItem(TOUR_STORAGE_KEY);
