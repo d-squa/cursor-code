@@ -372,6 +372,8 @@ Deno.serve(async (req) => {
                 metaBidStrategy: "COST_CAP", metaBidAmount: 18, metaBillingEvent: "IMPRESSIONS",
                 metaOptimizationLocation: "WEBSITE", metaConversionCount: "all_conversions",
                 metaClickWindow: 7, metaViewWindow: 1,
+                metaAdvantagePlusCampaign: false,
+                metaAdvantagePlusAudience: false, metaAdvantagePlusCreative: true,
                 audiences: [sharedAudiences[1], sharedAudiences[2]],
                 excludedAudiences: [{ id: "aud-purchasers", name: "Purchasers 30d", type: "custom", source: "meta" }],
                 autoExcludeAudiences: true,
