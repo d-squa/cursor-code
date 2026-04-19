@@ -128,7 +128,7 @@ export function TourRibbon() {
   const [seeding, setSeeding] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
-  const { seedTourData, isSeeded, seededCampaignId } = useTourDataContext();
+  const { seedTourData, isSeeded, seededCampaignId, toggleVisibility, isVisible } = useTourDataContext();
 
   const resolveNav = useCallback(
     (path?: string) => {
@@ -184,6 +184,16 @@ export function TourRibbon() {
     setTourActiveStep(null);
     setVisible(false);
   }, []);
+
+  const handleFinishAndDisable = useCallback(async () => {
+    if (isVisible) {
+      try { await toggleVisibility(false); } catch {}
+    }
+    localStorage.setItem(TOUR_STORAGE_KEY, new Date().toISOString());
+    setTourActiveStep(null);
+    setVisible(false);
+    navigate("/overview");
+  }, [isVisible, toggleVisibility, navigate]);
 
   const handleNext = useCallback(async () => {
     const nextStep = currentStep + 1;
