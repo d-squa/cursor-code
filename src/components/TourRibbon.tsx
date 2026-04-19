@@ -109,6 +109,15 @@ const TOUR_STEPS: TourStep[] = [
     icon: <CheckCircle2 className="h-4 w-4" />,
     navigateTo: "/insights",
   },
+  {
+    title: "You're all set 🎉",
+    shortDesc: "Wrap up the tour and switch back to your real workspace.",
+    description:
+      "Click 'Finish & turn off Sample Data' to hide the demo accounts, client and campaign and return to your real workspace. You can re-enable Sample Data anytime from Settings → Account, or replay this tour from the help menu.",
+    icon: <CheckCircle2 className="h-4 w-4" />,
+    navigateTo: "/overview",
+    tip: "Sample data stays in the database (hidden) so you can toggle it back on anytime without re-seeding.",
+  },
 ];
 
 const TOUR_STORAGE_KEY = "actiplan_tour_completed";
