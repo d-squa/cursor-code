@@ -901,6 +901,8 @@ const Overview = () => {
                 </div>
               )}
               <Button
+                disabled={isSampleMode}
+                title={isSampleMode ? "Disabled during the sample tour" : undefined}
                 onClick={() => {
                   localStorage.removeItem("draftCampaignId");
                   localStorage.removeItem("basicTargeting");
