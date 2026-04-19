@@ -329,13 +329,19 @@ export default function InsightsRecommendations() {
     if (!user) return;
     
     try {
+      const campaignsQuery = supabase
+        .from('campaigns')
+        .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits, is_sample')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      // In Sample Mode, don't filter by status (seeded campaign may have any status)
+      if (!isSampleMode) {
+        campaignsQuery.in('status', ['pushed_to_dsp', 'live', 'partially_pushed', 'approved', 'ready_for_push']);
+      }
+
       const [campaignsRes, platformsRes, savedRes, clientsRes] = await Promise.all([
-        supabase
-          .from('campaigns')
-          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits, is_sample')
-          .eq('user_id', user.id)
-          .in('status', ['pushed_to_dsp', 'live', 'partially_pushed', 'approved', 'ready_for_push'])
-          .order('created_at', { ascending: false }),
+        campaignsQuery,
         supabase
           .from('connected_platforms')
           .select('id, platform_type, platform_name, ad_account_id, ad_account_name')
