@@ -232,7 +232,7 @@ export default function InsightsRecommendations() {
 
   useEffect(() => {
     loadData();
-  }, [user, campaignId]);
+  }, [user, campaignId, isSampleMode]);
 
   // Persist in-progress state so a refresh/remount doesn't wipe the current analysis.
   useEffect(() => {
