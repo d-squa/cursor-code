@@ -37,6 +37,7 @@ interface Campaign {
   platforms?: any;
   generic_config?: any;
   market_splits?: any;
+  is_sample?: boolean;
 }
 
 interface ConnectedPlatform {
@@ -331,7 +332,7 @@ export default function InsightsRecommendations() {
       const [campaignsRes, platformsRes, savedRes, clientsRes] = await Promise.all([
         supabase
           .from('campaigns')
-          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits')
+          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits, is_sample')
           .eq('user_id', user.id)
           .in('status', ['pushed_to_dsp', 'live', 'partially_pushed', 'approved', 'ready_for_push'])
           .order('created_at', { ascending: false }),
