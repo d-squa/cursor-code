@@ -349,8 +349,12 @@ Deno.serve(async (req) => {
                 objective: "OUTCOME_TRAFFIC", optimizationGoal: "LINK_CLICKS",
                 budgetPercentage: 35, budgetType: "daily",
                 startDate: formatDate(startDate), endDate: formatDate(endDate),
-                metaBidStrategy: "LOWEST_COST_WITHOUT_CAP", metaBillingEvent: "IMPRESSIONS",
+                metaBidStrategy: "LOWEST_COST_WITHOUT_CAP", metaBillingEvent: "LINK_CLICKS",
                 metaLandingPageUrl: "https://demo-brand.example.com/shop",
+                metaAdvantagePlusCampaign: false,
+                metaAdvantagePlusAudience: true, metaAdvantagePlusCreative: true,
+                metaClickWindow: 1, metaViewWindow: 1,
+                metaConversionCount: "all_conversions",
                 audiences: [sharedAudiences[0], sharedAudiences[1]],
                 detailedTargeting: sharedInterests,
                 adSets: [
