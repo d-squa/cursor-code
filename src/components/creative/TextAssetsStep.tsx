@@ -111,13 +111,7 @@ export function TextAssetsStep({
   // Track AC group compiled specs for persistence
   const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
   const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
-  const shellContextRef = useRef<{
-    campaignName: string;
-    generic: any;
-    keywords: GoogleKeywordLike[];
-    expansion: ReturnType<typeof buildExpandedStructure>;
-    adRows: ReturnType<typeof buildAdRowsFromAssignments>;
-  } | null>(null);
+  const shellContextRef = useRef<GoogleShellContext | null>(null);
 
   useEffect(() => {
     const detectGoogle = async () => {
