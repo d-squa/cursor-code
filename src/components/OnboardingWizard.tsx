@@ -268,11 +268,21 @@ export const OnboardingWizard = () => {
     }
   };
 
-  const handleSkip = async () => {
-    // Store partial onboarding data and mark as complete
+  const handleSkip = async (permanent = false) => {
+    // Track skip count across sessions
+    const prevSkipCount = parseInt(localStorage.getItem("actiplan_onboarding_skip_count") || "0", 10);
+    const newSkipCount = prevSkipCount + 1;
+    localStorage.setItem("actiplan_onboarding_skip_count", String(newSkipCount));
+
+    if (permanent) {
+      localStorage.setItem("actiplan_onboarding_dismissed", "true");
+    }
+
+    // Store partial onboarding data and mark as complete (for this session)
     localStorage.setItem("actiplan_onboarding", JSON.stringify({
       ...formData,
       skipped: true,
+      permanentlyDismissed: permanent,
       completedAt: new Date().toISOString()
     }));
     
