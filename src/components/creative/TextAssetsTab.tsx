@@ -1,5 +1,5 @@
 // Text Assets Tab - Page/editor for editing text assets for a specific ActiPlan
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,20 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
+import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
+import {
+  buildExpandedStructure,
+  buildAdRowsFromAssignments,
+  buildCurrentKeywordRows,
+  downloadGoogleAdsShell,
+  parseGoogleAdsShell,
+  diffShell,
+  applyKeywordDiff,
+  adChangesToAssignmentUpdate,
+  type GoogleAdsShellDiff,
+  type GoogleKeywordLike,
+  type AssignmentLite,
+} from '@/utils/googleAdsEditorExcel';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
@@ -582,6 +596,173 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
   const effectiveCampaignName = campaignName || selectedCampaign?.name;
 
+  // ============= Google Ads Shell (Search / PMax / Lead Gen) =============
+  const hasGoogleRows = useMemo(() => rows.some((r) => r.platform === 'google'), [rows]);
+  const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
+  const [shellOpen, setShellOpen] = useState(false);
+
+  /** Build the (expansion, keywords, ad rows) tuple for the current campaign. */
+  const loadGoogleShellContext = useCallback(async () => {
+    if (!effectiveCampaignId) throw new Error('No ActiPlan selected');
+
+    const { data: camp, error: campErr } = await supabase
+      .from('campaigns')
+      .select('name, generic_config, market_splits')
+      .eq('id', effectiveCampaignId)
+      .single();
+    if (campErr) throw campErr;
+
+    const generic = (camp?.generic_config as any) || {};
+    const phases = (generic.phases || []).filter((p: any) =>
+      Array.isArray(p?.platforms) ? p.platforms.includes('google') : true,
+    );
+    const keywords: GoogleKeywordLike[] = Array.isArray(generic.selectedKeywords)
+      ? generic.selectedKeywords
+      : [];
+
+    // Markets that have Google enabled
+    const splits = (camp?.market_splits as Record<string, any>) || {};
+    const googleMarketSet = new Set<string>();
+    for (const [key, list] of Object.entries(splits)) {
+      if (key.toLowerCase().includes('google') && Array.isArray(list)) {
+        for (const m of list) if (m?.name) googleMarketSet.add(String(m.name));
+      }
+    }
+    // Fallback: derive from current rows
+    if (googleMarketSet.size === 0) {
+      for (const r of rows) if (r.platform === 'google' && r.market) googleMarketSet.add(r.market);
+    }
+    const markets = Array.from(googleMarketSet);
+
+    const expansion = buildExpandedStructure({
+      campaignName: camp?.name || effectiveCampaignName || 'Campaign',
+      phases: phases.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        googleCampaignType: p.googleCampaignType,
+        googleSearchSplitLevel: p.googleSearchSplitLevel,
+        adSets: p.adSets,
+        market: p.market,
+      })),
+      markets,
+      keywords,
+    });
+
+    // Pull full Google assignments with the new RSA / PMax columns
+    const { data: assignments, error: aErr } = await supabase
+      .from('creative_assignments')
+      .select(
+        `id, platform, market, phase_name, ad_set_name, ad_strategy, ad_group_name,
+         destination_url, path_1, path_2,
+         headline, headline_2, headline_3, headline_4, headline_5,
+         description, description_2, description_3, description_4, description_5,
+         headline_pins, description_pins,
+         long_headline_1, long_headline_2, long_headline_3, long_headline_4, long_headline_5,
+         business_name,
+         creatives ( name )`,
+      )
+      .eq('campaign_id', effectiveCampaignId)
+      .eq('platform', 'google');
+    if (aErr) throw aErr;
+
+    const adRows = buildAdRowsFromAssignments(
+      (assignments || []) as unknown as AssignmentLite[],
+      expansion,
+    );
+
+    return {
+      campaignName: camp?.name || effectiveCampaignName || 'Campaign',
+      generic,
+      keywords,
+      expansion,
+      adRows,
+    };
+  }, [effectiveCampaignId, effectiveCampaignName, rows]);
+
+  const handleDownloadGoogleAdsShell = useCallback(async () => {
+    try {
+      const ctx = await loadGoogleShellContext();
+      downloadGoogleAdsShell({
+        campaignName: ctx.campaignName,
+        expansion: ctx.expansion,
+        keywords: ctx.keywords,
+        adRows: ctx.adRows,
+      });
+      toast.success('Google Ads shell downloaded');
+    } catch (err) {
+      console.error('[GoogleAdsShell] download failed', err);
+      toast.error('Failed to download Google Ads shell');
+    }
+  }, [loadGoogleShellContext]);
+
+  const shellContextRef = useRef<Awaited<ReturnType<typeof loadGoogleShellContext>> | null>(null);
+
+  const handleUploadGoogleAdsShell = useCallback(
+    async (file: File) => {
+      try {
+        const ctx = await loadGoogleShellContext();
+        shellContextRef.current = ctx;
+        const parsed = await parseGoogleAdsShell(file);
+        const currentKeywordRows = buildCurrentKeywordRows(ctx.keywords, ctx.expansion);
+        const diff = diffShell({
+          current: { keywords: currentKeywordRows, ads: ctx.adRows },
+          uploaded: parsed,
+        });
+        setShellDiff(diff);
+        setShellOpen(true);
+      } catch (err) {
+        console.error('[GoogleAdsShell] upload parse failed', err);
+        toast.error('Could not read the Google Ads shell file');
+      }
+    },
+    [loadGoogleShellContext],
+  );
+
+  const applyShellDiff = useCallback(async (selected: GoogleAdsShellDiff) => {
+    const ctx = shellContextRef.current;
+    if (!ctx || !effectiveCampaignId) return;
+    try {
+      // 1) Apply keyword changes -> rewrite generic_config.selectedKeywords
+      const hasKwChange =
+        selected.keywords.added.length +
+          selected.keywords.updated.length +
+          selected.keywords.removed.length >
+        0;
+      if (hasKwChange) {
+        const nextKeywords = applyKeywordDiff(ctx.keywords, selected.keywords, ctx.expansion);
+        const nextGeneric = { ...(ctx.generic || {}), selectedKeywords: nextKeywords };
+        const { error } = await supabase
+          .from('campaigns')
+          .update({ generic_config: nextGeneric })
+          .eq('id', effectiveCampaignId);
+        if (error) throw error;
+      }
+
+      // 2) Apply per-assignment ad updates
+      for (const u of selected.ads.updated) {
+        const payload = adChangesToAssignmentUpdate(u.changes);
+        if (Object.keys(payload).length === 0) continue;
+        const { error } = await supabase
+          .from('creative_assignments')
+          .update(payload as any)
+          .eq('id', u.assignmentId);
+        if (error) throw error;
+      }
+
+      const total =
+        selected.keywords.added.length +
+        selected.keywords.updated.length +
+        selected.keywords.removed.length +
+        selected.ads.updated.length;
+      toast.success(`Applied ${total} change(s) from the Google Ads shell`);
+      setRefreshNonce((n) => n + 1);
+    } catch (err) {
+      console.error('[GoogleAdsShell] apply failed', err);
+      toast.error('Failed to apply Google Ads shell changes');
+    }
+  }, [effectiveCampaignId]);
+
+
   if (isLoadingCampaigns) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -672,9 +853,18 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             isSaving={isSaving}
             onACGroupCreated={handleACGroupCreated}
             onACGroupRemoved={handleACGroupRemoved}
+            hasGoogleRows={hasGoogleRows}
+            onDownloadGoogleAdsShell={handleDownloadGoogleAdsShell}
+            onUploadGoogleAdsShell={handleUploadGoogleAdsShell}
           />
         </div>
       ) : null}
+      <GoogleAdsShellReviewDialog
+        open={shellOpen}
+        onOpenChange={setShellOpen}
+        diff={shellDiff}
+        onApply={applyShellDiff}
+      />
     </div>
   );
 }

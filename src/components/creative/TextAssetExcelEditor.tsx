@@ -69,6 +69,12 @@ interface TextAssetExcelEditorProps {
   onACGroupCreated?: (group: DetectedACGroup, compiled: CompilationResult) => void;
   /** Called when an asset customization group is removed */
   onACGroupRemoved?: (groupId: string) => void;
+  /** Optional: download the Google Ads Editor shell xlsx (Search/PMax/Lead Gen). */
+  onDownloadGoogleAdsShell?: () => void | Promise<void>;
+  /** Optional: handle re-upload of a Google Ads Editor shell xlsx. */
+  onUploadGoogleAdsShell?: (file: File) => void | Promise<void>;
+  /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
+  hasGoogleRows?: boolean;
 }
 
 // Grid column definition - now includes checkbox for multi-select
@@ -225,7 +231,18 @@ export function TextAssetExcelEditor({
   onUngroupRow,
   onACGroupCreated,
   onACGroupRemoved,
+  onDownloadGoogleAdsShell,
+  onUploadGoogleAdsShell,
+  hasGoogleRows,
 }: TextAssetExcelEditorProps) {
+  const googleShellInputRef = useRef<HTMLInputElement>(null);
+  const handleGoogleShellPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUploadGoogleAdsShell) return;
+    try { await onUploadGoogleAdsShell(file); } finally {
+      if (googleShellInputRef.current) googleShellInputRef.current.value = '';
+    }
+  }, [onUploadGoogleAdsShell]);
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -1769,6 +1786,39 @@ export function TextAssetExcelEditor({
             className="hidden"
             onChange={handleFileUpload}
           />
+          {hasGoogleRows && onDownloadGoogleAdsShell && (
+            <>
+              <div className="h-5 w-px bg-border mx-1" />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={() => onDownloadGoogleAdsShell()}>
+                      <Download className="h-4 w-4 mr-1" />
+                      Google Ads Shell
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Download a Google Ads Editor xlsx (Campaigns, Keywords, Ads tabs) for Search / PMax / Lead Gen.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {onUploadGoogleAdsShell && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => googleShellInputRef.current?.click()}>
+                    <Upload className="h-4 w-4 mr-1" />
+                    Upload Shell
+                  </Button>
+                  <input
+                    ref={googleShellInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={handleGoogleShellPick}
+                  />
+                </>
+              )}
+            </>
+          )}
           <div className="h-5 w-px bg-border mx-1" />
           <Select onValueChange={(value) => {
             if (value === 'all') selectAllBlanks();
