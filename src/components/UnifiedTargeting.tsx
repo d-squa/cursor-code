@@ -95,6 +95,8 @@ export interface UnifiedTargetingConfig {
   // NEW: Per-platform split dimensions
   defaultAdSetSplitDimensionPerPlatform?: AdSetSplitDimensionPerPlatform;
   defaultAdSetSplitUseCBO?: boolean;
+  /** For Google Search default splits: whether split variants become campaigns or ad groups. */
+  defaultGoogleSearchSplitLevel?: 'campaign' | 'adgroup';
   // Legacy: Default ad sets configuration (for backwards compatibility)
   defaultAdSets?: AdSetConfig[];
   // NEW: Per-platform ad sets configuration
@@ -904,15 +906,16 @@ export function UnifiedTargeting({
           if (!open) setPendingSplitSelection(null);
         }}
         dimensionLabel={pendingSplitSelection ? SPLIT_DIMENSION_LABELS[pendingSplitSelection.dimension] : ''}
-        onSelectCBO={() => {
+        askSplitLevel={!!(askSplitLevel && pendingSplitSelection && ['google', 'google_ads'].includes(pendingSplitSelection.platformId))}
+        onSelectCBO={(splitLevel) => {
           if (pendingSplitSelection) {
             const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
             const dimPerPlatform = targeting.defaultAdSetSplitDimensionPerPlatform || {};
             const adSetsPerPlatform = targeting.defaultAdSetsPerPlatform || {};
-            
+
             const newDimPerPlatform = { ...dimPerPlatform, [pendingSplitSelection.platformId]: pendingSplitSelection.dimension };
-            const newAdSetsPerPlatform = { 
-              ...adSetsPerPlatform, 
+            const newAdSetsPerPlatform = {
+              ...adSetsPerPlatform,
               [pendingSplitSelection.platformId]: createInitialAdSets(pendingSplitSelection.dimension, 'Default', {
                 platformId: pendingSplitSelection.platformId,
                 currentGender: targeting.genders?.[0],
@@ -922,10 +925,10 @@ export function UnifiedTargeting({
                 currentAgeMax: targeting.ageMax,
               })
             };
-            
+
             const allDimensions = platforms.map(p => newDimPerPlatform[p.id] || 'none');
             const allSame = allDimensions.every(d => d === allDimensions[0]);
-            
+
             const updated = {
               ...targeting,
               selectedItems,
@@ -934,21 +937,22 @@ export function UnifiedTargeting({
               defaultAdSetSplitDimension: allSame && allDimensions[0] !== 'none' ? allDimensions[0] as AdSetSplitDimension : undefined,
               defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
               defaultAdSetSplitUseCBO: true,
+              ...(splitLevel ? { defaultGoogleSearchSplitLevel: splitLevel } : {}),
             };
             onUpdate(updated);
             persistToLocalStorage(updated);
           }
           setPendingSplitSelection(null);
         }}
-        onSelectABO={() => {
+        onSelectABO={(splitLevel) => {
           if (pendingSplitSelection) {
             const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
             const dimPerPlatform = targeting.defaultAdSetSplitDimensionPerPlatform || {};
             const adSetsPerPlatform = targeting.defaultAdSetsPerPlatform || {};
-            
+
             const newDimPerPlatform = { ...dimPerPlatform, [pendingSplitSelection.platformId]: pendingSplitSelection.dimension };
-            const newAdSetsPerPlatform = { 
-              ...adSetsPerPlatform, 
+            const newAdSetsPerPlatform = {
+              ...adSetsPerPlatform,
               [pendingSplitSelection.platformId]: createInitialAdSets(pendingSplitSelection.dimension, 'Default', {
                 platformId: pendingSplitSelection.platformId,
                 currentGender: targeting.genders?.[0],
@@ -958,10 +962,10 @@ export function UnifiedTargeting({
                 currentAgeMax: targeting.ageMax,
               })
             };
-            
+
             const allDimensions = platforms.map(p => newDimPerPlatform[p.id] || 'none');
             const allSame = allDimensions.every(d => d === allDimensions[0]);
-            
+
             const updated = {
               ...targeting,
               selectedItems,
@@ -970,6 +974,7 @@ export function UnifiedTargeting({
               defaultAdSetSplitDimension: allSame && allDimensions[0] !== 'none' ? allDimensions[0] as AdSetSplitDimension : undefined,
               defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
               defaultAdSetSplitUseCBO: false,
+              ...(splitLevel ? { defaultGoogleSearchSplitLevel: splitLevel } : {}),
             };
             onUpdate(updated);
             persistToLocalStorage(updated);
