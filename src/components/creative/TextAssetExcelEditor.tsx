@@ -69,6 +69,12 @@ interface TextAssetExcelEditorProps {
   onACGroupCreated?: (group: DetectedACGroup, compiled: CompilationResult) => void;
   /** Called when an asset customization group is removed */
   onACGroupRemoved?: (groupId: string) => void;
+  /** Optional: download the Google Ads Editor shell xlsx (Search/PMax/Lead Gen). */
+  onDownloadGoogleAdsShell?: () => void | Promise<void>;
+  /** Optional: handle re-upload of a Google Ads Editor shell xlsx. */
+  onUploadGoogleAdsShell?: (file: File) => void | Promise<void>;
+  /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
+  hasGoogleRows?: boolean;
 }
 
 // Grid column definition - now includes checkbox for multi-select
@@ -225,7 +231,18 @@ export function TextAssetExcelEditor({
   onUngroupRow,
   onACGroupCreated,
   onACGroupRemoved,
+  onDownloadGoogleAdsShell,
+  onUploadGoogleAdsShell,
+  hasGoogleRows,
 }: TextAssetExcelEditorProps) {
+  const googleShellInputRef = useRef<HTMLInputElement>(null);
+  const handleGoogleShellPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUploadGoogleAdsShell) return;
+    try { await onUploadGoogleAdsShell(file); } finally {
+      if (googleShellInputRef.current) googleShellInputRef.current.value = '';
+    }
+  }, [onUploadGoogleAdsShell]);
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
