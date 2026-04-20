@@ -232,7 +232,7 @@ serve(async (req: Request): Promise<Response> => {
     // Build the plan URL
     const origin = req.headers.get("origin");
     const appUrl = origin || Deno.env.get("APP_URL") || "https://actiplan.app";
-    const planUrl = campaignId ? `${appUrl}/app?campaignId=${campaignId}` : appUrl;
+    const planUrl = campaignId ? `${appUrl}/app/actiplans?campaignId=${campaignId}` : appUrl;
 
     if (!recipientEmails || recipientEmails.length === 0) {
       return new Response(JSON.stringify({ error: "No recipient emails provided" }), {

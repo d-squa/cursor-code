@@ -118,7 +118,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const origin = req.headers.get("origin");
     const appUrl = origin || Deno.env.get("APP_URL") || "https://actiplan.app";
-    const planUrl = `${appUrl}/app?campaignId=${campaignId}`;
+    const planUrl = `${appUrl}/app/actiplans?campaignId=${campaignId}`;
 
     const isApproved = action === "approved";
     const statusLabel = isApproved ? "Approved" : "Rejected";
