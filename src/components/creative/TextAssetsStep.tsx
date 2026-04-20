@@ -31,6 +31,13 @@ import {
   type GoogleKeywordLike,
   type AssignmentLite,
 } from '@/utils/googleAdsEditorExcel';
+type GoogleShellContext = {
+  campaignName: string;
+  generic: any;
+  keywords: GoogleKeywordLike[];
+  expansion: ReturnType<typeof buildExpandedStructure>;
+  adRows: ReturnType<typeof buildAdRowsFromAssignments>;
+};
 import { 
   TaxonomyParam,
   TaxonomyContext,
@@ -104,13 +111,7 @@ export function TextAssetsStep({
   // Track AC group compiled specs for persistence
   const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
   const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
-  const shellContextRef = useRef<{
-    campaignName: string;
-    generic: any;
-    keywords: GoogleKeywordLike[];
-    expansion: ReturnType<typeof buildExpandedStructure>;
-    adRows: ReturnType<typeof buildAdRowsFromAssignments>;
-  } | null>(null);
+  const shellContextRef = useRef<GoogleShellContext | null>(null);
 
   useEffect(() => {
     const detectGoogle = async () => {
@@ -955,6 +956,156 @@ export function TextAssetsStep({
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
 
+  // ============= Google Ads Shell (Search / PMax / Lead Gen) =============
+  const hasGoogleRows = useMemo(
+    () => hasGoogleConfigured || rows.some((r) => r.platform === 'google'),
+    [hasGoogleConfigured, rows],
+  );
+
+  const loadGoogleShellContext = useCallback(async (): Promise<GoogleShellContext> => {
+    const { data: camp, error: campErr } = await supabase
+      .from('campaigns')
+      .select('name, generic_config, market_splits')
+      .eq('id', campaignId)
+      .single();
+    if (campErr) throw campErr;
+
+    const generic = (camp?.generic_config as any) || {};
+    const phases = (generic.phases || []).filter((p: any) =>
+      Array.isArray(p?.platforms) ? p.platforms.includes('google') : true,
+    );
+    const keywords: GoogleKeywordLike[] = Array.isArray(generic.selectedKeywords)
+      ? generic.selectedKeywords
+      : [];
+
+    const splits = (camp?.market_splits as Record<string, any>) || {};
+    const googleMarketSet = new Set<string>();
+    for (const [key, list] of Object.entries(splits)) {
+      if (key.toLowerCase().includes('google') && Array.isArray(list)) {
+        for (const m of list as any[]) if (m?.name) googleMarketSet.add(String(m.name));
+      }
+    }
+    if (googleMarketSet.size === 0) {
+      for (const r of rows) if (r.platform === 'google' && r.market) googleMarketSet.add(r.market);
+    }
+    const markets = Array.from(googleMarketSet);
+
+    const expansion = buildExpandedStructure({
+      campaignName: camp?.name || campaignName || 'Campaign',
+      phases: phases.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        googleCampaignType: p.googleCampaignType,
+        googleSearchSplitLevel: p.googleSearchSplitLevel,
+        adSets: p.adSets,
+        market: p.market,
+      })),
+      markets,
+      keywords,
+    });
+
+    const { data: assignments, error: aErr } = await supabase
+      .from('creative_assignments')
+      .select(
+        `id, platform, market, phase_name, ad_set_name, ad_strategy, ad_group_name,
+         destination_url, path_1, path_2,
+         headline, headline_2, headline_3, headline_4, headline_5,
+         description, description_2, description_3, description_4, description_5,
+         headline_pins, description_pins,
+         long_headline_1, long_headline_2, long_headline_3, long_headline_4, long_headline_5,
+         business_name,
+         creatives ( name )`,
+      )
+      .eq('campaign_id', campaignId)
+      .eq('platform', 'google');
+    if (aErr) throw aErr;
+
+    const adRows = buildAdRowsFromAssignments(
+      (assignments || []) as unknown as AssignmentLite[],
+      expansion,
+    );
+
+    return {
+      campaignName: camp?.name || campaignName || 'Campaign',
+      generic,
+      keywords,
+      expansion,
+      adRows,
+    };
+  }, [campaignId, campaignName, rows]);
+
+  const handleDownloadGoogleAdsShell = useCallback(async () => {
+    try {
+      const ctx = await loadGoogleShellContext();
+      downloadGoogleAdsShell({
+        campaignName: ctx.campaignName,
+        expansion: ctx.expansion,
+        keywords: ctx.keywords,
+        adRows: ctx.adRows,
+      });
+      toast.success('Google Ads shell downloaded');
+    } catch (err) {
+      console.error('[GoogleAdsShell] download failed', err);
+      toast.error('Failed to download Google Ads shell');
+    }
+  }, [loadGoogleShellContext]);
+
+  const handleUploadGoogleAdsShell = useCallback(async (file: File) => {
+    try {
+      const ctx = await loadGoogleShellContext();
+      shellContextRef.current = ctx;
+      const parsed = await parseGoogleAdsShell(file);
+      const currentKeywordRows = buildCurrentKeywordRows(ctx.keywords, ctx.expansion);
+      const diff = diffShell({
+        current: { keywords: currentKeywordRows, ads: ctx.adRows },
+        uploaded: parsed,
+      });
+      setShellDiff(diff);
+      setShellOpen(true);
+    } catch (err) {
+      console.error('[GoogleAdsShell] upload parse failed', err);
+      toast.error('Could not read the Google Ads shell file');
+    }
+  }, [loadGoogleShellContext]);
+
+  const applyShellDiff = useCallback(async (selected: GoogleAdsShellDiff) => {
+    const ctx = shellContextRef.current;
+    if (!ctx) return;
+    try {
+      const hasKwChange =
+        selected.keywords.added.length +
+          selected.keywords.updated.length +
+          selected.keywords.removed.length > 0;
+      if (hasKwChange) {
+        const nextKeywords = applyKeywordDiff(ctx.keywords, selected.keywords, ctx.expansion);
+        const nextGeneric = { ...(ctx.generic || {}), selectedKeywords: nextKeywords };
+        const { error } = await supabase
+          .from('campaigns')
+          .update({ generic_config: nextGeneric })
+          .eq('id', campaignId);
+        if (error) throw error;
+      }
+      for (const u of selected.ads.updated) {
+        const payload = adChangesToAssignmentUpdate(u.changes);
+        if (Object.keys(payload).length === 0) continue;
+        const { error } = await supabase
+          .from('creative_assignments')
+          .update(payload as any)
+          .eq('id', u.assignmentId);
+        if (error) throw error;
+      }
+      const total =
+        selected.keywords.added.length +
+        selected.keywords.updated.length +
+        selected.keywords.removed.length +
+        selected.ads.updated.length;
+      toast.success(`Applied ${total} change(s) from the Google Ads shell`);
+    } catch (err) {
+      console.error('[GoogleAdsShell] apply failed', err);
+      toast.error('Failed to apply Google Ads shell changes');
+    }
+  }, [campaignId]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -965,7 +1116,8 @@ export function TextAssetsStep({
   }
 
   // Only show "No Assignments Found" if we've actually attempted to load and confirmed empty
-  if (hasAttemptedLoad && rows.length === 0) {
+  // For Google-configured campaigns, still allow access so users can use the shell tools.
+  if (hasAttemptedLoad && rows.length === 0 && !hasGoogleRows) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -997,9 +1149,19 @@ export function TextAssetsStep({
           onDeleteAssignments={handleDeleteAssignments}
           onACGroupCreated={handleACGroupCreated}
           onACGroupRemoved={handleACGroupRemoved}
+          hasGoogleRows={hasGoogleRows}
+          onDownloadGoogleAdsShell={handleDownloadGoogleAdsShell}
+          onUploadGoogleAdsShell={handleUploadGoogleAdsShell}
         />
       </div>
-      
+
+      <GoogleAdsShellReviewDialog
+        open={shellOpen}
+        onOpenChange={setShellOpen}
+        diff={shellDiff}
+        onApply={applyShellDiff}
+      />
+
       {/* Action buttons */}
       <div className="flex items-center justify-between pt-4 border-t mt-4">
         <p className="text-sm text-muted-foreground">
