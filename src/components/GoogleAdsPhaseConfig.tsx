@@ -754,16 +754,12 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
 
                 <div className="space-y-1">
                   <Label className="text-xs">Excluded Content Labels</Label>
-                  <Textarea
-                    placeholder="e.g. DL-MA&#10;Live streaming&#10;Embedded YouTube"
-                    value={(phase.googleExcludedContentLabels || []).join("\n")}
-                    onChange={(e) =>
-                      onUpdate(
-                        "googleExcludedContentLabels",
-                        e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
-                      )
-                    }
-                    className="text-xs min-h-[70px]"
+                  <MultiSelect
+                    options={GOOGLE_CONTENT_LABEL_OPTIONS}
+                    value={phase.googleExcludedContentLabels || []}
+                    onChange={(vals) => onUpdate("googleExcludedContentLabels", vals)}
+                    placeholder="Select content labels to exclude"
+                    className="text-xs"
                   />
                 </div>
               </div>
