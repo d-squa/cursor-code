@@ -3,13 +3,18 @@ import { Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BugReportDialog } from "./BugReportDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "react-router-dom";
 
 export const BugReportButton = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Only show for authenticated users
-  if (!user) return null;
+  // Only show for authenticated users and not on public landing pages
+  const publicRoutes = ["/", "/book-demo", "/book-demo/confirmation", "/terms", "/privacy", "/compare-plans"];
+  const isPublicRoute = publicRoutes.includes(location.pathname);
+  
+  if (!user || isPublicRoute) return null;
 
   return (
     <>
