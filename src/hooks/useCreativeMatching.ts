@@ -393,7 +393,8 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               phase,
             });
 
-            const strategyGroups = isSearchPhaseLike({ platformId: platformKey, phase })
+            const isSearchPhase = isSearchPhaseLike({ platformId: platformKey, phase });
+            const strategyGroups = isSearchPhase
               ? getSearchStrategyGroups({
                   keywords: effectiveSearchKeywords,
                   platformId: platformKey,
@@ -401,7 +402,33 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                 })
               : [];
 
-            const structureVariants = strategyGroups.length > 0 ? strategyGroups : [null];
+            // For Search phases, ALWAYS emit one structure per strategy (Brand / Generic /
+            // Competition) — even when no keywords have been added yet. This guarantees the
+            // creative matcher (and the Text Asset Editor downstream) surface a row for
+            // every Search campaign the DSP push will materialise.
+            let effectiveStrategyGroups: any[] = strategyGroups;
+            if (isSearchPhase) {
+              const present = new Set(strategyGroups.map((g: any) => g.strategy));
+              const allStrategies: Array<{ strategy: 'brand' | 'generic' | 'competition'; label: string }> = [
+                { strategy: 'brand', label: 'Brand' },
+                { strategy: 'generic', label: 'Generic' },
+                { strategy: 'competition', label: 'Competition' },
+              ];
+              const synthetic = allStrategies
+                .filter((s) => !present.has(s.strategy))
+                .map((s) => ({
+                  strategy: s.strategy,
+                  label: s.label,
+                  positives: [] as any[],
+                  negatives: [] as any[],
+                  totalVolume: 0,
+                  budgetShare: 0,
+                  budgetPercentage: 0,
+                }));
+              effectiveStrategyGroups = [...strategyGroups, ...synthetic];
+            }
+
+            const structureVariants = effectiveStrategyGroups.length > 0 ? effectiveStrategyGroups : [null];
 
             const language = normalizeLanguageCode(
               (Array.isArray(phaseLanguages) && phaseLanguages[0]) ||
@@ -442,9 +469,13 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               effectiveSplitDimension = platformDefaultDimension || 'custom';
             }
 
-            // Search phases with active keyword strategies get their own campaign-level splits,
-            // so exclude them from ad set splitting to avoid cross-product explosion
-            const isSearchWithStrategies = strategyGroups.length > 0;
+            // Search phases combine strategy splits (Brand/Generic/Competition) with ad set
+            // splits. When `googleSearchSplitLevel === 'campaign'`, each ad set becomes its
+            // own campaign-per-strategy and we still want the cross product. When set to
+            // 'adgroup' (default), each strategy campaign holds the ad sets as ad groups —
+            // the cross product is again the desired output. So we no longer skip ad set
+            // splitting just because strategies exist.
+            const isSearchWithStrategies = false;
 
             if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none' && !isSearchWithStrategies) {
               // Create a structure for EACH ad set configuration
