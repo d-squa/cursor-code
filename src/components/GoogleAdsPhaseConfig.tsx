@@ -85,6 +85,37 @@ const GOOGLE_CONTENT_LABEL_OPTIONS = [
   { value: "BRAND_SUITABILITY_RELIGION", label: "Religion" },
 ];
 
+// Google Ads Display/Video topic verticals (top-level)
+// https://developers.google.com/google-ads/api/data/verticals
+const GOOGLE_TOPIC_OPTIONS = [
+  { value: "3", label: "Arts & Entertainment" },
+  { value: "47", label: "Autos & Vehicles" },
+  { value: "44", label: "Beauty & Fitness" },
+  { value: "22", label: "Books & Literature" },
+  { value: "12", label: "Business & Industrial" },
+  { value: "5", label: "Computers & Electronics" },
+  { value: "7", label: "Finance" },
+  { value: "71", label: "Food & Drink" },
+  { value: "8", label: "Games" },
+  { value: "45", label: "Health" },
+  { value: "65", label: "Hobbies & Leisure" },
+  { value: "11", label: "Home & Garden" },
+  { value: "13", label: "Internet & Telecom" },
+  { value: "14", label: "Jobs & Education" },
+  { value: "19", label: "Law & Government" },
+  { value: "16", label: "News" },
+  { value: "299", label: "Online Communities" },
+  { value: "18", label: "People & Society" },
+  { value: "66", label: "Pets & Animals" },
+  { value: "29", label: "Real Estate" },
+  { value: "533", label: "Reference" },
+  { value: "174", label: "Science" },
+  { value: "20", label: "Shopping" },
+  { value: "23", label: "Sports" },
+  { value: "67", label: "Travel" },
+  { value: "24", label: "Sensitive Subjects" },
+];
+
 function formatVol(vol?: number) {
   if (!vol) return "—";
   if (vol >= 1_000_000) return `${(vol / 1_000_000).toFixed(1)}M`;
@@ -767,16 +798,12 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
                 {config.targeting.topics && (
                   <div className="space-y-1">
                     <Label className="text-xs">Excluded Topics</Label>
-                    <Textarea
-                      placeholder="e.g. Sensitive Social Issues&#10;Tragedy & Conflict"
-                      value={(phase.googleExcludedTopics || []).join("\n")}
-                      onChange={(e) =>
-                        onUpdate(
-                          "googleExcludedTopics",
-                          e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
-                        )
-                      }
-                      className="text-xs min-h-[70px]"
+                    <MultiSelect
+                      options={GOOGLE_TOPIC_OPTIONS}
+                      value={phase.googleExcludedTopics || []}
+                      onChange={(vals) => onUpdate("googleExcludedTopics", vals)}
+                      placeholder="Select topics to exclude"
+                      className="text-xs"
                     />
                   </div>
                 )}
