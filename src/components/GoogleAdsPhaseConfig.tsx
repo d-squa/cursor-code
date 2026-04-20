@@ -1,6 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -685,6 +686,85 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
               </div>
             )}
           </div>
+
+          {/* Exclusion inputs */}
+          {config.features.exclude && phase.googleExclude && (
+            <div className="space-y-3 rounded-md border border-dashed p-3 bg-muted/30">
+              <div className="flex items-center gap-1.5">
+                <Ban className="h-3.5 w-3.5 text-destructive" />
+                <Label className="text-xs font-medium">Exclusions</Label>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Prevent your ads from appearing for these terms, placements, or topics. One entry per line.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Negative Keywords</Label>
+                  <Textarea
+                    placeholder="e.g. free&#10;cheap&#10;competitor brand"
+                    value={(phase.googleExcludedKeywords || []).join("\n")}
+                    onChange={(e) =>
+                      onUpdate(
+                        "googleExcludedKeywords",
+                        e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
+                      )
+                    }
+                    className="text-xs min-h-[70px]"
+                  />
+                </div>
+
+                {config.targeting.placements.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Excluded Placements</Label>
+                    <Textarea
+                      placeholder="e.g. example.com&#10;youtube.com/@channel&#10;com.example.app"
+                      value={(phase.googleExcludedPlacements || []).join("\n")}
+                      onChange={(e) =>
+                        onUpdate(
+                          "googleExcludedPlacements",
+                          e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
+                        )
+                      }
+                      className="text-xs min-h-[70px]"
+                    />
+                  </div>
+                )}
+
+                {config.targeting.topics && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Excluded Topics</Label>
+                    <Textarea
+                      placeholder="e.g. Sensitive Social Issues&#10;Tragedy & Conflict"
+                      value={(phase.googleExcludedTopics || []).join("\n")}
+                      onChange={(e) =>
+                        onUpdate(
+                          "googleExcludedTopics",
+                          e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
+                        )
+                      }
+                      className="text-xs min-h-[70px]"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Excluded Content Labels</Label>
+                  <Textarea
+                    placeholder="e.g. DL-MA&#10;Live streaming&#10;Embedded YouTube"
+                    value={(phase.googleExcludedContentLabels || []).join("\n")}
+                    onChange={(e) =>
+                      onUpdate(
+                        "googleExcludedContentLabels",
+                        e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
+                      )
+                    }
+                    className="text-xs min-h-[70px]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Placements Selection */}
           {config.targeting.placements.length > 0 && (

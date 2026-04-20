@@ -353,6 +353,10 @@ export interface Phase {
   googleAppPlatform?: string; // iOS, Android (App Promotion only)
   googleAppId?: string; // App ID
   googleExclude?: boolean; // Exclusion enabled
+  googleExcludedPlacements?: string[]; // Excluded websites/channels/apps (one per line)
+  googleExcludedKeywords?: string[]; // Negative keywords
+  googleExcludedTopics?: string[]; // Excluded topics
+  googleExcludedContentLabels?: string[]; // Excluded content labels (e.g. DL-MA, live streaming)
   googleDemographics?: string[]; // Gender, Age, Parental Status, Household Income
   googleTopics?: boolean; // Topics targeting
   googlePlacements?: string[]; // Websites, YouTube Channels, YouTube Videos, Apps, App Categories
