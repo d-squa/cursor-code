@@ -58,6 +58,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [hasGoogleConfigured, setHasGoogleConfigured] = useState(false);
 
   // Track AC group compiled specs for persistence
   const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
@@ -597,7 +598,10 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
   const effectiveCampaignName = campaignName || selectedCampaign?.name;
 
   // ============= Google Ads Shell (Search / PMax / Lead Gen) =============
-  const hasGoogleRows = useMemo(() => rows.some((r) => r.platform === 'google'), [rows]);
+  const hasGoogleRows = useMemo(
+    () => hasGoogleConfigured || rows.some((r) => r.platform === 'google'),
+    [hasGoogleConfigured, rows],
+  );
   const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
   const [shellOpen, setShellOpen] = useState(false);
 
