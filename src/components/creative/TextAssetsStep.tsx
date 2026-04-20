@@ -31,6 +31,13 @@ import {
   type GoogleKeywordLike,
   type AssignmentLite,
 } from '@/utils/googleAdsEditorExcel';
+type GoogleShellContext = {
+  campaignName: string;
+  generic: any;
+  keywords: GoogleKeywordLike[];
+  expansion: ReturnType<typeof buildExpandedStructure>;
+  adRows: ReturnType<typeof buildAdRowsFromAssignments>;
+};
 import { 
   TaxonomyParam,
   TaxonomyContext,
