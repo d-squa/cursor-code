@@ -1307,6 +1307,83 @@ export function TextAssetsStep({
     }
   }, [loadGoogleShellContext]);
 
+  // Filter the campaign-wide shell context down to a single (market, phase). The
+  // phase label coming from the editor may include strategy decoration (e.g.
+  // "Search — Conversion • Brand"), so we strip it before matching the phase
+  // names stored on `expansion` entries.
+  const scopeShellContext = useCallback(
+    (ctx: GoogleShellContext, market: string, phaseLabel: string): GoogleShellContext => {
+      const stripStrategy = (label: string) => {
+        const idx = label.lastIndexOf(' • ');
+        return idx === -1 ? label.trim() : label.slice(0, idx).trim();
+      };
+      const basePhase = stripStrategy(phaseLabel);
+      const expansion = ctx.expansion.filter(
+        (ref) => ref.market === market && ref.phaseName === basePhase,
+      );
+      const allowedCampaignNames = new Set(expansion.map((e) => e.campaignName));
+      const adRows = ctx.adRows.filter((row) => allowedCampaignNames.has(row.campaignName));
+      const keywords = ctx.keywords.filter((k) => {
+        const kMarket = k.market ? String(k.market) : '';
+        return !kMarket || kMarket === market;
+      });
+      return { ...ctx, expansion, adRows, keywords };
+    },
+    [],
+  );
+
+  const handleDownloadGoogleAdsShellForPhase = useCallback(
+    async (market: string, phaseLabel: string) => {
+      try {
+        const ctx = await loadGoogleShellContext();
+        const scoped = scopeShellContext(ctx, market, phaseLabel);
+        if (scoped.expansion.length === 0) {
+          toast.error('No Google Ads structure found for this phase');
+          return;
+        }
+        downloadGoogleAdsShell({
+          campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
+          expansion: scoped.expansion,
+          keywords: scoped.keywords,
+          adRows: scoped.adRows,
+        });
+        toast.success(`Shell downloaded for ${phaseLabel}`);
+      } catch (err) {
+        console.error('[GoogleAdsShell] phase download failed', err);
+        toast.error('Failed to download Google Ads shell');
+      }
+    },
+    [loadGoogleShellContext, scopeShellContext],
+  );
+
+  const handleUploadGoogleAdsShellForPhase = useCallback(
+    async (market: string, phaseLabel: string, file: File) => {
+      try {
+        const ctx = await loadGoogleShellContext();
+        const scoped = scopeShellContext(ctx, market, phaseLabel);
+        if (scoped.expansion.length === 0) {
+          toast.error('No Google Ads structure found for this phase');
+          return;
+        }
+        // We keep the full context so the diff apply step can update keywords
+        // on the campaign's `generic_config` correctly.
+        shellContextRef.current = ctx;
+        const parsed = await parseGoogleAdsShell(file);
+        const currentKeywordRows = buildCurrentKeywordRows(scoped.keywords, scoped.expansion);
+        const diff = diffShell({
+          current: { keywords: currentKeywordRows, ads: scoped.adRows },
+          uploaded: parsed,
+        });
+        setShellDiff(diff);
+        setShellOpen(true);
+      } catch (err) {
+        console.error('[GoogleAdsShell] phase upload parse failed', err);
+        toast.error('Could not read the Google Ads shell file');
+      }
+    },
+    [loadGoogleShellContext, scopeShellContext],
+  );
+
   const applyShellDiff = useCallback(async (selected: GoogleAdsShellDiff) => {
     const ctx = shellContextRef.current;
     if (!ctx) return;
