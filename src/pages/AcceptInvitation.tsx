@@ -253,7 +253,7 @@ export default function AcceptInvitation() {
         email: invitation.email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/overview`,
+          emailRedirectTo: `${window.location.origin}/app/overview`,
           data: {
             invited_to_team: invitation.team_id,
           },

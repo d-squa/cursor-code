@@ -212,7 +212,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Build the deep link URL
     const origin = req.headers.get("origin");
     const appUrl = origin || Deno.env.get("APP_URL") || "https://actiplan.app";
-    const planUrl = `${appUrl}/actiplans?campaignId=${campaignId}&open=modifications${requestId ? `&requestId=${requestId}` : ""}`;
+    const planUrl = `${appUrl}/app/actiplans?campaignId=${campaignId}&open=modifications${requestId ? `&requestId=${requestId}` : ""}`;
 
     // Format change type for display
     const formattedChangeType = changeType.charAt(0).toUpperCase() + changeType.slice(1);
