@@ -1280,8 +1280,10 @@ export type Database = {
       }
       creative_assignments: {
         Row: {
+          ad_group_name: string | null
           ad_set_id: string | null
           ad_set_name: string
+          ad_strategy: string | null
           advantage_plus_enhance_cta: boolean | null
           advantage_plus_optimize_text_per_person: boolean | null
           advantage_plus_product_tags: boolean | null
@@ -1296,6 +1298,7 @@ export type Database = {
           assigned_at: string
           assigned_by: string | null
           brand_name: string | null
+          business_name: string | null
           call_to_action: string | null
           campaign_id: string
           carousel_card_cta: string | null
@@ -1309,18 +1312,28 @@ export type Database = {
           description_3: string | null
           description_4: string | null
           description_5: string | null
+          description_pins: Json | null
           destination_url: string | null
           display_name: string | null
           dsp_creative_id: string | null
           error_message: string | null
+          final_url_suffix: string | null
           headline: string | null
           headline_2: string | null
           headline_3: string | null
           headline_4: string | null
           headline_5: string | null
+          headline_pins: Json | null
           id: string
           is_sample: boolean
+          long_headline_1: string | null
+          long_headline_2: string | null
+          long_headline_3: string | null
+          long_headline_4: string | null
+          long_headline_5: string | null
           market: string
+          path_1: string | null
+          path_2: string | null
           phase_name: string
           platform: string
           position: number | null
@@ -1338,8 +1351,10 @@ export type Database = {
           utm_mode: string | null
         }
         Insert: {
+          ad_group_name?: string | null
           ad_set_id?: string | null
           ad_set_name?: string
+          ad_strategy?: string | null
           advantage_plus_enhance_cta?: boolean | null
           advantage_plus_optimize_text_per_person?: boolean | null
           advantage_plus_product_tags?: boolean | null
@@ -1354,6 +1369,7 @@ export type Database = {
           assigned_at?: string
           assigned_by?: string | null
           brand_name?: string | null
+          business_name?: string | null
           call_to_action?: string | null
           campaign_id: string
           carousel_card_cta?: string | null
@@ -1367,18 +1383,28 @@ export type Database = {
           description_3?: string | null
           description_4?: string | null
           description_5?: string | null
+          description_pins?: Json | null
           destination_url?: string | null
           display_name?: string | null
           dsp_creative_id?: string | null
           error_message?: string | null
+          final_url_suffix?: string | null
           headline?: string | null
           headline_2?: string | null
           headline_3?: string | null
           headline_4?: string | null
           headline_5?: string | null
+          headline_pins?: Json | null
           id?: string
           is_sample?: boolean
+          long_headline_1?: string | null
+          long_headline_2?: string | null
+          long_headline_3?: string | null
+          long_headline_4?: string | null
+          long_headline_5?: string | null
           market: string
+          path_1?: string | null
+          path_2?: string | null
           phase_name: string
           platform: string
           position?: number | null
@@ -1396,8 +1422,10 @@ export type Database = {
           utm_mode?: string | null
         }
         Update: {
+          ad_group_name?: string | null
           ad_set_id?: string | null
           ad_set_name?: string
+          ad_strategy?: string | null
           advantage_plus_enhance_cta?: boolean | null
           advantage_plus_optimize_text_per_person?: boolean | null
           advantage_plus_product_tags?: boolean | null
@@ -1412,6 +1440,7 @@ export type Database = {
           assigned_at?: string
           assigned_by?: string | null
           brand_name?: string | null
+          business_name?: string | null
           call_to_action?: string | null
           campaign_id?: string
           carousel_card_cta?: string | null
@@ -1425,18 +1454,28 @@ export type Database = {
           description_3?: string | null
           description_4?: string | null
           description_5?: string | null
+          description_pins?: Json | null
           destination_url?: string | null
           display_name?: string | null
           dsp_creative_id?: string | null
           error_message?: string | null
+          final_url_suffix?: string | null
           headline?: string | null
           headline_2?: string | null
           headline_3?: string | null
           headline_4?: string | null
           headline_5?: string | null
+          headline_pins?: Json | null
           id?: string
           is_sample?: boolean
+          long_headline_1?: string | null
+          long_headline_2?: string | null
+          long_headline_3?: string | null
+          long_headline_4?: string | null
+          long_headline_5?: string | null
           market?: string
+          path_1?: string | null
+          path_2?: string | null
           phase_name?: string
           platform?: string
           position?: number | null
