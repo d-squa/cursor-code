@@ -109,7 +109,9 @@ interface UnifiedTargetingProps {
   googleCustomerId?: string;
   // Split functionality props
   currentSplitDimension?: AdSetSplitDimension;
-  onSplitDimensionChange?: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
+  onSplitDimensionChange?: (dimension: AdSetSplitDimension, useCBO?: boolean, splitLevel?: 'campaign' | 'adgroup') => void;
+  /** Forwarded to SplittableSection — when true, asks for campaign-vs-adgroup level after CBO/ABO. */
+  askSplitLevel?: boolean;
   // Platform info for the default split manager - legacy single platform
   platformId?: string;
   platformName?: string;
