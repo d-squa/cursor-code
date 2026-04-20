@@ -191,6 +191,14 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     }
   }, [googleCustomerId, phase.googleProductFeed]);
 
+  // Single source of truth: Optimization Goal drives Google Bid Strategy.
+  // Keep googleBidStrategy in sync so downstream DSP push & conditional inputs work.
+  useEffect(() => {
+    if (phase.optimizationGoal && phase.optimizationGoal !== phase.googleBidStrategy) {
+      onUpdate("googleBidStrategy", phase.optimizationGoal);
+    }
+  }, [phase.optimizationGoal]);
+
   const handleCampaignTypeChange = (value: string) => {
     onUpdate("googleCampaignType", value);
     onUpdate("googleCampaignSubtype", "");
