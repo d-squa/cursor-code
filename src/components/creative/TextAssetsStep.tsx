@@ -1154,15 +1154,42 @@ export function TextAssetsStep({
       }
     }
 
-    // Add Google shell placeholders.
+    // Add Google shell placeholders — but suppress them whenever a real assignment
+    // already exists for the same (market, base phase, strategy). Real assignments
+    // carry the full DSP taxonomy ad-set name (e.g. MXM_ONAD_..._DE_WF) which the
+    // push will use, while placeholders use simple split labels (Default_LANG_ENG).
+    // Comparing on `adSet` would treat them as different rows and produce duplicates,
+    // so we group by (market, phaseBase, strategy) instead and let the real rows win.
     if (googlePlaceholderRows.length > 0) {
-      const realGoogleKeys = new Set(
-        out
-          .filter((r) => r.platform === 'google')
-          .map((r) => `${r.market}|${r.phase}|${r.adSet}`),
-      );
+      // Split a phase label like "Search — Conversion • Brand" into base + strategy.
+      const splitPhaseLabel = (label: string): { base: string; strategy: string } => {
+        const idx = label.lastIndexOf(' • ');
+        if (idx === -1) return { base: label.trim(), strategy: '' };
+        return {
+          base: label.slice(0, idx).trim(),
+          strategy: label.slice(idx + 3).trim().toLowerCase(),
+        };
+      };
+
+      // Build the set of (market, phaseBase, strategy) groups that already have at
+      // least one real Google assignment. For real rows the phase has no strategy
+      // decoration, so we derive the strategy from the placeholder side instead and
+      // match by the base phase only.
+      const realGoogleGroups = new Set<string>();
+      for (const r of out) {
+        if (r.platform !== 'google') continue;
+        const { base } = splitPhaseLabel(r.phase || '');
+        // We don't know the real row's strategy from the row itself; mark every
+        // strategy bucket for that (market, phase) as occupied. This is correct
+        // because the placeholder's strategy split only matters when no real
+        // assignment exists yet for that base phase.
+        realGoogleGroups.add(`${r.market}|${base}|*`);
+      }
+
       for (const p of googlePlaceholderRows) {
-        if (!realGoogleKeys.has(`${p.market}|${p.phase}|${p.adSet}`)) out.push(p);
+        const { base } = splitPhaseLabel(p.phase || '');
+        if (realGoogleGroups.has(`${p.market}|${base}|*`)) continue;
+        out.push(p);
       }
     }
 
