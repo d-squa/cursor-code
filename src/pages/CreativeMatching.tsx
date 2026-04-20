@@ -308,9 +308,9 @@ export default function CreativeMatching() {
   // Handle content step completion
   const handleContentComplete = useCallback(() => {
     if (progress?.campaignId) {
-      navigate(`/actiplans/${progress.campaignId}/launch`);
+      navigate(`/app/actiplans/${progress.campaignId}/launch`);
     } else {
-      navigate('/actiplans');
+      navigate('/app/actiplans');
     }
   }, [progress?.campaignId, navigate]);
 
@@ -323,7 +323,7 @@ export default function CreativeMatching() {
 
   // Handle close - go back to ActiPlans
   const handleClose = useCallback(() => {
-    navigate('/actiplans');
+    navigate('/app/actiplans');
   }, [navigate]);
 
   // Check if can navigate to a step

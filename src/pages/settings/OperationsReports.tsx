@@ -118,7 +118,7 @@ export default function OperationsReports() {
         userId: user?.id 
       });
       toast.error("Access denied. Admin or Owner role required.");
-      navigate("/settings/account");
+      navigate("/app/settings/account");
     }
   }, [hasAccess, authLoading, roleLoading, navigate, user?.id]);
 

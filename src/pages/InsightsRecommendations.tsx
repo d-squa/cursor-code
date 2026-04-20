@@ -753,7 +753,7 @@ export default function InsightsRecommendations() {
       <div className="container mx-auto py-6 px-4 max-w-7xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/overview')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/app/overview')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -1275,7 +1275,7 @@ export default function InsightsRecommendations() {
                           size="sm"
                           disabled
                           className="opacity-50"
-                          onClick={() => navigate('/settings/plans')}
+                          onClick={() => navigate('/app/settings/plans')}
                         >
                           <Lock className="h-4 w-4 mr-2" />
                           Share via Email
@@ -1362,7 +1362,7 @@ export default function InsightsRecommendations() {
                           </p>
                           <Button 
                             variant="outline"
-                            onClick={() => navigate('/settings/plans')}
+                            onClick={() => navigate('/app/settings/plans')}
                           >
                             Upgrade for Cross-Platform
                           </Button>

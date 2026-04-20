@@ -307,7 +307,7 @@ const Overview = () => {
   // Handle new=true query param - redirect to app for creating new ActiPlan
   useEffect(() => {
     if (searchParams.get("new") === "true") {
-      navigate("/app", { replace: true });
+      navigate("/app/app", { replace: true });
     }
   }, [searchParams, navigate]);
   const loadData = async () => {
@@ -808,31 +808,31 @@ const Overview = () => {
             </div>
             <nav className="flex items-center gap-2">
               <button
-                onClick={() => navigate("/overview")}
+                onClick={() => navigate("/app/overview")}
                 className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary transition-colors"
               >
                 Overview
               </button>
               <button
-                onClick={() => navigate("/actiplans")}
+                onClick={() => navigate("/app/actiplans")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 ActiPlans
               </button>
               <button
-                onClick={() => navigate("/insights")}
+                onClick={() => navigate("/app/insights")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Insights
               </button>
               <button
-                onClick={() => navigate("/creatives")}
+                onClick={() => navigate("/app/creatives")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Creative Mesh
               </button>
               <button
-                onClick={() => navigate("/tasks")}
+                onClick={() => navigate("/app/tasks")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 My Tasks
@@ -849,7 +849,7 @@ const Overview = () => {
               >
                 <Bug className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="gap-2">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/app/settings")} className="gap-2">
                 <Settings className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
@@ -890,7 +890,7 @@ const Overview = () => {
                         variant="link"
                         size="sm"
                         className="h-auto p-0 text-xs text-primary"
-                        onClick={() => navigate("/settings/plans")}
+                        onClick={() => navigate("/app/settings/plans")}
                       >
                         Upgrade to {getNextTierName()} →
                       </Button>
@@ -906,7 +906,7 @@ const Overview = () => {
                 onClick={() => {
                   localStorage.removeItem("draftCampaignId");
                   localStorage.removeItem("basicTargeting");
-                  navigate("/app?new=true");
+                  navigate("/app/app?new=true");
                 }}
                 size="sm"
               >

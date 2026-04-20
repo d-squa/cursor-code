@@ -38,7 +38,7 @@ export function LockedDropdownMenuItem({ feature, children, icon }: LockedDropdo
             aria-disabled
             className="opacity-50 cursor-pointer"
             onSelect={() => {
-              navigate('/settings/plans');
+              navigate('/app/settings/plans');
             }}
           >
             <Lock className="w-4 h-4 mr-2" />
@@ -50,7 +50,7 @@ export function LockedDropdownMenuItem({ feature, children, icon }: LockedDropdo
           className="bg-background border border-border shadow-lg z-[100]"
         >
           <Link 
-            to="/settings/plans" 
+            to="/app/settings/plans" 
             className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
           >
             <Lock className="h-3.5 w-3.5 text-muted-foreground" />

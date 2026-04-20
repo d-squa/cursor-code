@@ -726,7 +726,7 @@ export function CampaignForecast({
       toast.error("Please save the campaign first");
       return;
     }
-    navigate(`/actiplans/${campaignId}/launch`);
+    navigate(`/app/actiplans/${campaignId}/launch`);
   };
 
   const getPlanData = () => {
@@ -2826,7 +2826,7 @@ export function CampaignForecast({
             </LockedFeatureButton>
             <Button 
               variant="outline"
-              onClick={() => navigate(`/creatives?campaignId=${campaignId}`)} 
+              onClick={() => navigate(`/app/creatives?campaignId=${campaignId}`)} 
               disabled={!campaignId}
             >
               <Wand2 className="h-4 w-4 mr-2" />

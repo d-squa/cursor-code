@@ -1066,7 +1066,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       <Card className="p-8">
         <p className="text-muted-foreground text-center">
           No ad accounts synced for this client. Sync accounts in{" "}
-          <Link to="/settings/platforms" className="text-primary hover:underline">
+          <Link to="/app/settings/platforms" className="text-primary hover:underline">
             Platform Connections
           </Link>
           .
@@ -2660,7 +2660,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
             No Google Ads accounts linked to this client yet.
           </p>
           <p className="text-xs text-muted-foreground">
-            Go to <Link to="/settings/platforms" className="text-primary underline hover:no-underline">Platform Connections</Link> to sync and link your Google Ads accounts to this client.
+            Go to <Link to="/app/settings/platforms" className="text-primary underline hover:no-underline">Platform Connections</Link> to sync and link your Google Ads accounts to this client.
           </p>
         </Card>
       )}

@@ -2967,7 +2967,7 @@ export function PhaseScheduler({
                                     <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
                                       <span className="text-sm text-muted-foreground">No app configured</span>
                                       <a 
-                                        href="/clients" 
+                                        href="/app/clients" 
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
@@ -3069,7 +3069,7 @@ export function PhaseScheduler({
                                   <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
                                     <span className="text-sm text-muted-foreground">No page configured</span>
                                     <a 
-                                      href="/clients" 
+                                      href="/app/clients" 
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-xs text-primary hover:underline"

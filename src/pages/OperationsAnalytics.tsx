@@ -361,7 +361,7 @@ export default function OperationsAnalytics() {
     <FeatureGate feature="operations_analytics">
       <div className="container mx-auto py-8 space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/overview')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/app/overview')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>

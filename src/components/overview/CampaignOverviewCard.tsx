@@ -516,7 +516,7 @@ export function CampaignOverviewCard({
             variant="outline" 
             size="sm" 
             className="w-full h-7 text-xs"
-            onClick={() => navigate(`/actiplans/${campaign.id}/report`)}
+            onClick={() => navigate(`/app/actiplans/${campaign.id}/report`)}
           >
             <BarChart3 className="h-3 w-3 mr-1" />
             Check Performance

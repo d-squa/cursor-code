@@ -89,7 +89,7 @@ export default function Auth() {
       }
 
       if (onboardingComplete) {
-        navigate("/overview");
+        navigate("/app/overview");
         return;
       }
 
@@ -145,7 +145,7 @@ export default function Auth() {
       setShowPostConfirmSuccess(false);
 
       if (session.user.email === "superadmin@actiplan.app") {
-        navigate("/admin");
+        navigate("/app/admin");
         return;
       }
 
@@ -175,7 +175,7 @@ export default function Auth() {
             });
 
             if (subData?.subscribed) {
-              navigate("/overview");
+              navigate("/app/overview");
               return;
             }
 
@@ -201,7 +201,7 @@ export default function Auth() {
                   localStorage.removeItem("actiplan_signup_source");
                   sessionStorage.removeItem("actiplan_trial_activating");
                   toast.success("Welcome! Your 30-day free trial has started.");
-                  navigate("/overview");
+                  navigate("/app/overview");
                   return;
                 }
                 sessionStorage.removeItem("actiplan_trial_activating");
@@ -214,7 +214,7 @@ export default function Auth() {
             navigate("/choose-plan");
           } catch (error) {
             console.error("Error checking subscription:", error);
-            navigate("/overview");
+            navigate("/app/overview");
           }
         })();
       }, 0);

@@ -40,27 +40,27 @@ interface SettingsMenuItem {
 const allSettingsMenuItems: SettingsMenuItem[] = [
   {
     title: "Account Settings",
-    href: "/settings/account",
+    href: "/app/settings/account",
     icon: User,
     description: "Update your profile and password"
   },
   {
     title: "Plan Management",
-    href: "/settings/plans",
+    href: "/app/settings/plans",
     icon: CreditCard,
     description: "Manage your subscription plan",
     roleRequirement: 'owner' // Only owners can see this
   },
   {
     title: "Billing Management",
-    href: "/settings/billing",
+    href: "/app/settings/billing",
     icon: Receipt,
     description: "Manage payment methods and billing",
     roleRequirement: 'owner' // Only owners can see this
   },
   {
     title: "Users",
-    href: "/settings/users",
+    href: "/app/settings/users",
     icon: Users,
     description: "Invite and manage users",
     feature: "user_management"
@@ -68,34 +68,34 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
   },
   {
     title: "Manage Your Team",
-    href: "/settings/teams",
+    href: "/app/settings/teams",
     icon: Users,
     description: "Add and manage team members",
     feature: "team_management"
   },
   {
     title: "Platform Connections",
-    href: "/settings/platforms",
+    href: "/app/settings/platforms",
     icon: Plug,
     description: "Connect and authenticate advertising platforms"
   },
   {
     title: "Manage Client Accounts",
-    href: "/settings/accounts",
+    href: "/app/settings/accounts",
     icon: LinkIcon,
     description: "Manage client accounts, sync ad accounts, and configure defaults",
     feature: "client_management"
   },
   {
     title: "Operations Reports",
-    href: "/settings/operations-reports",
+    href: "/app/settings/operations-reports",
     icon: BarChart3,
     description: "View operations analytics across all clients",
     feature: "operations_analytics"
   },
   {
     title: "Usage Monitoring",
-    href: "/settings/usage",
+    href: "/app/settings/usage",
     icon: Activity,
     description: "Track workspace usage, swaps, and limits",
     roleRequirement: 'admin' // Admins and owners can see this
@@ -135,7 +135,7 @@ export default function Settings() {
 
   // Get first accessible route
   const firstAccessibleRoute = useMemo(() => {
-    return accessibleMenuItems[0]?.href || "/settings/account";
+    return accessibleMenuItems[0]?.href || "/app/settings/account";
   }, [accessibleMenuItems]);
 
   useEffect(() => {
@@ -148,7 +148,7 @@ export default function Settings() {
     // Only redirect once everything is loaded and we're on the base route
     if (loading || featureLoading || roleLoading) return;
     
-    if (location.pathname === "/settings") {
+    if (location.pathname === "/app/settings") {
       navigate(firstAccessibleRoute, { replace: true });
     }
   }, [location.pathname, navigate, firstAccessibleRoute, loading, featureLoading, roleLoading]);
@@ -188,7 +188,7 @@ export default function Settings() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate("/overview")}
+              onClick={() => navigate("/app/overview")}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -246,10 +246,10 @@ export default function Settings() {
                         </TooltipTrigger>
                         <TooltipContent side="right" className="bg-background border border-border shadow-lg z-[100]">
                           <a 
-                            href="/settings/plans"
+                            href="/app/settings/plans"
                             onClick={(e) => {
                               e.preventDefault();
-                              navigate('/settings/plans');
+                              navigate('/app/settings/plans');
                             }}
                             className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
                           >

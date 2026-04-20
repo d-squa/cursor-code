@@ -279,7 +279,7 @@ export function AIAssistantSidebar() {
               size="sm"
               onClick={() => {
                 setOpen(false);
-                navigate("/settings/plans");
+                navigate("/app/settings/plans");
               }}
               className="gap-2"
             >

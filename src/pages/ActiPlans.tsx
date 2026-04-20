@@ -400,7 +400,7 @@ export default function ActiPlans() {
 
   const handlePushToDSP = async (campaign: Campaign) => {
     // Navigate to the Launch Status View for validation and push workflow
-    navigate(`/actiplans/${campaign.id}/launch`);
+    navigate(`/app/actiplans/${campaign.id}/launch`);
   };
 
   const handleDelete = async () => {
@@ -837,7 +837,7 @@ export default function ActiPlans() {
                 <DropdownMenuContent align="end">
                   {canEdit(campaign) &&
                     !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
+                      <DropdownMenuItem onClick={() => navigate(`/app/app?campaignId=${campaign.id}`)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit ActiPlan
                       </DropdownMenuItem>
@@ -845,7 +845,7 @@ export default function ActiPlans() {
                   {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
                   {canEdit(campaign) &&
                     ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
+                      <DropdownMenuItem onClick={() => navigate(`/app/app?campaignId=${campaign.id}&mode=extend`)}>
                         <PlusCircle className="w-4 h-4 mr-2" />
                         Extend Campaign
                       </DropdownMenuItem>
@@ -901,7 +901,7 @@ export default function ActiPlans() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              navigate(`/actiplans/${campaign.id}/launch`);
+                              navigate(`/app/actiplans/${campaign.id}/launch`);
                             }}
                           >
                             <Rocket className="w-4 h-4 mr-2" />
@@ -914,7 +914,7 @@ export default function ActiPlans() {
                   })()}
                   {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
                   {hasAccess("creative_matching") ? (
-                    <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
+                    <DropdownMenuItem onClick={() => navigate(`/app/creatives?campaignId=${campaign.id}`)}>
                       <Wand2 className="w-4 h-4 mr-2" />
                       Mesh Creatives
                     </DropdownMenuItem>
@@ -998,7 +998,7 @@ export default function ActiPlans() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => {
-                          navigate(`/actiplans/${campaign.id}/report`);
+                          navigate(`/app/actiplans/${campaign.id}/report`);
                         }}
                       >
                         <TrendingUp className="w-4 h-4 mr-2" />
@@ -1006,7 +1006,7 @@ export default function ActiPlans() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => {
-                          navigate(`/actiplans/${campaign.id}/insights`);
+                          navigate(`/app/actiplans/${campaign.id}/insights`);
                         }}
                       >
                         <BarChart3 className="w-4 h-4 mr-2" />
@@ -1208,7 +1208,7 @@ export default function ActiPlans() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/overview")}
+            onClick={() => navigate("/app/overview")}
             aria-label="Back to create ActiPlan"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -1239,7 +1239,7 @@ export default function ActiPlans() {
                     variant="link"
                     size="sm"
                     className="h-auto p-0 text-xs text-primary"
-                    onClick={() => navigate("/settings/plans")}
+                    onClick={() => navigate("/app/settings/plans")}
                   >
                     Upgrade to {getNextTierName()} →
                   </Button>
@@ -1255,7 +1255,7 @@ export default function ActiPlans() {
             onClick={() => {
               localStorage.removeItem("draftCampaignId");
               localStorage.removeItem("basicTargeting");
-              navigate("/app?new=true");
+              navigate("/app/app?new=true");
             }}
           >
             New ActiPlan

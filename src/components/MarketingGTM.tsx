@@ -17,7 +17,7 @@ const PUBLIC_ROUTES = [
   '/onboarding',
   '/accept-invitation',
   '/choose-plan',
-  '/settings/plans',
+  '/app/settings/plans',
 ];
 
 const GTM_ID = 'GTM-PVH2QLMC';

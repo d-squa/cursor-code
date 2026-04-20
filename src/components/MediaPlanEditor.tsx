@@ -1557,7 +1557,7 @@ export function MediaPlanEditor() {
       if (savedCampaignId) {
         toast.success("ActiPlan ready!");
         setTimeout(() => {
-          window.location.href = "/actiplans";
+          window.location.href = "/app/actiplans";
         }, 1000);
         return;
       }
@@ -1652,7 +1652,7 @@ export function MediaPlanEditor() {
 
       // Redirect to ActiPlans page
       setTimeout(() => {
-        window.location.href = "/actiplans";
+        window.location.href = "/app/actiplans";
       }, 1000);
     } catch (error: any) {
       toast.error(error.message || "Failed to save ActiPlan");
@@ -2425,7 +2425,7 @@ export function MediaPlanEditor() {
                 value={selectedClientId || undefined}
                 onValueChange={(value) => {
                   if (value === "__new_client__") {
-                    navigate("/settings/accounts");
+                    navigate("/app/settings/accounts");
                     return;
                   }
                   clientSelectionIsUserAction.current = true;
@@ -2463,7 +2463,7 @@ export function MediaPlanEditor() {
                         <TooltipTrigger asChild>
                           <div
                             className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none opacity-50"
-                            onClick={() => navigate("/settings/plans")}
+                            onClick={() => navigate("/app/settings/plans")}
                           >
                             <Lock className="h-4 w-4 mr-2" />
                             <Plus className="h-4 w-4 mr-1" />
@@ -2472,10 +2472,10 @@ export function MediaPlanEditor() {
                         </TooltipTrigger>
                         <TooltipContent side="left" className="bg-background border border-border shadow-lg z-[100]">
                           <a
-                            href="/settings/plans"
+                            href="/app/settings/plans"
                             onClick={(e) => {
                               e.preventDefault();
-                              navigate("/settings/plans");
+                              navigate("/app/settings/plans");
                             }}
                             className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
                           >

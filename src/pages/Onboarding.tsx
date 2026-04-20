@@ -19,7 +19,7 @@ const Onboarding = () => {
 
       // Super admin bypass
       if (session.user.email === "superadmin@actiplan.app") {
-        navigate("/admin");
+        navigate("/app/admin");
       }
       
       // Check if email is confirmed
@@ -31,7 +31,7 @@ const Onboarding = () => {
       
       // If user permanently dismissed onboarding, skip it forever
       if (localStorage.getItem("actiplan_onboarding_dismissed") === "true") {
-        navigate("/overview");
+        navigate("/app/overview");
         return;
       }
 
@@ -40,7 +40,7 @@ const Onboarding = () => {
       if (onboardingData) {
         const parsed = JSON.parse(onboardingData);
         if (parsed.completedAt) {
-          navigate("/overview");
+          navigate("/app/overview");
           return;
         }
       }

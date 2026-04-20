@@ -56,7 +56,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "These dummy accounts are linked for the tour. In real usage you'd connect your own ad accounts via OAuth. Buttons are disabled while Sample Mode is on.",
     icon: <Plug className="h-4 w-4" />,
-    navigateTo: "/settings/platforms",
+    navigateTo: "/app/settings/platforms",
     isInteractive: true,
     tip: "You can connect multiple ad accounts per platform in real usage.",
   },
@@ -66,7 +66,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "D-squad has industry, markets, default targeting, pixels, pages and conversion events configured — these auto-populate in new ActiPlans to save hours of repetitive setup.",
     icon: <Users className="h-4 w-4" />,
-    navigateTo: "/settings/accounts",
+    navigateTo: "/app/settings/accounts",
     isInteractive: true,
     tip: "Defaults flow into every new ActiPlan automatically.",
   },
@@ -76,7 +76,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "A complete cross-platform plan: 3 platforms, 3 markets, budget split, basic targeting, interests, keywords, optimization goals per phase, full schedule, and a pre-loaded forecast. Open it to explore.",
     icon: <FileText className="h-4 w-4" />,
-    navigateTo: "/actiplans",
+    navigateTo: "/app/actiplans",
     isInteractive: true,
     tip: "Click into the sample ActiPlan to view targeting, budgets and forecast.",
   },
@@ -97,7 +97,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Sample creatives are pre-assigned across phases and ad sets so you can see how Creative Mesh validates formats and platform-specific requirements.",
     icon: <Image className="h-4 w-4" />,
-    navigateTo: "/creatives",
+    navigateTo: "/app/creatives",
     isInteractive: true,
     tip: "AI-powered matching can auto-assign assets in real usage.",
   },
@@ -107,7 +107,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Review automated insights and actionable recommendations generated from your campaign performance. Sample data is used so you can explore the full experience.",
     icon: <CheckCircle2 className="h-4 w-4" />,
-    navigateTo: "/insights",
+    navigateTo: "/app/insights",
   },
   {
     title: "You're all set 🎉",
@@ -115,7 +115,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Click 'Finish & turn off Sample Data' to hide the demo accounts, client and campaign and return to your real workspace. You can re-enable Sample Data anytime from Settings → Account, or replay this tour from the help menu.",
     icon: <CheckCircle2 className="h-4 w-4" />,
-    navigateTo: "/overview",
+    navigateTo: "/app/overview",
     tip: "Sample data stays in the database (hidden) so you can toggle it back on anytime without re-seeding.",
   },
 ];
@@ -135,8 +135,8 @@ export function TourRibbon() {
       if (!path) return path;
       if (path === "__SAMPLE_CAMPAIGN_REPORT__") {
         return seededCampaignId
-          ? `/actiplans/${seededCampaignId}/report`
-          : "/actiplans";
+          ? `/app/actiplans/${seededCampaignId}/report`
+          : "/app/actiplans";
       }
       return path;
     },
@@ -192,7 +192,7 @@ export function TourRibbon() {
     localStorage.setItem(TOUR_STORAGE_KEY, new Date().toISOString());
     setTourActiveStep(null);
     setVisible(false);
-    navigate("/overview");
+    navigate("/app/overview");
   }, [isVisible, toggleVisibility, navigate]);
 
   const handleNext = useCallback(async () => {

@@ -550,7 +550,7 @@ export default function CreativeLibrary() {
     const allIds = [...platformIds, ...pageIds].join(',');
     
     toast.success(`${totalSelected} asset(s) selected for meshing`);
-    navigate(`/creatives?campaignId=${campaignId}&selectedAssets=${allIds}`);
+    navigate(`/app/creatives?campaignId=${campaignId}&selectedAssets=${allIds}`);
   }, [platformAssetsCampaignId, pageAssetsCampaignId, cumulativeSelection, totalSelected, navigate]);
 
   // Clear all selections
@@ -606,31 +606,31 @@ export default function CreativeLibrary() {
             </div>
             <nav className="flex items-center gap-2">
               <button
-                onClick={() => navigate("/overview")}
+                onClick={() => navigate("/app/overview")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Overview
               </button>
               <button
-                onClick={() => navigate("/actiplans")}
+                onClick={() => navigate("/app/actiplans")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 ActiPlans
               </button>
               <button
-                onClick={() => navigate("/insights")}
+                onClick={() => navigate("/app/insights")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Insights
               </button>
               <button
-                onClick={() => navigate("/creatives")}
+                onClick={() => navigate("/app/creatives")}
                 className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary transition-colors"
               >
                 Creative Mesh
               </button>
               <WorkspaceSwitcher />
-              <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+              <Button variant="ghost" size="icon" onClick={() => navigate("/app/settings")}>
                 <Settings className="h-4 w-4" />
               </Button>
               <Button variant="ghost" size="icon" onClick={() => setBugDialogOpen(true)}>
@@ -653,7 +653,7 @@ export default function CreativeLibrary() {
           </div>
           <div className="flex items-center gap-2">
             {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
-            <Button variant="default" size="sm" onClick={() => navigate('/creatives')}>
+            <Button variant="default" size="sm" onClick={() => navigate('/app/creatives')}>
               <Wand2 className="h-4 w-4 mr-2" />
               Start Matching
             </Button>
@@ -718,7 +718,7 @@ export default function CreativeLibrary() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => navigate(`/creatives?campaignId=${selectedCampaignId}`)}
+                  onClick={() => navigate(`/app/creatives?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   Add More Creatives
@@ -743,7 +743,7 @@ export default function CreativeLibrary() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/creatives?campaignId=${selectedCampaignId}`)}
+                  onClick={() => navigate(`/app/creatives?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   Open Mesh
