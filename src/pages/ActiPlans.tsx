@@ -837,7 +837,7 @@ export default function ActiPlans() {
                 <DropdownMenuContent align="end">
                   {canEdit(campaign) &&
                     !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                      <DropdownMenuItem onClick={() => navigate(`/app/app?campaignId=${campaign.id}`)}>
+                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Edit ActiPlan
                       </DropdownMenuItem>
@@ -845,7 +845,7 @@ export default function ActiPlans() {
                   {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
                   {canEdit(campaign) &&
                     ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                      <DropdownMenuItem onClick={() => navigate(`/app/app?campaignId=${campaign.id}&mode=extend`)}>
+                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
                         <PlusCircle className="w-4 h-4 mr-2" />
                         Extend Campaign
                       </DropdownMenuItem>
