@@ -853,9 +853,18 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             isSaving={isSaving}
             onACGroupCreated={handleACGroupCreated}
             onACGroupRemoved={handleACGroupRemoved}
+            hasGoogleRows={hasGoogleRows}
+            onDownloadGoogleAdsShell={handleDownloadGoogleAdsShell}
+            onUploadGoogleAdsShell={handleUploadGoogleAdsShell}
           />
         </div>
       ) : null}
+      <GoogleAdsShellReviewDialog
+        open={shellOpen}
+        onOpenChange={setShellOpen}
+        diff={shellDiff}
+        onApply={applyShellDiff}
+      />
     </div>
   );
 }
