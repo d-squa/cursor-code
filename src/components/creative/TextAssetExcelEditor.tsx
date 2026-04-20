@@ -73,6 +73,10 @@ interface TextAssetExcelEditorProps {
   onDownloadGoogleAdsShell?: () => void | Promise<void>;
   /** Optional: handle re-upload of a Google Ads Editor shell xlsx. */
   onUploadGoogleAdsShell?: (file: File) => void | Promise<void>;
+  /** Optional: download a Google Ads shell scoped to a single (market, phase). */
+  onDownloadGoogleAdsShellForPhase?: (market: string, phase: string) => void | Promise<void>;
+  /** Optional: upload a Google Ads shell scoped to a single (market, phase). */
+  onUploadGoogleAdsShellForPhase?: (market: string, phase: string, file: File) => void | Promise<void>;
   /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
   hasGoogleRows?: boolean;
 }
@@ -233,6 +237,8 @@ export function TextAssetExcelEditor({
   onACGroupRemoved,
   onDownloadGoogleAdsShell,
   onUploadGoogleAdsShell,
+  onDownloadGoogleAdsShellForPhase,
+  onUploadGoogleAdsShellForPhase,
   hasGoogleRows,
 }: TextAssetExcelEditorProps) {
   const googleShellInputRef = useRef<HTMLInputElement>(null);
@@ -243,6 +249,22 @@ export function TextAssetExcelEditor({
       if (googleShellInputRef.current) googleShellInputRef.current.value = '';
     }
   }, [onUploadGoogleAdsShell]);
+
+  // Per-phase Google shell upload — keyed by `${market}|${phase}` so each phase
+  // header has its own hidden file input we can trigger independently.
+  const phaseShellInputsRef = useRef<Map<string, HTMLInputElement>>(new Map());
+  const handlePhaseShellPick = useCallback(
+    async (market: string, phase: string, e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !onUploadGoogleAdsShellForPhase) return;
+      try { await onUploadGoogleAdsShellForPhase(market, phase, file); } finally {
+        const key = `${market}|${phase}`;
+        const input = phaseShellInputsRef.current.get(key);
+        if (input) input.value = '';
+      }
+    },
+    [onUploadGoogleAdsShellForPhase],
+  );
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
