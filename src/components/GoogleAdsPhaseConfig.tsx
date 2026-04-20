@@ -191,6 +191,14 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     }
   }, [googleCustomerId, phase.googleProductFeed]);
 
+  // Single source of truth: Optimization Goal drives Google Bid Strategy.
+  // Keep googleBidStrategy in sync so downstream DSP push & conditional inputs work.
+  useEffect(() => {
+    if (phase.optimizationGoal && phase.optimizationGoal !== phase.googleBidStrategy) {
+      onUpdate("googleBidStrategy", phase.optimizationGoal);
+    }
+  }, [phase.optimizationGoal]);
+
   const handleCampaignTypeChange = (value: string) => {
     onUpdate("googleCampaignType", value);
     onUpdate("googleCampaignSubtype", "");
@@ -362,65 +370,60 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
 
       {config && (
         <>
-          {/* Bid Strategy */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-xs">Bid Strategy</Label>
-              <Select
-                value={phase.googleBidStrategy || config.bidStrategies[0] || ""}
-                onValueChange={(v) => onUpdate("googleBidStrategy", v)}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {config.bidStrategies.map((bs) => (
-                    <SelectItem key={bs} value={bs}>{bs}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Target CPA / ROAS / Max CPC based on bid strategy */}
-            {(phase.googleBidStrategy === "Target CPA" || phase.googleBidStrategy === "TARGET_CPA") && (
-              <div className="space-y-2">
-                <Label className="text-xs">Target CPA ($)</Label>
-                <Input
-                  type="number"
-                  className="h-8 text-xs"
-                  value={phase.googleTargetCpa || ""}
-                  onChange={(e) => onUpdate("googleTargetCpa", parseFloat(e.target.value) || undefined)}
-                  placeholder="10.00"
-                />
+          {/* Bid strategy is driven by the phase Optimization Goal (single source of truth).
+              We only render the conditional inputs (Target CPA / ROAS / Max CPC). */}
+          {(() => {
+            const bidStrategy = phase.googleBidStrategy || phase.optimizationGoal || "";
+            const isTargetCpa = bidStrategy === "Target CPA" || bidStrategy === "TARGET_CPA";
+            const isTargetRoas = bidStrategy === "Target ROAS" || bidStrategy === "TARGET_ROAS";
+            const isManualCpc =
+              bidStrategy === "Manual CPC" ||
+              bidStrategy === "Maximum CPC" ||
+              bidStrategy === "MANUAL_CPC" ||
+              bidStrategy === "MAXIMUM_CPC";
+            const hasInput = isTargetCpa || isTargetRoas || isManualCpc;
+            if (!hasInput) return null;
+            return (
+              <div className="grid gap-4 md:grid-cols-2">
+                {isTargetCpa && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Target CPA ($)</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={phase.googleTargetCpa || ""}
+                      onChange={(e) => onUpdate("googleTargetCpa", parseFloat(e.target.value) || undefined)}
+                      placeholder="10.00"
+                    />
+                  </div>
+                )}
+                {isTargetRoas && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Target ROAS (%)</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={phase.googleTargetRoas || ""}
+                      onChange={(e) => onUpdate("googleTargetRoas", parseFloat(e.target.value) || undefined)}
+                      placeholder="200"
+                    />
+                  </div>
+                )}
+                {isManualCpc && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Max CPC ($)</Label>
+                    <Input
+                      type="number"
+                      className="h-8 text-xs"
+                      value={phase.googleMaxCpcBid || ""}
+                      onChange={(e) => onUpdate("googleMaxCpcBid", parseFloat(e.target.value) || undefined)}
+                      placeholder="2.00"
+                    />
+                  </div>
+                )}
               </div>
-            )}
-            {(phase.googleBidStrategy === "Target ROAS" || phase.googleBidStrategy === "TARGET_ROAS") && (
-              <div className="space-y-2">
-                <Label className="text-xs">Target ROAS (%)</Label>
-                <Input
-                  type="number"
-                  className="h-8 text-xs"
-                  value={phase.googleTargetRoas || ""}
-                  onChange={(e) => onUpdate("googleTargetRoas", parseFloat(e.target.value) || undefined)}
-                  placeholder="200"
-                />
-              </div>
-            )}
-            {(phase.googleBidStrategy === "Manual CPC" || phase.googleBidStrategy === "Maximum CPC") && (
-              <div className="space-y-2">
-                <Label className="text-xs">Max CPC ($)</Label>
-                <Input
-                  type="number"
-                  className="h-8 text-xs"
-                  value={phase.googleMaxCpcBid || ""}
-                  onChange={(e) => onUpdate("googleMaxCpcBid", parseFloat(e.target.value) || undefined)}
-                  placeholder="2.00"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Network Settings */}
+            );
+          })()}
           <div className="space-y-2">
             <Label className="text-xs font-medium">Networks</Label>
             <div className="flex flex-wrap gap-3">
