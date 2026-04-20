@@ -870,7 +870,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
           <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground">Loading text assets...</p>
         </div>
-      ) : rows.length === 0 && effectiveCampaignId ? (
+      ) : rows.length === 0 && effectiveCampaignId && !hasGoogleRows ? (
         <div className="flex flex-col items-center justify-center py-12">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
             <AlertCircle className="h-6 w-6 text-muted-foreground" />
@@ -880,7 +880,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             This ActiPlan doesn't have any creative assignments yet. Use the Creative Matcher to assign creatives first.
           </p>
         </div>
-      ) : rows.length > 0 ? (
+      ) : rows.length > 0 || hasGoogleRows ? (
         <div className="border rounded-lg overflow-hidden">
           <TextAssetExcelEditor
             rows={rows}
