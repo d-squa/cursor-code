@@ -1116,7 +1116,8 @@ export function TextAssetsStep({
   }
 
   // Only show "No Assignments Found" if we've actually attempted to load and confirmed empty
-  if (hasAttemptedLoad && rows.length === 0) {
+  // For Google-configured campaigns, still allow access so users can use the shell tools.
+  if (hasAttemptedLoad && rows.length === 0 && !hasGoogleRows) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -1148,9 +1149,19 @@ export function TextAssetsStep({
           onDeleteAssignments={handleDeleteAssignments}
           onACGroupCreated={handleACGroupCreated}
           onACGroupRemoved={handleACGroupRemoved}
+          hasGoogleRows={hasGoogleRows}
+          onDownloadGoogleAdsShell={handleDownloadGoogleAdsShell}
+          onUploadGoogleAdsShell={handleUploadGoogleAdsShell}
         />
       </div>
-      
+
+      <GoogleAdsShellReviewDialog
+        open={shellOpen}
+        onOpenChange={setShellOpen}
+        diff={shellDiff}
+        onApply={applyShellDiff}
+      />
+
       {/* Action buttons */}
       <div className="flex items-center justify-between pt-4 border-t mt-4">
         <p className="text-sm text-muted-foreground">
