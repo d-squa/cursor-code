@@ -1468,6 +1468,8 @@ export function TextAssetsStep({
           hasGoogleRows={hasGoogleRows}
           onDownloadGoogleAdsShell={handleDownloadGoogleAdsShell}
           onUploadGoogleAdsShell={handleUploadGoogleAdsShell}
+          onDownloadGoogleAdsShellForPhase={handleDownloadGoogleAdsShellForPhase}
+          onUploadGoogleAdsShellForPhase={handleUploadGoogleAdsShellForPhase}
         />
       </div>
 
