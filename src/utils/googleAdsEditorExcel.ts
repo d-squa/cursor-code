@@ -149,16 +149,20 @@ export function buildExpandedStructure(input: BuildExpansionInput): ExpandedCamp
 
     for (const market of input.markets) {
       if (isSearch) {
-        // Strategies that actually have keywords for (market, platform=google)
+        // Strategies that have keywords for (market, platform=google). We treat keywords
+        // as matching the market when their `market` is missing/blank OR equals the market.
         const usedStrategies = STRATEGIES.filter((strategy) =>
           input.keywords.some(
             (k) =>
               (k.strategy || 'generic') === strategy &&
               !k.isNegative &&
-              normMarket(k.market) === normMarket(market),
+              (!k.market || normMarket(k.market) === normMarket(market)),
           ),
         );
-        const strategiesForPhase = usedStrategies.length ? usedStrategies : ['generic' as const];
+        // Default to ALL three strategies (Brand / Generic / Competition) when no
+        // keywords are configured yet — the editor must still surface a shell row for
+        // each so users can plan copy before keyword research is done.
+        const strategiesForPhase = usedStrategies.length ? usedStrategies : STRATEGIES;
 
         for (const strategy of strategiesForPhase) {
           if (splitOnCampaign && splits.length > 1) {
