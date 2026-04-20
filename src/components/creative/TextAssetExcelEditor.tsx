@@ -1786,6 +1786,39 @@ export function TextAssetExcelEditor({
             className="hidden"
             onChange={handleFileUpload}
           />
+          {hasGoogleRows && onDownloadGoogleAdsShell && (
+            <>
+              <div className="h-5 w-px bg-border mx-1" />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={() => onDownloadGoogleAdsShell()}>
+                      <Download className="h-4 w-4 mr-1" />
+                      Google Ads Shell
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Download a Google Ads Editor xlsx (Campaigns, Keywords, Ads tabs) for Search / PMax / Lead Gen.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {onUploadGoogleAdsShell && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => googleShellInputRef.current?.click()}>
+                    <Upload className="h-4 w-4 mr-1" />
+                    Upload Shell
+                  </Button>
+                  <input
+                    ref={googleShellInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={handleGoogleShellPick}
+                  />
+                </>
+              )}
+            </>
+          )}
           <div className="h-5 w-px bg-border mx-1" />
           <Select onValueChange={(value) => {
             if (value === 'all') selectAllBlanks();
