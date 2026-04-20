@@ -84,7 +84,7 @@ serve(async (req) => {
     // Get all active Meta platform connections for this user or their teams
     let platformQuery = supabaseClient
       .from('connected_platforms')
-      .select('id, metadata')
+      .select('id, metadata, access_token')
       .eq('platform_type', 'meta')
       .eq('is_active', true)
       .order('updated_at', { ascending: false });
