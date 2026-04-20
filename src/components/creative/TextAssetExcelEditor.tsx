@@ -1976,6 +1976,79 @@ export function TextAssetExcelEditor({
                             )}
                             {getLevelIcon(item.level!)}
                             <span className="font-medium truncate">{item.groupLabel}</span>
+                            {/* Per-phase Google Ads shell buttons. Only render at the phase
+                                level (level 2) for Google rows. The group key shape is
+                                `phase:${platform}|${market}|${phase}` — we parse it back so
+                                we can scope the download/upload to that phase. */}
+                            {item.level === 2 && item.groupKey && hasGoogleRows && (() => {
+                              const raw = item.groupKey.replace(/^phase:/, '');
+                              const [platform, market, phase] = raw.split('|');
+                              if ((platform || '').toLowerCase() !== 'google') return null;
+                              if (!onDownloadGoogleAdsShellForPhase && !onUploadGoogleAdsShellForPhase) return null;
+                              const inputKey = `${market}|${phase}`;
+                              return (
+                                <div
+                                  className="flex items-center gap-1 ml-2 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {onDownloadGoogleAdsShellForPhase && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 px-2 text-xs"
+                                            onClick={() => onDownloadGoogleAdsShellForPhase(market, phase)}
+                                          >
+                                            <Download className="h-3 w-3 mr-1" />
+                                            Shell
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Download a Google Ads Editor xlsx for this phase only.
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  {onUploadGoogleAdsShellForPhase && (
+                                    <>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 px-2 text-xs"
+                                              onClick={() => {
+                                                const input = phaseShellInputsRef.current.get(inputKey);
+                                                input?.click();
+                                              }}
+                                            >
+                                              <Upload className="h-3 w-3 mr-1" />
+                                              Upload
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            Upload a filled Google Ads Editor xlsx for this phase.
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                      <input
+                                        ref={(el) => {
+                                          if (el) phaseShellInputsRef.current.set(inputKey, el);
+                                          else phaseShellInputsRef.current.delete(inputKey);
+                                        }}
+                                        type="file"
+                                        accept=".xlsx,.xls"
+                                        className="hidden"
+                                        onChange={(e) => handlePhaseShellPick(market, phase, e)}
+                                      />
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <Badge variant="secondary" className="text-xs ml-auto mr-2">
                               {item.rowIds?.length || 0}
                             </Badge>
