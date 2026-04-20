@@ -134,6 +134,27 @@ export function TextAssetsStep({
         if (error) throw error;
 
         const generic = (data?.generic_config as any) || {};
+        const basicTargeting = generic?.targetingPreset || generic?.basicTargeting || {};
+        // Resolve per-platform default ad sets so that Google phases without their own
+        // `adSets` array still inherit the campaign-level split (e.g. Age dimension with
+        // 2 groups). Without this fallback the editor would show a single "Default" ad
+        // group regardless of the configured split.
+        const perPlatformDim = basicTargeting?.defaultAdSetSplitDimensionPerPlatform || {};
+        const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform || {};
+        const googleDimension =
+          perPlatformDim?.google || perPlatformDim?.google_ads || basicTargeting?.defaultAdSetSplitDimension;
+        const googleDefaultAdSets =
+          perPlatformAdSets?.google ||
+          perPlatformAdSets?.google_ads ||
+          (Object.keys(perPlatformAdSets).length === 0 ? basicTargeting?.defaultAdSets : undefined);
+        const inheritAdSets = (phase: any): any[] | undefined => {
+          if (Array.isArray(phase?.adSets) && phase.adSets.length > 0) return phase.adSets;
+          if (phase?.overrideTargeting) return undefined;
+          if (googleDimension && googleDimension !== 'none' && Array.isArray(googleDefaultAdSets) && googleDefaultAdSets.length > 0) {
+            return googleDefaultAdSets;
+          }
+          return undefined;
+        };
         const phases: any[] = Array.isArray(generic?.phases) ? generic.phases : [];
         const phaseHasGoogle = phases.some((phase) => {
           const platforms = Array.isArray(phase?.platforms) ? phase.platforms : [];
@@ -202,7 +223,10 @@ export function TextAssetsStep({
               name: p.name,
               googleCampaignType: p.googleCampaignType,
               googleSearchSplitLevel: p.googleSearchSplitLevel,
-              adSets: p.adSets,
+              // Inherit per-platform default ad sets when the phase doesn't define its
+              // own, so Search / PMax / Demand Gen reflect the configured split (e.g.
+              // Age × 2 groups) instead of collapsing into a single "Default" group.
+              adSets: inheritAdSets(p),
               market: p.market,
             })),
             markets,
@@ -210,9 +234,13 @@ export function TextAssetsStep({
           });
 
           const placeholders: CreativeTextAssetRow[] = expansion.map((ref, idx) => {
+            // For Search phases we keep the strategy decoration so each campaign
+            // (Brand / Generic / Competition) renders as its own group. For non-search
+            // phases we use the bare phase name so placeholders dedup against any real
+            // assignments — which store `phase_name` without decoration.
             const phaseLabel = ref.strategy
               ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
-              : `${ref.phaseName} • ${ref.googleCampaignType}`;
+              : ref.phaseName;
             return {
               id: `google_shell_${ref.market}_${ref.phaseName}_${ref.strategy || 'na'}_${ref.adGroupName}_${idx}`,
               creativeId: '',
