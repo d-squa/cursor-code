@@ -159,9 +159,19 @@ export function TextAssetsStep({
           }
         }
         const markets = Array.from(googleMarketSet);
-        const keywords: GoogleKeywordLike[] = Array.isArray(generic?.selectedKeywords)
-          ? generic.selectedKeywords
-          : [];
+        // Collect keywords from generic_config and any per-phase keyword arrays so that
+        // strategy detection (Brand / Generic / Competition) can find them wherever they live.
+        const keywordSources: any[] = [];
+        if (Array.isArray(generic?.selectedKeywords)) keywordSources.push(...generic.selectedKeywords);
+        if (Array.isArray(generic?.keywords)) keywordSources.push(...generic.keywords);
+        for (const p of googlePhases) {
+          if (Array.isArray(p?.selectedKeywords)) keywordSources.push(...p.selectedKeywords);
+          if (Array.isArray(p?.keywords)) keywordSources.push(...p.keywords);
+          if (Array.isArray(p?.searchKeywords)) keywordSources.push(...p.searchKeywords);
+        }
+        const keywords: GoogleKeywordLike[] = keywordSources.filter(
+          (k) => !k?.platform || String(k.platform).toLowerCase().includes('google'),
+        );
 
         if (googlePhases.length > 0 && markets.length > 0) {
           const expansion = buildExpandedStructure({
