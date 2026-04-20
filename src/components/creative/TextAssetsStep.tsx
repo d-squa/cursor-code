@@ -72,6 +72,12 @@ interface TextAssetsStepProps {
    * The editor still loads the full assignment set for the campaign.
    */
   savedAssignments?: SavedAssignment[];
+  /**
+   * Optional list of all campaign structures (ad sets) detected by the
+   * matching engine. Used to render placeholder rows for ad sets that have
+   * no creative assignments yet, so the user can still configure copy for them.
+   */
+  campaignStructures?: CampaignStructure[];
   onComplete: () => void;
   /** Called when user wants to save and select more creatives (goes back to step 1) */
   onSaveAndSelectMore?: () => void;
