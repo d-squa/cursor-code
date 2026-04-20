@@ -1033,10 +1033,26 @@ export function TextAssetsStep({
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
 
-  // ============= Google Ads Shell (Search / PMax / Lead Gen) =============
+  // ============= Google Ads Shell (Search / PMax / Demand Gen / Lead Gen) =============
+  // Merge real Google assignments with synthesized "shell" placeholder rows so that
+  // every Google campaign type (Search strategies, PMax, Demand Gen, etc.) shows up
+  // in the editor — even before any creatives are matched.
+  const mergedRows = useMemo(() => {
+    if (googlePlaceholderRows.length === 0) return rows;
+    const realGoogleKeys = new Set(
+      rows
+        .filter((r) => r.platform === 'google')
+        .map((r) => `${r.market}|${r.phase}|${r.adSet}`),
+    );
+    const filteredPlaceholders = googlePlaceholderRows.filter(
+      (p) => !realGoogleKeys.has(`${p.market}|${p.phase}|${p.adSet}`),
+    );
+    return [...rows, ...filteredPlaceholders];
+  }, [rows, googlePlaceholderRows]);
+
   const hasGoogleRows = useMemo(
-    () => hasGoogleConfigured || rows.some((r) => r.platform === 'google'),
-    [hasGoogleConfigured, rows],
+    () => hasGoogleConfigured || mergedRows.some((r) => r.platform === 'google'),
+    [hasGoogleConfigured, mergedRows],
   );
 
   const loadGoogleShellContext = useCallback(async (): Promise<GoogleShellContext> => {
