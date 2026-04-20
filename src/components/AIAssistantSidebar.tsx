@@ -8,8 +8,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Bot, Send, Plus, Trash2, MessageSquare, Square, ChevronLeft, Sparkles, Share2, Lock, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
+import { useAuth } from "@/hooks/useAuth";
 
 function ConversationList({
   conversations,
@@ -203,6 +204,8 @@ function ChatView({
 }
 
 export function AIAssistantSidebar() {
+  const { user } = useAuth();
+  const location = useLocation();
   const { hasAccess, requiredTier, loading } = useFeatureGate("ai_assistant");
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -218,6 +221,12 @@ export function AIAssistantSidebar() {
     deleteConversation,
     newConversation,
   } = useAIAssistant();
+
+  // Don't render on public landing pages or if not authenticated
+  const publicRoutes = ["/", "/book-demo", "/book-demo/confirmation", "/terms", "/privacy", "/compare-plans"];
+  const isPublicRoute = publicRoutes.includes(location.pathname);
+  
+  if (!user || isPublicRoute) return null;
 
   const handleSelectConversation = (id: string) => {
     loadConversation(id);
