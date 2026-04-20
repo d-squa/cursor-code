@@ -13,10 +13,24 @@ import { Save, Check, AlertCircle, Loader2, Plus, Image, Video, Rocket } from 'l
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
+import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat, type AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
 import { detectAdFormat } from '@/utils/adFormatDetection';
+import {
+  buildExpandedStructure,
+  buildAdRowsFromAssignments,
+  buildCurrentKeywordRows,
+  downloadGoogleAdsShell,
+  parseGoogleAdsShell,
+  diffShell,
+  applyKeywordDiff,
+  adChangesToAssignmentUpdate,
+  type GoogleAdsShellDiff,
+  type GoogleKeywordLike,
+  type AssignmentLite,
+} from '@/utils/googleAdsEditorExcel';
 import { 
   TaxonomyParam,
   TaxonomyContext,
@@ -76,6 +90,9 @@ export function TextAssetsStep({
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasGoogleConfigured, setHasGoogleConfigured] = useState(false);
+  const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
+  const [shellOpen, setShellOpen] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
   const [selectedNewCreatives, setSelectedNewCreatives] = useState<Set<string>>(new Set());
@@ -87,6 +104,47 @@ export function TextAssetsStep({
   // Track AC group compiled specs for persistence
   const acGroupSpecsRef = useRef<Map<string, { group: DetectedACGroup; compiled: CompilationResult }>>(new Map());
   const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
+  const shellContextRef = useRef<{
+    campaignName: string;
+    generic: any;
+    keywords: GoogleKeywordLike[];
+    expansion: ReturnType<typeof buildExpandedStructure>;
+    adRows: ReturnType<typeof buildAdRowsFromAssignments>;
+  } | null>(null);
+
+  useEffect(() => {
+    const detectGoogle = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('campaigns')
+          .select('generic_config, market_splits, platforms')
+          .eq('id', campaignId)
+          .single();
+
+        if (error) throw error;
+
+        const generic = (data?.generic_config as any) || {};
+        const phases: any[] = Array.isArray(generic?.phases) ? generic.phases : [];
+        const phaseHasGoogle = phases.some((phase) => {
+          const platforms = Array.isArray(phase?.platforms) ? phase.platforms : [];
+          return platforms.some((platform: string) => String(platform).toLowerCase().includes('google'));
+        });
+        const splits = (data?.market_splits as Record<string, any>) || {};
+        const splitsHasGoogle = Object.keys(splits).some((key) => key.toLowerCase().includes('google'));
+        const platforms = Array.isArray(data?.platforms) ? (data.platforms as any[]) : [];
+        const platformsHasGoogle = platforms.some((platform) =>
+          String(platform?.id || platform?.name || platform || '').toLowerCase().includes('google'),
+        );
+
+        setHasGoogleConfigured(phaseHasGoogle || splitsHasGoogle || platformsHasGoogle);
+      } catch (error) {
+        console.warn('[TextAssetsStep] failed to detect Google config', error);
+        setHasGoogleConfigured(false);
+      }
+    };
+
+    detectGoogle();
+  }, [campaignId]);
 
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
