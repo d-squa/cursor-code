@@ -865,9 +865,9 @@ const Overview = () => {
       <section className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 mb-4">
-              <LayoutDashboard className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Overview</span>
+            <div className="inline-flex items-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-primary to-purple-600 px-4 py-2 mb-4 shadow-sm">
+              <LayoutDashboard className="h-4 w-4 text-primary-foreground" />
+              <span className="text-sm font-semibold text-primary-foreground">Overview</span>
             </div>
             <h2 className="text-3xl font-bold">ActiPlan Performance</h2>
             <p className="text-muted-foreground mt-1">Monitor your ActiPlan Performance at a glance</p>

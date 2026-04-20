@@ -395,7 +395,7 @@ const Landing = () => {
         {/* Hero Section */}
         <section className="container mx-auto px-4 md:py-32 py-[60px]">
           <div className="max-w-4xl mx-auto text-center">
-            <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm bg-[#f9e6ff]">
+            <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm shadow-md border-transparent bg-gradient-to-r from-primary to-purple-600 text-primary-foreground hover:from-primary hover:to-purple-600">
               <Sparkles className="h-3 w-3 mr-1" />
               <span className="hidden sm:inline">AI Media Buying Automation Platform</span>
               <span className="sm:hidden">AI Media Buying Automation Platform</span>
