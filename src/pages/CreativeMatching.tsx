@@ -520,6 +520,7 @@ export default function CreativeMatching() {
                 campaignId={progress.campaignId}
                 campaignName={progress.campaignName}
                 savedAssignments={matchingState.savedAssignments}
+                campaignStructures={matchingState.structures}
                 onComplete={handleContentComplete}
                 onSaveAndSelectMore={handleSaveAndSelectMore}
               />

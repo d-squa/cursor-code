@@ -311,6 +311,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
             campaignId={effectiveCampaignId!}
             campaignName={selectedCampaignName}
             savedAssignments={state.savedAssignments}
+            campaignStructures={state.structures}
             onComplete={() => {
               skipTextAssets();
               onOpenChange(false);

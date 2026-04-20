@@ -50,6 +50,7 @@ import {
   toAssetCustomizationMemberBucket,
 } from '@/utils/assetCustomizationPersistence';
 import { isAssignmentPushedLive, normalizeAssignmentPushStatus } from '@/utils/creativeAssignmentStatus';
+import type { CampaignStructure } from '@/hooks/useCreativeMatching';
 
 interface SavedAssignment {
   id: string;
@@ -71,6 +72,12 @@ interface TextAssetsStepProps {
    * The editor still loads the full assignment set for the campaign.
    */
   savedAssignments?: SavedAssignment[];
+  /**
+   * Optional list of all campaign structures (ad sets) detected by the
+   * matching engine. Used to render placeholder rows for ad sets that have
+   * no creative assignments yet, so the user can still configure copy for them.
+   */
+  campaignStructures?: CampaignStructure[];
   onComplete: () => void;
   /** Called when user wants to save and select more creatives (goes back to step 1) */
   onSaveAndSelectMore?: () => void;
@@ -91,6 +98,7 @@ export function TextAssetsStep({
   campaignId, 
   campaignName, 
   savedAssignments,
+  campaignStructures,
   onComplete,
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
@@ -1043,22 +1051,82 @@ export function TextAssetsStep({
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
 
+  // Build placeholder rows for Meta/TikTok ad sets that have no creative
+  // assignments yet, so the user can still author copy for them.
+  // (Google has its own shell-driven placeholders above.)
+  const structurePlaceholderRows = useMemo<CreativeTextAssetRow[]>(() => {
+    if (!campaignStructures || campaignStructures.length === 0) return [];
+    const placeholders: CreativeTextAssetRow[] = [];
+    campaignStructures.forEach((s, idx) => {
+      const platform = String(s.platform || '').toLowerCase();
+      // Skip Google — handled by googlePlaceholderRows.
+      if (platform === 'google' || platform.includes('google')) return;
+      const market = s.market || 'Global';
+      const phase = (s.phases && s.phases[0]) || s.funnelStage || 'Default';
+      const adSet = s.adSetName || 'Ad Set';
+      placeholders.push({
+        id: `structure_shell_${platform}_${market}_${phase}_${adSet}_${idx}`,
+        creativeId: '',
+        assignmentId: '',
+        platform,
+        market,
+        phase,
+        adSet,
+        creativeName: '— No creative assigned —',
+        creativeFormat: 'image',
+        taxonomyCampaignName: s.campaignName || campaignName,
+        taxonomyAdSetName: adSet,
+        taxonomyAdName: '',
+        adFormat: 'other',
+        suggestedAdFormat: 'other',
+        adFormatConfirmed: false,
+        primaryText: '',
+        headline: '',
+        description: '',
+        callToAction: 'LEARN_MORE',
+        destinationUrl: '',
+        autoBuildUtm: false,
+        isValid: true,
+        validationErrors: [],
+        mediaType: 'image',
+        pushStatus: 'draft',
+      } as CreativeTextAssetRow);
+    });
+    return placeholders;
+  }, [campaignStructures, campaignName]);
+
   // ============= Google Ads Shell (Search / PMax / Demand Gen / Lead Gen) =============
   // Merge real Google assignments with synthesized "shell" placeholder rows so that
   // every Google campaign type (Search strategies, PMax, Demand Gen, etc.) shows up
   // in the editor — even before any creatives are matched.
   const mergedRows = useMemo(() => {
-    if (googlePlaceholderRows.length === 0) return rows;
-    const realGoogleKeys = new Set(
-      rows
-        .filter((r) => r.platform === 'google')
-        .map((r) => `${r.market}|${r.phase}|${r.adSet}`),
-    );
-    const filteredPlaceholders = googlePlaceholderRows.filter(
-      (p) => !realGoogleKeys.has(`${p.market}|${p.phase}|${p.adSet}`),
-    );
-    return [...rows, ...filteredPlaceholders];
-  }, [rows, googlePlaceholderRows]);
+    const out = [...rows];
+
+    // Add Meta/TikTok placeholders for ad sets without any assignment.
+    if (structurePlaceholderRows.length > 0) {
+      const realKeys = new Set(
+        rows.map((r) => `${(r.platform || '').toLowerCase()}|${r.market}|${r.phase}|${r.adSet}`),
+      );
+      for (const p of structurePlaceholderRows) {
+        const key = `${(p.platform || '').toLowerCase()}|${p.market}|${p.phase}|${p.adSet}`;
+        if (!realKeys.has(key)) out.push(p);
+      }
+    }
+
+    // Add Google shell placeholders.
+    if (googlePlaceholderRows.length > 0) {
+      const realGoogleKeys = new Set(
+        out
+          .filter((r) => r.platform === 'google')
+          .map((r) => `${r.market}|${r.phase}|${r.adSet}`),
+      );
+      for (const p of googlePlaceholderRows) {
+        if (!realGoogleKeys.has(`${p.market}|${p.phase}|${p.adSet}`)) out.push(p);
+      }
+    }
+
+    return out;
+  }, [rows, googlePlaceholderRows, structurePlaceholderRows]);
 
   const hasGoogleRows = useMemo(
     () => hasGoogleConfigured || mergedRows.some((r) => r.platform === 'google'),
