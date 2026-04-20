@@ -73,6 +73,10 @@ interface TextAssetExcelEditorProps {
   onDownloadGoogleAdsShell?: () => void | Promise<void>;
   /** Optional: handle re-upload of a Google Ads Editor shell xlsx. */
   onUploadGoogleAdsShell?: (file: File) => void | Promise<void>;
+  /** Optional: download a Google Ads shell scoped to a single (market, phase). */
+  onDownloadGoogleAdsShellForPhase?: (market: string, phase: string) => void | Promise<void>;
+  /** Optional: upload a Google Ads shell scoped to a single (market, phase). */
+  onUploadGoogleAdsShellForPhase?: (market: string, phase: string, file: File) => void | Promise<void>;
   /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
   hasGoogleRows?: boolean;
 }
@@ -233,6 +237,8 @@ export function TextAssetExcelEditor({
   onACGroupRemoved,
   onDownloadGoogleAdsShell,
   onUploadGoogleAdsShell,
+  onDownloadGoogleAdsShellForPhase,
+  onUploadGoogleAdsShellForPhase,
   hasGoogleRows,
 }: TextAssetExcelEditorProps) {
   const googleShellInputRef = useRef<HTMLInputElement>(null);
@@ -243,6 +249,22 @@ export function TextAssetExcelEditor({
       if (googleShellInputRef.current) googleShellInputRef.current.value = '';
     }
   }, [onUploadGoogleAdsShell]);
+
+  // Per-phase Google shell upload — keyed by `${market}|${phase}` so each phase
+  // header has its own hidden file input we can trigger independently.
+  const phaseShellInputsRef = useRef<Map<string, HTMLInputElement>>(new Map());
+  const handlePhaseShellPick = useCallback(
+    async (market: string, phase: string, e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !onUploadGoogleAdsShellForPhase) return;
+      try { await onUploadGoogleAdsShellForPhase(market, phase, file); } finally {
+        const key = `${market}|${phase}`;
+        const input = phaseShellInputsRef.current.get(key);
+        if (input) input.value = '';
+      }
+    },
+    [onUploadGoogleAdsShellForPhase],
+  );
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -1954,6 +1976,79 @@ export function TextAssetExcelEditor({
                             )}
                             {getLevelIcon(item.level!)}
                             <span className="font-medium truncate">{item.groupLabel}</span>
+                            {/* Per-phase Google Ads shell buttons. Only render at the phase
+                                level (level 2) for Google rows. The group key shape is
+                                `phase:${platform}|${market}|${phase}` — we parse it back so
+                                we can scope the download/upload to that phase. */}
+                            {item.level === 2 && item.groupKey && hasGoogleRows && (() => {
+                              const raw = item.groupKey.replace(/^phase:/, '');
+                              const [platform, market, phase] = raw.split('|');
+                              if ((platform || '').toLowerCase() !== 'google') return null;
+                              if (!onDownloadGoogleAdsShellForPhase && !onUploadGoogleAdsShellForPhase) return null;
+                              const inputKey = `${market}|${phase}`;
+                              return (
+                                <div
+                                  className="flex items-center gap-1 ml-2 shrink-0"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {onDownloadGoogleAdsShellForPhase && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 px-2 text-xs"
+                                            onClick={() => onDownloadGoogleAdsShellForPhase(market, phase)}
+                                          >
+                                            <Download className="h-3 w-3 mr-1" />
+                                            Shell
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Download a Google Ads Editor xlsx for this phase only.
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  {onUploadGoogleAdsShellForPhase && (
+                                    <>
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 px-2 text-xs"
+                                              onClick={() => {
+                                                const input = phaseShellInputsRef.current.get(inputKey);
+                                                input?.click();
+                                              }}
+                                            >
+                                              <Upload className="h-3 w-3 mr-1" />
+                                              Upload
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            Upload a filled Google Ads Editor xlsx for this phase.
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                      <input
+                                        ref={(el) => {
+                                          if (el) phaseShellInputsRef.current.set(inputKey, el);
+                                          else phaseShellInputsRef.current.delete(inputKey);
+                                        }}
+                                        type="file"
+                                        accept=".xlsx,.xls"
+                                        className="hidden"
+                                        onChange={(e) => handlePhaseShellPick(market, phase, e)}
+                                      />
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <Badge variant="secondary" className="text-xs ml-auto mr-2">
                               {item.rowIds?.length || 0}
                             </Badge>
