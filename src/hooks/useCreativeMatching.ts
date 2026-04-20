@@ -469,9 +469,13 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
               effectiveSplitDimension = platformDefaultDimension || 'custom';
             }
 
-            // Search phases with active keyword strategies get their own campaign-level splits,
-            // so exclude them from ad set splitting to avoid cross-product explosion
-            const isSearchWithStrategies = strategyGroups.length > 0;
+            // Search phases combine strategy splits (Brand/Generic/Competition) with ad set
+            // splits. When `googleSearchSplitLevel === 'campaign'`, each ad set becomes its
+            // own campaign-per-strategy and we still want the cross product. When set to
+            // 'adgroup' (default), each strategy campaign holds the ad sets as ad groups —
+            // the cross product is again the desired output. So we no longer skip ad set
+            // splitting just because strategies exist.
+            const isSearchWithStrategies = false;
 
             if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none' && !isSearchWithStrategies) {
               // Create a structure for EACH ad set configuration
