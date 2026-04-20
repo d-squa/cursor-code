@@ -798,16 +798,12 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
                 {config.targeting.topics && (
                   <div className="space-y-1">
                     <Label className="text-xs">Excluded Topics</Label>
-                    <Textarea
-                      placeholder="e.g. Sensitive Social Issues&#10;Tragedy & Conflict"
-                      value={(phase.googleExcludedTopics || []).join("\n")}
-                      onChange={(e) =>
-                        onUpdate(
-                          "googleExcludedTopics",
-                          e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
-                        )
-                      }
-                      className="text-xs min-h-[70px]"
+                    <MultiSelect
+                      options={GOOGLE_TOPIC_OPTIONS}
+                      value={phase.googleExcludedTopics || []}
+                      onChange={(vals) => onUpdate("googleExcludedTopics", vals)}
+                      placeholder="Select topics to exclude"
+                      className="text-xs"
                     />
                   </div>
                 )}
