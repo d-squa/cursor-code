@@ -268,11 +268,21 @@ export const OnboardingWizard = () => {
     }
   };
 
-  const handleSkip = async () => {
-    // Store partial onboarding data and mark as complete
+  const handleSkip = async (permanent = false) => {
+    // Track skip count across sessions
+    const prevSkipCount = parseInt(localStorage.getItem("actiplan_onboarding_skip_count") || "0", 10);
+    const newSkipCount = prevSkipCount + 1;
+    localStorage.setItem("actiplan_onboarding_skip_count", String(newSkipCount));
+
+    if (permanent) {
+      localStorage.setItem("actiplan_onboarding_dismissed", "true");
+    }
+
+    // Store partial onboarding data and mark as complete (for this session)
     localStorage.setItem("actiplan_onboarding", JSON.stringify({
       ...formData,
       skipped: true,
+      permanentlyDismissed: permanent,
       completedAt: new Date().toISOString()
     }));
     
@@ -627,15 +637,31 @@ export const OnboardingWizard = () => {
             )}
           </div>
 
-          {/* Skip button only shows after step 1 is completed */}
-          {step1Completed && step > 1 && (
-            <button
-              onClick={handleSkip}
-              className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Skip for now
-            </button>
-          )}
+          {/* Skip controls — available on every step */}
+          {(() => {
+            const skipCount = parseInt(localStorage.getItem("actiplan_onboarding_skip_count") || "0", 10);
+            const canDismissForever = skipCount >= 2;
+            return (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSkip(false)}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Skip for now
+                </button>
+                {canDismissForever && (
+                  <button
+                    type="button"
+                    onClick={() => handleSkip(true)}
+                    className="text-xs text-muted-foreground/70 hover:text-destructive transition-colors"
+                  >
+                    Don't show this again
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>
