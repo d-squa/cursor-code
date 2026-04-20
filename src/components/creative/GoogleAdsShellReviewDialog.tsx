@@ -2,7 +2,7 @@
 // Lists keyword adds/updates/removes and per-assignment ad changes with checkboxes
 // so the user can opt-in or opt-out of individual changes before committing.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,7 +28,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
   const [isApplying, setIsApplying] = useState(false);
 
   // Initialise selections every time the dialog opens with a fresh diff.
-  useMemo(() => {
+  useEffect(() => {
     if (!diff) return;
     setSelectedAdds(new Set(diff.keywords.added.map((_, i) => i)));
     setSelectedUpdates(new Set(diff.keywords.updated.map((_, i) => i)));
@@ -110,7 +110,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           <TabsContent value="keywords" className="flex-1 overflow-hidden mt-2">
             <ScrollArea className="h-[50vh] pr-3">
               {diff.keywords.added.length > 0 && (
-                <Section title="Added keywords" icon={<Plus className="h-4 w-4 text-green-600" />}>
+                <Section title="Added keywords" icon={<Plus className="h-4 w-4 text-primary" />}>
                   {diff.keywords.added.map((k, i) => (
                     <Row
                       key={`add-${i}`}
@@ -126,7 +126,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                 </Section>
               )}
               {diff.keywords.updated.length > 0 && (
-                <Section title="Match-type updates" icon={<Pencil className="h-4 w-4 text-amber-600" />}>
+                <Section title="Match-type updates" icon={<Pencil className="h-4 w-4 text-muted-foreground" />}>
                   {diff.keywords.updated.map((u, i) => (
                     <Row
                       key={`upd-${i}`}
@@ -187,8 +187,8 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
 
           {diff.ads.skippedNew.length > 0 && (
             <TabsContent value="skipped" className="flex-1 overflow-hidden mt-2">
-              <div className="flex items-start gap-2 p-2 mb-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded text-xs">
-                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-2 p-2 mb-2 bg-muted border border-border rounded text-xs">
+                <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div>
                   New RSA rows detected. Auto-creation isn't supported in this version — add the
                   ads inside the editor first, then re-upload to update them.
