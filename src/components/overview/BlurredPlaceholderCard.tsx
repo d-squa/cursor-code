@@ -30,7 +30,7 @@ export function BlurredPlaceholderCard() {
         <p className="text-xs text-muted-foreground mb-2 text-center px-4">
           No campaigns yet
         </p>
-        <Button size="sm" className="h-7 text-xs" onClick={() => navigate("/app/app")}>
+        <Button size="sm" className="h-7 text-xs" onClick={() => navigate("/app")}>
           <Plus className="h-3 w-3 mr-1" />
           Create
         </Button>

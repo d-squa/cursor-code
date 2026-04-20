@@ -307,7 +307,7 @@ const Overview = () => {
   // Handle new=true query param - redirect to app for creating new ActiPlan
   useEffect(() => {
     if (searchParams.get("new") === "true") {
-      navigate("/app/app", { replace: true });
+      navigate("/app", { replace: true });
     }
   }, [searchParams, navigate]);
   const loadData = async () => {
@@ -906,7 +906,7 @@ const Overview = () => {
                 onClick={() => {
                   localStorage.removeItem("draftCampaignId");
                   localStorage.removeItem("basicTargeting");
-                  navigate("/app/app?new=true");
+                  navigate("/app?new=true");
                 }}
                 size="sm"
               >
