@@ -415,7 +415,7 @@ export default function TaskManagement() {
       <div className="container mx-auto py-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/overview")}>
+            <Button variant="ghost" size="icon" onClick={() => navigate("/app/overview")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -438,7 +438,7 @@ export default function TaskManagement() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
-            <Button onClick={() => navigate("/settings/plans")}>
+            <Button onClick={() => navigate("/app/settings/plans")}>
               Upgrade Plan
             </Button>
           </CardContent>
@@ -459,7 +459,7 @@ export default function TaskManagement() {
     <div className="container mx-auto py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/overview")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/app/overview")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -641,7 +641,7 @@ export default function TaskManagement() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => selectedTask && navigate(`/actiplans?campaignId=${selectedTask.campaign_id}`)}
+                onClick={() => selectedTask && navigate(`/app/actiplans?campaignId=${selectedTask.campaign_id}`)}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 {selectedTask?.task_type === "approval" ? "Review & Approve ActiPlan" : "View ActiPlan"}

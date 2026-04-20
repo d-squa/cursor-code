@@ -75,7 +75,7 @@ export default function PerformanceReport() {
   // Legacy hardcoded placeholder no longer exists — redirect away cleanly.
   useEffect(() => {
     if (campaignId === SAMPLE_CAMPAIGN_ID) {
-      navigate("/overview", { replace: true });
+      navigate("/app/overview", { replace: true });
     }
   }, [campaignId, navigate]);
 
@@ -677,7 +677,7 @@ export default function PerformanceReport() {
     return (
       <div className="p-6">
         <p className="text-muted-foreground">Campaign not found</p>
-        <Button variant="outline" onClick={() => navigate('/actiplans')} className="mt-4">
+        <Button variant="outline" onClick={() => navigate('/app/actiplans')} className="mt-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to ActiPlans
         </Button>
@@ -692,7 +692,7 @@ export default function PerformanceReport() {
     <div className="container mx-auto p-6 max-w-[1600px]">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/actiplans')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/app/actiplans')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
@@ -750,7 +750,7 @@ export default function PerformanceReport() {
                 <p className="text-muted-foreground mb-4">
                   Push your campaign to DSP first to see performance metrics
                 </p>
-                <Button onClick={() => navigate(`/actiplans/${campaignId}/launch`)}>
+                <Button onClick={() => navigate(`/app/actiplans/${campaignId}/launch`)}>
                   Go to Launch Status
                 </Button>
               </CardContent>

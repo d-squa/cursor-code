@@ -88,7 +88,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
         toast.success("Welcome to the team!");
 
         // Reload to pick up new workspace and subscription
-        window.location.href = "/overview";
+        window.location.href = "/app/overview";
       } catch (err: any) {
         console.error("Failed to auto-accept invitation:", err);
         localStorage.removeItem("actiplan_pending_invitation");

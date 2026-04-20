@@ -54,7 +54,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Here you can see the demo accounts connected to Meta, TikTok, and Google Ads. In real usage, you'd connect your own ad accounts through OAuth to enable campaign syncing and pushing.",
     icon: <Plug className="h-6 w-6" />,
-    navigateTo: "/settings/platforms",
+    navigateTo: "/app/settings/platforms",
     isInteractive: true,
     tip: "You can connect multiple ad accounts per platform.",
   },
@@ -63,7 +63,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "This is a fully configured cross-platform campaign with 3 platforms, 2 markets, and 13 ad sets. You can explore the structure, view the forecast, and check the activity logs. The push and creative mesh features are disabled for sample data.",
     icon: <FileText className="h-6 w-6" />,
-    navigateTo: "/actiplans",
+    navigateTo: "/app/actiplans",
     isInteractive: true,
     tip: "Click into the sample ActiPlan to explore targeting, budgets, and phases.",
   },
@@ -72,7 +72,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Each ActiPlan card shows overall pacing (time vs spend), per-platform pacing, KPI status (under/on/over target), and aggregated activity stats — Changes, Pending requests, Optimizations and Notes — both at the ActiPlan level and split by platform.",
     icon: <Rocket className="h-6 w-6" />,
-    navigateTo: "/overview",
+    navigateTo: "/app/overview",
     isInteractive: true,
     tip: "Hover the bars for tooltips, expand 'By Platform', and toggle Lifetime / Month / 7D for the activity stats.",
   },
@@ -81,7 +81,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Click 'Check Performance' on any card — or use this step's deep link — to open the full performance dashboard for an ActiPlan: time-series charts, funnel analysis, market & platform comparison, and downloadable reports.",
     icon: <BarChart3 className="h-6 w-6" />,
-    navigateTo: "/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
+    navigateTo: "/app/actiplans/3d42526c-4aa3-416d-ae8c-0e84bc129c1b/report",
     isInteractive: true,
     tip: "Use the date range and breakdown filters at the top to slice the data.",
   },
@@ -90,7 +90,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "AI-powered cross-platform analyses comparing time periods, breakdowns and platforms. We've pre-loaded a sample analysis — open the History tab to view its executive summary, per-platform highlights, recommendations and risks.",
     icon: <Lightbulb className="h-6 w-6" />,
-    navigateTo: "/actiplans/:campaignId/insights",
+    navigateTo: "/app/actiplans/:campaignId/insights",
     isInteractive: true,
     tip: "Open the History tab to load the pre-filled sample analysis.",
   },
@@ -99,7 +99,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Create client profiles with industry, markets, and business objectives. Then link ad accounts and configure default pixels, pages, and conversion events that auto-populate in new ActiPlans.",
     icon: <Users className="h-6 w-6" />,
-    navigateTo: "/settings/accounts",
+    navigateTo: "/app/settings/accounts",
     tip: "Defaults save hours of repetitive configuration.",
   },
   {
@@ -107,7 +107,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "Upload or sync creative assets, then assign them to specific phases and ad sets. Creative Mesh handles format validation and platform-specific requirements automatically.",
     icon: <Image className="h-6 w-6" />,
-    navigateTo: "/creatives",
+    navigateTo: "/app/creatives",
     tip: "AI-powered creative matching can auto-assign assets based on format and objective.",
   },
   {
@@ -115,7 +115,7 @@ const TOUR_STEPS: TourStep[] = [
     description:
       "You now know the key workflow. The sample data will remain visible so you can keep exploring. You can hide it anytime from Settings, or replay this tour.",
     icon: <CheckCircle2 className="h-6 w-6" />,
-    navigateTo: "/overview",
+    navigateTo: "/app/overview",
   },
 ];
 
@@ -136,9 +136,9 @@ export function OnboardingTour() {
       if (!path) return path;
       if (!path.includes(":campaignId")) return path;
       if (seededCampaignId) return path.replace(":campaignId", seededCampaignId);
-      if (path.endsWith("/insights")) return "/insights";
-      if (path.endsWith("/report")) return "/overview";
-      return "/actiplans";
+      if (path.endsWith("/app/insights")) return "/app/insights";
+      if (path.endsWith("/report")) return "/app/overview";
+      return "/app/actiplans";
     },
     [seededCampaignId]
   );

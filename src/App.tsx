@@ -2,7 +2,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
+
+// Helper: redirect legacy /foo/* paths to /app/foo/* preserving the rest of the path + search/hash
+const LegacyRedirect = ({ prefix }: { prefix: string }) => {
+  const location = useLocation();
+  const params = useParams();
+  const splat = (params as any)["*"] || "";
+  const target = `${prefix}${splat ? `/${splat}` : ""}${location.search}${location.hash}`;
+  return <Navigate to={target} replace />;
+};
 import Landing from "./pages/Landing";
 import ComparePlans from "./pages/ComparePlans";
 import LandingB from "./pages/LandingB";
@@ -88,27 +97,27 @@ const App = () => (
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             
-            {/* Protected app routes - require subscription */}
-            <Route path="/overview" element={<SubscriptionGuard><Overview /></SubscriptionGuard>} />
+            {/* Protected app routes - require subscription. All app routes live under /app/* */}
             <Route path="/app" element={<SubscriptionGuard><ExtensionModeProvider><AppHome /></ExtensionModeProvider></SubscriptionGuard>} />
             <Route path="/app/new" element={<SubscriptionGuard><ExtensionModeProvider><Navigate to="/app" replace /></ExtensionModeProvider></SubscriptionGuard>} />
-            <Route path="/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
-            <Route path="/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
-            <Route path="/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
-            <Route path="/actiplans/:campaignId/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
-            <Route path="/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
-            <Route path="/operations-analytics" element={<SubscriptionGuard><OperationsAnalytics /></SubscriptionGuard>} />
-            <Route path="/tasks" element={<SubscriptionGuard><TaskManagement /></SubscriptionGuard>} />
-            <Route path="/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
-            <Route path="/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
-            <Route path="/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
-            <Route path="/creatives" element={<SubscriptionGuard><CreativeMatching /></SubscriptionGuard>} />
-            <Route path="/creatives/match" element={<SubscriptionGuard><Navigate to="/creatives" replace /></SubscriptionGuard>} />
-            <Route path="/creatives/library" element={<SubscriptionGuard><CreativeLibrary /></SubscriptionGuard>} />
-            <Route path="/manage-accounts" element={<SubscriptionGuard><ManageClientAccounts /></SubscriptionGuard>} />
-            <Route path="/teams" element={<SubscriptionGuard><Teams /></SubscriptionGuard>} />
-            <Route path="/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>}>
-              <Route index element={<Navigate to="/settings/users" replace />} />
+            <Route path="/app/overview" element={<SubscriptionGuard><Overview /></SubscriptionGuard>} />
+            <Route path="/app/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
+            <Route path="/app/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
+            <Route path="/app/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
+            <Route path="/app/actiplans/:campaignId/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
+            <Route path="/app/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
+            <Route path="/app/operations-analytics" element={<SubscriptionGuard><OperationsAnalytics /></SubscriptionGuard>} />
+            <Route path="/app/tasks" element={<SubscriptionGuard><TaskManagement /></SubscriptionGuard>} />
+            <Route path="/app/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
+            <Route path="/app/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
+            <Route path="/app/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
+            <Route path="/app/creatives" element={<SubscriptionGuard><CreativeMatching /></SubscriptionGuard>} />
+            <Route path="/app/creatives/match" element={<SubscriptionGuard><Navigate to="/app/creatives" replace /></SubscriptionGuard>} />
+            <Route path="/app/creatives/library" element={<SubscriptionGuard><CreativeLibrary /></SubscriptionGuard>} />
+            <Route path="/app/manage-accounts" element={<SubscriptionGuard><ManageClientAccounts /></SubscriptionGuard>} />
+            <Route path="/app/teams" element={<SubscriptionGuard><Teams /></SubscriptionGuard>} />
+            <Route path="/app/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>}>
+              <Route index element={<Navigate to="/app/settings/users" replace />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="accounts" element={<ManageClientAccounts />} />
               <Route path="platforms" element={<PlatformConnections />} />
@@ -119,7 +128,22 @@ const App = () => (
               <Route path="operations-reports" element={<OperationsReports />} />
               <Route path="usage" element={<UsageMonitoring />} />
             </Route>
-            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/app/admin" element={<AdminDashboard />} />
+
+            {/* Legacy redirects: old root paths -> /app/* (preserve subpaths via splat) */}
+            <Route path="/overview" element={<Navigate to="/app/overview" replace />} />
+            <Route path="/actiplans/*" element={<LegacyRedirect prefix="/app/actiplans" />} />
+            <Route path="/insights/*" element={<LegacyRedirect prefix="/app/insights" />} />
+            <Route path="/operations-analytics" element={<Navigate to="/app/operations-analytics" replace />} />
+            <Route path="/tasks" element={<Navigate to="/app/tasks" replace />} />
+            <Route path="/performance/*" element={<LegacyRedirect prefix="/app/performance" />} />
+            <Route path="/clients" element={<Navigate to="/app/clients" replace />} />
+            <Route path="/creatives/*" element={<LegacyRedirect prefix="/app/creatives" />} />
+            <Route path="/manage-accounts" element={<Navigate to="/app/manage-accounts" replace />} />
+            <Route path="/teams" element={<Navigate to="/app/teams" replace />} />
+            <Route path="/settings/*" element={<LegacyRedirect prefix="/app/settings" />} />
+            <Route path="/admin" element={<Navigate to="/app/admin" replace />} />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

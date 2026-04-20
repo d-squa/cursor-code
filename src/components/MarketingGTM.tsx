@@ -1,24 +1,8 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
-const PUBLIC_ROUTES = [
-  '/',
-  '/compare-plans',
-  '/book-demo',
-  '/book-demo/confirmation',
-  '/terms',
-  '/privacy',
-  '/generic',
-  '/media-buying-software',
-  '/media-planning-software',
-  '/ai-media-buying-software',
-  '/cross-platform-ad-management-software',
-  '/auth',
-  '/onboarding',
-  '/accept-invitation',
-  '/choose-plan',
-  '/settings/plans',
-];
+// All app routes live under /app/*. Anything else is treated as a public/marketing route.
+const isPublicRoute = (pathname: string) => !pathname.startsWith('/app');
 
 const GTM_ID = 'GTM-PVH2QLMC';
 const SCRIPT_ID = 'gtm-marketing-script';
@@ -27,7 +11,7 @@ export function MarketingGTM() {
   const location = useLocation();
 
   useEffect(() => {
-    const isPublic = PUBLIC_ROUTES.includes(location.pathname);
+    const isPublic = isPublicRoute(location.pathname);
     const existingScript = document.getElementById(SCRIPT_ID);
 
     if (isPublic && !existingScript) {

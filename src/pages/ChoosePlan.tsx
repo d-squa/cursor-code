@@ -132,7 +132,7 @@ export default function ChoosePlan() {
       // Auto-redirect after max 15 seconds regardless
       const timeout = setTimeout(() => {
         clearInterval(pollInterval);
-        navigate("/overview");
+        navigate("/app/overview");
       }, 15000);
 
       return () => {
@@ -146,7 +146,7 @@ export default function ChoosePlan() {
   useEffect(() => {
     if (checkoutSuccess && isSubscribed) {
       toast.success("Welcome! Your subscription is now active.");
-      navigate("/overview");
+      navigate("/app/overview");
     }
   }, [checkoutSuccess, isSubscribed, navigate]);
 
@@ -165,7 +165,7 @@ export default function ChoosePlan() {
 
     // Super admin bypass - redirect to admin dashboard
     if (!authLoading && user && user.email === "superadmin@actiplan.app") {
-      navigate("/admin");
+      navigate("/app/admin");
       return;
     }
 
@@ -202,7 +202,7 @@ export default function ChoosePlan() {
               localStorage.removeItem("actiplan_signup_source");
               sessionStorage.removeItem("actiplan_trial_activating");
               toast.success("Welcome! Your 30-day free trial has started.");
-              navigate("/overview");
+              navigate("/app/overview");
             } else {
               sessionStorage.removeItem("actiplan_trial_activating");
             }
@@ -219,7 +219,7 @@ export default function ChoosePlan() {
 
     // Redirect to overview if already subscribed
     if (!subLoading && isSubscribed) {
-      navigate("/overview");
+      navigate("/app/overview");
     }
   }, [user, authLoading, isSubscribed, subLoading, navigate, isEmailConfirmed]);
 

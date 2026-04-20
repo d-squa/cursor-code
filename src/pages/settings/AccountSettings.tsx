@@ -521,7 +521,7 @@ function TourSettingsCard() {
 
   const handleReplayTour = () => {
     resetOnboardingTour();
-    navigate("/overview");
+    navigate("/app/overview");
     window.location.reload();
   };
 

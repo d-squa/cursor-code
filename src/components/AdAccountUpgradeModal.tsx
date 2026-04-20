@@ -133,7 +133,7 @@ export default function AdAccountUpgradeModal({
 
   const handleUpgrade = () => {
     onOpenChange(false);
-    navigate("/settings/plans");
+    navigate("/app/settings/plans");
   };
 
   return (

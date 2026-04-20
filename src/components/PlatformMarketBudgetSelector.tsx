@@ -1415,7 +1415,7 @@ export function PlatformMarketBudgetSelector({
               <span>⚠️</span>
               <span>
                 No ad accounts connected yet. Go to{" "}
-                <a href="/settings/platforms" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100">
+                <a href="/app/settings/platforms" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100">
                   Platform Connections
                 </a>{" "}
                 to link your ad accounts before adding platforms.

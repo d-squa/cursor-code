@@ -219,7 +219,7 @@ export const OnboardingWizard = () => {
           
           if (subData?.subscribed) {
             toast.success("Welcome to ActiPlan! Let's get started.");
-            navigate("/overview");
+            navigate("/app/overview");
           } else {
             const signupSource = localStorage.getItem("actiplan_signup_source");
             const alreadyActivating = sessionStorage.getItem("actiplan_trial_activating");
@@ -237,7 +237,7 @@ export const OnboardingWizard = () => {
                   sessionStorage.removeItem("actiplan_trial_activating");
                   fireSubscribeConversion(`auto-trial:${session.user.id}`);
                   toast.success("Welcome! Your 30-day free trial has started.");
-                  navigate("/overview");
+                  navigate("/app/overview");
                   return;
                 }
                 sessionStorage.removeItem("actiplan_trial_activating");
@@ -246,7 +246,7 @@ export const OnboardingWizard = () => {
                 sessionStorage.removeItem("actiplan_trial_activating");
               }
               localStorage.removeItem("actiplan_signup_source");
-              navigate("/overview");
+              navigate("/app/overview");
               return;
             }
 
@@ -311,7 +311,7 @@ export const OnboardingWizard = () => {
         });
         
         if (subData?.subscribed) {
-          navigate("/overview");
+          navigate("/app/overview");
         } else {
           const signupSource = localStorage.getItem("actiplan_signup_source");
           const alreadyActivating = sessionStorage.getItem("actiplan_trial_activating");
@@ -326,7 +326,7 @@ export const OnboardingWizard = () => {
                 sessionStorage.removeItem("actiplan_trial_activating");
                 fireSubscribeConversion(`auto-trial:${session.user.id}`);
                 toast.success("Welcome! Your 30-day free trial has started.");
-                navigate("/overview");
+                navigate("/app/overview");
                 return;
               }
               sessionStorage.removeItem("actiplan_trial_activating");
@@ -335,7 +335,7 @@ export const OnboardingWizard = () => {
               sessionStorage.removeItem("actiplan_trial_activating");
             }
             localStorage.removeItem("actiplan_signup_source");
-            navigate("/overview");
+            navigate("/app/overview");
           } else {
             await startBasicTrial();
           }
@@ -344,7 +344,7 @@ export const OnboardingWizard = () => {
         const signupSource = localStorage.getItem("actiplan_signup_source");
         if (signupSource === "landing") {
           localStorage.removeItem("actiplan_signup_source");
-          navigate("/overview");
+          navigate("/app/overview");
         } else {
           await startBasicTrial();
         }

@@ -437,7 +437,7 @@ export default function LaunchStatus() {
             description: `You've used all ${dailyLimit} DSP push${dailyLimit > 1 ? "es" : ""} for today. Upgrade to ${nextTier} to push more campaigns.`,
             action: {
               label: "Upgrade Now",
-              onClick: () => navigate("/settings/plans"),
+              onClick: () => navigate("/app/settings/plans"),
             },
           });
 
@@ -499,7 +499,7 @@ export default function LaunchStatus() {
             description: `You've used all ${dailyLimit} DSP push${dailyLimit > 1 ? "es" : ""} for today. Upgrade to ${nextTier} to push more campaigns.`,
             action: {
               label: "Upgrade Now",
-              onClick: () => navigate("/settings/plans"),
+              onClick: () => navigate("/app/settings/plans"),
             },
           });
 
@@ -1067,15 +1067,15 @@ export default function LaunchStatus() {
 
     // Navigate to the appropriate step/page based on fieldPath
     if (fieldPath === "connections") {
-      navigate("/settings/platforms");
+      navigate("/app/settings/platforms");
     } else if (fieldPath === "step1") {
-      navigate(`/actiplans?edit=${campaignId}&step=1`);
+      navigate(`/app/actiplans?edit=${campaignId}&step=1`);
     } else if (fieldPath === "step2") {
-      navigate(`/actiplans?edit=${campaignId}&step=2`);
+      navigate(`/app/actiplans?edit=${campaignId}&step=2`);
     } else if (fieldPath === "step3") {
-      navigate(`/actiplans?edit=${campaignId}&step=3`);
+      navigate(`/app/actiplans?edit=${campaignId}&step=3`);
     } else {
-      navigate(`/actiplans?edit=${campaignId}`);
+      navigate(`/app/actiplans?edit=${campaignId}`);
     }
   };
 
@@ -1281,7 +1281,7 @@ export default function LaunchStatus() {
     return (
       <div className="p-6">
         <p className="text-muted-foreground">Campaign not found</p>
-        <Button variant="outline" onClick={() => navigate("/actiplans")} className="mt-4">
+        <Button variant="outline" onClick={() => navigate("/app/actiplans")} className="mt-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to ActiPlans
         </Button>
@@ -1293,7 +1293,7 @@ export default function LaunchStatus() {
     <div className="container mx-auto p-6 max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/actiplans")}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/app/actiplans")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1">
@@ -1401,7 +1401,7 @@ export default function LaunchStatus() {
                   )}
                 </>
               ) : (
-                <Button variant="outline" onClick={() => navigate("/settings/plans")} className="border-dashed">
+                <Button variant="outline" onClick={() => navigate("/app/settings/plans")} className="border-dashed">
                   <Lock className="h-4 w-4 mr-2" />
                   Limit Reached - Upgrade to {getNextTierName()}
                 </Button>

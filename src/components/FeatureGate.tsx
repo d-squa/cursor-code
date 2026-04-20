@@ -71,7 +71,7 @@ export function FeatureGate({
       <Button 
         variant="default" 
         size="sm"
-        onClick={() => navigate('/settings/plans')}
+        onClick={() => navigate('/app/settings/plans')}
         className="gap-2"
       >
         <Sparkles className="h-4 w-4" />

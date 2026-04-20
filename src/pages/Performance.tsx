@@ -585,7 +585,7 @@ export default function Performance() {
           <Button 
             className="w-full" 
             size="lg"
-            onClick={() => navigate("/settings/plans")}
+            onClick={() => navigate("/app/settings/plans")}
           >
             Upgrade Now
           </Button>

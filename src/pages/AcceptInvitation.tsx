@@ -321,7 +321,7 @@ export default function AcceptInvitation() {
       const { data: { user: sessionUser } } = await supabase.auth.getUser();
       finishInvite(undefined, sessionUser?.id);
       toast.success("Welcome to ActiPlan! You've joined the team.");
-      navigate("/overview");
+      navigate("/app/overview");
     } catch (err: any) {
       console.error("Error creating account:", err);
       if (String(err?.message || "").toLowerCase().includes("already registered")) {
@@ -370,7 +370,7 @@ export default function AcceptInvitation() {
       finishInvite();
 
       toast.success("Invitation accepted! Welcome to the team.");
-      navigate("/overview");
+      navigate("/app/overview");
     } catch (err: any) {
       console.error("Error signing in:", err);
       toast.error("Invalid password. Please try again.");
@@ -400,7 +400,7 @@ export default function AcceptInvitation() {
         toast.success("Invitation accepted! Welcome to the team.");
       }
 
-      navigate("/overview");
+      navigate("/app/overview");
     } catch (err: any) {
       console.error("Error accepting invitation:", err);
       toast.error("Failed to accept invitation: " + err.message);
@@ -439,7 +439,7 @@ export default function AcceptInvitation() {
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/overview")} className="w-full">
+            <Button onClick={() => navigate("/app/overview")} className="w-full">
               Go to Dashboard
             </Button>
           </CardContent>

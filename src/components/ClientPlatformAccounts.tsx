@@ -103,7 +103,7 @@ export default function ClientPlatformAccounts({
   };
 
   const handleGoToPlatformConnections = () => {
-    navigate("/settings/platforms");
+    navigate("/app/settings/platforms");
   };
 
   return (

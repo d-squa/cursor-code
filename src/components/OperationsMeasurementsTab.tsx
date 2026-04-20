@@ -380,7 +380,7 @@ export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTa
               {hasAccess('operations_analytics') && (
                 <Button 
                   variant="outline" 
-                  onClick={() => navigate(`/operations-analytics?client=${clientId}`)}
+                  onClick={() => navigate(`/app/operations-analytics?client=${clientId}`)}
                 >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   View Client Analytics
