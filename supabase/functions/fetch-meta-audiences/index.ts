@@ -119,7 +119,7 @@ serve(async (req) => {
     console.log(`Using platform connection ${platformData.id} for audience fetch`);
 
     // Get access token from Vault
-    const accessToken = await getAccessToken(supabaseClient, platformData.id);
+    const accessToken = await getAccessToken(supabaseClient, platformData.id, (platformData as any).access_token);
     if (!accessToken) {
       throw new Error('Platform access token not found');
     }
