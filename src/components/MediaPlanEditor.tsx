@@ -2647,6 +2647,7 @@ export function MediaPlanEditor() {
                     adAccountId:
                       p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : (p.id === "google" || p.id === "google_ads") ? firstGoogleCustomerId : undefined,
                   }))}
+                askSplitLevel={platformsWithMarkets.some((p) => p.enabled && (p.id === "google" || p.id === "google_ads" || p.name.toLowerCase().includes("google")))}
                 markets={keywordSearchScope.markets}
                 googleMarkets={keywordSearchScope.googleMarkets}
                 tiktokMarkets={keywordSearchScope.tiktokMarkets}

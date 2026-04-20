@@ -95,6 +95,8 @@ export interface UnifiedTargetingConfig {
   // NEW: Per-platform split dimensions
   defaultAdSetSplitDimensionPerPlatform?: AdSetSplitDimensionPerPlatform;
   defaultAdSetSplitUseCBO?: boolean;
+  /** For Google Search default splits: whether split variants become campaigns or ad groups. */
+  defaultGoogleSearchSplitLevel?: 'campaign' | 'adgroup';
   // Legacy: Default ad sets configuration (for backwards compatibility)
   defaultAdSets?: AdSetConfig[];
   // NEW: Per-platform ad sets configuration
@@ -904,7 +906,7 @@ export function UnifiedTargeting({
           if (!open) setPendingSplitSelection(null);
         }}
         dimensionLabel={pendingSplitSelection ? SPLIT_DIMENSION_LABELS[pendingSplitSelection.dimension] : ''}
-        askSplitLevel={askSplitLevel}
+        askSplitLevel={!!(askSplitLevel && pendingSplitSelection && ['google', 'google_ads'].includes(pendingSplitSelection.platformId))}
         onSelectCBO={(splitLevel) => {
           if (pendingSplitSelection) {
             const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
