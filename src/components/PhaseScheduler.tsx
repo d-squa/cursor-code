@@ -2273,7 +2273,8 @@ export function PhaseScheduler({
                                     googleCustomerId={platformId === 'google_ads' ? adAccountId : undefined}
                                     skipLocalStorage={true}
                                     currentSplitDimension={phase.adSetSplitDimension}
-                                    onSplitDimensionChange={(dim, useCBO) => {
+                                    askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                                    onSplitDimensionChange={(dim, useCBO, splitLevel) => {
                                       const newDimension = dim === 'none' ? undefined : dim;
                                       const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                                         platformId: platformId || 'meta',
@@ -2283,10 +2284,11 @@ export function PhaseScheduler({
                                         currentDevices: phase.targeting?.devices || basicTargeting?.devices,
                                         currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
                                       }) : undefined;
-                                      updatePhaseFields(phase.id, { 
+                                      updatePhaseFields(phase.id, {
                                         adSetSplitDimension: newDimension,
                                         adSets: newAdSets,
                                         useCBO: useCBO,
+                                        ...(splitLevel ? { googleSearchSplitLevel: splitLevel } : {}),
                                       });
                                       // Trigger scroll to split manager
                                       if (newDimension) {
@@ -2394,7 +2396,8 @@ export function PhaseScheduler({
                             dimension="audience_selection"
                             dimensionLabel="Audience Selection"
                             currentSplitDimension={phase.adSetSplitDimension}
-                            onSplitClick={(dim, useCBO) => {
+                            askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                            onSplitClick={(dim, useCBO, splitLevel) => {
                               const newDimension = dim === 'none' ? undefined : dim;
                               const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                                 platformId: platformId || 'meta',
@@ -2411,6 +2414,7 @@ export function PhaseScheduler({
                                 adSetSplitDimension: newDimension,
                                 adSets: newAdSets,
                                 useCBO: useCBO,
+                                ...(splitLevel ? { googleSearchSplitLevel: splitLevel } : {}),
                               });
                               // Trigger scroll to split manager
                               if (newDimension) {
@@ -2636,7 +2640,8 @@ export function PhaseScheduler({
                         dimension="optimization_goal"
                         dimensionLabel="Optimization Goal"
                         currentSplitDimension={phase.adSetSplitDimension}
-                        onSplitClick={(dim, useCBO) => {
+                        askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                        onSplitClick={(dim, useCBO, splitLevel) => {
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                             platformId: platformId || 'meta',
@@ -2652,6 +2657,7 @@ export function PhaseScheduler({
                             adSetSplitDimension: newDimension,
                             adSets: newAdSets,
                             useCBO: useCBO,
+                            ...(splitLevel ? { googleSearchSplitLevel: splitLevel } : {}),
                           });
                           // Trigger scroll to split manager
                           if (newDimension) {
@@ -3205,7 +3211,8 @@ export function PhaseScheduler({
                           dimension="placement"
                           dimensionLabel="Placement"
                           currentSplitDimension={phase.adSetSplitDimension}
-                          onSplitClick={(dim, useCBO) => {
+                          askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                          onSplitClick={(dim, useCBO, splitLevel) => {
                             const newDimension = dim === 'none' ? undefined : dim;
                             const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                               platformId: platformId || 'meta',
@@ -3222,6 +3229,7 @@ export function PhaseScheduler({
                               adSetSplitDimension: newDimension,
                               adSets: newAdSets,
                               useCBO: useCBO,
+                              ...(splitLevel ? { googleSearchSplitLevel: splitLevel } : {}),
                             });
                             // Trigger scroll to split manager
                             if (newDimension) {
@@ -3262,7 +3270,8 @@ export function PhaseScheduler({
                           dimension="ad_format"
                           dimensionLabel="Ad Format"
                           currentSplitDimension={phase.adSetSplitDimension}
-                          onSplitClick={(dim, useCBO) => {
+                          askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                          onSplitClick={(dim, useCBO, splitLevel) => {
                             const newDimension = dim === 'none' ? undefined : dim;
                             const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                               platformId: platformId || 'meta',
@@ -3278,6 +3287,7 @@ export function PhaseScheduler({
                               adSetSplitDimension: newDimension,
                               adSets: newAdSets,
                               useCBO: useCBO,
+                              ...(splitLevel ? { googleSearchSplitLevel: splitLevel } : {}),
                             });
                             // Trigger scroll to split manager
                             if (newDimension) {

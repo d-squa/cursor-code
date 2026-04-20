@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { AdSetSplitButton } from "./AdSetSplitButton";
 import { AdSetSplitDimension } from "@/types/mediaplan";
-import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
+import { BudgetOptimizationDialog, SplitLevel } from "./BudgetOptimizationDialog";
 import { cn } from "@/lib/utils";
 
 interface SplittableSectionProps {
@@ -9,7 +9,17 @@ interface SplittableSectionProps {
   dimension: AdSetSplitDimension;
   dimensionLabel: string;
   currentSplitDimension?: AdSetSplitDimension;
-  onSplitClick: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
+  /**
+   * When true, after the CBO/ABO budget choice the user is also asked whether
+   * the split should be applied at the campaign or ad group level. This is
+   * specific to Google Search where both layouts are valid.
+   */
+  askSplitLevel?: boolean;
+  onSplitClick: (
+    dimension: AdSetSplitDimension,
+    useCBO?: boolean,
+    splitLevel?: SplitLevel,
+  ) => void;
   className?: string;
   disabled?: boolean;
 }
@@ -19,6 +29,7 @@ export function SplittableSection({
   dimension,
   dimensionLabel,
   currentSplitDimension,
+  askSplitLevel,
   onSplitClick,
   className,
   disabled,
@@ -55,11 +66,12 @@ export function SplittableSection({
         open={showBudgetDialog}
         onOpenChange={setShowBudgetDialog}
         dimensionLabel={dimensionLabel}
-        onSelectCBO={() => {
-          onSplitClick(dimension, true);
+        askSplitLevel={askSplitLevel}
+        onSelectCBO={(splitLevel) => {
+          onSplitClick(dimension, true, splitLevel);
         }}
-        onSelectABO={() => {
-          onSplitClick(dimension, false);
+        onSelectABO={(splitLevel) => {
+          onSplitClick(dimension, false, splitLevel);
         }}
       />
     </div>
