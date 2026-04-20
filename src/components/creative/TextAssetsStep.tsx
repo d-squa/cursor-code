@@ -151,14 +151,27 @@ export function TextAssetsStep({
         // Build placeholder rows for every Google phase × market × ad-group expansion,
         // so Search / PMax / Demand Gen / Lead Gen all appear in the editor even
         // when no creatives have been matched yet.
-        const googlePhases = phases.filter((p: any) => {
+        const googlePhases: any[] = phases.filter((p: any) => {
           const ps = Array.isArray(p?.platforms) ? p.platforms : [];
           return ps.some((x: string) => String(x).toLowerCase().includes('google'));
         });
         const googleMarketSet = new Set<string>();
         for (const [key, list] of Object.entries(splits)) {
           if (key.toLowerCase().includes('google') && Array.isArray(list)) {
-            for (const m of list as any[]) if (m?.name) googleMarketSet.add(String(m.name));
+            for (const m of list as any[]) {
+              if (m?.name) googleMarketSet.add(String(m.name));
+              else if (typeof m === 'string') googleMarketSet.add(m);
+              // Also mine phases from market_splits since some campaigns store
+              // their Google phase configuration here rather than in generic_config.
+              const marketName = m?.name || (typeof m === 'string' ? m : undefined);
+              const phasesFromMarket = Array.isArray(m?.phases) ? m.phases : [];
+              for (const phase of phasesFromMarket) {
+                googlePhases.push({
+                  ...phase,
+                  market: phase?.market || marketName,
+                });
+              }
+            }
           }
         }
         if (googleMarketSet.size === 0) {
