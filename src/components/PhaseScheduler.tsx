@@ -2273,7 +2273,7 @@ export function PhaseScheduler({
                                     googleCustomerId={platformId === 'google_ads' ? adAccountId : undefined}
                                     skipLocalStorage={true}
                                     currentSplitDimension={phase.adSetSplitDimension}
-                                    askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                                    askSplitLevel={isGooglePlatform && (!phase.googleCampaignType || phase.googleCampaignType.toLowerCase().includes('search'))}
                                     onSplitDimensionChange={(dim, useCBO, splitLevel) => {
                                       const newDimension = dim === 'none' ? undefined : dim;
                                       const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
@@ -2396,7 +2396,7 @@ export function PhaseScheduler({
                             dimension="audience_selection"
                             dimensionLabel="Audience Selection"
                             currentSplitDimension={phase.adSetSplitDimension}
-                            askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                            askSplitLevel={isGooglePlatform && (!phase.googleCampaignType || phase.googleCampaignType.toLowerCase().includes('search'))}
                             onSplitClick={(dim, useCBO, splitLevel) => {
                               const newDimension = dim === 'none' ? undefined : dim;
                               const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
@@ -2640,7 +2640,7 @@ export function PhaseScheduler({
                         dimension="optimization_goal"
                         dimensionLabel="Optimization Goal"
                         currentSplitDimension={phase.adSetSplitDimension}
-                        askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                        askSplitLevel={isGooglePlatform && (!phase.googleCampaignType || phase.googleCampaignType.toLowerCase().includes('search'))}
                         onSplitClick={(dim, useCBO, splitLevel) => {
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
@@ -3211,7 +3211,7 @@ export function PhaseScheduler({
                           dimension="placement"
                           dimensionLabel="Placement"
                           currentSplitDimension={phase.adSetSplitDimension}
-                          askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                          askSplitLevel={isGooglePlatform && (!phase.googleCampaignType || phase.googleCampaignType.toLowerCase().includes('search'))}
                           onSplitClick={(dim, useCBO, splitLevel) => {
                             const newDimension = dim === 'none' ? undefined : dim;
                             const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
@@ -3270,7 +3270,7 @@ export function PhaseScheduler({
                           dimension="ad_format"
                           dimensionLabel="Ad Format"
                           currentSplitDimension={phase.adSetSplitDimension}
-                          askSplitLevel={isGooglePlatform && !!phase.googleCampaignType?.toLowerCase().includes('search')}
+                          askSplitLevel={isGooglePlatform && (!phase.googleCampaignType || phase.googleCampaignType.toLowerCase().includes('search'))}
                           onSplitClick={(dim, useCBO, splitLevel) => {
                             const newDimension = dim === 'none' ? undefined : dim;
                             const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
