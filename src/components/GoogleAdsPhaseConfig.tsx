@@ -2,6 +2,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,6 +55,35 @@ const STRATEGY_CONFIG: Record<KeywordStrategy, { label: string; icon: React.Reac
 };
 
 const MATCH_LABELS: Record<string, string> = { exact: "[Exact]", phrase: '"Phrase"', broad: "Broad" };
+
+// Google Ads ContentLabelTypeEnum (digital content labels + sensitive categories)
+// https://developers.google.com/google-ads/api/reference/rpc/v17/ContentLabelTypeEnum.ContentLabelType
+const GOOGLE_CONTENT_LABEL_OPTIONS = [
+  { value: "SEXUALLY_SUGGESTIVE", label: "Sexually suggestive" },
+  { value: "BELOW_THE_FOLD", label: "Below the fold" },
+  { value: "PARKED_DOMAIN", label: "Parked domains" },
+  { value: "JUVENILE", label: "Juvenile, gross & bizarre" },
+  { value: "PROFANITY", label: "Profanity & rough language" },
+  { value: "TRAGEDY", label: "Death, tragedy & conflict" },
+  { value: "VIDEO_RATING_DV_G", label: "DL-G: General audiences" },
+  { value: "VIDEO_RATING_DV_PG", label: "DL-PG: Most audiences" },
+  { value: "VIDEO_RATING_DV_T", label: "DL-T: Teen and older" },
+  { value: "VIDEO_RATING_DV_MA", label: "DL-MA: Mature audiences" },
+  { value: "VIDEO_NOT_YET_RATED", label: "DL-?: Not yet labeled" },
+  { value: "EMBEDDED_VIDEO", label: "Embedded YouTube videos" },
+  { value: "LIVE_STREAMING_VIDEO", label: "Live streaming video" },
+  { value: "SOCIAL_ISSUES", label: "Sensitive social issues" },
+  { value: "BRAND_SUITABILITY_CONTENT_FOR_FAMILIES", label: "Content suitable for families" },
+  { value: "BRAND_SUITABILITY_GAMES_FIGHTING", label: "Games (fighting)" },
+  { value: "BRAND_SUITABILITY_GAMES_MATURE", label: "Games (mature)" },
+  { value: "BRAND_SUITABILITY_HEALTH_SENSITIVE", label: "Health (sensitive)" },
+  { value: "BRAND_SUITABILITY_HEALTH_SOURCE_UNDETERMINED", label: "Health (source undetermined)" },
+  { value: "BRAND_SUITABILITY_NEWS_RECENT", label: "News (recent events)" },
+  { value: "BRAND_SUITABILITY_NEWS_SENSITIVE", label: "News (sensitive)" },
+  { value: "BRAND_SUITABILITY_NEWS_SOURCE_NOT_FEATURED", label: "News (sources not featured)" },
+  { value: "BRAND_SUITABILITY_POLITICS", label: "Politics" },
+  { value: "BRAND_SUITABILITY_RELIGION", label: "Religion" },
+];
 
 function formatVol(vol?: number) {
   if (!vol) return "—";
@@ -753,16 +783,12 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
 
                 <div className="space-y-1">
                   <Label className="text-xs">Excluded Content Labels</Label>
-                  <Textarea
-                    placeholder="e.g. DL-MA&#10;Live streaming&#10;Embedded YouTube"
-                    value={(phase.googleExcludedContentLabels || []).join("\n")}
-                    onChange={(e) =>
-                      onUpdate(
-                        "googleExcludedContentLabels",
-                        e.target.value.split("\n").map((s) => s.trim()).filter(Boolean)
-                      )
-                    }
-                    className="text-xs min-h-[70px]"
+                  <MultiSelect
+                    options={GOOGLE_CONTENT_LABEL_OPTIONS}
+                    value={phase.googleExcludedContentLabels || []}
+                    onChange={(vals) => onUpdate("googleExcludedContentLabels", vals)}
+                    placeholder="Select content labels to exclude"
+                    className="text-xs"
                   />
                 </div>
               </div>
