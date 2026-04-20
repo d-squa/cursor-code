@@ -1,0 +1,788 @@
+// Google Ads Editor-style Excel sync for Search / PMax / Lead Gen campaigns.
+//
+// Exports a 3-tab workbook:
+//   1. Campaigns      — read-only reference of expanded campaign × ad-group structure
+//   2. Keywords       — Campaign | Ad Group | Keyword | Match Type | Negative
+//   3. Ads            — Campaign | Ad Group | Ad Name | Final URL | Path 1 | Path 2 |
+//                       H1..H15 (+ Pin1..Pin15) | D1..D4 (+ PinD1..PinD4) |
+//                       Long Headline 1..5 | Business Name
+//
+// Each text cell gets a paired `LEN()` formula column ("Lx" / "Lh1" / etc.) showing
+// `len/max`; conditional formatting paints it red when exceeded. Limits per Google Ads:
+//   Headline           = 30
+//   Description        = 90
+//   Path 1 / Path 2    = 15
+//   Long Headline      = 90
+//   Business Name      = 25
+//
+// Re-upload returns a structured diff (keyword adds/updates/removes + ad updates) so the
+// caller can show a confirmation dialog before committing.
+
+import * as XLSX from 'xlsx';
+import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+
+// ---------- Types ----------
+
+export interface GoogleKeywordLike {
+  id?: string;
+  name: string;
+  text?: string;
+  matchType?: 'exact' | 'phrase' | 'broad';
+  isNegative?: boolean;
+  strategy?: 'brand' | 'generic' | 'competition';
+  market?: string | null;
+  platform?: string | null;
+}
+
+export interface ExpandedCampaignRef {
+  /** Synthetic campaign name as it will appear in the sheet & in the DSP push. */
+  campaignName: string;
+  /** Synthetic ad-group name. */
+  adGroupName: string;
+  /** Logical references back to plan model. */
+  market: string;
+  phaseName: string;
+  /** brand/generic/competition for Search expansions; null for PMax/Lead Gen. */
+  strategy: 'brand' | 'generic' | 'competition' | null;
+  /** Google campaign type (Search, Performance Max, Lead Gen, ...). */
+  googleCampaignType: string;
+}
+
+export interface BuildExpansionInput {
+  campaignName: string;
+  /** Phases on the Google platform of the plan (with optional `googleSearchSplitLevel`). */
+  phases: Array<{
+    id: string;
+    name: string;
+    googleCampaignType?: string;
+    /** 'campaign' | 'adgroup' — only meaningful for Search phases. */
+    googleSearchSplitLevel?: 'campaign' | 'adgroup';
+    adSets?: Array<{ id: string; name: string }>;
+    market?: string;
+  }>;
+  /** Markets that the Google platform runs in (one per market name). */
+  markets: string[];
+  /** Flat keyword list pulled from `campaign.generic_config.selectedKeywords`. */
+  keywords: GoogleKeywordLike[];
+}
+
+export interface KeywordSheetRow {
+  campaignName: string;
+  adGroupName: string;
+  keyword: string;
+  matchType: 'exact' | 'phrase' | 'broad';
+  negative: boolean;
+}
+
+export interface AdSheetRow {
+  campaignName: string;
+  adGroupName: string;
+  adName: string;
+  assignmentId: string | null; // null = newly added in sheet (ignored on apply for now)
+  finalUrl: string;
+  path1: string;
+  path2: string;
+  headlines: string[]; // length 15
+  headlinePins: (number | null)[]; // length 15
+  descriptions: string[]; // length 4
+  descriptionPins: (number | null)[]; // length 4
+  longHeadlines: string[]; // length 5 (PMax)
+  businessName: string; // PMax
+}
+
+export interface GoogleAdsShellDiff {
+  keywords: {
+    added: KeywordSheetRow[];
+    updated: Array<{ before: KeywordSheetRow; after: KeywordSheetRow }>;
+    removed: KeywordSheetRow[];
+  };
+  ads: {
+    updated: Array<{
+      assignmentId: string;
+      campaignName: string;
+      adGroupName: string;
+      adName: string;
+      changes: Partial<{
+        finalUrl: string;
+        path1: string;
+        path2: string;
+        headlines: string[];
+        headlinePins: (number | null)[];
+        descriptions: string[];
+        descriptionPins: (number | null)[];
+        longHeadlines: string[];
+        businessName: string;
+      }>;
+    }>;
+    skippedNew: AdSheetRow[]; // new RSA rows are surfaced but not auto-created in this pass
+  };
+}
+
+// ---------- Limits ----------
+
+const HEADLINE_LIMIT = 30;
+const DESCRIPTION_LIMIT = 90;
+const PATH_LIMIT = 15;
+const LONG_HEADLINE_LIMIT = 90;
+const BUSINESS_NAME_LIMIT = 25;
+
+// ---------- Expansion ----------
+
+const STRATEGIES: Array<'brand' | 'generic' | 'competition'> = ['brand', 'generic', 'competition'];
+
+const isSearchCampaign = (type?: string) =>
+  String(type || '').toLowerCase().includes('search');
+
+/**
+ * Expand the Google plan into discrete (campaign, ad group) pairs the way the DSP
+ * push will materialise them. Search phases turn into one campaign per strategy; the
+ * `googleSearchSplitLevel` toggle decides whether ad-set-splits live at campaign or
+ * ad-group level.
+ */
+export function buildExpandedStructure(input: BuildExpansionInput): ExpandedCampaignRef[] {
+  const out: ExpandedCampaignRef[] = [];
+
+  for (const phase of input.phases) {
+    const splits = phase.adSets?.length ? phase.adSets : [{ id: 'default', name: 'default' }];
+    const splitOnCampaign = (phase.googleSearchSplitLevel || 'adgroup') === 'campaign';
+    const isSearch = isSearchCampaign(phase.googleCampaignType);
+
+    for (const market of input.markets) {
+      if (isSearch) {
+        // Strategies that actually have keywords for (market, platform=google)
+        const usedStrategies = STRATEGIES.filter((strategy) =>
+          input.keywords.some(
+            (k) =>
+              (k.strategy || 'generic') === strategy &&
+              !k.isNegative &&
+              normMarket(k.market) === normMarket(market),
+          ),
+        );
+        const strategiesForPhase = usedStrategies.length ? usedStrategies : ['generic' as const];
+
+        for (const strategy of strategiesForPhase) {
+          if (splitOnCampaign && splits.length > 1) {
+            // 1 campaign per (strategy × split), 1 default ad group each
+            for (const split of splits) {
+              out.push({
+                campaignName: `${input.campaignName} | ${market} | ${phase.name} | ${capitalize(strategy)} | ${split.name}`,
+                adGroupName: 'Default',
+                market,
+                phaseName: phase.name,
+                strategy,
+                googleCampaignType: phase.googleCampaignType || 'Search',
+              });
+            }
+          } else {
+            // 1 campaign per strategy, ad groups = splits (or 1 Default)
+            for (const split of splits) {
+              out.push({
+                campaignName: `${input.campaignName} | ${market} | ${phase.name} | ${capitalize(strategy)}`,
+                adGroupName: splits.length > 1 ? split.name : 'Default',
+                market,
+                phaseName: phase.name,
+                strategy,
+                googleCampaignType: phase.googleCampaignType || 'Search',
+              });
+            }
+          }
+        }
+      } else {
+        // PMax / Lead Gen / Display / etc. — 1 campaign per phase × market, ad groups = splits
+        for (const split of splits) {
+          out.push({
+            campaignName: `${input.campaignName} | ${market} | ${phase.name}`,
+            adGroupName: splits.length > 1 ? split.name : 'Default',
+            market,
+            phaseName: phase.name,
+            strategy: null,
+            googleCampaignType: phase.googleCampaignType || 'Performance Max',
+          });
+        }
+      }
+    }
+  }
+
+  return out;
+}
+
+// ---------- Build Ad sheet rows from existing assignments ----------
+
+export interface AssignmentLite {
+  id: string;
+  platform: string;
+  market: string;
+  phase_name: string;
+  ad_set_name: string;
+  ad_strategy?: string | null;
+  ad_group_name?: string | null;
+  destination_url?: string | null;
+  path_1?: string | null;
+  path_2?: string | null;
+  headline?: string | null;
+  headline_2?: string | null;
+  headline_3?: string | null;
+  headline_4?: string | null;
+  headline_5?: string | null;
+  description?: string | null;
+  description_2?: string | null;
+  description_3?: string | null;
+  description_4?: string | null;
+  description_5?: string | null;
+  headline_pins?: unknown;
+  description_pins?: unknown;
+  long_headline_1?: string | null;
+  long_headline_2?: string | null;
+  long_headline_3?: string | null;
+  long_headline_4?: string | null;
+  long_headline_5?: string | null;
+  business_name?: string | null;
+  creatives?: { name?: string | null } | null;
+}
+
+export function buildAdRowsFromAssignments(
+  assignments: AssignmentLite[],
+  expansion: ExpandedCampaignRef[],
+): AdSheetRow[] {
+  const expByKey = new Map<string, ExpandedCampaignRef>();
+  for (const ref of expansion) {
+    expByKey.set(refKey(ref.market, ref.phaseName, ref.strategy, ref.adGroupName), ref);
+  }
+
+  const rows: AdSheetRow[] = [];
+  for (const a of assignments) {
+    if (a.platform !== 'google') continue;
+    // Best-effort match: use ad_strategy + ad_group_name if present, else fall back to any
+    // expansion entry for the (market, phase). When the assignment hasn't been migrated yet
+    // we just pick the first matching entry so it still appears in the sheet.
+    const strategyKey = ((a.ad_strategy as any) || null) as ExpandedCampaignRef['strategy'];
+    const adGroup = a.ad_group_name || a.ad_set_name || 'Default';
+    const key = refKey(a.market, a.phase_name, strategyKey, adGroup);
+    const ref =
+      expByKey.get(key) ||
+      expansion.find((e) => e.market === a.market && e.phaseName === a.phase_name);
+    if (!ref) continue;
+
+    rows.push({
+      campaignName: ref.campaignName,
+      adGroupName: ref.adGroupName,
+      adName: a.creatives?.name || 'Untitled Ad',
+      assignmentId: a.id,
+      finalUrl: a.destination_url || '',
+      path1: a.path_1 || '',
+      path2: a.path_2 || '',
+      headlines: [
+        a.headline,
+        a.headline_2,
+        a.headline_3,
+        a.headline_4,
+        a.headline_5,
+        ...Array(10).fill(''),
+      ]
+        .slice(0, 15)
+        .map((v) => String(v || '')),
+      headlinePins: padPins(parsePins(a.headline_pins), 15),
+      descriptions: [a.description, a.description_2, a.description_3, a.description_4]
+        .map((v) => String(v || ''))
+        .slice(0, 4),
+      descriptionPins: padPins(parsePins(a.description_pins), 4),
+      longHeadlines: [
+        a.long_headline_1,
+        a.long_headline_2,
+        a.long_headline_3,
+        a.long_headline_4,
+        a.long_headline_5,
+      ].map((v) => String(v || '')),
+      businessName: a.business_name || '',
+    });
+  }
+  return rows;
+}
+
+// ---------- Workbook generation ----------
+
+export interface BuildWorkbookInput {
+  campaignName: string;
+  expansion: ExpandedCampaignRef[];
+  keywords: GoogleKeywordLike[];
+  adRows: AdSheetRow[];
+}
+
+export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
+  const wb = XLSX.utils.book_new();
+
+  // ---- Campaigns tab (read-only reference) ----
+  const campaignsAoa: (string | number)[][] = [
+    ['Campaign', 'Ad Group', 'Strategy', 'Market', 'Campaign Type', 'Phase'],
+    ...input.expansion.map((e) => [
+      e.campaignName,
+      e.adGroupName,
+      e.strategy ? capitalize(e.strategy) : '—',
+      e.market,
+      e.googleCampaignType,
+      e.phaseName,
+    ]),
+  ];
+  const campaignsWs = XLSX.utils.aoa_to_sheet(campaignsAoa);
+  campaignsWs['!cols'] = [{ wch: 60 }, { wch: 24 }, { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, campaignsWs, 'Campaigns');
+
+  // ---- Keywords tab ----
+  const keywordsAoa: (string | number)[][] = [
+    ['Campaign', 'Ad Group', 'Keyword', 'Match Type', 'Negative'],
+  ];
+  const expByStrategyMarket = new Map<string, ExpandedCampaignRef[]>();
+  for (const ref of input.expansion) {
+    if (ref.strategy === null) continue; // PMax has no keywords
+    const k = `${ref.market}::${ref.strategy}`;
+    if (!expByStrategyMarket.has(k)) expByStrategyMarket.set(k, []);
+    expByStrategyMarket.get(k)!.push(ref);
+  }
+  for (const kw of input.keywords) {
+    const strategy = (kw.strategy || 'generic') as 'brand' | 'generic' | 'competition';
+    const market = kw.market || '';
+    const refs = expByStrategyMarket.get(`${market}::${strategy}`);
+    const ref = refs?.[0]; // assign keyword to first matching campaign + its first ad group
+    if (!ref) continue;
+    keywordsAoa.push([
+      ref.campaignName,
+      ref.adGroupName,
+      kw.name || kw.text || '',
+      (kw.matchType || 'broad').toLowerCase(),
+      kw.isNegative ? 'Yes' : 'No',
+    ]);
+  }
+  const keywordsWs = XLSX.utils.aoa_to_sheet(keywordsAoa);
+  keywordsWs['!cols'] = [{ wch: 60 }, { wch: 24 }, { wch: 32 }, { wch: 12 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, keywordsWs, 'Keywords');
+
+  // ---- Ads tab (RSA / PMax) ----
+  const adsHeader: string[] = [
+    'Campaign',
+    'Ad Group',
+    'Ad Name',
+    '__assignmentId__',
+    'Final URL',
+    'Path 1',
+    `LEN P1 (max ${PATH_LIMIT})`,
+    'Path 2',
+    `LEN P2 (max ${PATH_LIMIT})`,
+  ];
+  for (let i = 1; i <= 15; i++) {
+    adsHeader.push(`Headline ${i}`, `LEN H${i} (max ${HEADLINE_LIMIT})`, `Pin H${i}`);
+  }
+  for (let i = 1; i <= 4; i++) {
+    adsHeader.push(`Description ${i}`, `LEN D${i} (max ${DESCRIPTION_LIMIT})`, `Pin D${i}`);
+  }
+  for (let i = 1; i <= 5; i++) {
+    adsHeader.push(`Long Headline ${i}`, `LEN LH${i} (max ${LONG_HEADLINE_LIMIT})`);
+  }
+  adsHeader.push('Business Name', `LEN BN (max ${BUSINESS_NAME_LIMIT})`);
+
+  const adsAoa: (string | number)[][] = [adsHeader];
+  for (const r of input.adRows) {
+    const row: (string | number)[] = [
+      r.campaignName,
+      r.adGroupName,
+      r.adName,
+      r.assignmentId || '',
+      r.finalUrl,
+      r.path1,
+      '', // LEN placeholder, filled below as formula
+      r.path2,
+      '',
+    ];
+    for (let i = 0; i < 15; i++) {
+      row.push(r.headlines[i] || '', '', r.headlinePins[i] ?? '');
+    }
+    for (let i = 0; i < 4; i++) {
+      row.push(r.descriptions[i] || '', '', r.descriptionPins[i] ?? '');
+    }
+    for (let i = 0; i < 5; i++) {
+      row.push(r.longHeadlines[i] || '', '');
+    }
+    row.push(r.businessName, '');
+    adsAoa.push(row);
+  }
+  const adsWs = XLSX.utils.aoa_to_sheet(adsAoa);
+
+  // Fill LEN formulas + conditional red font for over-limit cells
+  // Column letters helper:
+  const colLetter = (idx: number) => XLSX.utils.encode_col(idx);
+  for (let r = 1; r < adsAoa.length; r++) {
+    const rowNum = r + 1; // 1-indexed
+    // Path1 LEN at col index 6 -> source col 5 (Path 1 letter F)
+    setLenFormula(adsWs, 6, rowNum, colLetter(5), PATH_LIMIT);
+    setLenFormula(adsWs, 8, rowNum, colLetter(7), PATH_LIMIT);
+    let cur = 9;
+    for (let i = 0; i < 15; i++) {
+      // Headline at cur, LEN at cur+1, Pin at cur+2
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), HEADLINE_LIMIT);
+      cur += 3;
+    }
+    for (let i = 0; i < 4; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), DESCRIPTION_LIMIT);
+      cur += 3;
+    }
+    for (let i = 0; i < 5; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), LONG_HEADLINE_LIMIT);
+      cur += 2;
+    }
+    setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), BUSINESS_NAME_LIMIT);
+  }
+
+  // Auto column widths (best-effort)
+  adsWs['!cols'] = adsHeader.map((h) => ({ wch: h.startsWith('LEN') || h.startsWith('Pin') ? 10 : Math.max(14, Math.min(40, h.length + 2)) }));
+
+  XLSX.utils.book_append_sheet(wb, adsWs, 'Ads');
+
+  // Trigger download
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const safe = input.campaignName.replace(/[^a-zA-Z0-9]/g, '_');
+  link.download = `${safe}_google_ads_shell_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Parsing & diffing ----------
+
+export interface ParsedShell {
+  keywords: KeywordSheetRow[];
+  ads: AdSheetRow[];
+}
+
+export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
+  const data = new Uint8Array(await file.arrayBuffer());
+  const wb = XLSX.read(data, { type: 'array' });
+
+  // ---- Keywords sheet ----
+  const kwSheet = wb.Sheets['Keywords'];
+  const keywords: KeywordSheetRow[] = [];
+  if (kwSheet) {
+    const aoa = XLSX.utils.sheet_to_json(kwSheet, { header: 1 }) as any[][];
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i];
+      const kw = String(row?.[2] || '').trim();
+      if (!kw) continue;
+      const matchType = String(row[3] || 'broad').trim().toLowerCase() as 'exact' | 'phrase' | 'broad';
+      keywords.push({
+        campaignName: String(row[0] || '').trim(),
+        adGroupName: String(row[1] || '').trim(),
+        keyword: kw,
+        matchType: ['exact', 'phrase', 'broad'].includes(matchType) ? matchType : 'broad',
+        negative: /^(yes|true|y|1)$/i.test(String(row[4] || '').trim()),
+      });
+    }
+  }
+
+  // ---- Ads sheet ----
+  const adsSheet = wb.Sheets['Ads'];
+  const ads: AdSheetRow[] = [];
+  if (adsSheet) {
+    const aoa = XLSX.utils.sheet_to_json(adsSheet, { header: 1 }) as any[][];
+    // Cols (0-indexed): 0 Campaign | 1 AdGroup | 2 AdName | 3 __assignmentId__ |
+    //   4 Final URL | 5 Path1 | 6 LEN | 7 Path2 | 8 LEN
+    //   9.. headline triples (15) -> 9 + 15*3 = 54 end
+    //   54.. description triples (4) -> 54 + 4*3 = 66 end
+    //   66.. long headline pairs (5) -> 66 + 5*2 = 76 end
+    //   76 Business Name | 77 LEN
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i];
+      const adName = String(row?.[2] || '').trim();
+      if (!adName) continue;
+      const headlines: string[] = [];
+      const headlinePins: (number | null)[] = [];
+      for (let h = 0; h < 15; h++) {
+        headlines.push(String(row[9 + h * 3] || ''));
+        headlinePins.push(toPin(row[9 + h * 3 + 2]));
+      }
+      const descriptions: string[] = [];
+      const descriptionPins: (number | null)[] = [];
+      for (let d = 0; d < 4; d++) {
+        descriptions.push(String(row[54 + d * 3] || ''));
+        descriptionPins.push(toPin(row[54 + d * 3 + 2]));
+      }
+      const longHeadlines: string[] = [];
+      for (let l = 0; l < 5; l++) {
+        longHeadlines.push(String(row[66 + l * 2] || ''));
+      }
+      ads.push({
+        campaignName: String(row[0] || '').trim(),
+        adGroupName: String(row[1] || '').trim(),
+        adName,
+        assignmentId: String(row[3] || '').trim() || null,
+        finalUrl: String(row[4] || '').trim(),
+        path1: String(row[5] || '').trim(),
+        path2: String(row[7] || '').trim(),
+        headlines,
+        headlinePins,
+        descriptions,
+        descriptionPins,
+        longHeadlines,
+        businessName: String(row[76] || '').trim(),
+      });
+    }
+  }
+
+  return { keywords, ads };
+}
+
+export interface DiffInput {
+  current: {
+    keywords: KeywordSheetRow[];
+    ads: AdSheetRow[];
+  };
+  uploaded: ParsedShell;
+}
+
+export function diffShell(input: DiffInput): GoogleAdsShellDiff {
+  // ---- Keywords diff (key = campaign|adgroup|keyword|negative) ----
+  const kwKey = (k: KeywordSheetRow) =>
+    `${k.campaignName}::${k.adGroupName}::${k.keyword.toLowerCase()}::${k.negative ? '1' : '0'}`;
+
+  const curMap = new Map<string, KeywordSheetRow>();
+  for (const k of input.current.keywords) curMap.set(kwKey(k), k);
+  const upMap = new Map<string, KeywordSheetRow>();
+  for (const k of input.uploaded.keywords) upMap.set(kwKey(k), k);
+
+  const added: KeywordSheetRow[] = [];
+  const updated: Array<{ before: KeywordSheetRow; after: KeywordSheetRow }> = [];
+  for (const [key, after] of upMap) {
+    const before = curMap.get(key);
+    if (!before) added.push(after);
+    else if (before.matchType !== after.matchType) updated.push({ before, after });
+  }
+  const removed: KeywordSheetRow[] = [];
+  for (const [key, before] of curMap) if (!upMap.has(key)) removed.push(before);
+
+  // ---- Ads diff (only updates to existing assignments; new rows -> skippedNew) ----
+  const adsUpdated: GoogleAdsShellDiff['ads']['updated'] = [];
+  const adsSkippedNew: AdSheetRow[] = [];
+  const curAdsById = new Map<string, AdSheetRow>();
+  for (const a of input.current.ads) if (a.assignmentId) curAdsById.set(a.assignmentId, a);
+
+  for (const after of input.uploaded.ads) {
+    if (!after.assignmentId) {
+      adsSkippedNew.push(after);
+      continue;
+    }
+    const before = curAdsById.get(after.assignmentId);
+    if (!before) {
+      adsSkippedNew.push(after);
+      continue;
+    }
+    const changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'] = {};
+    if (before.finalUrl !== after.finalUrl) changes.finalUrl = after.finalUrl;
+    if (before.path1 !== after.path1) changes.path1 = after.path1;
+    if (before.path2 !== after.path2) changes.path2 = after.path2;
+    if (!arrEq(before.headlines, after.headlines)) changes.headlines = after.headlines;
+    if (!pinArrEq(before.headlinePins, after.headlinePins)) changes.headlinePins = after.headlinePins;
+    if (!arrEq(before.descriptions, after.descriptions)) changes.descriptions = after.descriptions;
+    if (!pinArrEq(before.descriptionPins, after.descriptionPins))
+      changes.descriptionPins = after.descriptionPins;
+    if (!arrEq(before.longHeadlines, after.longHeadlines)) changes.longHeadlines = after.longHeadlines;
+    if (before.businessName !== after.businessName) changes.businessName = after.businessName;
+
+    if (Object.keys(changes).length > 0) {
+      adsUpdated.push({
+        assignmentId: after.assignmentId,
+        campaignName: after.campaignName,
+        adGroupName: after.adGroupName,
+        adName: after.adName,
+        changes,
+      });
+    }
+  }
+
+  return {
+    keywords: { added, updated, removed },
+    ads: { updated: adsUpdated, skippedNew: adsSkippedNew },
+  };
+}
+
+// ---------- Build current keyword rows from plan keywords (for diff "current" side) ----------
+
+export function buildCurrentKeywordRows(
+  keywords: GoogleKeywordLike[],
+  expansion: ExpandedCampaignRef[],
+): KeywordSheetRow[] {
+  const out: KeywordSheetRow[] = [];
+  const expByKey = new Map<string, ExpandedCampaignRef[]>();
+  for (const ref of expansion) {
+    if (ref.strategy === null) continue;
+    const k = `${ref.market}::${ref.strategy}`;
+    if (!expByKey.has(k)) expByKey.set(k, []);
+    expByKey.get(k)!.push(ref);
+  }
+  for (const kw of keywords) {
+    const strategy = (kw.strategy || 'generic') as 'brand' | 'generic' | 'competition';
+    const refs = expByKey.get(`${kw.market || ''}::${strategy}`);
+    const ref = refs?.[0];
+    if (!ref) continue;
+    out.push({
+      campaignName: ref.campaignName,
+      adGroupName: ref.adGroupName,
+      keyword: kw.name || kw.text || '',
+      matchType: (kw.matchType || 'broad') as 'exact' | 'phrase' | 'broad',
+      negative: !!kw.isNegative,
+    });
+  }
+  return out;
+}
+
+// ---------- Apply helpers (DB updates) ----------
+
+/** Convert applied keyword diff back into a flat `selectedKeywords` array for the campaign. */
+export function applyKeywordDiff(
+  current: GoogleKeywordLike[],
+  diff: GoogleAdsShellDiff['keywords'],
+  expansion: ExpandedCampaignRef[],
+): GoogleKeywordLike[] {
+  // Map campaignName -> {market, strategy} for reverse lookup
+  const refByCampaign = new Map<string, { market: string; strategy: 'brand' | 'generic' | 'competition' }>();
+  for (const ref of expansion) {
+    if (ref.strategy === null) continue;
+    refByCampaign.set(ref.campaignName, { market: ref.market, strategy: ref.strategy });
+  }
+
+  const next = [...current];
+
+  // Removals
+  for (const r of diff.removed) {
+    const idx = next.findIndex(
+      (k) =>
+        (k.name || k.text || '').toLowerCase() === r.keyword.toLowerCase() &&
+        !!k.isNegative === r.negative,
+    );
+    if (idx !== -1) next.splice(idx, 1);
+  }
+
+  // Updates (match-type changes)
+  for (const u of diff.updated) {
+    const idx = next.findIndex(
+      (k) =>
+        (k.name || k.text || '').toLowerCase() === u.before.keyword.toLowerCase() &&
+        !!k.isNegative === u.before.negative,
+    );
+    if (idx !== -1) next[idx] = { ...next[idx], matchType: u.after.matchType };
+  }
+
+  // Additions
+  for (const a of diff.added) {
+    const ref = refByCampaign.get(a.campaignName);
+    next.push({
+      id: `kw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: a.keyword,
+      matchType: a.matchType,
+      isNegative: a.negative,
+      strategy: ref?.strategy || 'generic',
+      market: ref?.market || null,
+      platform: 'google',
+    });
+  }
+
+  return next;
+}
+
+/** Build a Supabase update payload for one ad assignment from a diff entry. */
+export function adChangesToAssignmentUpdate(
+  changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'],
+): Record<string, unknown> {
+  const upd: Record<string, unknown> = {};
+  if (changes.finalUrl !== undefined) upd.destination_url = changes.finalUrl;
+  if (changes.path1 !== undefined) upd.path_1 = changes.path1;
+  if (changes.path2 !== undefined) upd.path_2 = changes.path2;
+  if (changes.headlines) {
+    upd.headline = changes.headlines[0] || null;
+    upd.headline_2 = changes.headlines[1] || null;
+    upd.headline_3 = changes.headlines[2] || null;
+    upd.headline_4 = changes.headlines[3] || null;
+    upd.headline_5 = changes.headlines[4] || null;
+    // Headlines 6..15 not stored as columns yet — hold them on headline_pins jsonb under `extra`
+    // Keep additional headlines in a structured payload to avoid data loss.
+    if (changes.headlines.length > 5) {
+      upd.headline_pins = upd.headline_pins || {};
+    }
+  }
+  if (changes.headlinePins) upd.headline_pins = changes.headlinePins;
+  if (changes.descriptions) {
+    upd.description = changes.descriptions[0] || null;
+    upd.description_2 = changes.descriptions[1] || null;
+    upd.description_3 = changes.descriptions[2] || null;
+    upd.description_4 = changes.descriptions[3] || null;
+  }
+  if (changes.descriptionPins) upd.description_pins = changes.descriptionPins;
+  if (changes.longHeadlines) {
+    upd.long_headline_1 = changes.longHeadlines[0] || null;
+    upd.long_headline_2 = changes.longHeadlines[1] || null;
+    upd.long_headline_3 = changes.longHeadlines[2] || null;
+    upd.long_headline_4 = changes.longHeadlines[3] || null;
+    upd.long_headline_5 = changes.longHeadlines[4] || null;
+  }
+  if (changes.businessName !== undefined) upd.business_name = changes.businessName;
+  return upd;
+}
+
+// ---------- Internals ----------
+
+function setLenFormula(ws: XLSX.WorkSheet, colIdx: number, rowNum: number, srcColLetter: string, max: number) {
+  const cellRef = `${XLSX.utils.encode_col(colIdx)}${rowNum}`;
+  const formula = `LEN(${srcColLetter}${rowNum})&"/"&${max}`;
+  ws[cellRef] = { t: 's', f: formula };
+}
+
+function refKey(market: string, phase: string, strategy: ExpandedCampaignRef['strategy'], adGroup: string) {
+  return `${market}|${phase}|${strategy || 'none'}|${adGroup}`;
+}
+
+function normMarket(m?: string | null) {
+  return String(m || '')
+    .trim()
+    .toLowerCase();
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function parsePins(v: unknown): (number | null)[] {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.map((x) => (typeof x === 'number' ? x : null));
+  try {
+    const parsed = JSON.parse(String(v));
+    return Array.isArray(parsed) ? parsed.map((x) => (typeof x === 'number' ? x : null)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function padPins(pins: (number | null)[], length: number): (number | null)[] {
+  const out = pins.slice(0, length);
+  while (out.length < length) out.push(null);
+  return out;
+}
+
+function toPin(v: unknown): number | null {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 1 || n > 15) return null;
+  return Math.floor(n);
+}
+
+function arrEq(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if ((a[i] || '') !== (b[i] || '')) return false;
+  return true;
+}
+
+function pinArrEq(a: (number | null)[], b: (number | null)[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if ((a[i] ?? null) !== (b[i] ?? null)) return false;
+  return true;
+}
