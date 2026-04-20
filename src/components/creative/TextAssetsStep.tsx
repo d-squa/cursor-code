@@ -1210,7 +1210,7 @@ export function TextAssetsStep({
 
   // Only show "No Assignments Found" if we've actually attempted to load and confirmed empty
   // For Google-configured campaigns, still allow access so users can use the shell tools.
-  if (hasAttemptedLoad && rows.length === 0 && !hasGoogleRows) {
+  if (hasAttemptedLoad && mergedRows.length === 0 && !hasGoogleRows) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -1231,7 +1231,7 @@ export function TextAssetsStep({
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-hidden">
         <TextAssetExcelEditor
-          rows={rows}
+          rows={mergedRows}
           campaignName={campaignName}
           onRowChange={handleRowChange}
           onBulkUpdate={handleBulkUpdate}
