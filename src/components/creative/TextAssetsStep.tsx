@@ -50,6 +50,7 @@ import {
   toAssetCustomizationMemberBucket,
 } from '@/utils/assetCustomizationPersistence';
 import { isAssignmentPushedLive, normalizeAssignmentPushStatus } from '@/utils/creativeAssignmentStatus';
+import type { CampaignStructure } from '@/hooks/useCreativeMatching';
 
 interface SavedAssignment {
   id: string;
