@@ -223,7 +223,10 @@ export function TextAssetsStep({
               name: p.name,
               googleCampaignType: p.googleCampaignType,
               googleSearchSplitLevel: p.googleSearchSplitLevel,
-              adSets: p.adSets,
+              // Inherit per-platform default ad sets when the phase doesn't define its
+              // own, so Search / PMax / Demand Gen reflect the configured split (e.g.
+              // Age × 2 groups) instead of collapsing into a single "Default" group.
+              adSets: inheritAdSets(p),
               market: p.market,
             })),
             markets,
@@ -231,9 +234,13 @@ export function TextAssetsStep({
           });
 
           const placeholders: CreativeTextAssetRow[] = expansion.map((ref, idx) => {
+            // For Search phases we keep the strategy decoration so each campaign
+            // (Brand / Generic / Competition) renders as its own group. For non-search
+            // phases we use the bare phase name so placeholders dedup against any real
+            // assignments — which store `phase_name` without decoration.
             const phaseLabel = ref.strategy
               ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
-              : `${ref.phaseName} • ${ref.googleCampaignType}`;
+              : ref.phaseName;
             return {
               id: `google_shell_${ref.market}_${ref.phaseName}_${ref.strategy || 'na'}_${ref.adGroupName}_${idx}`,
               creativeId: '',
