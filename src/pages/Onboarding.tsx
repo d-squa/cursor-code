@@ -29,6 +29,12 @@ const Onboarding = () => {
         return;
       }
       
+      // If user permanently dismissed onboarding, skip it forever
+      if (localStorage.getItem("actiplan_onboarding_dismissed") === "true") {
+        navigate("/overview");
+        return;
+      }
+
       // Check if onboarding is already complete
       const onboardingData = localStorage.getItem("actiplan_onboarding");
       if (onboardingData) {
