@@ -2,7 +2,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
+
+// Helper: redirect legacy /foo/* paths to /app/foo/* preserving the rest of the path + search/hash
+const LegacyRedirect = ({ prefix }: { prefix: string }) => {
+  const location = useLocation();
+  const params = useParams();
+  const splat = (params as any)["*"] || "";
+  const target = `${prefix}${splat ? `/${splat}` : ""}${location.search}${location.hash}`;
+  return <Navigate to={target} replace />;
+};
 import Landing from "./pages/Landing";
 import ComparePlans from "./pages/ComparePlans";
 import LandingB from "./pages/LandingB";
@@ -88,10 +97,10 @@ const App = () => (
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             
-            {/* Protected app routes - require subscription */}
+            {/* Protected app routes - require subscription. All app routes live under /app/* */}
+            <Route path="/app" element={<SubscriptionGuard><ExtensionModeProvider><AppHome /></ExtensionModeProvider></SubscriptionGuard>} />
+            <Route path="/app/new" element={<SubscriptionGuard><ExtensionModeProvider><Navigate to="/app" replace /></ExtensionModeProvider></SubscriptionGuard>} />
             <Route path="/app/overview" element={<SubscriptionGuard><Overview /></SubscriptionGuard>} />
-            <Route path="/app/app" element={<SubscriptionGuard><ExtensionModeProvider><AppHome /></ExtensionModeProvider></SubscriptionGuard>} />
-            <Route path="/app/app/new" element={<SubscriptionGuard><ExtensionModeProvider><Navigate to="/app/app" replace /></ExtensionModeProvider></SubscriptionGuard>} />
             <Route path="/app/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
             <Route path="/app/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
             <Route path="/app/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
@@ -120,6 +129,21 @@ const App = () => (
               <Route path="usage" element={<UsageMonitoring />} />
             </Route>
             <Route path="/app/admin" element={<AdminDashboard />} />
+
+            {/* Legacy redirects: old root paths -> /app/* (preserve subpaths via splat) */}
+            <Route path="/overview" element={<Navigate to="/app/overview" replace />} />
+            <Route path="/actiplans/*" element={<LegacyRedirect prefix="/app/actiplans" />} />
+            <Route path="/insights/*" element={<LegacyRedirect prefix="/app/insights" />} />
+            <Route path="/operations-analytics" element={<Navigate to="/app/operations-analytics" replace />} />
+            <Route path="/tasks" element={<Navigate to="/app/tasks" replace />} />
+            <Route path="/performance/*" element={<LegacyRedirect prefix="/app/performance" />} />
+            <Route path="/clients" element={<Navigate to="/app/clients" replace />} />
+            <Route path="/creatives/*" element={<LegacyRedirect prefix="/app/creatives" />} />
+            <Route path="/manage-accounts" element={<Navigate to="/app/manage-accounts" replace />} />
+            <Route path="/teams" element={<Navigate to="/app/teams" replace />} />
+            <Route path="/settings/*" element={<LegacyRedirect prefix="/app/settings" />} />
+            <Route path="/admin" element={<Navigate to="/app/admin" replace />} />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
