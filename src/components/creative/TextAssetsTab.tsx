@@ -374,6 +374,41 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
     loadAssignments();
   }, [effectiveCampaignId, refreshNonce, externalRefreshNonce]);
 
+  // Detect whether the campaign has any Google phase configured (even with no creatives yet).
+  // This makes the Google Ads Shell tools available for Search/PMax/Lead-gen phases that
+  // typically don't have creative_assignments rows.
+  useEffect(() => {
+    const detectGoogle = async () => {
+      if (!effectiveCampaignId) {
+        setHasGoogleConfigured(false);
+        return;
+      }
+      try {
+        const { data } = await supabase
+          .from('campaigns')
+          .select('generic_config, market_splits, platforms')
+          .eq('id', effectiveCampaignId)
+          .single();
+        const generic = (data?.generic_config as any) || {};
+        const phases: any[] = Array.isArray(generic?.phases) ? generic.phases : [];
+        const phaseHasGoogle = phases.some(
+          (p) => Array.isArray(p?.platforms) && p.platforms.includes('google'),
+        );
+        const splits = (data?.market_splits as Record<string, any>) || {};
+        const splitsHasGoogle = Object.keys(splits).some((k) => k.toLowerCase().includes('google'));
+        const platforms = Array.isArray(data?.platforms) ? (data!.platforms as any[]) : [];
+        const platformsHasGoogle = platforms.some((p: any) =>
+          String(p?.id || p?.name || p || '').toLowerCase().includes('google'),
+        );
+        setHasGoogleConfigured(phaseHasGoogle || splitsHasGoogle || platformsHasGoogle);
+      } catch (err) {
+        console.warn('[TextAssetsTab] failed to detect Google config', err);
+        setHasGoogleConfigured(false);
+      }
+    };
+    detectGoogle();
+  }, [effectiveCampaignId, refreshNonce, externalRefreshNonce]);
+
   // Handle individual row changes
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
     setRows((prev) =>
