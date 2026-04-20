@@ -365,6 +365,12 @@ export interface Phase {
   googleLocationTargeting?: string; // PRESENCE_OR_INTEREST or PRESENCE
   googleBrandGuidelines?: boolean; // Brand Guidelines enabled (PMax)
   googleBusinessName?: string; // Business name for Brand Guidelines (PMax)
+  /**
+   * For Google Search phases that have an ad set split: whether the split is
+   * materialised as separate campaigns or separate ad groups inside a single
+   * campaign. Defaults to 'adgroup' when unset.
+   */
+  googleSearchSplitLevel?: 'campaign' | 'adgroup';
 }
 
 export interface Campaign {
