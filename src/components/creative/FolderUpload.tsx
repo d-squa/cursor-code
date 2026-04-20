@@ -86,7 +86,11 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
     refetch: refetchBatches 
   } = useUploadBatches();
 
-  // Get ad account for a platform
+  // Get ad account for a platform.
+  // IMPORTANT: returns undefined for unsupported platforms (e.g. Google) so the
+  // caller can skip the file instead of silently falling back to a different DSP.
+  // Previously this defaulted to adAccounts[0], which caused Google creatives to
+  // be uploaded to TikTok when only a TikTok account was connected.
   const getAdAccountForPlatform = useCallback((platform: string): AdAccountInfo | undefined => {
     const normalizedPlatform = platform?.toLowerCase();
     if (normalizedPlatform === 'meta' || normalizedPlatform === 'facebook' || normalizedPlatform === 'instagram') {
@@ -95,8 +99,8 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
     if (normalizedPlatform === 'tiktok') {
       return adAccounts.find(a => a.platform === 'tiktok');
     }
-    // Default to first available
-    return adAccounts[0];
+    // Unsupported platform for direct DSP upload (e.g. google) — do not fall back.
+    return undefined;
   }, [adAccounts]);
 
   // Upload file to DSP (Meta or TikTok)
@@ -411,7 +415,13 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
         const { file, parsed, dimensions } = parsedFile;
         
         // Determine platform and get ad account
-        const platform = (parsed.platform?.toLowerCase() || 'meta') as 'meta' | 'tiktok';
+        const rawPlatform = (parsed.platform?.toLowerCase() || 'meta');
+        if (rawPlatform !== 'meta' && rawPlatform !== 'tiktok' && rawPlatform !== 'facebook' && rawPlatform !== 'instagram') {
+          failCount++;
+          errorLog.push({ filename: file.name, error: `Direct DSP upload not supported for platform "${rawPlatform}". Use the Creative Library / Mesh flow instead.` });
+          continue;
+        }
+        const platform = (rawPlatform === 'tiktok' ? 'tiktok' : 'meta') as 'meta' | 'tiktok';
         const adAccount = getAdAccountForPlatform(platform);
         
         if (!adAccount) {
