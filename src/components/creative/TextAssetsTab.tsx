@@ -1,5 +1,5 @@
 // Text Assets Tab - Page/editor for editing text assets for a specific ActiPlan
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,20 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
+import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
+import {
+  buildExpandedStructure,
+  buildAdRowsFromAssignments,
+  buildCurrentKeywordRows,
+  downloadGoogleAdsShell,
+  parseGoogleAdsShell,
+  diffShell,
+  applyKeywordDiff,
+  adChangesToAssignmentUpdate,
+  type GoogleAdsShellDiff,
+  type GoogleKeywordLike,
+  type AssignmentLite,
+} from '@/utils/googleAdsEditorExcel';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
