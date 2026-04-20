@@ -95,6 +95,7 @@ export function TextAssetsStep({
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
+  const [googlePlaceholderRows, setGooglePlaceholderRows] = useState<CreativeTextAssetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasGoogleConfigured, setHasGoogleConfigured] = useState(false);
@@ -118,7 +119,7 @@ export function TextAssetsStep({
       try {
         const { data, error } = await supabase
           .from('campaigns')
-          .select('generic_config, market_splits, platforms')
+          .select('name, generic_config, market_splits, platforms')
           .eq('id', campaignId)
           .single();
 
@@ -138,9 +139,85 @@ export function TextAssetsStep({
         );
 
         setHasGoogleConfigured(phaseHasGoogle || splitsHasGoogle || platformsHasGoogle);
+
+        // Build placeholder rows for every Google phase × market × ad-group expansion,
+        // so Search / PMax / Demand Gen / Lead Gen all appear in the editor even
+        // when no creatives have been matched yet.
+        const googlePhases = phases.filter((p: any) => {
+          const ps = Array.isArray(p?.platforms) ? p.platforms : [];
+          return ps.some((x: string) => String(x).toLowerCase().includes('google'));
+        });
+        const googleMarketSet = new Set<string>();
+        for (const [key, list] of Object.entries(splits)) {
+          if (key.toLowerCase().includes('google') && Array.isArray(list)) {
+            for (const m of list as any[]) if (m?.name) googleMarketSet.add(String(m.name));
+          }
+        }
+        if (googleMarketSet.size === 0) {
+          for (const p of googlePhases) {
+            if (p?.market) googleMarketSet.add(String(p.market));
+          }
+        }
+        const markets = Array.from(googleMarketSet);
+        const keywords: GoogleKeywordLike[] = Array.isArray(generic?.selectedKeywords)
+          ? generic.selectedKeywords
+          : [];
+
+        if (googlePhases.length > 0 && markets.length > 0) {
+          const expansion = buildExpandedStructure({
+            campaignName: data?.name || campaignName || 'Campaign',
+            phases: googlePhases.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              googleCampaignType: p.googleCampaignType,
+              googleSearchSplitLevel: p.googleSearchSplitLevel,
+              adSets: p.adSets,
+              market: p.market,
+            })),
+            markets,
+            keywords,
+          });
+
+          const placeholders: CreativeTextAssetRow[] = expansion.map((ref, idx) => {
+            const phaseLabel = ref.strategy
+              ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
+              : `${ref.phaseName} • ${ref.googleCampaignType}`;
+            return {
+              id: `google_shell_${ref.market}_${ref.phaseName}_${ref.strategy || 'na'}_${ref.adGroupName}_${idx}`,
+              creativeId: '',
+              assignmentId: '',
+              platform: 'google',
+              market: ref.market,
+              phase: phaseLabel,
+              adSet: ref.adGroupName,
+              creativeName: '— Shell placeholder —',
+              creativeFormat: 'image',
+              taxonomyCampaignName: ref.campaignName,
+              taxonomyAdSetName: ref.adGroupName,
+              taxonomyAdName: '',
+              adFormat: 'other',
+              suggestedAdFormat: 'other',
+              adFormatConfirmed: false,
+              primaryText: '',
+              headline: '',
+              description: '',
+              callToAction: 'LEARN_MORE',
+              destinationUrl: '',
+              autoBuildUtm: false,
+              isValid: true,
+              validationErrors: [],
+              mediaType: 'image',
+              pushStatus: 'draft',
+            } as CreativeTextAssetRow;
+          });
+          setGooglePlaceholderRows(placeholders);
+        } else {
+          setGooglePlaceholderRows([]);
+        }
       } catch (error) {
         console.warn('[TextAssetsStep] failed to detect Google config', error);
         setHasGoogleConfigured(false);
+        setGooglePlaceholderRows([]);
       }
     };
 
@@ -956,10 +1033,26 @@ export function TextAssetsStep({
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
 
-  // ============= Google Ads Shell (Search / PMax / Lead Gen) =============
+  // ============= Google Ads Shell (Search / PMax / Demand Gen / Lead Gen) =============
+  // Merge real Google assignments with synthesized "shell" placeholder rows so that
+  // every Google campaign type (Search strategies, PMax, Demand Gen, etc.) shows up
+  // in the editor — even before any creatives are matched.
+  const mergedRows = useMemo(() => {
+    if (googlePlaceholderRows.length === 0) return rows;
+    const realGoogleKeys = new Set(
+      rows
+        .filter((r) => r.platform === 'google')
+        .map((r) => `${r.market}|${r.phase}|${r.adSet}`),
+    );
+    const filteredPlaceholders = googlePlaceholderRows.filter(
+      (p) => !realGoogleKeys.has(`${p.market}|${p.phase}|${p.adSet}`),
+    );
+    return [...rows, ...filteredPlaceholders];
+  }, [rows, googlePlaceholderRows]);
+
   const hasGoogleRows = useMemo(
-    () => hasGoogleConfigured || rows.some((r) => r.platform === 'google'),
-    [hasGoogleConfigured, rows],
+    () => hasGoogleConfigured || mergedRows.some((r) => r.platform === 'google'),
+    [hasGoogleConfigured, mergedRows],
   );
 
   const loadGoogleShellContext = useCallback(async (): Promise<GoogleShellContext> => {
@@ -1117,7 +1210,7 @@ export function TextAssetsStep({
 
   // Only show "No Assignments Found" if we've actually attempted to load and confirmed empty
   // For Google-configured campaigns, still allow access so users can use the shell tools.
-  if (hasAttemptedLoad && rows.length === 0 && !hasGoogleRows) {
+  if (hasAttemptedLoad && mergedRows.length === 0 && !hasGoogleRows) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -1138,7 +1231,7 @@ export function TextAssetsStep({
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-hidden">
         <TextAssetExcelEditor
-          rows={rows}
+          rows={mergedRows}
           campaignName={campaignName}
           onRowChange={handleRowChange}
           onBulkUpdate={handleBulkUpdate}
