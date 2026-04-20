@@ -95,6 +95,7 @@ export function TextAssetsStep({
   onSaveAndSelectMore
 }: TextAssetsStepProps) {
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
+  const [googlePlaceholderRows, setGooglePlaceholderRows] = useState<CreativeTextAssetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasGoogleConfigured, setHasGoogleConfigured] = useState(false);
