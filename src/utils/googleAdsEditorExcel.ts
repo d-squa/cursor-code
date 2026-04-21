@@ -594,9 +594,14 @@ export interface DiffInput {
 }
 
 export function diffShell(input: DiffInput): GoogleAdsShellDiff {
-  // ---- Keywords diff (key = campaign|adgroup|keyword|negative) ----
+  // ---- Keywords diff ----
+  // Key on (keyword, negative) only. The (campaign, ad group) for a keyword is
+  // derived from its strategy/market in the plan model; including campaign/ad-group
+  // in the key would falsely flag every row as removed+added when the user
+  // restructures campaigns or when the original `current` rows were skipped due
+  // to a missing market mapping.
   const kwKey = (k: KeywordSheetRow) =>
-    `${k.campaignName}::${k.adGroupName}::${k.keyword.toLowerCase()}::${k.negative ? '1' : '0'}`;
+    `${k.keyword.trim().toLowerCase()}::${k.negative ? '1' : '0'}`;
 
   const curMap = new Map<string, KeywordSheetRow>();
   for (const k of input.current.keywords) curMap.set(kwKey(k), k);
@@ -613,49 +618,81 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   const removed: KeywordSheetRow[] = [];
   for (const [key, before] of curMap) if (!upMap.has(key)) removed.push(before);
 
-  // ---- Ads diff (only updates to existing assignments; new rows -> skippedNew) ----
+  // ---- Ads diff ----
+  // Existing assignmentIds → updates. New rows are split into:
+  //  - `added`     : rows whose (campaign, ad group) match a known shell entry
+  //                  → auto-created on apply
+  //  - `skippedNew`: rows we cannot map → surfaced as warnings
   const adsUpdated: GoogleAdsShellDiff['ads']['updated'] = [];
+  const adsAdded: AdSheetRow[] = [];
   const adsSkippedNew: AdSheetRow[] = [];
   const curAdsById = new Map<string, AdSheetRow>();
-  for (const a of input.current.ads) if (a.assignmentId) curAdsById.set(a.assignmentId, a);
+  const knownShellKeys = new Set<string>();
+  for (const a of input.current.ads) {
+    if (a.assignmentId) curAdsById.set(a.assignmentId, a);
+    knownShellKeys.add(`${a.campaignName}::${a.adGroupName}`);
+  }
+
+  // Per-shell counter so auto-generated names stay unique.
+  const newRowCounter = new Map<string, number>();
 
   for (const after of input.uploaded.ads) {
-    if (!after.assignmentId) {
-      adsSkippedNew.push(after);
-      continue;
-    }
-    const before = curAdsById.get(after.assignmentId);
-    if (!before) {
-      adsSkippedNew.push(after);
-      continue;
-    }
-    const changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'] = {};
-    if (before.finalUrl !== after.finalUrl) changes.finalUrl = after.finalUrl;
-    if (before.path1 !== after.path1) changes.path1 = after.path1;
-    if (before.path2 !== after.path2) changes.path2 = after.path2;
-    if (!arrEq(before.headlines, after.headlines)) changes.headlines = after.headlines;
-    if (!pinArrEq(before.headlinePins, after.headlinePins)) changes.headlinePins = after.headlinePins;
-    if (!arrEq(before.descriptions, after.descriptions)) changes.descriptions = after.descriptions;
-    if (!pinArrEq(before.descriptionPins, after.descriptionPins))
-      changes.descriptionPins = after.descriptionPins;
-    if (!arrEq(before.longHeadlines, after.longHeadlines)) changes.longHeadlines = after.longHeadlines;
-    if (before.businessName !== after.businessName) changes.businessName = after.businessName;
+    if (after.assignmentId && curAdsById.has(after.assignmentId)) {
+      const before = curAdsById.get(after.assignmentId)!;
+      const changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'] = {};
+      if (before.finalUrl !== after.finalUrl) changes.finalUrl = after.finalUrl;
+      if (before.path1 !== after.path1) changes.path1 = after.path1;
+      if (before.path2 !== after.path2) changes.path2 = after.path2;
+      if (!arrEq(before.headlines, after.headlines)) changes.headlines = after.headlines;
+      if (!pinArrEq(before.headlinePins, after.headlinePins)) changes.headlinePins = after.headlinePins;
+      if (!arrEq(before.descriptions, after.descriptions)) changes.descriptions = after.descriptions;
+      if (!pinArrEq(before.descriptionPins, after.descriptionPins))
+        changes.descriptionPins = after.descriptionPins;
+      if (!arrEq(before.longHeadlines, after.longHeadlines)) changes.longHeadlines = after.longHeadlines;
+      if (before.businessName !== after.businessName) changes.businessName = after.businessName;
 
-    if (Object.keys(changes).length > 0) {
-      adsUpdated.push({
-        assignmentId: after.assignmentId,
-        campaignName: after.campaignName,
-        adGroupName: after.adGroupName,
-        adName: after.adName,
-        changes,
-      });
+      if (Object.keys(changes).length > 0) {
+        adsUpdated.push({
+          assignmentId: after.assignmentId,
+          campaignName: after.campaignName,
+          adGroupName: after.adGroupName,
+          adName: after.adName,
+          changes,
+        });
+      }
+      continue;
     }
+
+    // New row — try to attach to a known shell entry
+    const shellKey = `${after.campaignName}::${after.adGroupName}`;
+    if (!knownShellKeys.has(shellKey)) {
+      adsSkippedNew.push(after);
+      continue;
+    }
+    // Auto-generate a friendly Ad Name from the campaign/ad-group taxonomy when
+    // the user didn't provide one.
+    const autoName = after.adName.trim() || generateAutoAdName(after, newRowCounter);
+    adsAdded.push({ ...after, adName: autoName });
   }
 
   return {
     keywords: { added, updated, removed },
-    ads: { updated: adsUpdated, skippedNew: adsSkippedNew },
+    ads: { updated: adsUpdated, added: adsAdded, skippedNew: adsSkippedNew },
   };
+}
+
+// Build a deterministic ad name from the campaign + ad-group taxonomy. Uses the
+// last two segments of the campaign name (typically Phase | Strategy) plus the
+// ad-group name and a 1-based sequence within that shell.
+function generateAutoAdName(row: AdSheetRow, counter: Map<string, number>): string {
+  const shellKey = `${row.campaignName}::${row.adGroupName}`;
+  const next = (counter.get(shellKey) || 0) + 1;
+  counter.set(shellKey, next);
+  const campaignParts = row.campaignName.split('|').map((p) => p.trim()).filter(Boolean);
+  const tail = campaignParts.slice(-2).join(' | ');
+  const adGroupSuffix =
+    row.adGroupName && row.adGroupName !== 'Default' ? ` | ${row.adGroupName}` : '';
+  return `${tail}${adGroupSuffix} | RSA${next}`;
 }
 
 // ---------- Build current keyword rows from plan keywords (for diff "current" side) ----------
