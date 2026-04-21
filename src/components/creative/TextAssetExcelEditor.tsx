@@ -83,6 +83,8 @@ interface TextAssetExcelEditorProps {
   onUploadGoogleSearchShell?: (file: File) => void | Promise<void>;
   /** Optional: open the dedicated Google Search text-asset editor popup. */
   onOpenGoogleSearchEditor?: () => void;
+  /** Optional: open the unified non-Search Google text-asset editor (PMax / Demand Gen / Video / Display), scoped to a specific phase. */
+  onOpenGoogleNonSearchEditor?: (market: string, phase: string) => void;
   /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
   hasGoogleRows?: boolean;
 }
@@ -248,6 +250,7 @@ export function TextAssetExcelEditor({
   onDownloadGoogleSearchShell,
   onUploadGoogleSearchShell,
   onOpenGoogleSearchEditor,
+  onOpenGoogleNonSearchEditor,
   hasGoogleRows,
 }: TextAssetExcelEditorProps) {
   const googleShellInputRef = useRef<HTMLInputElement>(null);
@@ -2152,6 +2155,26 @@ export function TextAssetExcelEditor({
                                   className="flex items-center gap-1 ml-2 shrink-0"
                                   onClick={(e) => e.stopPropagation()}
                                 >
+                                  {onOpenGoogleNonSearchEditor && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="h-6 px-2 text-xs"
+                                            onClick={() => onOpenGoogleNonSearchEditor(market, phase)}
+                                          >
+                                            <Settings2 className="h-3 w-3 mr-1" />
+                                            Edit Ads
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Open the unified editor for this phase (PMax / Demand Gen / Video / Display).
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
                                   {onDownloadGoogleAdsShellForPhase && (
                                     <TooltipProvider>
                                       <Tooltip>

@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
 import { GoogleSearchTextAssetEditor } from './GoogleSearchTextAssetEditor';
+import { GoogleNonSearchTextAssetEditor } from './GoogleNonSearchTextAssetEditor';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat, type AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
@@ -111,6 +112,7 @@ export function TextAssetsStep({
   const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
   const [shellOpen, setShellOpen] = useState(false);
   const [googleSearchEditorOpen, setGoogleSearchEditorOpen] = useState(false);
+  const [googleNonSearchEditor, setGoogleNonSearchEditor] = useState<{ open: boolean; market?: string; phase?: string }>({ open: false });
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
   const [selectedNewCreatives, setSelectedNewCreatives] = useState<Set<string>>(new Set());
@@ -976,7 +978,24 @@ export function TextAssetsStep({
           .update({
             primary_text: row.primaryText || null,
             headline: row.headline || null,
+            headline_2: (row as any).headline2 || null,
+            headline_3: (row as any).headline3 || null,
+            headline_4: (row as any).headline4 || null,
+            headline_5: (row as any).headline5 || null,
             description: row.description || null,
+            description_2: (row as any).description2 || null,
+            description_3: (row as any).description3 || null,
+            description_4: (row as any).description4 || null,
+            description_5: (row as any).description5 || null,
+            long_headline_1: (row as any).long_headline_1 || null,
+            long_headline_2: (row as any).long_headline_2 || null,
+            long_headline_3: (row as any).long_headline_3 || null,
+            long_headline_4: (row as any).long_headline_4 || null,
+            long_headline_5: (row as any).long_headline_5 || null,
+            business_name: (row as any).business_name || row.brandName || null,
+            brand_name: row.brandName || null,
+            headline_pins: (row as any).headline_pins || null,
+            description_pins: (row as any).description_pins || null,
             call_to_action: row.callToAction || null,
             destination_url: row.destinationUrl || null,
             carousel_group_id: row.carouselGroupId || null,
@@ -1698,6 +1717,7 @@ export function TextAssetsStep({
           onDownloadGoogleSearchShell={handleDownloadGoogleSearchShell}
           onUploadGoogleSearchShell={handleUploadGoogleSearchShell}
           onOpenGoogleSearchEditor={() => setGoogleSearchEditorOpen(true)}
+          onOpenGoogleNonSearchEditor={(market, phase) => setGoogleNonSearchEditor({ open: true, market, phase })}
         />
       </div>
 
@@ -1705,6 +1725,16 @@ export function TextAssetsStep({
         open={googleSearchEditorOpen}
         onOpenChange={setGoogleSearchEditorOpen}
         rows={mergedRows}
+        onRowChange={handleRowChange}
+        onBulkUpdate={handleBulkUpdate}
+      />
+
+      <GoogleNonSearchTextAssetEditor
+        open={googleNonSearchEditor.open}
+        onOpenChange={(open) => setGoogleNonSearchEditor((prev) => ({ ...prev, open }))}
+        rows={mergedRows}
+        scopeMarket={googleNonSearchEditor.market}
+        scopePhase={googleNonSearchEditor.phase}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
       />
