@@ -789,7 +789,7 @@ export function TextAssetsStep({
     };
 
     loadAssignments();
-  }, [savedAssignments, campaignId, campaignName]);
+  }, [savedAssignments, campaignId, campaignName, campaignStructures]);
 
   // Handle individual row changes
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
