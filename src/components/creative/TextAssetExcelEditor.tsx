@@ -1655,11 +1655,11 @@ export function TextAssetExcelEditor({
   const getLevelIndent = (level: number) => {
     switch (level) {
       case 0: return 'pl-2';
-      case 1: return 'pl-6';
-      case 2: return 'pl-10';
-      case 3: return 'pl-14';
-      case 4: return 'pl-[4.5rem]';
-      default: return 'pl-20';
+      case 1: return 'pl-8';
+      case 2: return 'pl-14';
+      case 3: return 'pl-20';
+      case 4: return 'pl-28';
+      default: return 'pl-32';
     }
   };
 
@@ -2020,7 +2020,7 @@ export function TextAssetExcelEditor({
                             </div>
                           )}
                           <div 
-                            className={cn("flex items-center gap-2 py-2 shrink-0", !(item.level === 3 || item.level === 4) && getLevelIndent(item.level!), item.level === 4 && 'pl-4')}
+                            className={cn("flex items-center gap-2 py-2 shrink-0", !(item.level === 3 || item.level === 4) && getLevelIndent(item.level!), item.level === 3 && 'pl-2', item.level === 4 && 'pl-12')}
                             style={{ width: (item.level === 3 || item.level === 4) ? STICKY_WIDTH - HIERARCHY_COLUMNS[0].width : STICKY_WIDTH }}
                           >
                             {isCollapsed ? (
