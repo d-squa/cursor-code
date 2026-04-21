@@ -25,6 +25,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
   const [selectedUpdates, setSelectedUpdates] = useState<Set<number>>(new Set());
   const [selectedRemovals, setSelectedRemovals] = useState<Set<number>>(new Set());
   const [selectedAdUpdates, setSelectedAdUpdates] = useState<Set<string>>(new Set());
+  const [selectedNewAds, setSelectedNewAds] = useState<Set<number>>(new Set());
   const [isApplying, setIsApplying] = useState(false);
 
   // Initialise selections every time the dialog opens with a fresh diff.
@@ -34,6 +35,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
     setSelectedUpdates(new Set(diff.keywords.updated.map((_, i) => i)));
     setSelectedRemovals(new Set(diff.keywords.removed.map((_, i) => i)));
     setSelectedAdUpdates(new Set(diff.ads.updated.map((u) => u.assignmentId)));
+    setSelectedNewAds(new Set(diff.ads.added.map((_, i) => i)));
   }, [diff]);
 
   if (!diff) return null;
@@ -42,10 +44,15 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
     diff.keywords.added.length +
     diff.keywords.updated.length +
     diff.keywords.removed.length +
-    diff.ads.updated.length;
+    diff.ads.updated.length +
+    diff.ads.added.length;
 
   const selectedTotal =
-    selectedAdds.size + selectedUpdates.size + selectedRemovals.size + selectedAdUpdates.size;
+    selectedAdds.size +
+    selectedUpdates.size +
+    selectedRemovals.size +
+    selectedAdUpdates.size +
+    selectedNewAds.size;
 
   const toggle = <T,>(set: Set<T>, value: T, setter: (s: Set<T>) => void) => {
     const next = new Set(set);
@@ -65,6 +72,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
         },
         ads: {
           updated: diff.ads.updated.filter((u) => selectedAdUpdates.has(u.assignmentId)),
+          added: diff.ads.added.filter((_, i) => selectedNewAds.has(i)),
           skippedNew: diff.ads.skippedNew,
         },
       };
@@ -97,11 +105,13 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
             </TabsTrigger>
             <TabsTrigger value="ads">
               Ads
-              <Badge variant="secondary" className="ml-2">{diff.ads.updated.length}</Badge>
+              <Badge variant="secondary" className="ml-2">
+                {diff.ads.updated.length + diff.ads.added.length}
+              </Badge>
             </TabsTrigger>
             {diff.ads.skippedNew.length > 0 && (
               <TabsTrigger value="skipped">
-                New rows
+                Unmatched
                 <Badge variant="outline" className="ml-2">{diff.ads.skippedNew.length}</Badge>
               </TabsTrigger>
             )}
@@ -163,25 +173,47 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
 
           <TabsContent value="ads" className="flex-1 overflow-hidden mt-2">
             <ScrollArea className="h-[50vh] pr-3">
-              {diff.ads.updated.length === 0 && (
-                <p className="text-sm text-muted-foreground py-8 text-center">No ad updates.</p>
+              {diff.ads.updated.length === 0 && diff.ads.added.length === 0 && (
+                <p className="text-sm text-muted-foreground py-8 text-center">No ad changes.</p>
               )}
-              {diff.ads.updated.map((u) => (
-                <div key={u.assignmentId} className="border rounded p-2 mb-2">
-                  <Row
-                    checked={selectedAdUpdates.has(u.assignmentId)}
-                    onToggle={() => toggle(selectedAdUpdates, u.assignmentId, setSelectedAdUpdates)}
-                  >
-                    <span className="font-medium">{u.adName}</span>
-                    <span className="text-muted-foreground text-xs ml-2">{u.campaignName} / {u.adGroupName}</span>
-                  </Row>
-                  <ul className="text-xs mt-1 ml-7 space-y-0.5 text-muted-foreground">
-                    {Object.keys(u.changes).map((field) => (
-                      <li key={field}>• {fieldLabel(field)}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              {diff.ads.added.length > 0 && (
+                <Section title="New ads (auto-created)" icon={<Plus className="h-4 w-4 text-primary" />}>
+                  {diff.ads.added.map((row, i) => (
+                    <div key={`new-${i}`} className="border rounded p-2 mb-2">
+                      <Row
+                        checked={selectedNewAds.has(i)}
+                        onToggle={() => toggle(selectedNewAds, i, setSelectedNewAds)}
+                      >
+                        <span className="font-medium">{row.adName}</span>
+                        <Badge variant="outline" className="ml-2 text-[10px]">new</Badge>
+                        <span className="text-muted-foreground text-xs ml-2 truncate">
+                          {row.campaignName} / {row.adGroupName}
+                        </span>
+                      </Row>
+                    </div>
+                  ))}
+                </Section>
+              )}
+              {diff.ads.updated.length > 0 && (
+                <Section title="Updated ads" icon={<Pencil className="h-4 w-4 text-muted-foreground" />}>
+                  {diff.ads.updated.map((u) => (
+                    <div key={u.assignmentId} className="border rounded p-2 mb-2">
+                      <Row
+                        checked={selectedAdUpdates.has(u.assignmentId)}
+                        onToggle={() => toggle(selectedAdUpdates, u.assignmentId, setSelectedAdUpdates)}
+                      >
+                        <span className="font-medium">{u.adName}</span>
+                        <span className="text-muted-foreground text-xs ml-2">{u.campaignName} / {u.adGroupName}</span>
+                      </Row>
+                      <ul className="text-xs mt-1 ml-7 space-y-0.5 text-muted-foreground">
+                        {Object.keys(u.changes).map((field) => (
+                          <li key={field}>• {fieldLabel(field)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </Section>
+              )}
             </ScrollArea>
           </TabsContent>
 
@@ -190,14 +222,14 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
               <div className="flex items-start gap-2 p-2 mb-2 bg-muted border border-border rounded text-xs">
                 <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div>
-                  New RSA rows detected. Auto-creation isn't supported in this version — add the
-                  ads inside the editor first, then re-upload to update them.
+                  These rows couldn't be matched to a known campaign / ad group in this plan.
+                  Double-check the Campaign and Ad Group columns and re-upload.
                 </div>
               </div>
               <ScrollArea className="h-[42vh] pr-3">
                 {diff.ads.skippedNew.map((row, i) => (
                   <div key={i} className="text-xs py-1 border-b">
-                    <span className="font-medium">{row.adName}</span>
+                    <span className="font-medium">{row.adName || '(unnamed)'}</span>
                     <span className="text-muted-foreground ml-2">{row.campaignName} / {row.adGroupName}</span>
                   </div>
                 ))}

@@ -1575,11 +1575,60 @@ export function TextAssetsStep({
           .eq('id', u.assignmentId);
         if (error) throw error;
       }
+
+      // New RSA rows from the spreadsheet — appended as additional Google shell
+      // placeholders so they appear in the editor with their copy already filled.
+      // The user can then save them through the normal flow.
+      if (selected.ads.added.length > 0) {
+        const expansionByCampaign = new Map(ctx.expansion.map((e) => [e.campaignName, e]));
+        setGooglePlaceholderRows((prev) => {
+          const next = [...prev];
+          selected.ads.added.forEach((a, i) => {
+            const ref = expansionByCampaign.get(a.campaignName);
+            if (!ref) return;
+            const phaseLabel = ref.strategy
+              ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
+              : ref.phaseName;
+            next.push({
+              id: `google_shell_uploaded_${Date.now()}_${i}`,
+              creativeId: '',
+              assignmentId: '',
+              platform: 'google',
+              market: ref.market,
+              phase: phaseLabel,
+              adSet: ref.adGroupName,
+              googleCampaignType: ref.googleCampaignType,
+              googleStrategy: ref.strategy,
+              creativeName: a.adName,
+              creativeFormat: 'image',
+              taxonomyCampaignName: ref.campaignName,
+              taxonomyAdSetName: ref.adGroupName,
+              taxonomyAdName: a.adName,
+              adFormat: 'other',
+              suggestedAdFormat: 'other',
+              adFormatConfirmed: false,
+              primaryText: a.descriptions.find((d) => d?.trim()) || '',
+              headline: a.headlines.find((h) => h?.trim()) || '',
+              description: a.descriptions.find((d) => d?.trim()) || '',
+              callToAction: 'LEARN_MORE',
+              destinationUrl: a.finalUrl || '',
+              autoBuildUtm: false,
+              isValid: true,
+              validationErrors: [],
+              mediaType: 'image',
+              pushStatus: 'draft',
+            } as CreativeTextAssetRow);
+          });
+          return next;
+        });
+      }
+
       const total =
         selected.keywords.added.length +
         selected.keywords.updated.length +
         selected.keywords.removed.length +
-        selected.ads.updated.length;
+        selected.ads.updated.length +
+        selected.ads.added.length;
       toast.success(`Applied ${total} change(s) from the Google Ads shell`);
     } catch (err) {
       console.error('[GoogleAdsShell] apply failed', err);
