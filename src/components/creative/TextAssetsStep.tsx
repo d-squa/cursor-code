@@ -122,6 +122,131 @@ export function TextAssetsStep({
   const acGroupsToDeleteRef = useRef<Set<string>>(new Set());
   const shellContextRef = useRef<GoogleShellContext | null>(null);
 
+  const deriveGoogleShellData = useCallback(
+    (
+      campaignData: {
+        generic_config?: unknown;
+        market_splits?: Record<string, any> | null;
+        platforms?: any[] | null;
+      } | null | undefined,
+      fallbackMarkets: string[] = [],
+    ) => {
+      const generic = (campaignData?.generic_config as any) || {};
+      const basicTargeting = generic?.targetingPreset || generic?.basicTargeting || {};
+      const perPlatformDim = basicTargeting?.defaultAdSetSplitDimensionPerPlatform || {};
+      const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform || {};
+      const googleDimension =
+        perPlatformDim?.google || perPlatformDim?.google_ads || basicTargeting?.defaultAdSetSplitDimension;
+      const googleDefaultAdSets =
+        perPlatformAdSets?.google ||
+        perPlatformAdSets?.google_ads ||
+        (Object.keys(perPlatformAdSets).length === 0 ? basicTargeting?.defaultAdSets : undefined);
+      const inheritAdSets = (phase: any): any[] | undefined => {
+        if (Array.isArray(phase?.adSets) && phase.adSets.length > 0) return phase.adSets;
+        if (phase?.overrideTargeting) return undefined;
+        if (
+          googleDimension &&
+          googleDimension !== 'none' &&
+          Array.isArray(googleDefaultAdSets) &&
+          googleDefaultAdSets.length > 0
+        ) {
+          return googleDefaultAdSets;
+        }
+        return undefined;
+      };
+
+      const genericPhases: any[] = Array.isArray(generic?.phases) ? generic.phases : [];
+      const genericGooglePhases = genericPhases.filter((phase) => {
+        const platforms = Array.isArray(phase?.platforms) ? phase.platforms : [];
+        return platforms.some((platform: string) => String(platform).toLowerCase().includes('google'));
+      });
+
+      const basePhaseKey = (phase: any) =>
+        `${String(phase?.name || '').trim().toLowerCase()}::${String(phase?.googleCampaignType || '').trim().toLowerCase()}`;
+      const fullPhaseKey = (phase: any, market?: string) =>
+        `${basePhaseKey(phase)}::${String(phase?.market || market || '').trim().toLowerCase()}`;
+
+      const genericPhaseKeys = new Set<string>();
+      const seenPhaseKeys = new Set<string>();
+      const googlePhases: any[] = [];
+      const pushPhase = (phase: any, market?: string, allowGenericDuplicate = true) => {
+        const phaseName = String(phase?.name || '').trim();
+        if (!phaseName) return;
+        if (!allowGenericDuplicate && genericPhaseKeys.has(basePhaseKey(phase))) return;
+
+        const phaseKey = fullPhaseKey(phase, market);
+        if (seenPhaseKeys.has(phaseKey)) return;
+        seenPhaseKeys.add(phaseKey);
+
+        googlePhases.push({
+          ...phase,
+          market: phase?.market || market,
+          adSets: inheritAdSets(phase),
+        });
+      };
+
+      genericGooglePhases.forEach((phase) => {
+        genericPhaseKeys.add(basePhaseKey(phase));
+        pushPhase(phase, phase?.market, true);
+      });
+
+      const splits = (campaignData?.market_splits as Record<string, any>) || {};
+      const googleMarketSet = new Set<string>();
+      for (const [key, list] of Object.entries(splits)) {
+        if (!key.toLowerCase().includes('google') || !Array.isArray(list)) continue;
+
+        for (const marketEntry of list as any[]) {
+          const marketName = marketEntry?.name || (typeof marketEntry === 'string' ? marketEntry : undefined);
+          if (marketName) googleMarketSet.add(String(marketName));
+
+          const phasesFromMarket = Array.isArray(marketEntry?.phases) ? marketEntry.phases : [];
+          for (const phase of phasesFromMarket) {
+            pushPhase(phase, marketName, false);
+          }
+        }
+      }
+
+      if (googleMarketSet.size === 0) {
+        fallbackMarkets.forEach((market) => {
+          if (market) googleMarketSet.add(String(market));
+        });
+        googlePhases.forEach((phase) => {
+          if (phase?.market) googleMarketSet.add(String(phase.market));
+        });
+      }
+
+      const keywordSources: any[] = [];
+      if (Array.isArray(generic?.selectedKeywords)) keywordSources.push(...generic.selectedKeywords);
+      if (Array.isArray(generic?.keywords)) keywordSources.push(...generic.keywords);
+      for (const phase of googlePhases) {
+        if (Array.isArray(phase?.selectedKeywords)) keywordSources.push(...phase.selectedKeywords);
+        if (Array.isArray(phase?.keywords)) keywordSources.push(...phase.keywords);
+        if (Array.isArray(phase?.searchKeywords)) keywordSources.push(...phase.searchKeywords);
+      }
+
+      const keywords: GoogleKeywordLike[] = keywordSources.filter(
+        (keyword) => !keyword?.platform || String(keyword.platform).toLowerCase().includes('google'),
+      );
+
+      const platforms = Array.isArray(campaignData?.platforms) ? (campaignData.platforms as any[]) : [];
+      const hasGoogleConfigured =
+        genericGooglePhases.length > 0 ||
+        Object.keys(splits).some((key) => key.toLowerCase().includes('google')) ||
+        platforms.some((platform) =>
+          String(platform?.id || platform?.name || platform || '').toLowerCase().includes('google'),
+        );
+
+      return {
+        generic,
+        googlePhases,
+        markets: Array.from(googleMarketSet),
+        keywords,
+        hasGoogleConfigured,
+      };
+    },
+    [],
+  );
+
   useEffect(() => {
     const detectGoogle = async () => {
       try {
@@ -133,87 +258,12 @@ export function TextAssetsStep({
 
         if (error) throw error;
 
-        const generic = (data?.generic_config as any) || {};
-        const basicTargeting = generic?.targetingPreset || generic?.basicTargeting || {};
-        // Resolve per-platform default ad sets so that Google phases without their own
-        // `adSets` array still inherit the campaign-level split (e.g. Age dimension with
-        // 2 groups). Without this fallback the editor would show a single "Default" ad
-        // group regardless of the configured split.
-        const perPlatformDim = basicTargeting?.defaultAdSetSplitDimensionPerPlatform || {};
-        const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform || {};
-        const googleDimension =
-          perPlatformDim?.google || perPlatformDim?.google_ads || basicTargeting?.defaultAdSetSplitDimension;
-        const googleDefaultAdSets =
-          perPlatformAdSets?.google ||
-          perPlatformAdSets?.google_ads ||
-          (Object.keys(perPlatformAdSets).length === 0 ? basicTargeting?.defaultAdSets : undefined);
-        const inheritAdSets = (phase: any): any[] | undefined => {
-          if (Array.isArray(phase?.adSets) && phase.adSets.length > 0) return phase.adSets;
-          if (phase?.overrideTargeting) return undefined;
-          if (googleDimension && googleDimension !== 'none' && Array.isArray(googleDefaultAdSets) && googleDefaultAdSets.length > 0) {
-            return googleDefaultAdSets;
-          }
-          return undefined;
-        };
-        const phases: any[] = Array.isArray(generic?.phases) ? generic.phases : [];
-        const phaseHasGoogle = phases.some((phase) => {
-          const platforms = Array.isArray(phase?.platforms) ? phase.platforms : [];
-          return platforms.some((platform: string) => String(platform).toLowerCase().includes('google'));
-        });
-        const splits = (data?.market_splits as Record<string, any>) || {};
-        const splitsHasGoogle = Object.keys(splits).some((key) => key.toLowerCase().includes('google'));
-        const platforms = Array.isArray(data?.platforms) ? (data.platforms as any[]) : [];
-        const platformsHasGoogle = platforms.some((platform) =>
-          String(platform?.id || platform?.name || platform || '').toLowerCase().includes('google'),
-        );
+        const derived = deriveGoogleShellData(data as any);
+        const googlePhases = derived.googlePhases;
+        const markets = derived.markets;
+        const keywords = derived.keywords;
 
-        setHasGoogleConfigured(phaseHasGoogle || splitsHasGoogle || platformsHasGoogle);
-
-        // Build placeholder rows for every Google phase × market × ad-group expansion,
-        // so Search / PMax / Demand Gen / Lead Gen all appear in the editor even
-        // when no creatives have been matched yet.
-        const googlePhases: any[] = phases.filter((p: any) => {
-          const ps = Array.isArray(p?.platforms) ? p.platforms : [];
-          return ps.some((x: string) => String(x).toLowerCase().includes('google'));
-        });
-        const googleMarketSet = new Set<string>();
-        for (const [key, list] of Object.entries(splits)) {
-          if (key.toLowerCase().includes('google') && Array.isArray(list)) {
-            for (const m of list as any[]) {
-              if (m?.name) googleMarketSet.add(String(m.name));
-              else if (typeof m === 'string') googleMarketSet.add(m);
-              // Also mine phases from market_splits since some campaigns store
-              // their Google phase configuration here rather than in generic_config.
-              const marketName = m?.name || (typeof m === 'string' ? m : undefined);
-              const phasesFromMarket = Array.isArray(m?.phases) ? m.phases : [];
-              for (const phase of phasesFromMarket) {
-                googlePhases.push({
-                  ...phase,
-                  market: phase?.market || marketName,
-                });
-              }
-            }
-          }
-        }
-        if (googleMarketSet.size === 0) {
-          for (const p of googlePhases) {
-            if (p?.market) googleMarketSet.add(String(p.market));
-          }
-        }
-        const markets = Array.from(googleMarketSet);
-        // Collect keywords from generic_config and any per-phase keyword arrays so that
-        // strategy detection (Brand / Generic / Competition) can find them wherever they live.
-        const keywordSources: any[] = [];
-        if (Array.isArray(generic?.selectedKeywords)) keywordSources.push(...generic.selectedKeywords);
-        if (Array.isArray(generic?.keywords)) keywordSources.push(...generic.keywords);
-        for (const p of googlePhases) {
-          if (Array.isArray(p?.selectedKeywords)) keywordSources.push(...p.selectedKeywords);
-          if (Array.isArray(p?.keywords)) keywordSources.push(...p.keywords);
-          if (Array.isArray(p?.searchKeywords)) keywordSources.push(...p.searchKeywords);
-        }
-        const keywords: GoogleKeywordLike[] = keywordSources.filter(
-          (k) => !k?.platform || String(k.platform).toLowerCase().includes('google'),
-        );
+        setHasGoogleConfigured(derived.hasGoogleConfigured);
 
         if (googlePhases.length > 0 && markets.length > 0) {
           const expansion = buildExpandedStructure({
@@ -223,10 +273,7 @@ export function TextAssetsStep({
               name: p.name,
               googleCampaignType: p.googleCampaignType,
               googleSearchSplitLevel: p.googleSearchSplitLevel,
-              // Inherit per-platform default ad sets when the phase doesn't define its
-              // own, so Search / PMax / Demand Gen reflect the configured split (e.g.
-              // Age × 2 groups) instead of collapsing into a single "Default" group.
-              adSets: inheritAdSets(p),
+              adSets: p.adSets,
               market: p.market,
             })),
             markets,
@@ -283,7 +330,7 @@ export function TextAssetsStep({
     };
 
     detectGoogle();
-  }, [campaignId]);
+  }, [campaignId, campaignName, deriveGoogleShellData]);
 
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
@@ -1208,34 +1255,19 @@ export function TextAssetsStep({
   const loadGoogleShellContext = useCallback(async (): Promise<GoogleShellContext> => {
     const { data: camp, error: campErr } = await supabase
       .from('campaigns')
-      .select('name, generic_config, market_splits')
+      .select('name, generic_config, market_splits, platforms')
       .eq('id', campaignId)
       .single();
     if (campErr) throw campErr;
 
-    const generic = (camp?.generic_config as any) || {};
-    const phases = (generic.phases || []).filter((p: any) =>
-      Array.isArray(p?.platforms) ? p.platforms.includes('google') : true,
+    const derived = deriveGoogleShellData(
+      camp as any,
+      rows.filter((row) => row.platform === 'google' && row.market).map((row) => row.market),
     );
-    const keywords: GoogleKeywordLike[] = Array.isArray(generic.selectedKeywords)
-      ? generic.selectedKeywords
-      : [];
-
-    const splits = (camp?.market_splits as Record<string, any>) || {};
-    const googleMarketSet = new Set<string>();
-    for (const [key, list] of Object.entries(splits)) {
-      if (key.toLowerCase().includes('google') && Array.isArray(list)) {
-        for (const m of list as any[]) if (m?.name) googleMarketSet.add(String(m.name));
-      }
-    }
-    if (googleMarketSet.size === 0) {
-      for (const r of rows) if (r.platform === 'google' && r.market) googleMarketSet.add(r.market);
-    }
-    const markets = Array.from(googleMarketSet);
 
     const expansion = buildExpandedStructure({
       campaignName: camp?.name || campaignName || 'Campaign',
-      phases: phases.map((p: any) => ({
+      phases: derived.googlePhases.map((p: any) => ({
         id: p.id,
         name: p.name,
         googleCampaignType: p.googleCampaignType,
@@ -1243,8 +1275,8 @@ export function TextAssetsStep({
         adSets: p.adSets,
         market: p.market,
       })),
-      markets,
-      keywords,
+      markets: derived.markets,
+      keywords: derived.keywords,
     });
 
     const { data: assignments, error: aErr } = await supabase
@@ -1270,12 +1302,12 @@ export function TextAssetsStep({
 
     return {
       campaignName: camp?.name || campaignName || 'Campaign',
-      generic,
-      keywords,
+      generic: derived.generic,
+      keywords: derived.keywords,
       expansion,
       adRows,
     };
-  }, [campaignId, campaignName, rows]);
+  }, [campaignId, campaignName, deriveGoogleShellData, rows]);
 
   const handleDownloadGoogleAdsShell = useCallback(async () => {
     try {
