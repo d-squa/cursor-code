@@ -263,12 +263,6 @@ export function TextAssetExcelEditor({
       if (googleSearchShellInputRef.current) googleSearchShellInputRef.current.value = '';
     }
   }, [onUploadGoogleSearchShell]);
-    const file = e.target.files?.[0];
-    if (!file || !onUploadGoogleAdsShell) return;
-    try { await onUploadGoogleAdsShell(file); } finally {
-      if (googleShellInputRef.current) googleShellInputRef.current.value = '';
-    }
-  }, [onUploadGoogleAdsShell]);
 
   // Per-phase Google shell upload — keyed by `${market}|${phase}` so each phase
   // header has its own hidden file input we can trigger independently.
