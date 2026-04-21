@@ -49,7 +49,7 @@ interface BulkParameterEditorProps {
   selectedRowIds: Set<string>;
   onBulkUpdate: (ids: string[], updates: Partial<CreativeTextAssetRow>) => void;
   /** Optional: invoked when the user picks a quick-select scope (All Rows / blank field). */
-  onQuickSelect?: (scope: 'allRows' | 'all' | 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl') => void;
+  onQuickSelect?: (scope: 'allRows' | 'invalid' | 'all' | 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl') => void;
 }
 
 type ParameterType = 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl' | 'displayLink';
@@ -418,6 +418,7 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate, onQuic
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="allRows">All Rows</SelectItem>
+                  <SelectItem value="invalid">Invalid Creatives</SelectItem>
                   <SelectItem value="all">Any Blank Field</SelectItem>
                   <SelectItem value="primaryText">Blank Primary Text</SelectItem>
                   <SelectItem value="headline">Blank Headline</SelectItem>
