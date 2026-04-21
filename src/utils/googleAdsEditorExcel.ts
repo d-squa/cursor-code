@@ -639,6 +639,12 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
     if (a.assignmentId) curAdsById.set(a.assignmentId, a);
     knownShellKeys.add(`${a.campaignName}::${a.adGroupName}`);
   }
+  // Also seed shell keys from the plan structure itself, so uploaded rows for
+  // (campaign, ad group) pairs that don't yet have any creative assignments
+  // are still recognised as valid targets for auto-creation.
+  for (const s of input.current.shell || []) {
+    knownShellKeys.add(`${s.campaignName}::${s.adGroupName}`);
+  }
 
   // Per-shell counter so auto-generated names stay unique.
   const newRowCounter = new Map<string, number>();
