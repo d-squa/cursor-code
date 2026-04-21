@@ -1655,11 +1655,11 @@ export function TextAssetExcelEditor({
   const getLevelIndent = (level: number) => {
     switch (level) {
       case 0: return 'pl-2';
-      case 1: return 'pl-6';
-      case 2: return 'pl-10';
-      case 3: return 'pl-14';
-      case 4: return 'pl-[4.5rem]';
-      default: return 'pl-20';
+      case 1: return 'pl-8';
+      case 2: return 'pl-14';
+      case 3: return 'pl-20';
+      case 4: return 'pl-28';
+      default: return 'pl-32';
     }
   };
 
