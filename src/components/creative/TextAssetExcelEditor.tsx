@@ -881,6 +881,43 @@ export function TextAssetExcelEditor({
     setCollapsedGroups(new Set(platformKeys));
   }, [rows]);
 
+  // Expand the tree down to a specific ActiPlan level.
+  // Levels: 'platform' | 'market' | 'phase' | 'adset'
+  // Expanding to a level means: every group ABOVE that level is open, and groups
+  // AT or BELOW that level are collapsed (so users see headers at that depth).
+  const expandToLevel = useCallback(
+    (level: 'platform' | 'market' | 'phase' | 'adset') => {
+      const next = new Set<string>();
+      if (level === 'platform') {
+        // Show only platform headers — collapse every platform group
+        rows.forEach((r) => next.add(`platform:${r.platform}`));
+      } else if (level === 'market') {
+        // Show platforms + markets — collapse market groups
+        rows.forEach((r) => next.add(`market:${r.platform}|${r.market}`));
+      } else if (level === 'phase') {
+        // Show platforms + markets + phases — collapse phase groups (and the
+        // synthetic Google Search parent so Search strategies stay grouped).
+        rows.forEach((r) => {
+          next.add(`phase:${r.platform}|${r.market}|${r.phase}`);
+          if ((r.platform || '').toLowerCase() === 'google') {
+            next.add(`gsearch:${r.platform}|${r.market}`);
+          }
+        });
+      }
+      // 'adset' (fully expanded) → empty set
+      setCollapsedGroups(next);
+    },
+    [rows],
+  );
+
+  const collapseToLevel = useCallback(
+    (level: 'platform' | 'market' | 'phase') => {
+      // Same effect as expandToLevel — kept as a separate handler for clarity.
+      expandToLevel(level);
+    },
+    [expandToLevel],
+  );
+
   // Build flat list with group headers
   const flatList = useMemo(() => {
     const items: { type: 'group' | 'row' | 'processingGroup'; key: string; row?: CreativeTextAssetRow; groupLabel?: string; groupKey?: string; level?: number; rowIds?: string[]; processingGroupType?: 'carousel' | 'asset_customization'; processingGroupId?: string; groupOrder?: number; isInProcessingGroup?: boolean }[] = [];
