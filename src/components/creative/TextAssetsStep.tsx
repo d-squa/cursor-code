@@ -508,6 +508,26 @@ export function TextAssetsStep({
           }
         }
 
+        // Build a (platform, market, phase) → googleCampaignType lookup so we can
+        // restore the campaign type on saved Google assignments. Without this,
+        // PMax / Demand Gen / Video / Display rows lose their type on reload and
+        // the non-Search editor can't detect them. See Issue #132.
+        const googleTypeByKey = new Map<string, string>();
+        const normalizePhase = (p: string) => String(p || '').trim().toLowerCase();
+        const structureKey = (market: string, phase: string) =>
+          `${String(market || '').trim().toLowerCase()}::${normalizePhase(phase)}`;
+        (campaignStructures || []).forEach((s) => {
+          if (String(s.platform || '').toLowerCase() !== 'google') return;
+          if (!s.googleCampaignType) return;
+          const market = s.market || 'Global';
+          const phases = (s.phases && s.phases.length > 0)
+            ? s.phases
+            : (s.funnelStage ? [s.funnelStage] : []);
+          for (const phase of phases) {
+            googleTypeByKey.set(structureKey(market, phase), s.googleCampaignType);
+          }
+        });
+
         // Transform to CreativeTextAssetRow format with taxonomy names
         const transformedRows: CreativeTextAssetRowWithTikTok[] = assignments.map((assignment: any) => {
           const creative = assignment.creatives;
