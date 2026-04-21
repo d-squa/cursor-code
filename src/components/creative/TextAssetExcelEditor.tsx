@@ -81,6 +81,8 @@ interface TextAssetExcelEditorProps {
   onDownloadGoogleSearchShell?: () => void | Promise<void>;
   /** Optional: upload a Google Search-only shell (applies across all Search campaigns). */
   onUploadGoogleSearchShell?: (file: File) => void | Promise<void>;
+  /** Optional: open the dedicated Google Search text-asset editor popup. */
+  onOpenGoogleSearchEditor?: () => void;
   /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
   hasGoogleRows?: boolean;
 }
@@ -245,6 +247,7 @@ export function TextAssetExcelEditor({
   onUploadGoogleAdsShellForPhase,
   onDownloadGoogleSearchShell,
   onUploadGoogleSearchShell,
+  onOpenGoogleSearchEditor,
   hasGoogleRows,
 }: TextAssetExcelEditorProps) {
   const googleShellInputRef = useRef<HTMLInputElement>(null);
@@ -2034,11 +2037,31 @@ export function TextAssetExcelEditor({
                                 once per market above the first Google Search phase. Exposes
                                 a single Download/Upload Shell pair scoped to ALL Google
                                 Search campaigns (Brand/Generic/Competition × markets). */}
-                            {item.level === 2 && item.groupKey?.startsWith('gsearch:') && hasGoogleRows && (onDownloadGoogleSearchShell || onUploadGoogleSearchShell) && (
+                            {item.level === 2 && item.groupKey?.startsWith('gsearch:') && hasGoogleRows && (onDownloadGoogleSearchShell || onUploadGoogleSearchShell || onOpenGoogleSearchEditor) && (
                               <div
                                 className="flex items-center gap-1 ml-2 shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
+                                {onOpenGoogleSearchEditor && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="default"
+                                          size="sm"
+                                          className="h-6 px-2 text-xs"
+                                          onClick={() => onOpenGoogleSearchEditor()}
+                                        >
+                                          <Settings2 className="h-3 w-3 mr-1" />
+                                          Edit Ads
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        Open the Google Search-exclusive editor (RSAs, sitelinks, callouts).
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                                 {onDownloadGoogleSearchShell && (
                                   <TooltipProvider>
                                     <Tooltip>

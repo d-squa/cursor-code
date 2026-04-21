@@ -277,6 +277,12 @@ export function TextAssetsStep({
     [],
   );
 
+  // Detect whether the campaign has any Google configuration so we can show the
+  // Google Search shell tools (Download / Upload / Edit) even before any creatives
+  // are matched. We intentionally do NOT seed visual placeholder rows in the main
+  // grid — Google Search ad authoring happens inside the dedicated Google Search
+  // editor popup. Placeholder rows are only created later when a user uploads a
+  // shell that contains brand-new RSA rows (handled in `applyShellDiff`).
   useEffect(() => {
     const detectGoogle = async () => {
       try {
@@ -289,78 +295,15 @@ export function TextAssetsStep({
         if (error) throw error;
 
         const derived = deriveGoogleShellData(data as any);
-        const googlePhases = derived.googlePhases;
-        const markets = derived.markets;
-        const keywords = derived.keywords;
-
         setHasGoogleConfigured(derived.hasGoogleConfigured);
-
-        if (googlePhases.length > 0 && markets.length > 0) {
-          const expansion = buildExpandedStructure({
-            campaignName: data?.name || campaignName || 'Campaign',
-            phases: googlePhases.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              googleCampaignType: p.googleCampaignType,
-              googleSearchSplitLevel: p.googleSearchSplitLevel,
-              adSets: p.adSets,
-              market: p.market,
-            })),
-            markets,
-            keywords,
-          });
-
-          const placeholders: CreativeTextAssetRow[] = expansion.map((ref, idx) => {
-            // For Search phases we keep the strategy decoration so each campaign
-            // (Brand / Generic / Competition) renders as its own group. For non-search
-            // phases we use the bare phase name so placeholders dedup against any real
-            // assignments — which store `phase_name` without decoration.
-            const phaseLabel = ref.strategy
-              ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
-              : ref.phaseName;
-            return {
-              id: `google_shell_${ref.market}_${ref.phaseName}_${ref.strategy || 'na'}_${ref.adGroupName}_${idx}`,
-              creativeId: '',
-              assignmentId: '',
-              platform: 'google',
-              market: ref.market,
-              phase: phaseLabel,
-              adSet: ref.adGroupName,
-              googleCampaignType: ref.googleCampaignType,
-              googleStrategy: ref.strategy,
-              creativeName: '— Shell placeholder —',
-              creativeFormat: 'image',
-              taxonomyCampaignName: ref.campaignName,
-              taxonomyAdSetName: ref.adGroupName,
-              taxonomyAdName: '',
-              adFormat: 'other',
-              suggestedAdFormat: 'other',
-              adFormatConfirmed: false,
-              primaryText: '',
-              headline: '',
-              description: '',
-              callToAction: 'LEARN_MORE',
-              destinationUrl: '',
-              autoBuildUtm: false,
-              isValid: true,
-              validationErrors: [],
-              mediaType: 'image',
-              pushStatus: 'draft',
-            } as CreativeTextAssetRow;
-          });
-          setGooglePlaceholderRows(placeholders);
-        } else {
-          setGooglePlaceholderRows([]);
-        }
       } catch (error) {
         console.warn('[TextAssetsStep] failed to detect Google config', error);
         setHasGoogleConfigured(false);
-        setGooglePlaceholderRows([]);
       }
     };
 
     detectGoogle();
-  }, [campaignId, campaignName, deriveGoogleShellData]);
+  }, [campaignId, deriveGoogleShellData]);
 
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {

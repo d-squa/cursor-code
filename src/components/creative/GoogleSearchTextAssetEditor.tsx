@@ -1,0 +1,711 @@
+// Dedicated text-asset editor for Google Ads Search campaigns.
+//
+// This dialog is the single entry-point for authoring Google Search ad copy
+// (RSA / Sitelink / Callout). It replaces the row-by-row experience of the main
+// grid with a Google-Editor-style table where each row is one ad and the
+// columns are the long list of Google-specific fields:
+//
+//   - Ad type (Text Ad / Sitelink / Callout)
+//   - 15 headlines (with pinning P1/P2/P3)
+//   -  6 descriptions (with pinning P1/P2)
+//   - Path 1 / Path 2
+//   - Final URL
+//   - Business name
+//
+// It also renders a Google SERP-style preview, both inline (per-row, in the
+// "Preview" column) and as a focused side panel for the currently-selected ad.
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Copy, Clipboard, Trash2, Search } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+
+// ---------- Types ----------
+
+export type GoogleAdSubtype = 'rsa' | 'sitelink' | 'callout';
+
+const HEADLINE_COUNT = 15;
+const DESCRIPTION_COUNT = 6;
+const HEADLINE_MAX = 30;
+const DESCRIPTION_MAX = 90;
+const PATH_MAX = 15;
+const BUSINESS_MAX = 25;
+
+// In-memory editor model — one entry per Google Search ad row in the grid.
+export interface GoogleSearchAdDraft {
+  rowId: string;            // CreativeTextAssetRow.id
+  assignmentId: string;     // for persistence (may be empty for shell placeholders)
+  campaignName: string;
+  adGroupName: string;
+  market: string;
+  subtype: GoogleAdSubtype;
+  headlines: string[];      // length 15
+  headlinePins: (number | null)[]; // length 15, value 1|2|3|null
+  descriptions: string[];   // length 6
+  descriptionPins: (number | null)[]; // length 6, value 1|2|null
+  path1: string;
+  path2: string;
+  finalUrl: string;
+  businessName: string;
+}
+
+interface GoogleSearchTextAssetEditorProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** All rows currently in the editor (filtered for Google Search inside). */
+  rows: CreativeTextAssetRow[];
+  /** Persist a single row update back to the parent state. */
+  onRowChange: (rowId: string, updates: Partial<CreativeTextAssetRow>) => void;
+  /** Persist a bulk update to multiple rows at once. */
+  onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
+}
+
+// ---------- Helpers ----------
+
+const SUBTYPE_LABEL: Record<GoogleAdSubtype, string> = {
+  rsa: 'Text Ad (RSA)',
+  sitelink: 'Sitelink',
+  callout: 'Callout',
+};
+
+function isGoogleSearchRow(r: CreativeTextAssetRow): boolean {
+  if ((r.platform || '').toLowerCase() !== 'google') return false;
+  const type = String(r.googleCampaignType || '').toLowerCase();
+  if (type && !type.includes('search')) return false;
+  return true;
+}
+
+/** Read a possibly-extended pins payload that may also carry overflow values. */
+function readExtended(json: unknown): { values?: string[]; pins?: (number | null)[] } {
+  if (!json) return {};
+  if (Array.isArray(json)) return { pins: json.map((x) => (typeof x === 'number' ? x : null)) };
+  if (typeof json === 'object') {
+    const obj = json as Record<string, unknown>;
+    const values = Array.isArray(obj.values) ? (obj.values as unknown[]).map((v) => String(v ?? '')) : undefined;
+    const pinsArr = Array.isArray(obj.pins) ? (obj.pins as unknown[]).map((v) => (typeof v === 'number' ? v : null)) : undefined;
+    return { values, pins: pinsArr };
+  }
+  if (typeof json === 'string') {
+    try { return readExtended(JSON.parse(json)); } catch { return {}; }
+  }
+  return {};
+}
+
+function pad<T>(arr: T[] | undefined, length: number, filler: T): T[] {
+  const out = (arr || []).slice(0, length);
+  while (out.length < length) out.push(filler);
+  return out;
+}
+
+function rowToDraft(row: CreativeTextAssetRow): GoogleSearchAdDraft {
+  const r = row as any;
+  // Headlines: cols 1..5 + overflow values in headline_pins.values
+  const baseHeadlines = [r.headline, r.headline2, r.headline3, r.headline4, r.headline5].map((v) => String(v || ''));
+  const headlineExt = readExtended(r.headline_pins ?? r.headlinePins);
+  const headlines = pad(
+    headlineExt.values && headlineExt.values.length >= HEADLINE_COUNT
+      ? headlineExt.values
+      : [...baseHeadlines, ...((headlineExt.values || []).slice(5))],
+    HEADLINE_COUNT,
+    '',
+  );
+  const headlinePins = pad(headlineExt.pins, HEADLINE_COUNT, null);
+
+  const baseDesc = [r.description, r.description2, r.description3, r.description4, r.description5].map((v) => String(v || ''));
+  const descExt = readExtended(r.description_pins ?? r.descriptionPins);
+  const descriptions = pad(
+    descExt.values && descExt.values.length >= DESCRIPTION_COUNT
+      ? descExt.values
+      : [...baseDesc, ...((descExt.values || []).slice(5))],
+    DESCRIPTION_COUNT,
+    '',
+  );
+  const descriptionPins = pad(descExt.pins, DESCRIPTION_COUNT, null);
+
+  const subtype: GoogleAdSubtype =
+    String(r.googleAdSubtype || r.adFormat || '').toLowerCase() === 'sitelink'
+      ? 'sitelink'
+      : String(r.googleAdSubtype || r.adFormat || '').toLowerCase() === 'callout'
+      ? 'callout'
+      : 'rsa';
+
+  return {
+    rowId: row.id,
+    assignmentId: row.assignmentId || '',
+    campaignName: row.taxonomyCampaignName || row.phase || '',
+    adGroupName: row.taxonomyAdSetName || row.adSet || '',
+    market: row.market,
+    subtype,
+    headlines,
+    headlinePins,
+    descriptions,
+    descriptionPins,
+    path1: String(r.path_1 || r.displayPath || ''),
+    path2: String(r.path_2 || ''),
+    finalUrl: String(row.destinationUrl || ''),
+    businessName: String(r.business_name || row.brandName || ''),
+  };
+}
+
+function draftToRowUpdates(d: GoogleSearchAdDraft): Partial<CreativeTextAssetRow> {
+  // Persist slots 1..5 directly into known columns; keep the full 15/6 lists +
+  // pins inside the headline_pins / description_pins JSON so nothing is lost.
+  const updates: Record<string, unknown> = {
+    headline: d.headlines[0] || '',
+    headline2: d.headlines[1] || '',
+    headline3: d.headlines[2] || '',
+    headline4: d.headlines[3] || '',
+    headline5: d.headlines[4] || '',
+    description: d.descriptions[0] || '',
+    description2: d.descriptions[1] || '',
+    description3: d.descriptions[2] || '',
+    description4: d.descriptions[3] || '',
+    description5: d.descriptions[4] || '',
+    destinationUrl: d.finalUrl,
+    path_1: d.path1,
+    path_2: d.path2,
+    brandName: d.businessName,
+    headline_pins: { values: d.headlines, pins: d.headlinePins },
+    description_pins: { values: d.descriptions, pins: d.descriptionPins },
+    googleAdSubtype: d.subtype,
+  };
+  return updates as Partial<CreativeTextAssetRow>;
+}
+
+// ---------- Inline preview (per-row mini Google SERP card) ----------
+
+function pickPinned(values: string[], pins: (number | null)[], slot: number): string {
+  for (let i = 0; i < values.length; i++) {
+    if (pins[i] === slot && values[i]) return values[i];
+  }
+  // Fallback: the first non-empty unpinned value
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] && pins[i] == null) return values[i];
+  }
+  return values.find((v) => !!v) || '';
+}
+
+function buildPreviewHeadline(d: GoogleSearchAdDraft): string {
+  const parts = [pickPinned(d.headlines, d.headlinePins, 1), pickPinned(d.headlines, d.headlinePins, 2), pickPinned(d.headlines, d.headlinePins, 3)]
+    .filter(Boolean);
+  return parts.slice(0, 3).join(' | ');
+}
+
+function buildPreviewDescription(d: GoogleSearchAdDraft): string {
+  const parts = [pickPinned(d.descriptions, d.descriptionPins, 1), pickPinned(d.descriptions, d.descriptionPins, 2)]
+    .filter(Boolean);
+  return parts.join(' ');
+}
+
+function buildDisplayUrl(d: GoogleSearchAdDraft): string {
+  let host = '';
+  try { host = new URL(d.finalUrl).host.replace(/^www\./, ''); } catch { host = d.finalUrl || 'example.com'; }
+  const segs = [d.path1, d.path2].filter(Boolean);
+  return segs.length > 0 ? `${host}/${segs.join('/')}` : host;
+}
+
+function GoogleAdPreview({ draft, compact = false }: { draft: GoogleSearchAdDraft; compact?: boolean }) {
+  const headline = buildPreviewHeadline(draft) || 'Your headline here';
+  const description = buildPreviewDescription(draft) || 'Your description text appears here in Google Search results.';
+  const displayUrl = buildDisplayUrl(draft);
+
+  if (compact) {
+    return (
+      <div className="text-[11px] leading-tight">
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <span className="rounded-sm bg-muted px-1 text-[9px] font-semibold">Ad</span>
+          <span className="truncate">{displayUrl}</span>
+        </div>
+        <div className="text-primary font-medium truncate">{headline.slice(0, 90)}</div>
+        <div className="text-muted-foreground line-clamp-2">{description.slice(0, 180)}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-4 space-y-2 shadow-sm">
+      <div className="text-xs text-muted-foreground flex items-center gap-2">
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold">Sponsored</span>
+        <span className="truncate">{displayUrl}</span>
+      </div>
+      <div className="text-lg text-primary font-medium leading-snug">{headline}</div>
+      <div className="text-sm text-muted-foreground leading-snug">{description}</div>
+      {draft.businessName && (
+        <div className="text-xs text-muted-foreground pt-1 border-t">{draft.businessName}</div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Pin selector ----------
+
+function PinSelect({
+  value,
+  max,
+  onChange,
+  disabled,
+}: {
+  value: number | null;
+  max: number;
+  onChange: (v: number | null) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Select
+      value={value == null ? '_' : `P${value}`}
+      onValueChange={(v) => onChange(v === '_' ? null : Number(v.replace('P', '')))}
+      disabled={disabled}
+    >
+      <SelectTrigger className="h-7 w-14 text-[10px] px-1">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="_">—</SelectItem>
+        {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+          <SelectItem key={n} value={`P${n}`}>P{n}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ---------- Editor ----------
+
+export function GoogleSearchTextAssetEditor({
+  open,
+  onOpenChange,
+  rows,
+  onRowChange,
+  onBulkUpdate,
+}: GoogleSearchTextAssetEditorProps) {
+  // Internal in-memory drafts so users can edit freely and we sync back on change.
+  const [drafts, setDrafts] = useState<GoogleSearchAdDraft[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<GoogleSearchAdDraft | null>(null);
+
+  // Filter rows to Google Search and rebuild drafts whenever the dialog opens
+  // or upstream rows change.
+  const googleRows = useMemo(() => rows.filter(isGoogleSearchRow), [rows]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDrafts(googleRows.map(rowToDraft));
+    setFocusedId(googleRows[0]?.id ?? null);
+    setSelectedIds(new Set());
+  }, [open, googleRows]);
+
+  const updateDraft = useCallback((rowId: string, patch: Partial<GoogleSearchAdDraft>) => {
+    setDrafts((prev) => {
+      const next = prev.map((d) => (d.rowId === rowId ? { ...d, ...patch } : d));
+      const updated = next.find((d) => d.rowId === rowId);
+      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      return next;
+    });
+  }, [onRowChange]);
+
+  const setHeadline = useCallback((rowId: string, idx: number, value: string) => {
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (d.rowId !== rowId) return d;
+        const headlines = d.headlines.slice();
+        headlines[idx] = value.slice(0, HEADLINE_MAX);
+        return { ...d, headlines };
+      });
+      const updated = next.find((d) => d.rowId === rowId);
+      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      return next;
+    });
+  }, [onRowChange]);
+
+  const setHeadlinePin = useCallback((rowId: string, idx: number, pin: number | null) => {
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (d.rowId !== rowId) return d;
+        const pins = d.headlinePins.slice();
+        pins[idx] = pin;
+        return { ...d, headlinePins: pins };
+      });
+      const updated = next.find((d) => d.rowId === rowId);
+      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      return next;
+    });
+  }, [onRowChange]);
+
+  const setDescription = useCallback((rowId: string, idx: number, value: string) => {
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (d.rowId !== rowId) return d;
+        const descriptions = d.descriptions.slice();
+        descriptions[idx] = value.slice(0, DESCRIPTION_MAX);
+        return { ...d, descriptions };
+      });
+      const updated = next.find((d) => d.rowId === rowId);
+      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      return next;
+    });
+  }, [onRowChange]);
+
+  const setDescriptionPin = useCallback((rowId: string, idx: number, pin: number | null) => {
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (d.rowId !== rowId) return d;
+        const pins = d.descriptionPins.slice();
+        pins[idx] = pin;
+        return { ...d, descriptionPins: pins };
+      });
+      const updated = next.find((d) => d.rowId === rowId);
+      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      return next;
+    });
+  }, [onRowChange]);
+
+  const toggleSelect = useCallback((rowId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(rowId); else next.delete(rowId);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? new Set(drafts.map((d) => d.rowId)) : new Set());
+  }, [drafts]);
+
+  const handleCopyRow = useCallback((rowId: string) => {
+    const d = drafts.find((x) => x.rowId === rowId);
+    if (!d) return;
+    setClipboard(d);
+    toast.success('Ad copied — use "Paste to selected" to apply');
+  }, [drafts]);
+
+  const handlePasteToSelected = useCallback(() => {
+    if (!clipboard) {
+      toast.info('Copy an ad first');
+      return;
+    }
+    if (selectedIds.size === 0) {
+      toast.info('Select rows to paste into');
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (!selectedIds.has(d.rowId)) return d;
+        return {
+          ...d,
+          subtype: clipboard.subtype,
+          headlines: clipboard.headlines.slice(),
+          headlinePins: clipboard.headlinePins.slice(),
+          descriptions: clipboard.descriptions.slice(),
+          descriptionPins: clipboard.descriptionPins.slice(),
+          path1: clipboard.path1,
+          path2: clipboard.path2,
+          finalUrl: clipboard.finalUrl,
+          businessName: clipboard.businessName,
+        };
+      });
+      // Bulk-sync upstream
+      const updates = draftToRowUpdates({ ...clipboard, rowId: '', assignmentId: '', campaignName: '', adGroupName: '', market: '' });
+      onBulkUpdate(ids, updates);
+      return next;
+    });
+    toast.success(`Applied to ${ids.length} ad${ids.length > 1 ? 's' : ''}`);
+  }, [clipboard, selectedIds, onBulkUpdate]);
+
+  const handleApplyToAll = useCallback(() => {
+    if (!focusedId) return;
+    const source = drafts.find((d) => d.rowId === focusedId);
+    if (!source) return;
+    const targets = drafts.filter((d) => d.rowId !== focusedId).map((d) => d.rowId);
+    if (targets.length === 0) {
+      toast.info('No other ads to apply to');
+      return;
+    }
+    setDrafts((prev) => prev.map((d) =>
+      d.rowId === focusedId ? d : {
+        ...d,
+        subtype: source.subtype,
+        headlines: source.headlines.slice(),
+        headlinePins: source.headlinePins.slice(),
+        descriptions: source.descriptions.slice(),
+        descriptionPins: source.descriptionPins.slice(),
+        path1: source.path1,
+        path2: source.path2,
+        finalUrl: source.finalUrl,
+        businessName: source.businessName,
+      },
+    ));
+    onBulkUpdate(targets, draftToRowUpdates({ ...source, rowId: '', assignmentId: '', campaignName: '', adGroupName: '', market: '' }));
+    toast.success(`Applied to ${targets.length} other ad${targets.length > 1 ? 's' : ''}`);
+  }, [drafts, focusedId, onBulkUpdate]);
+
+  const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
+  const allChecked = drafts.length > 0 && selectedIds.size === drafts.length;
+  const someChecked = selectedIds.size > 0 && !allChecked;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-6 py-4 border-b shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5 text-primary" />
+            Google Search — Text Asset Editor
+          </DialogTitle>
+          <DialogDescription>
+            Author Responsive Search Ads, sitelinks and callouts. Pin slots control where each
+            asset appears (P1 / P2 / P3). The preview shows how the ad renders in Google Search.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Toolbar */}
+        <div className="px-4 py-2 border-b flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePasteToSelected}
+            disabled={!clipboard || selectedIds.size === 0}
+            className="h-8"
+          >
+            <Clipboard className="h-3.5 w-3.5 mr-1.5" />
+            Paste to selected ({selectedIds.size})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleApplyToAll}
+            disabled={!focusedDraft || drafts.length < 2}
+            className="h-8"
+          >
+            <Copy className="h-3.5 w-3.5 mr-1.5" />
+            Apply focused to all
+          </Button>
+          <div className="ml-auto text-xs text-muted-foreground">
+            {drafts.length} ad{drafts.length === 1 ? '' : 's'} • {selectedIds.size} selected
+          </div>
+        </div>
+
+        {/* Body: table on left, preview on right */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Table */}
+          <div className="flex-1 overflow-hidden border-r">
+            <ScrollArea className="h-full">
+              <table className="w-full text-xs border-collapse">
+                <thead className="sticky top-0 z-10 bg-muted">
+                  <tr>
+                    <th className="px-2 py-2 w-8 border-b">
+                      <Checkbox
+                        checked={allChecked ? true : someChecked ? 'indeterminate' : false}
+                        onCheckedChange={(v) => selectAll(!!v)}
+                      />
+                    </th>
+                    <th className="px-2 py-2 text-left border-b w-[180px]">Campaign / Ad group</th>
+                    <th className="px-2 py-2 text-left border-b w-[140px]">Ad type</th>
+                    <th className="px-2 py-2 text-left border-b w-[260px]">Preview</th>
+                    {Array.from({ length: HEADLINE_COUNT }, (_, i) => (
+                      <th key={`h${i}`} className="px-1 py-2 text-left border-b w-[180px]">H{i + 1}</th>
+                    ))}
+                    {Array.from({ length: DESCRIPTION_COUNT }, (_, i) => (
+                      <th key={`d${i}`} className="px-1 py-2 text-left border-b w-[220px]">D{i + 1}</th>
+                    ))}
+                    <th className="px-1 py-2 text-left border-b w-[120px]">Path 1</th>
+                    <th className="px-1 py-2 text-left border-b w-[120px]">Path 2</th>
+                    <th className="px-1 py-2 text-left border-b w-[260px]">Final URL</th>
+                    <th className="px-1 py-2 text-left border-b w-[160px]">Business name</th>
+                    <th className="px-1 py-2 w-10 border-b" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {drafts.length === 0 && (
+                    <tr>
+                      <td colSpan={6 + HEADLINE_COUNT + DESCRIPTION_COUNT} className="text-center text-muted-foreground py-12">
+                        No Google Search ads yet. Upload a shell or assign creatives first.
+                      </td>
+                    </tr>
+                  )}
+                  {drafts.map((d) => {
+                    const isFocused = focusedId === d.rowId;
+                    const isChecked = selectedIds.has(d.rowId);
+                    return (
+                      <tr
+                        key={d.rowId}
+                        className={cn(
+                          'border-b hover:bg-accent/30 cursor-pointer',
+                          isFocused && 'bg-primary/5',
+                          isChecked && 'bg-primary/10',
+                        )}
+                        onClick={() => setFocusedId(d.rowId)}
+                      >
+                        <td className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(v) => toggleSelect(d.rowId, !!v)}
+                          />
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          <div className="font-medium truncate" title={d.campaignName}>{d.campaignName}</div>
+                          <div className="text-muted-foreground text-[10px] truncate" title={d.adGroupName}>{d.adGroupName}</div>
+                          <Badge variant="outline" className="text-[9px] mt-1">{d.market}</Badge>
+                        </td>
+                        <td className="px-2 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={d.subtype}
+                            onValueChange={(v) => updateDraft(d.rowId, { subtype: v as GoogleAdSubtype })}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="rsa">{SUBTYPE_LABEL.rsa}</SelectItem>
+                              <SelectItem value="sitelink">{SUBTYPE_LABEL.sitelink}</SelectItem>
+                              <SelectItem value="callout">{SUBTYPE_LABEL.callout}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-2 py-2 align-top">
+                          <GoogleAdPreview draft={d} compact />
+                        </td>
+                        {Array.from({ length: HEADLINE_COUNT }, (_, i) => (
+                          <td key={`h${i}`} className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={d.headlines[i] || ''}
+                                onChange={(e) => setHeadline(d.rowId, i, e.target.value)}
+                                placeholder={i === 0 ? 'Required' : ''}
+                                className="h-7 text-xs"
+                                maxLength={HEADLINE_MAX}
+                              />
+                              <PinSelect
+                                value={d.headlinePins[i] ?? null}
+                                max={3}
+                                onChange={(v) => setHeadlinePin(d.rowId, i, v)}
+                              />
+                            </div>
+                            <div className="text-[9px] text-muted-foreground text-right">
+                              {(d.headlines[i] || '').length}/{HEADLINE_MAX}
+                            </div>
+                          </td>
+                        ))}
+                        {Array.from({ length: DESCRIPTION_COUNT }, (_, i) => (
+                          <td key={`d${i}`} className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={d.descriptions[i] || ''}
+                                onChange={(e) => setDescription(d.rowId, i, e.target.value)}
+                                placeholder={i === 0 ? 'Required' : ''}
+                                className="h-7 text-xs"
+                                maxLength={DESCRIPTION_MAX}
+                              />
+                              <PinSelect
+                                value={d.descriptionPins[i] ?? null}
+                                max={2}
+                                onChange={(v) => setDescriptionPin(d.rowId, i, v)}
+                              />
+                            </div>
+                            <div className="text-[9px] text-muted-foreground text-right">
+                              {(d.descriptions[i] || '').length}/{DESCRIPTION_MAX}
+                            </div>
+                          </td>
+                        ))}
+                        <td className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={d.path1}
+                            onChange={(e) => updateDraft(d.rowId, { path1: e.target.value.slice(0, PATH_MAX) })}
+                            className="h-7 text-xs"
+                            maxLength={PATH_MAX}
+                          />
+                        </td>
+                        <td className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={d.path2}
+                            onChange={(e) => updateDraft(d.rowId, { path2: e.target.value.slice(0, PATH_MAX) })}
+                            className="h-7 text-xs"
+                            maxLength={PATH_MAX}
+                          />
+                        </td>
+                        <td className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={d.finalUrl}
+                            onChange={(e) => updateDraft(d.rowId, { finalUrl: e.target.value })}
+                            placeholder="https://"
+                            className="h-7 text-xs"
+                          />
+                        </td>
+                        <td className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={d.businessName}
+                            onChange={(e) => updateDraft(d.rowId, { businessName: e.target.value.slice(0, BUSINESS_MAX) })}
+                            className="h-7 text-xs"
+                            maxLength={BUSINESS_MAX}
+                          />
+                        </td>
+                        <td className="px-1 py-2 align-top text-center" onClick={(e) => e.stopPropagation()}>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => handleCopyRow(d.rowId)}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copy this ad</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </div>
+
+          {/* Side panel preview */}
+          <div className="w-[360px] shrink-0 bg-muted/30 overflow-hidden flex flex-col">
+            <div className="px-4 py-2 border-b text-xs font-medium text-muted-foreground">
+              Focused ad preview
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-4">
+                {focusedDraft ? (
+                  <>
+                    <div className="text-xs text-muted-foreground">
+                      <div className="font-medium text-foreground">{focusedDraft.campaignName}</div>
+                      <div>{focusedDraft.adGroupName} · {focusedDraft.market}</div>
+                    </div>
+                    <GoogleAdPreview draft={focusedDraft} />
+                    <div className="text-[10px] text-muted-foreground italic">
+                      The Google ranking system swaps headlines and descriptions in real time.
+                      This preview shows the pinned combination — actual delivery may vary.
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-muted-foreground text-center py-12">
+                    Select a row to see its preview.
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
+
+        <div className="px-4 py-3 border-t flex justify-end gap-2 shrink-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
