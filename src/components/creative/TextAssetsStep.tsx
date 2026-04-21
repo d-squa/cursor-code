@@ -1700,6 +1700,7 @@ export function TextAssetsStep({
           onDownloadGoogleSearchShell={handleDownloadGoogleSearchShell}
           onUploadGoogleSearchShell={handleUploadGoogleSearchShell}
           onOpenGoogleSearchEditor={() => setGoogleSearchEditorOpen(true)}
+          onOpenGoogleNonSearchEditor={(market, phase) => setGoogleNonSearchEditor({ open: true, market, phase })}
         />
       </div>
 
@@ -1707,6 +1708,16 @@ export function TextAssetsStep({
         open={googleSearchEditorOpen}
         onOpenChange={setGoogleSearchEditorOpen}
         rows={mergedRows}
+        onRowChange={handleRowChange}
+        onBulkUpdate={handleBulkUpdate}
+      />
+
+      <GoogleNonSearchTextAssetEditor
+        open={googleNonSearchEditor.open}
+        onOpenChange={(open) => setGoogleNonSearchEditor((prev) => ({ ...prev, open }))}
+        rows={mergedRows}
+        scopeMarket={googleNonSearchEditor.market}
+        scopePhase={googleNonSearchEditor.phase}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
       />
