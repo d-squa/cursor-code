@@ -1526,6 +1526,8 @@ export function TextAssetsStep({
           onUploadGoogleAdsShell={handleUploadGoogleAdsShell}
           onDownloadGoogleAdsShellForPhase={handleDownloadGoogleAdsShellForPhase}
           onUploadGoogleAdsShellForPhase={handleUploadGoogleAdsShellForPhase}
+          onDownloadGoogleSearchShell={handleDownloadGoogleSearchShell}
+          onUploadGoogleSearchShell={handleUploadGoogleSearchShell}
         />
       </div>
 
