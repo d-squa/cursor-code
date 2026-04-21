@@ -665,6 +665,76 @@ export function GoogleSearchTextAssetEditor({
             <Copy className="h-3.5 w-3.5 mr-1.5" />
             Apply focused to all
           </Button>
+
+          {/* New Ad — pick campaign / ad group / asset type */}
+          <Popover open={newAdOpen} onOpenChange={setNewAdOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                className="h-8"
+                disabled={campaignOptions.length === 0}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                New Ad
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] p-3 space-y-3" align="start">
+              <div className="text-sm font-medium">Add a new ad</div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campaign</Label>
+                <Select
+                  value={newAdCampaignKey}
+                  onValueChange={(v) => { setNewAdCampaignKey(v); setNewAdGroup(''); }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select campaign…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campaignOptions.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>
+                        {c.campaign} <span className="text-muted-foreground">· {c.market}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Ad group</Label>
+                <Select
+                  value={newAdGroup}
+                  onValueChange={setNewAdGroup}
+                  disabled={!newAdCampaign}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder={newAdCampaign ? 'Select ad group…' : 'Pick a campaign first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {newAdCampaign?.adGroups.map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Asset type</Label>
+                <Select value={newAdSubtype} onValueChange={(v) => setNewAdSubtype(v as GoogleAdSubtype)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rsa">{SUBTYPE_LABEL.rsa}</SelectItem>
+                    <SelectItem value="sitelink">{SUBTYPE_LABEL.sitelink}</SelectItem>
+                    <SelectItem value="callout">{SUBTYPE_LABEL.callout}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" className="w-full h-8" onClick={handleCreateNewAd}>
+                Create ad
+              </Button>
+            </PopoverContent>
+          </Popover>
+
           <div className="ml-auto text-xs text-muted-foreground">
             Showing {filteredDrafts.length} of {drafts.length} ad{drafts.length === 1 ? '' : 's'} • {selectedIds.size} selected
           </div>
