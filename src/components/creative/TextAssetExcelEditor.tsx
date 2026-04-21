@@ -1718,28 +1718,29 @@ export function TextAssetExcelEditor({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Tree view controls */}
           <div className="flex items-center gap-1 border-r pr-2 mr-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={expandAll}>
-                    <ChevronsUpDown className="h-4 w-4" />
-                    <span className="ml-1 text-xs">Expand All</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Expand all groups</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={collapseAll}>
-                    <ChevronsUpDown className="h-4 w-4 rotate-90" />
-                    <span className="ml-1 text-xs">Collapse All</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Collapse all groups</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Select
+              onValueChange={(value) => {
+                if (value === 'expand-all') expandAll();
+                else if (value === 'collapse-all') collapseAll();
+                else if (value === 'platform') expandToLevel('platform');
+                else if (value === 'market') expandToLevel('market');
+                else if (value === 'phase') expandToLevel('phase');
+                else if (value === 'adset') expandToLevel('adset');
+              }}
+            >
+              <SelectTrigger className="h-8 w-[150px]">
+                <ChevronsUpDown className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="Expand / Collapse" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expand-all">Expand All</SelectItem>
+                <SelectItem value="collapse-all">Collapse All</SelectItem>
+                <SelectItem value="platform">Show Platforms</SelectItem>
+                <SelectItem value="market">Show Markets</SelectItem>
+                <SelectItem value="phase">Show Phases</SelectItem>
+                <SelectItem value="adset">Show Ad Sets</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           {/* Row actions */}
