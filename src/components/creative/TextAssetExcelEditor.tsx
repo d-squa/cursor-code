@@ -1709,6 +1709,23 @@ export function TextAssetExcelEditor({
             rows={rows}
             selectedRowIds={selectedRowIds}
             onBulkUpdate={onBulkUpdate}
+            onQuickSelect={(scope) => {
+              if (scope === 'allRows') {
+                if (rows.length === 0) {
+                  toast.info('No rows to select');
+                  return;
+                }
+                setSelectedRowIds(new Set(rows.map((r) => r.id)));
+                toast.success(`Selected all ${rows.length} rows`);
+              } else if (scope === 'all') {
+                selectAllBlanks();
+              } else if (scope === 'primaryText') selectByBlankField('primaryText', 'Primary Text');
+              else if (scope === 'headline') selectByBlankField('headline', 'Headline');
+              else if (scope === 'description') selectByBlankField('description', 'Description');
+              else if (scope === 'caption') selectByBlankField('caption', 'Caption');
+              else if (scope === 'callToAction') selectByBlankField('callToAction', 'CTA');
+              else if (scope === 'destinationUrl') selectByBlankField('destinationUrl', 'Destination URL');
+            }}
           />
         </CollapsibleContent>
       </Collapsible>
