@@ -702,8 +702,31 @@ export function TextAssetsStep({
             primaryText: isOrganic 
               ? (creative?.caption || creative?.primary_text || '') 
               : (creative?.primary_text || ''),
-            headline: creative?.headline || '',
-            description: creative?.description || '',
+            // Prefer the saved assignment-level copy over the creative library defaults.
+            // The non-Search Google editor stores all extended assets (multiple
+            // headlines/descriptions, long headlines, business name, pins JSON) on
+            // creative_assignments — without copying them here they appear empty
+            // when the editor reopens.
+            headline: assignment.headline || creative?.headline || '',
+            headline2: assignment.headline_2 || undefined,
+            headline3: assignment.headline_3 || undefined,
+            headline4: assignment.headline_4 || undefined,
+            headline5: assignment.headline_5 || undefined,
+            description: assignment.description || creative?.description || '',
+            description2: assignment.description_2 || undefined,
+            description3: assignment.description_3 || undefined,
+            description4: assignment.description_4 || undefined,
+            description5: assignment.description_5 || undefined,
+            // Long headlines + business name + pin payloads (Google PMax/Demand Gen/Display).
+            long_headline_1: assignment.long_headline_1 || undefined,
+            long_headline_2: assignment.long_headline_2 || undefined,
+            long_headline_3: assignment.long_headline_3 || undefined,
+            long_headline_4: assignment.long_headline_4 || undefined,
+            long_headline_5: assignment.long_headline_5 || undefined,
+            business_name: assignment.business_name || undefined,
+            brandName: assignment.business_name || assignment.brand_name || undefined,
+            headline_pins: assignment.headline_pins || undefined,
+            description_pins: assignment.description_pins || undefined,
             caption: creative?.caption || '',
             callToAction: (creative?.call_to_action || 'LEARN_MORE') as CallToAction,
             destinationUrl: creative?.destination_url || '',
