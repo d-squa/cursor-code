@@ -589,6 +589,13 @@ export interface DiffInput {
   current: {
     keywords: KeywordSheetRow[];
     ads: AdSheetRow[];
+    /**
+     * Optional list of (campaign, ad group) pairs that exist in the plan shell
+     * even when no creative assignments have been created yet. Used to recognise
+     * uploaded rows as "known shell entries" so they're treated as new ads to
+     * auto-create instead of being flagged as unmatched.
+     */
+    shell?: Array<{ campaignName: string; adGroupName: string }>;
   };
   uploaded: ParsedShell;
 }
