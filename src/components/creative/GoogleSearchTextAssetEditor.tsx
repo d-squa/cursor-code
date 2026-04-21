@@ -514,8 +514,9 @@ export function GoogleSearchTextAssetEditor({
   }, [drafts, focusedId, onBulkUpdate]);
 
   const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
-  const allChecked = drafts.length > 0 && selectedIds.size === drafts.length;
-  const someChecked = selectedIds.size > 0 && !allChecked;
+  const visibleSelectedCount = filteredDrafts.filter((d) => selectedIds.has(d.rowId)).length;
+  const allChecked = filteredDrafts.length > 0 && visibleSelectedCount === filteredDrafts.length;
+  const someChecked = visibleSelectedCount > 0 && !allChecked;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
