@@ -169,147 +169,166 @@ export function downloadTextAssetExcel(
   URL.revokeObjectURL(url);
 }
 
-// Parse Excel file and merge with existing rows
+// Parse Excel file and merge with existing rows.
+//
+// Iterates over every sheet:
+//  - "Creative Content" (default unified sheet) → existing column-based parsing
+//  - One of the Google per-type sheets (Performance Max, Demand Gen, Video,
+//    Display, Other Google) → per-type validator that HARD-REJECTS rows whose
+//    values exceed the campaign-type character limits.
 export async function parseTextAssetExcel(
   file: File,
   existingRows: CreativeTextAssetRow[]
-): Promise<{ updatedRows: CreativeTextAssetRow[]; matchCount: number; errorCount: number }> {
+): Promise<{
+  updatedRows: CreativeTextAssetRow[];
+  matchCount: number;
+  errorCount: number;
+  rejectedRows?: { sheet: string; key: string; errors: string[] }[];
+}> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
-        
-        // Get first sheet
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // Convert to JSON
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-        
-        if (jsonData.length < 2) {
-          reject(new Error('Excel file has no data rows'));
+
+        if (!workbook.SheetNames.length) {
+          reject(new Error('Excel file has no sheets'));
           return;
         }
-        
-        // Get headers from first row
-        const headers = jsonData[0] as string[];
-        const dataRows = jsonData.slice(1);
-        
-        // Create header to column key mapping
-        const headerToKey: Record<string, TextAssetColumnKey> = {};
-        TEXT_ASSET_COLUMNS.forEach(col => {
-          headerToKey[col.label.toLowerCase()] = col.key;
-        });
-        
-        // Create index map for quick lookup
-        const columnIndices: Record<TextAssetColumnKey, number> = {} as any;
-        headers.forEach((h, idx) => {
-          const key = headerToKey[h?.toLowerCase?.() || ''];
-          if (key) {
-            columnIndices[key] = idx;
-          }
-        });
-        
-        // Create a lookup map for existing rows by structure key
-        const rowLookup = new Map<string, CreativeTextAssetRow>();
-        existingRows.forEach(row => {
-          const key = `${row.platform}|${row.market}|${row.phase}|${row.adSet}|${row.creativeName}`;
-          rowLookup.set(key, row);
-        });
-        
+
+        let updatedRows = [...existingRows];
         let matchCount = 0;
         let errorCount = 0;
-        const updatedRows = [...existingRows];
-        
-        // Process each data row
-        for (const dataRow of dataRows) {
-          // Build structure key from row data
-          const platform = String(dataRow[columnIndices.platform] || '').trim();
-          const market = String(dataRow[columnIndices.market] || '').trim();
-          const phase = String(dataRow[columnIndices.phase] || '').trim();
-          const adSet = String(dataRow[columnIndices.adSet] || '').trim();
-          const creativeName = String(dataRow[columnIndices.creativeName] || '').trim();
-          
-          if (!platform || !creativeName) {
-            errorCount++;
+        const rejectedRows: { sheet: string; key: string; errors: string[] }[] = [];
+
+        // Build lookup once; rebuild from updatedRows for each sheet so that
+        // edits from earlier sheets are visible to later ones.
+        const buildLookup = () => {
+          const map = new Map<string, CreativeTextAssetRow>();
+          updatedRows.forEach((row) => {
+            map.set(googleRowMatchKey(row), row);
+          });
+          return map;
+        };
+
+        // Map sheetName -> google type
+        const googleSheetLookup = new Map<string, GoogleNonSearchType>();
+        (Object.keys(GOOGLE_NON_SEARCH_SHEETS) as GoogleNonSearchType[]).forEach((t) => {
+          googleSheetLookup.set(GOOGLE_NON_SEARCH_SHEETS[t].sheetName.toLowerCase(), t);
+        });
+
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+          if (jsonData.length < 2) continue;
+
+          const headers = (jsonData[0] as string[]).map((h) => String(h ?? ''));
+          const dataRows = jsonData.slice(1);
+
+          const googleType = googleSheetLookup.get(sheetName.trim().toLowerCase());
+
+          if (googleType) {
+            // ----- Google per-type sheet path: enforce character limits -----
+            const lookup = buildLookup();
+            for (const dataRow of dataRows) {
+              const rowByHeader: Record<string, string> = {};
+              headers.forEach((h, i) => { rowByHeader[h] = String(dataRow[i] ?? ''); });
+
+              const key = googleRowMatchKey({
+                platform: rowByHeader['Platform'],
+                market: rowByHeader['Market'],
+                phase: rowByHeader['Phase'],
+                adSet: rowByHeader['Ad Group'],
+                creativeName: rowByHeader['Creative Name'],
+              });
+              if (!rowByHeader['Creative Name']) { errorCount++; continue; }
+
+              const existing = lookup.get(key);
+              if (!existing) { errorCount++; continue; }
+
+              const { errors, updates } = validateGoogleNonSearchRow(rowByHeader, googleType);
+              if (errors.length > 0) {
+                rejectedRows.push({ sheet: sheetName, key, errors });
+                errorCount++;
+                continue;
+              }
+              const idx = updatedRows.findIndex((r) => r.id === existing.id);
+              if (idx !== -1 && Object.keys(updates).length > 0) {
+                updatedRows[idx] = { ...updatedRows[idx], ...updates };
+                matchCount++;
+              }
+            }
             continue;
           }
-          
-          const key = `${platform}|${market}|${phase}|${adSet}|${creativeName}`;
-          const existingRow = rowLookup.get(key);
-          
-          if (existingRow) {
+
+          // ----- Default "Creative Content" path (unchanged behaviour) -----
+          // Create header to column key mapping
+          const headerToKey: Record<string, TextAssetColumnKey> = {};
+          TEXT_ASSET_COLUMNS.forEach(col => {
+            headerToKey[col.label.toLowerCase()] = col.key;
+          });
+          const columnIndices: Record<TextAssetColumnKey, number> = {} as any;
+          headers.forEach((h, idx) => {
+            const key = headerToKey[h?.toLowerCase?.() || ''];
+            if (key) columnIndices[key] = idx;
+          });
+
+          const lookup = buildLookup();
+          for (const dataRow of dataRows) {
+            const platform = String(dataRow[columnIndices.platform] || '').trim();
+            const market = String(dataRow[columnIndices.market] || '').trim();
+            const phase = String(dataRow[columnIndices.phase] || '').trim();
+            const adSet = String(dataRow[columnIndices.adSet] || '').trim();
+            const creativeName = String(dataRow[columnIndices.creativeName] || '').trim();
+
+            if (!platform || !creativeName) { errorCount++; continue; }
+            const key = googleRowMatchKey({ platform, market, phase, adSet, creativeName });
+            const existingRow = lookup.get(key);
+            if (!existingRow) { errorCount++; continue; }
+
             matchCount++;
-            const rowIndex = updatedRows.findIndex(r => r.id === existingRow.id);
-            if (rowIndex !== -1) {
-              // Update editable fields
-              const updates: Partial<CreativeTextAssetRow> = {};
-              
-              if (columnIndices.adFormat !== undefined) {
-                const formatValue = String(dataRow[columnIndices.adFormat] || '').toLowerCase().replace(/ /g, '_');
-                // Validate it's a valid ad format
-                if (ALL_AD_FORMATS.includes(formatValue as AdFormat)) {
-                  updates.adFormat = formatValue as AdFormat;
-                  updates.adFormatConfirmed = true;
-                }
+            const rowIndex = updatedRows.findIndex((r) => r.id === existingRow.id);
+            if (rowIndex === -1) continue;
+
+            const updates: Partial<CreativeTextAssetRow> = {};
+            if (columnIndices.adFormat !== undefined) {
+              const formatValue = String(dataRow[columnIndices.adFormat] || '').toLowerCase().replace(/ /g, '_');
+              if (ALL_AD_FORMATS.includes(formatValue as AdFormat)) {
+                updates.adFormat = formatValue as AdFormat;
+                updates.adFormatConfirmed = true;
               }
-              if (columnIndices.primaryText !== undefined) {
-                updates.primaryText = String(dataRow[columnIndices.primaryText] || '');
-              }
-              if (columnIndices.headline !== undefined) {
-                updates.headline = String(dataRow[columnIndices.headline] || '');
-              }
-              if (columnIndices.description !== undefined) {
-                updates.description = String(dataRow[columnIndices.description] || '');
-              }
-              if (columnIndices.caption !== undefined) {
-                updates.caption = String(dataRow[columnIndices.caption] || '');
-              }
-              if (columnIndices.destinationUrl !== undefined) {
-                updates.destinationUrl = String(dataRow[columnIndices.destinationUrl] || '');
-              }
-              if (columnIndices.displayLink !== undefined) {
-                updates.displayLink = String(dataRow[columnIndices.displayLink] || '');
-              }
-              if (columnIndices.callToAction !== undefined) {
-                const ctaValue = String(dataRow[columnIndices.callToAction] || '').toUpperCase().replace(/ /g, '_');
-                if (ctaValue) {
-                  updates.callToAction = ctaValue as CallToAction;
-                }
-              }
-              if (columnIndices.autoBuildUtm !== undefined) {
-                const utmValue = String(dataRow[columnIndices.autoBuildUtm] || '').toLowerCase();
-                updates.autoBuildUtm = utmValue === 'yes' || utmValue === 'true' || utmValue === '1';
-              }
-              if (columnIndices.utmSource !== undefined) {
-                updates.utmSource = String(dataRow[columnIndices.utmSource] || '');
-              }
-              if (columnIndices.utmMedium !== undefined) {
-                updates.utmMedium = String(dataRow[columnIndices.utmMedium] || '');
-              }
-              if (columnIndices.utmCampaign !== undefined) {
-                updates.utmCampaign = String(dataRow[columnIndices.utmCampaign] || '');
-              }
-              if (columnIndices.utmContent !== undefined) {
-                updates.utmContent = String(dataRow[columnIndices.utmContent] || '');
-              }
-              
-              updatedRows[rowIndex] = { ...updatedRows[rowIndex], ...updates };
             }
-          } else {
-            errorCount++;
+            if (columnIndices.primaryText !== undefined) updates.primaryText = String(dataRow[columnIndices.primaryText] || '');
+            if (columnIndices.headline !== undefined) updates.headline = String(dataRow[columnIndices.headline] || '');
+            if (columnIndices.description !== undefined) updates.description = String(dataRow[columnIndices.description] || '');
+            if (columnIndices.caption !== undefined) updates.caption = String(dataRow[columnIndices.caption] || '');
+            if (columnIndices.destinationUrl !== undefined) updates.destinationUrl = String(dataRow[columnIndices.destinationUrl] || '');
+            if (columnIndices.displayLink !== undefined) updates.displayLink = String(dataRow[columnIndices.displayLink] || '');
+            if (columnIndices.callToAction !== undefined) {
+              const ctaValue = String(dataRow[columnIndices.callToAction] || '').toUpperCase().replace(/ /g, '_');
+              if (ctaValue) updates.callToAction = ctaValue as CallToAction;
+            }
+            if (columnIndices.autoBuildUtm !== undefined) {
+              const utmValue = String(dataRow[columnIndices.autoBuildUtm] || '').toLowerCase();
+              updates.autoBuildUtm = utmValue === 'yes' || utmValue === 'true' || utmValue === '1';
+            }
+            if (columnIndices.utmSource !== undefined) updates.utmSource = String(dataRow[columnIndices.utmSource] || '');
+            if (columnIndices.utmMedium !== undefined) updates.utmMedium = String(dataRow[columnIndices.utmMedium] || '');
+            if (columnIndices.utmCampaign !== undefined) updates.utmCampaign = String(dataRow[columnIndices.utmCampaign] || '');
+            if (columnIndices.utmContent !== undefined) updates.utmContent = String(dataRow[columnIndices.utmContent] || '');
+
+            updatedRows[rowIndex] = { ...updatedRows[rowIndex], ...updates };
           }
         }
-        
-        resolve({ updatedRows, matchCount, errorCount });
+
+        resolve({ updatedRows, matchCount, errorCount, rejectedRows });
       } catch (error) {
         reject(error);
       }
     };
-    
+
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsArrayBuffer(file);
   });
