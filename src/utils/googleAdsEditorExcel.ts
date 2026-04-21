@@ -398,26 +398,35 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
-  // If there are no creative assignments yet, seed the Ads tab with one empty
-  // row per (campaign, ad group) shell entry so the structure is still visible
-  // and can be filled in directly in the spreadsheet.
-  const effectiveAdRows: AdSheetRow[] = input.adRows.length > 0
-    ? input.adRows
-    : input.expansion.map((e) => ({
-        campaignName: e.campaignName,
-        adGroupName: e.adGroupName,
-        adName: '',
-        assignmentId: null,
-        finalUrl: '',
-        path1: '',
-        path2: '',
-        headlines: Array(15).fill(''),
-        headlinePins: Array(15).fill(null),
-        descriptions: Array(4).fill(''),
-        descriptionPins: Array(4).fill(null),
-        longHeadlines: Array(5).fill(''),
-        businessName: '',
-      }));
+  // Always include one placeholder row per (campaign, ad group) shell entry that
+  // does not yet have a creative assignment. This guarantees every ad group from
+  // the expansion appears in the sheet — even when other ad groups in the same
+  // phase already have creatives assigned (which previously caused missing
+  // ad-group rows for PMax / Demand Gen / Display shells).
+  const emptyAdRow = (campaignName: string, adGroupName: string): AdSheetRow => ({
+    campaignName,
+    adGroupName,
+    adName: '',
+    assignmentId: null,
+    finalUrl: '',
+    path1: '',
+    path2: '',
+    headlines: Array(15).fill(''),
+    headlinePins: Array(15).fill(null),
+    descriptions: Array(4).fill(''),
+    descriptionPins: Array(4).fill(null),
+    longHeadlines: Array(5).fill(''),
+    businessName: '',
+  });
+
+  const adRowKey = (campaignName: string, adGroupName: string) =>
+    `${campaignName}::${adGroupName}`;
+  const presentKeys = new Set(input.adRows.map((r) => adRowKey(r.campaignName, r.adGroupName)));
+  const placeholderRows: AdSheetRow[] = input.expansion
+    .filter((e) => !presentKeys.has(adRowKey(e.campaignName, e.adGroupName)))
+    .map((e) => emptyAdRow(e.campaignName, e.adGroupName));
+
+  const effectiveAdRows: AdSheetRow[] = [...input.adRows, ...placeholderRows];
 
   for (const r of effectiveAdRows) {
     const row: (string | number)[] = [
