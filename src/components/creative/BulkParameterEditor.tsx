@@ -49,7 +49,7 @@ interface BulkParameterEditorProps {
   selectedRowIds: Set<string>;
   onBulkUpdate: (ids: string[], updates: Partial<CreativeTextAssetRow>) => void;
   /** Optional: invoked when the user picks a quick-select scope (All Rows / blank field). */
-  onQuickSelect?: (scope: 'allRows' | 'all' | 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl') => void;
+  onQuickSelect?: (scope: 'allRows' | 'invalid' | 'all' | 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl') => void;
 }
 
 type ParameterType = 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl' | 'displayLink';
