@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
+import { GoogleSearchTextAssetEditor } from './GoogleSearchTextAssetEditor';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat, type AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
@@ -109,6 +110,7 @@ export function TextAssetsStep({
   const [hasGoogleConfigured, setHasGoogleConfigured] = useState(false);
   const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
   const [shellOpen, setShellOpen] = useState(false);
+  const [googleSearchEditorOpen, setGoogleSearchEditorOpen] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
   const [selectedNewCreatives, setSelectedNewCreatives] = useState<Set<string>>(new Set());
@@ -1641,8 +1643,17 @@ export function TextAssetsStep({
           onUploadGoogleAdsShellForPhase={handleUploadGoogleAdsShellForPhase}
           onDownloadGoogleSearchShell={handleDownloadGoogleSearchShell}
           onUploadGoogleSearchShell={handleUploadGoogleSearchShell}
+          onOpenGoogleSearchEditor={() => setGoogleSearchEditorOpen(true)}
         />
       </div>
+
+      <GoogleSearchTextAssetEditor
+        open={googleSearchEditorOpen}
+        onOpenChange={setGoogleSearchEditorOpen}
+        rows={mergedRows}
+        onRowChange={handleRowChange}
+        onBulkUpdate={handleBulkUpdate}
+      />
 
       <GoogleAdsShellReviewDialog
         open={shellOpen}
