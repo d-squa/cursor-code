@@ -133,9 +133,20 @@ export function generateTextAssetExcel(
   // Add ad format validation (data validation for dropdown)
   // Note: XLSX doesn't fully support data validation in all cases
   
-  // Add worksheet to workbook
+  // Add the main "Creative Content" worksheet first.
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Creative Content');
-  
+
+  // For Google: add one dedicated sheet per non-Search campaign type, with
+  // type-specific columns and character limits embedded into each header.
+  // Each sheet is filtered to rows whose detected Google type matches.
+  (Object.keys(GOOGLE_NON_SEARCH_SHEETS) as GoogleNonSearchType[]).forEach((type) => {
+    const { headers: gHeaders, data: gData, widths: gWidths } = buildSheetForGoogleType(rows, type);
+    if (gData.length === 0) return; // skip empty types
+    const gSheet = XLSX.utils.aoa_to_sheet([gHeaders, ...gData]);
+    gSheet['!cols'] = gWidths.map((w) => ({ wch: w }));
+    XLSX.utils.book_append_sheet(workbook, gSheet, GOOGLE_NON_SEARCH_SHEETS[type].sheetName);
+  });
+
   // Generate blob
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
