@@ -183,26 +183,50 @@ function draftToRowUpdates(d: GoogleSearchAdDraft): Partial<CreativeTextAssetRow
 
 // ---------- Inline preview (per-row mini Google SERP card) ----------
 
-function pickPinned(values: string[], pins: (number | null)[], slot: number): string {
+function pickPinned(
+  values: string[],
+  pins: (number | null)[],
+  slot: number,
+  used: Set<number>,
+): { text: string; index: number } {
+  // First: a value explicitly pinned to this slot, not yet consumed
   for (let i = 0; i < values.length; i++) {
-    if (pins[i] === slot && values[i]) return values[i];
+    if (pins[i] === slot && values[i] && !used.has(i)) return { text: values[i], index: i };
   }
-  // Fallback: the first non-empty unpinned value
+  // Fallback: first non-empty unpinned value not yet consumed
   for (let i = 0; i < values.length; i++) {
-    if (values[i] && pins[i] == null) return values[i];
+    if (values[i] && pins[i] == null && !used.has(i)) return { text: values[i], index: i };
   }
-  return values.find((v) => !!v) || '';
+  // Last resort: any non-empty value not yet consumed (avoid repetition)
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] && !used.has(i)) return { text: values[i], index: i };
+  }
+  return { text: '', index: -1 };
 }
 
 function buildPreviewHeadline(d: GoogleSearchAdDraft): string {
-  const parts = [pickPinned(d.headlines, d.headlinePins, 1), pickPinned(d.headlines, d.headlinePins, 2), pickPinned(d.headlines, d.headlinePins, 3)]
-    .filter(Boolean);
-  return parts.slice(0, 3).join(' | ');
+  const used = new Set<number>();
+  const parts: string[] = [];
+  for (let slot = 1; slot <= 3; slot++) {
+    const { text, index } = pickPinned(d.headlines, d.headlinePins, slot, used);
+    if (text) {
+      parts.push(text);
+      if (index >= 0) used.add(index);
+    }
+  }
+  return parts.join(' | ');
 }
 
 function buildPreviewDescription(d: GoogleSearchAdDraft): string {
-  const parts = [pickPinned(d.descriptions, d.descriptionPins, 1), pickPinned(d.descriptions, d.descriptionPins, 2)]
-    .filter(Boolean);
+  const used = new Set<number>();
+  const parts: string[] = [];
+  for (let slot = 1; slot <= 2; slot++) {
+    const { text, index } = pickPinned(d.descriptions, d.descriptionPins, slot, used);
+    if (text) {
+      parts.push(text);
+      if (index >= 0) used.add(index);
+    }
+  }
   return parts.join(' ');
 }
 
