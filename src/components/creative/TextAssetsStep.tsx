@@ -1415,6 +1415,8 @@ export function TextAssetsStep({
         expansion: scoped.expansion,
         keywords: scoped.keywords,
         adRows: scoped.adRows,
+        // Search shell always includes per-strategy keywords from Unified Targeting.
+        includeKeywords: true,
       });
       toast.success('Google Search shell downloaded');
     } catch (err) {
