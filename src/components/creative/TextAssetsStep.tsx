@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
 import { GoogleSearchTextAssetEditor } from './GoogleSearchTextAssetEditor';
+import { GoogleNonSearchTextAssetEditor } from './GoogleNonSearchTextAssetEditor';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat, type AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
@@ -111,6 +112,7 @@ export function TextAssetsStep({
   const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
   const [shellOpen, setShellOpen] = useState(false);
   const [googleSearchEditorOpen, setGoogleSearchEditorOpen] = useState(false);
+  const [googleNonSearchEditor, setGoogleNonSearchEditor] = useState<{ open: boolean; market?: string; phase?: string }>({ open: false });
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
   const [selectedNewCreatives, setSelectedNewCreatives] = useState<Set<string>>(new Set());
