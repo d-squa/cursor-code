@@ -316,6 +316,9 @@ export function GoogleSearchTextAssetEditor({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<GoogleSearchAdDraft | null>(null);
+  // Filters: by ad subtype and by validity (mirrors the main editor "Select" UX).
+  const [subtypeFilter, setSubtypeFilter] = useState<'all' | GoogleAdSubtype>('all');
+  const [validityFilter, setValidityFilter] = useState<'all' | 'invalid' | 'valid'>('all');
 
   // Filter rows to Google Search and rebuild drafts whenever the dialog opens
   // or upstream rows change.
@@ -327,6 +330,27 @@ export function GoogleSearchTextAssetEditor({
     setFocusedId(googleRows[0]?.id ?? null);
     setSelectedIds(new Set());
   }, [open, googleRows]);
+
+  // Per-subtype validation. Mirrors Google Ads minimum requirements so that
+  // "Invalid" filter surfaces ads the user still needs to finish.
+  const isDraftInvalid = useCallback((d: GoogleSearchAdDraft): boolean => {
+    const filledHeadlines = d.headlines.filter((h) => h && h.trim()).length;
+    const filledDescriptions = d.descriptions.filter((x) => x && x.trim()).length;
+    const hasFinalUrl = !!(d.finalUrl && d.finalUrl.trim());
+    if (d.subtype === 'rsa') return filledHeadlines < 3 || filledDescriptions < 2 || !hasFinalUrl;
+    if (d.subtype === 'sitelink') return filledHeadlines < 1 || !hasFinalUrl;
+    // callout
+    return filledHeadlines < 1;
+  }, []);
+
+  const filteredDrafts = useMemo(() => {
+    return drafts.filter((d) => {
+      if (subtypeFilter !== 'all' && d.subtype !== subtypeFilter) return false;
+      if (validityFilter === 'invalid' && !isDraftInvalid(d)) return false;
+      if (validityFilter === 'valid' && isDraftInvalid(d)) return false;
+      return true;
+    });
+  }, [drafts, subtypeFilter, validityFilter, isDraftInvalid]);
 
   const updateDraft = useCallback((rowId: string, patch: Partial<GoogleSearchAdDraft>) => {
     setDrafts((prev) => {
