@@ -243,10 +243,26 @@ export function TextAssetExcelEditor({
   onUploadGoogleAdsShell,
   onDownloadGoogleAdsShellForPhase,
   onUploadGoogleAdsShellForPhase,
+  onDownloadGoogleSearchShell,
+  onUploadGoogleSearchShell,
   hasGoogleRows,
 }: TextAssetExcelEditorProps) {
   const googleShellInputRef = useRef<HTMLInputElement>(null);
+  const googleSearchShellInputRef = useRef<HTMLInputElement>(null);
   const handleGoogleShellPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUploadGoogleAdsShell) return;
+    try { await onUploadGoogleAdsShell(file); } finally {
+      if (googleShellInputRef.current) googleShellInputRef.current.value = '';
+    }
+  }, [onUploadGoogleAdsShell]);
+  const handleGoogleSearchShellPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUploadGoogleSearchShell) return;
+    try { await onUploadGoogleSearchShell(file); } finally {
+      if (googleSearchShellInputRef.current) googleSearchShellInputRef.current.value = '';
+    }
+  }, [onUploadGoogleSearchShell]);
     const file = e.target.files?.[0];
     if (!file || !onUploadGoogleAdsShell) return;
     try { await onUploadGoogleAdsShell(file); } finally {
