@@ -639,7 +639,7 @@ export function TextAssetsStep({
             market: assignment.market || 'Global',
             phase: assignment.phase_name || 'Default',
             adSet: adSetName,
-            googleCampaignType: assignment.platform === 'google' ? 'Search' : undefined,
+            googleCampaignType: assignment.platform === 'google' && assignment.ad_strategy ? 'Search' : undefined,
             googleStrategy: assignment.ad_strategy || null,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
