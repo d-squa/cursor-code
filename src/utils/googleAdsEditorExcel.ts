@@ -310,10 +310,18 @@ export interface BuildWorkbookInput {
   expansion: ExpandedCampaignRef[];
   keywords: GoogleKeywordLike[];
   adRows: AdSheetRow[];
+  /**
+   * Whether to include the Keywords tab in the workbook.
+   * - Search shell: true (Brand/Generic/Competition keywords from Unified Targeting)
+   * - PMax / Demand Gen / Display / etc.: false (these campaign types don't use keywords)
+   * Defaults to true for backwards compatibility.
+   */
+  includeKeywords?: boolean;
 }
 
 export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   const wb = XLSX.utils.book_new();
+  const includeKeywords = input.includeKeywords !== false;
 
   // ---- Campaigns tab (read-only reference) ----
   const campaignsAoa: (string | number)[][] = [
@@ -331,34 +339,36 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   campaignsWs['!cols'] = [{ wch: 60 }, { wch: 24 }, { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 22 }];
   XLSX.utils.book_append_sheet(wb, campaignsWs, 'Campaigns');
 
-  // ---- Keywords tab ----
-  const keywordsAoa: (string | number)[][] = [
-    ['Campaign', 'Ad Group', 'Keyword', 'Match Type', 'Negative'],
-  ];
-  const expByStrategyMarket = new Map<string, ExpandedCampaignRef[]>();
-  for (const ref of input.expansion) {
-    if (ref.strategy === null) continue; // PMax has no keywords
-    const k = `${ref.market}::${ref.strategy}`;
-    if (!expByStrategyMarket.has(k)) expByStrategyMarket.set(k, []);
-    expByStrategyMarket.get(k)!.push(ref);
+  // ---- Keywords tab (Search only) ----
+  if (includeKeywords) {
+    const keywordsAoa: (string | number)[][] = [
+      ['Campaign', 'Ad Group', 'Keyword', 'Match Type', 'Negative'],
+    ];
+    const expByStrategyMarket = new Map<string, ExpandedCampaignRef[]>();
+    for (const ref of input.expansion) {
+      if (ref.strategy === null) continue; // PMax has no keywords
+      const k = `${ref.market}::${ref.strategy}`;
+      if (!expByStrategyMarket.has(k)) expByStrategyMarket.set(k, []);
+      expByStrategyMarket.get(k)!.push(ref);
+    }
+    for (const kw of input.keywords) {
+      const strategy = (kw.strategy || 'generic') as 'brand' | 'generic' | 'competition';
+      const market = kw.market || '';
+      const refs = expByStrategyMarket.get(`${market}::${strategy}`);
+      const ref = refs?.[0]; // assign keyword to first matching campaign + its first ad group
+      if (!ref) continue;
+      keywordsAoa.push([
+        ref.campaignName,
+        ref.adGroupName,
+        kw.name || kw.text || '',
+        (kw.matchType || 'broad').toLowerCase(),
+        kw.isNegative ? 'Yes' : 'No',
+      ]);
+    }
+    const keywordsWs = XLSX.utils.aoa_to_sheet(keywordsAoa);
+    keywordsWs['!cols'] = [{ wch: 60 }, { wch: 24 }, { wch: 32 }, { wch: 12 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, keywordsWs, 'Keywords');
   }
-  for (const kw of input.keywords) {
-    const strategy = (kw.strategy || 'generic') as 'brand' | 'generic' | 'competition';
-    const market = kw.market || '';
-    const refs = expByStrategyMarket.get(`${market}::${strategy}`);
-    const ref = refs?.[0]; // assign keyword to first matching campaign + its first ad group
-    if (!ref) continue;
-    keywordsAoa.push([
-      ref.campaignName,
-      ref.adGroupName,
-      kw.name || kw.text || '',
-      (kw.matchType || 'broad').toLowerCase(),
-      kw.isNegative ? 'Yes' : 'No',
-    ]);
-  }
-  const keywordsWs = XLSX.utils.aoa_to_sheet(keywordsAoa);
-  keywordsWs['!cols'] = [{ wch: 60 }, { wch: 24 }, { wch: 32 }, { wch: 12 }, { wch: 10 }];
-  XLSX.utils.book_append_sheet(wb, keywordsWs, 'Keywords');
 
   // ---- Ads tab (RSA / PMax) ----
   const adsHeader: string[] = [

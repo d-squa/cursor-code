@@ -1350,6 +1350,8 @@ export function TextAssetsStep({
           expansion: scoped.expansion,
           keywords: scoped.keywords,
           adRows: scoped.adRows,
+          // Non-Search phases (PMax, Demand Gen, Display, ...) don't use keywords.
+          includeKeywords: false,
         });
         toast.success(`Shell downloaded for ${phaseLabel}`);
       } catch (err) {
@@ -1413,6 +1415,8 @@ export function TextAssetsStep({
         expansion: scoped.expansion,
         keywords: scoped.keywords,
         adRows: scoped.adRows,
+        // Search shell always includes per-strategy keywords from Unified Targeting.
+        includeKeywords: true,
       });
       toast.success('Google Search shell downloaded');
     } catch (err) {
