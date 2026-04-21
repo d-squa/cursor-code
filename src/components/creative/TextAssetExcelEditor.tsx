@@ -2415,6 +2415,10 @@ export function TextAssetExcelEditor({
                                 </TooltipProvider>
                               )}
                             </div>
+                          ) : (row.platform || '').toLowerCase() === 'google' ? (
+                            // Google Search rows are authored in the dedicated
+                            // Google Search editor — no Dark/Organic badge here.
+                            null
                           ) : (
                             <Badge 
                               variant={isOrganic ? 'default' : 'secondary'}
