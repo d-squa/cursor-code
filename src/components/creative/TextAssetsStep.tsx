@@ -1551,6 +1551,19 @@ export function TextAssetsStep({
             const phaseLabel = ref.strategy
               ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
               : ref.phaseName;
+            // Preserve the *full* RSA payload from the uploaded sheet so the
+            // Google Search editor can render every headline / description /
+            // pin / path / business name. Slots 1..5 are mirrored into the
+            // flat columns; the complete 15/6 lists + pins live in the JSON
+            // *_pins fields (read by GoogleSearchTextAssetEditor.rowToDraft).
+            const headlines = (a.headlines || []).slice(0, 15);
+            while (headlines.length < 15) headlines.push('');
+            const headlinePins = (a.headlinePins || []).slice(0, 15);
+            while (headlinePins.length < 15) headlinePins.push(null);
+            const descriptions = (a.descriptions || []).slice(0, 6);
+            while (descriptions.length < 6) descriptions.push('');
+            const descriptionPins = (a.descriptionPins || []).slice(0, 6);
+            while (descriptionPins.length < 6) descriptionPins.push(null);
             next.push({
               id: `google_shell_uploaded_${Date.now()}_${i}`,
               creativeId: '',
@@ -1561,6 +1574,7 @@ export function TextAssetsStep({
               adSet: ref.adGroupName,
               googleCampaignType: ref.googleCampaignType,
               googleStrategy: ref.strategy,
+              googleAdSubtype: 'rsa',
               creativeName: a.adName,
               creativeFormat: 'image',
               taxonomyCampaignName: ref.campaignName,
@@ -1569,9 +1583,25 @@ export function TextAssetsStep({
               adFormat: 'other',
               suggestedAdFormat: 'other',
               adFormatConfirmed: false,
-              primaryText: a.descriptions.find((d) => d?.trim()) || '',
-              headline: a.headlines.find((h) => h?.trim()) || '',
-              description: a.descriptions.find((d) => d?.trim()) || '',
+              primaryText: '',
+              // Mirror slots 1..5 into the flat columns the rest of the app reads.
+              headline: headlines[0] || '',
+              headline2: headlines[1] || '',
+              headline3: headlines[2] || '',
+              headline4: headlines[3] || '',
+              headline5: headlines[4] || '',
+              description: descriptions[0] || '',
+              description2: descriptions[1] || '',
+              description3: descriptions[2] || '',
+              description4: descriptions[3] || '',
+              description5: descriptions[4] || '',
+              // Full lists + pins (overflow H6..H15, D5..D6) live here.
+              headline_pins: { values: headlines, pins: headlinePins },
+              description_pins: { values: descriptions, pins: descriptionPins },
+              path_1: a.path1 || '',
+              path_2: a.path2 || '',
+              business_name: a.businessName || '',
+              brandName: a.businessName || '',
               callToAction: 'LEARN_MORE',
               destinationUrl: a.finalUrl || '',
               autoBuildUtm: false,
