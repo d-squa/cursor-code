@@ -426,8 +426,24 @@ export function GoogleSearchTextAssetEditor({
   }, []);
 
   const selectAll = useCallback((checked: boolean) => {
-    setSelectedIds(checked ? new Set(drafts.map((d) => d.rowId)) : new Set());
-  }, [drafts]);
+    // "Select all" only acts on the visible (filtered) rows so users can
+    // bulk-select e.g. just RSAs or just invalid ads.
+    if (!checked) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(filteredDrafts.map((d) => d.rowId)));
+  }, [filteredDrafts]);
+
+  const handleSelectInvalid = useCallback(() => {
+    const ids = drafts.filter(isDraftInvalid).map((d) => d.rowId);
+    if (ids.length === 0) {
+      toast.info('No invalid ads found');
+      return;
+    }
+    setSelectedIds(new Set(ids));
+    toast.success(`Selected ${ids.length} invalid ad${ids.length === 1 ? '' : 's'}`);
+  }, [drafts, isDraftInvalid]);
 
   const handleCopyRow = useCallback((rowId: string) => {
     const d = drafts.find((x) => x.rowId === rowId);
@@ -516,7 +532,55 @@ export function GoogleSearchTextAssetEditor({
         </DialogHeader>
 
         {/* Toolbar */}
-        <div className="px-4 py-2 border-b flex items-center gap-2 shrink-0">
+        <div className="px-4 py-2 border-b flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Quick selection — mirrors the "Select" dropdown in the main editor */}
+          <Select value="_" onValueChange={(v) => {
+            if (v === 'all') setSelectedIds(new Set(filteredDrafts.map((d) => d.rowId)));
+            else if (v === 'none') setSelectedIds(new Set());
+            else if (v === 'invalid') handleSelectInvalid();
+            else if (v === 'rsa' || v === 'sitelink' || v === 'callout') {
+              const ids = drafts.filter((d) => d.subtype === v).map((d) => d.rowId);
+              setSelectedIds(new Set(ids));
+            }
+          }}>
+            <SelectTrigger className="h-8 w-[170px] text-xs">
+              <SelectValue placeholder="Select…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Visible</SelectItem>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="invalid">Invalid Creatives</SelectItem>
+              <SelectItem value="rsa">All Text Ads (RSA)</SelectItem>
+              <SelectItem value="sitelink">All Sitelinks</SelectItem>
+              <SelectItem value="callout">All Callouts</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Filter: asset type */}
+          <Select value={subtypeFilter} onValueChange={(v) => setSubtypeFilter(v as 'all' | GoogleAdSubtype)}>
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue placeholder="Asset type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All asset types</SelectItem>
+              <SelectItem value="rsa">Text Ad (RSA)</SelectItem>
+              <SelectItem value="sitelink">Sitelink</SelectItem>
+              <SelectItem value="callout">Callout</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Filter: validity */}
+          <Select value={validityFilter} onValueChange={(v) => setValidityFilter(v as 'all' | 'invalid' | 'valid')}>
+            <SelectTrigger className="h-8 w-[150px] text-xs">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All ads</SelectItem>
+              <SelectItem value="invalid">Invalid only</SelectItem>
+              <SelectItem value="valid">Valid only</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Button
             variant="outline"
             size="sm"
@@ -538,7 +602,7 @@ export function GoogleSearchTextAssetEditor({
             Apply focused to all
           </Button>
           <div className="ml-auto text-xs text-muted-foreground">
-            {drafts.length} ad{drafts.length === 1 ? '' : 's'} • {selectedIds.size} selected
+            Showing {filteredDrafts.length} of {drafts.length} ad{drafts.length === 1 ? '' : 's'} • {selectedIds.size} selected
           </div>
         </div>
 
@@ -582,7 +646,7 @@ export function GoogleSearchTextAssetEditor({
                       </td>
                     </tr>
                   )}
-                  {drafts.map((d) => {
+                  {filteredDrafts.map((d) => {
                     const isFocused = focusedId === d.rowId;
                     const isChecked = selectedIds.has(d.rowId);
                     return (
