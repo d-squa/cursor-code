@@ -152,7 +152,7 @@ interface SkippedEntity {
   reason: string;
 }
 
-export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: BulkParameterEditorProps) {
+export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate, onQuickSelect }: BulkParameterEditorProps) {
   const [activeParameter, setActiveParameter] = useState<ParameterType>('primaryText');
   const [inputValue, setInputValue] = useState('');
   const [applyScope, setApplyScope] = useState<ApplyScope>('selection');
