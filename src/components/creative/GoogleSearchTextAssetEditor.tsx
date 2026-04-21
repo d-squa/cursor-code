@@ -672,7 +672,6 @@ export function GoogleSearchTextAssetEditor({
                   })}
                 </tbody>
               </table>
-            </ScrollArea>
           </div>
 
           {/* Side panel preview */}
