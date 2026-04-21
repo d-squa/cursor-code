@@ -2802,6 +2802,32 @@ export function TextAssetExcelEditor({
                             const absoluteColIdx = HIERARCHY_COLUMNS.length + colIdx;
                             const isSelected = isInSelection(rowIndex, absoluteColIdx);
                             const isEditing = editingCell === cellKey(rowIndex, absoluteColIdx);
+
+                            // For Google rows, ad text is authored in the dedicated
+                            // Google Search editor — hide unrelated content columns.
+                            const isGoogleRow = (row.platform || '').toLowerCase() === 'google';
+                            const GOOGLE_HIDDEN_COLS = new Set([
+                              'placements',
+                              'primaryText',
+                              'headline',
+                              'description',
+                              'caption',
+                              'callToAction',
+                              'thumbnail',
+                            ]);
+                            if (isGoogleRow && GOOGLE_HIDDEN_COLS.has(col.key)) {
+                              return (
+                                <div
+                                  key={col.key}
+                                  className="px-1 py-1 border-r shrink-0 bg-muted/20"
+                                  style={{ width: col.width }}
+                                >
+                                  <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
+                                    —
+                                  </div>
+                                </div>
+                              );
+                            }
                             
                             // Placements column
                             if (col.key === 'placements') {
