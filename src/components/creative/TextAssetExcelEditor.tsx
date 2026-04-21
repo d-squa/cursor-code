@@ -2020,18 +2020,16 @@ export function TextAssetExcelEditor({
                             )}
                             {getLevelIcon(item.level!)}
                             <span className="font-medium truncate">{item.groupLabel}</span>
-                            {/* Platform-level Google Ads shell buttons. Renders on the
-                                Google platform header (level 0) and exports/imports the
-                                ENTIRE Google Ads structure — Search (Brand/Generic/Competition),
-                                PMax, Demand Gen, etc. — in a single workbook. This replaces
-                                per-phase shell buttons for Search, which would otherwise
-                                produce one file per (market × phase × strategy). */}
-                            {item.level === 0 && item.groupKey === 'platform:google' && hasGoogleRows && (onDownloadGoogleAdsShell || onUploadGoogleAdsShell) && (
+                            {/* Synthetic "Google Search Campaigns" parent header — appears
+                                once per market above the first Google Search phase. Exposes
+                                a single Download/Upload Shell pair scoped to ALL Google
+                                Search campaigns (Brand/Generic/Competition × markets). */}
+                            {item.level === 2 && item.groupKey?.startsWith('gsearch:') && hasGoogleRows && (onDownloadGoogleSearchShell || onUploadGoogleSearchShell) && (
                               <div
                                 className="flex items-center gap-1 ml-2 shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                {onDownloadGoogleAdsShell && (
+                                {onDownloadGoogleSearchShell && (
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -2039,20 +2037,20 @@ export function TextAssetExcelEditor({
                                           variant="ghost"
                                           size="sm"
                                           className="h-6 px-2 text-xs"
-                                          onClick={() => onDownloadGoogleAdsShell()}
+                                          onClick={() => onDownloadGoogleSearchShell()}
                                         >
                                           <Download className="h-3 w-3 mr-1" />
                                           Download Shell
                                         </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        Download a Google Ads Editor xlsx for the entire Google
-                                        Ads structure (Search, PMax, Demand Gen, …).
+                                        Download a single Google Ads Editor xlsx containing all
+                                        Google Search campaigns (Brand / Generic / Competition).
                                       </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
                                 )}
-                                {onUploadGoogleAdsShell && (
+                                {onUploadGoogleSearchShell && (
                                   <>
                                     <TooltipProvider>
                                       <Tooltip>
@@ -2061,24 +2059,24 @@ export function TextAssetExcelEditor({
                                             variant="ghost"
                                             size="sm"
                                             className="h-6 px-2 text-xs"
-                                            onClick={() => googleShellInputRef.current?.click()}
+                                            onClick={() => googleSearchShellInputRef.current?.click()}
                                           >
                                             <Upload className="h-3 w-3 mr-1" />
                                             Upload Shell
                                           </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                          Upload a filled Google Ads Editor xlsx — changes apply
-                                          across all Google campaigns in this ActiPlan.
+                                          Upload a filled Google Search shell — applies across
+                                          all Google Search campaigns in this ActiPlan.
                                         </TooltipContent>
                                       </Tooltip>
                                     </TooltipProvider>
                                     <input
-                                      ref={googleShellInputRef}
+                                      ref={googleSearchShellInputRef}
                                       type="file"
                                       accept=".xlsx,.xls"
                                       className="hidden"
-                                      onChange={handleGoogleShellPick}
+                                      onChange={handleGoogleSearchShellPick}
                                     />
                                   </>
                                 )}
@@ -2086,9 +2084,8 @@ export function TextAssetExcelEditor({
                             )}
                             {/* Per-phase Google Ads shell buttons — kept ONLY for non-Search
                                 Google phases (PMax, Demand Gen, Lead Gen, …). Search phases
-                                are aggregated into the platform-level shell above so the
-                                Brand/Generic/Competition expansions ship as one file. */}
-                            {item.level === 2 && item.groupKey && hasGoogleRows && (() => {
+                                are aggregated under the synthetic Google Search parent above. */}
+                            {item.level === 2 && item.groupKey?.startsWith('phase:') && hasGoogleRows && (() => {
                               const raw = item.groupKey.replace(/^phase:/, '');
                               const [platform, market, phase] = raw.split('|');
                               if ((platform || '').toLowerCase() !== 'google') return null;
