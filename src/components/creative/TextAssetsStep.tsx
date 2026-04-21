@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import { GoogleAdsShellReviewDialog } from './GoogleAdsShellReviewDialog';
+import { GoogleSearchTextAssetEditor } from './GoogleSearchTextAssetEditor';
 import { ADVANTAGE_PLUS_ASSIGNMENT_FIELDS, type CreativeTextAssetRow, type CreativeFormat, type AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
