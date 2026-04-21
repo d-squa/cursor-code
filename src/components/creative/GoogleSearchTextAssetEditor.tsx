@@ -447,6 +447,67 @@ export function GoogleSearchTextAssetEditor({
     toast.success(`Selected ${ids.length} invalid ad${ids.length === 1 ? '' : 's'}`);
   }, [drafts, isDraftInvalid]);
 
+  // ----- New Ad creation -----
+  // Build the unique list of campaigns and (campaign -> ad groups) pairs from
+  // the existing drafts so the user can attach a new ad to any known structure.
+  const campaignOptions = useMemo(() => {
+    const map = new Map<string, { campaign: string; market: string; adGroups: Set<string> }>();
+    for (const d of drafts) {
+      const key = `${d.campaignName}__${d.market}`;
+      if (!map.has(key)) {
+        map.set(key, { campaign: d.campaignName, market: d.market, adGroups: new Set() });
+      }
+      if (d.adGroupName) map.get(key)!.adGroups.add(d.adGroupName);
+    }
+    return Array.from(map.entries()).map(([key, v]) => ({
+      key,
+      campaign: v.campaign,
+      market: v.market,
+      adGroups: Array.from(v.adGroups),
+    }));
+  }, [drafts]);
+
+  const [newAdOpen, setNewAdOpen] = useState(false);
+  const [newAdCampaignKey, setNewAdCampaignKey] = useState<string>('');
+  const [newAdGroup, setNewAdGroup] = useState<string>('');
+  const [newAdSubtype, setNewAdSubtype] = useState<GoogleAdSubtype>('rsa');
+
+  const newAdCampaign = campaignOptions.find((c) => c.key === newAdCampaignKey);
+
+  const handleCreateNewAd = useCallback(() => {
+    if (!newAdCampaign) {
+      toast.info('Pick a campaign first');
+      return;
+    }
+    if (!newAdGroup) {
+      toast.info('Pick an ad group first');
+      return;
+    }
+    const newId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const draft: GoogleSearchAdDraft = {
+      rowId: newId,
+      assignmentId: '',
+      campaignName: newAdCampaign.campaign,
+      adGroupName: newAdGroup,
+      market: newAdCampaign.market,
+      subtype: newAdSubtype,
+      headlines: pad([], HEADLINE_COUNT, ''),
+      headlinePins: pad([], HEADLINE_COUNT, null),
+      descriptions: pad([], DESCRIPTION_COUNT, ''),
+      descriptionPins: pad([], DESCRIPTION_COUNT, null),
+      path1: '',
+      path2: '',
+      finalUrl: '',
+      businessName: '',
+    };
+    setDrafts((prev) => [...prev, draft]);
+    setFocusedId(newId);
+    setNewAdOpen(false);
+    setNewAdGroup('');
+    toast.success(`New ${SUBTYPE_LABEL[newAdSubtype]} added`);
+  }, [newAdCampaign, newAdGroup, newAdSubtype]);
+
+
   const handleCopyRow = useCallback((rowId: string) => {
     const d = drafts.find((x) => x.rowId === rowId);
     if (!d) return;
