@@ -508,19 +508,21 @@ export function GoogleSearchTextAssetEditor({
                         onCheckedChange={(v) => selectAll(!!v)}
                       />
                     </th>
-                    <th className="px-2 py-2 text-left border-b w-[180px]">Campaign / Ad group</th>
-                    <th className="px-2 py-2 text-left border-b w-[140px]">Ad type</th>
-                    <th className="px-2 py-2 text-left border-b w-[260px]">Preview</th>
+                    <th className="px-2 py-2 text-left border-b min-w-[200px]">Campaign / Ad group</th>
+                    <th className="px-2 py-2 text-left border-b min-w-[150px]">Ad type</th>
+                    <th className="px-2 py-2 text-left border-b min-w-[280px]">Preview</th>
                     {Array.from({ length: HEADLINE_COUNT }, (_, i) => (
-                      <th key={`h${i}`} className="px-1 py-2 text-left border-b w-[180px]">H{i + 1}</th>
+                      // Headlines max 30 chars — give the input enough room to show the full string.
+                      <th key={`h${i}`} className="px-1 py-2 text-left border-b min-w-[320px]">H{i + 1}</th>
                     ))}
                     {Array.from({ length: DESCRIPTION_COUNT }, (_, i) => (
-                      <th key={`d${i}`} className="px-1 py-2 text-left border-b w-[220px]">D{i + 1}</th>
+                      // Descriptions max 90 chars — wider still so text is readable without scrolling per cell.
+                      <th key={`d${i}`} className="px-1 py-2 text-left border-b min-w-[520px]">D{i + 1}</th>
                     ))}
-                    <th className="px-1 py-2 text-left border-b w-[120px]">Path 1</th>
-                    <th className="px-1 py-2 text-left border-b w-[120px]">Path 2</th>
-                    <th className="px-1 py-2 text-left border-b w-[260px]">Final URL</th>
-                    <th className="px-1 py-2 text-left border-b w-[160px]">Business name</th>
+                    <th className="px-1 py-2 text-left border-b min-w-[180px]">Path 1</th>
+                    <th className="px-1 py-2 text-left border-b min-w-[180px]">Path 2</th>
+                    <th className="px-1 py-2 text-left border-b min-w-[320px]">Final URL</th>
+                    <th className="px-1 py-2 text-left border-b min-w-[200px]">Business name</th>
                     <th className="px-1 py-2 w-10 border-b" />
                   </tr>
                 </thead>
