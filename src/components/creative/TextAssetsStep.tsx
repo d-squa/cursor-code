@@ -258,7 +258,7 @@ export function TextAssetsStep({
 
         if (error) throw error;
 
-        const derived = deriveGoogleShellData(data);
+        const derived = deriveGoogleShellData(data as any);
         const googlePhases = derived.googlePhases;
         const markets = derived.markets;
         const keywords = derived.keywords;
@@ -1255,34 +1255,19 @@ export function TextAssetsStep({
   const loadGoogleShellContext = useCallback(async (): Promise<GoogleShellContext> => {
     const { data: camp, error: campErr } = await supabase
       .from('campaigns')
-      .select('name, generic_config, market_splits')
+      .select('name, generic_config, market_splits, platforms')
       .eq('id', campaignId)
       .single();
     if (campErr) throw campErr;
 
-    const generic = (camp?.generic_config as any) || {};
-    const phases = (generic.phases || []).filter((p: any) =>
-      Array.isArray(p?.platforms) ? p.platforms.includes('google') : true,
+    const derived = deriveGoogleShellData(
+      camp as any,
+      rows.filter((row) => row.platform === 'google' && row.market).map((row) => row.market),
     );
-    const keywords: GoogleKeywordLike[] = Array.isArray(generic.selectedKeywords)
-      ? generic.selectedKeywords
-      : [];
-
-    const splits = (camp?.market_splits as Record<string, any>) || {};
-    const googleMarketSet = new Set<string>();
-    for (const [key, list] of Object.entries(splits)) {
-      if (key.toLowerCase().includes('google') && Array.isArray(list)) {
-        for (const m of list as any[]) if (m?.name) googleMarketSet.add(String(m.name));
-      }
-    }
-    if (googleMarketSet.size === 0) {
-      for (const r of rows) if (r.platform === 'google' && r.market) googleMarketSet.add(r.market);
-    }
-    const markets = Array.from(googleMarketSet);
 
     const expansion = buildExpandedStructure({
       campaignName: camp?.name || campaignName || 'Campaign',
-      phases: phases.map((p: any) => ({
+      phases: derived.googlePhases.map((p: any) => ({
         id: p.id,
         name: p.name,
         googleCampaignType: p.googleCampaignType,
@@ -1290,8 +1275,8 @@ export function TextAssetsStep({
         adSets: p.adSets,
         market: p.market,
       })),
-      markets,
-      keywords,
+      markets: derived.markets,
+      keywords: derived.keywords,
     });
 
     const { data: assignments, error: aErr } = await supabase
@@ -1317,12 +1302,12 @@ export function TextAssetsStep({
 
     return {
       campaignName: camp?.name || campaignName || 'Campaign',
-      generic,
-      keywords,
+      generic: derived.generic,
+      keywords: derived.keywords,
       expansion,
       adRows,
     };
-  }, [campaignId, campaignName, rows]);
+  }, [campaignId, campaignName, deriveGoogleShellData, rows]);
 
   const handleDownloadGoogleAdsShell = useCallback(async () => {
     try {
