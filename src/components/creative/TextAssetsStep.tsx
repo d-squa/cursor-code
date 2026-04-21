@@ -216,12 +216,42 @@ export function TextAssetsStep({
       }
 
       const keywordSources: any[] = [];
-      if (Array.isArray(generic?.selectedKeywords)) keywordSources.push(...generic.selectedKeywords);
-      if (Array.isArray(generic?.keywords)) keywordSources.push(...generic.keywords);
+      const pushKeywords = (arr: unknown) => {
+        if (Array.isArray(arr)) keywordSources.push(...arr);
+      };
+      // Top-level generic_config keywords (legacy)
+      pushKeywords(generic?.selectedKeywords);
+      pushKeywords(generic?.keywords);
+      // Targeting blocks (where UnifiedTargeting persists keywords)
+      pushKeywords(generic?.basicTargeting?.selectedKeywords);
+      pushKeywords(generic?.basicTargeting?.keywords);
+      pushKeywords(generic?.targeting?.selectedKeywords);
+      pushKeywords(generic?.targeting?.keywords);
+      pushKeywords(basicTargeting?.selectedKeywords);
+      pushKeywords(basicTargeting?.keywords);
+      // Per-phase keywords
       for (const phase of googlePhases) {
-        if (Array.isArray(phase?.selectedKeywords)) keywordSources.push(...phase.selectedKeywords);
-        if (Array.isArray(phase?.keywords)) keywordSources.push(...phase.keywords);
-        if (Array.isArray(phase?.searchKeywords)) keywordSources.push(...phase.searchKeywords);
+        pushKeywords(phase?.selectedKeywords);
+        pushKeywords(phase?.keywords);
+        pushKeywords(phase?.searchKeywords);
+        pushKeywords(phase?.targeting?.selectedKeywords);
+        pushKeywords(phase?.basicTargeting?.selectedKeywords);
+      }
+      // Per-market keywords inside market_splits
+      for (const [key, list] of Object.entries(splits)) {
+        if (!key.toLowerCase().includes('google') || !Array.isArray(list)) continue;
+        for (const marketEntry of list as any[]) {
+          pushKeywords(marketEntry?.selectedKeywords);
+          pushKeywords(marketEntry?.keywords);
+          pushKeywords(marketEntry?.targeting?.selectedKeywords);
+          const mp = Array.isArray(marketEntry?.phases) ? marketEntry.phases : [];
+          for (const ph of mp) {
+            pushKeywords(ph?.selectedKeywords);
+            pushKeywords(ph?.keywords);
+            pushKeywords(ph?.searchKeywords);
+            pushKeywords(ph?.targeting?.selectedKeywords);
+          }
+        }
       }
 
       const keywords: GoogleKeywordLike[] = keywordSources.filter(

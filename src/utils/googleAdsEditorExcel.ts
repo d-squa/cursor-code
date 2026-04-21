@@ -394,7 +394,29 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   adsHeader.push('Business Name', `LEN BN (max ${BUSINESS_NAME_LIMIT})`);
 
   const adsAoa: (string | number)[][] = [adsHeader];
-  for (const r of input.adRows) {
+
+  // If there are no creative assignments yet, seed the Ads tab with one empty
+  // row per (campaign, ad group) shell entry so the structure is still visible
+  // and can be filled in directly in the spreadsheet.
+  const effectiveAdRows: AdSheetRow[] = input.adRows.length > 0
+    ? input.adRows
+    : input.expansion.map((e) => ({
+        campaignName: e.campaignName,
+        adGroupName: e.adGroupName,
+        adName: '',
+        assignmentId: null,
+        finalUrl: '',
+        path1: '',
+        path2: '',
+        headlines: Array(15).fill(''),
+        headlinePins: Array(15).fill(null),
+        descriptions: Array(4).fill(''),
+        descriptionPins: Array(4).fill(null),
+        longHeadlines: Array(5).fill(''),
+        businessName: '',
+      }));
+
+  for (const r of effectiveAdRows) {
     const row: (string | number)[] = [
       r.campaignName,
       r.adGroupName,
