@@ -25,6 +25,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
   const [selectedUpdates, setSelectedUpdates] = useState<Set<number>>(new Set());
   const [selectedRemovals, setSelectedRemovals] = useState<Set<number>>(new Set());
   const [selectedAdUpdates, setSelectedAdUpdates] = useState<Set<string>>(new Set());
+  const [selectedNewAds, setSelectedNewAds] = useState<Set<number>>(new Set());
   const [isApplying, setIsApplying] = useState(false);
 
   // Initialise selections every time the dialog opens with a fresh diff.
@@ -34,6 +35,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
     setSelectedUpdates(new Set(diff.keywords.updated.map((_, i) => i)));
     setSelectedRemovals(new Set(diff.keywords.removed.map((_, i) => i)));
     setSelectedAdUpdates(new Set(diff.ads.updated.map((u) => u.assignmentId)));
+    setSelectedNewAds(new Set(diff.ads.added.map((_, i) => i)));
   }, [diff]);
 
   if (!diff) return null;
@@ -42,10 +44,15 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
     diff.keywords.added.length +
     diff.keywords.updated.length +
     diff.keywords.removed.length +
-    diff.ads.updated.length;
+    diff.ads.updated.length +
+    diff.ads.added.length;
 
   const selectedTotal =
-    selectedAdds.size + selectedUpdates.size + selectedRemovals.size + selectedAdUpdates.size;
+    selectedAdds.size +
+    selectedUpdates.size +
+    selectedRemovals.size +
+    selectedAdUpdates.size +
+    selectedNewAds.size;
 
   const toggle = <T,>(set: Set<T>, value: T, setter: (s: Set<T>) => void) => {
     const next = new Set(set);
@@ -65,6 +72,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
         },
         ads: {
           updated: diff.ads.updated.filter((u) => selectedAdUpdates.has(u.assignmentId)),
+          added: diff.ads.added.filter((_, i) => selectedNewAds.has(i)),
           skippedNew: diff.ads.skippedNew,
         },
       };
