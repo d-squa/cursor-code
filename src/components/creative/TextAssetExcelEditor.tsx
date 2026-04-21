@@ -81,6 +81,8 @@ interface TextAssetExcelEditorProps {
   onDownloadGoogleSearchShell?: () => void | Promise<void>;
   /** Optional: upload a Google Search-only shell (applies across all Search campaigns). */
   onUploadGoogleSearchShell?: (file: File) => void | Promise<void>;
+  /** Optional: open the dedicated Google Search text-asset editor popup. */
+  onOpenGoogleSearchEditor?: () => void;
   /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
   hasGoogleRows?: boolean;
 }
@@ -245,6 +247,7 @@ export function TextAssetExcelEditor({
   onUploadGoogleAdsShellForPhase,
   onDownloadGoogleSearchShell,
   onUploadGoogleSearchShell,
+  onOpenGoogleSearchEditor,
   hasGoogleRows,
 }: TextAssetExcelEditorProps) {
   const googleShellInputRef = useRef<HTMLInputElement>(null);
