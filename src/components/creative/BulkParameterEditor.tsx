@@ -418,6 +418,7 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate, onQuic
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="allRows">All Rows</SelectItem>
+                  <SelectItem value="invalid">Invalid Creatives</SelectItem>
                   <SelectItem value="all">Any Blank Field</SelectItem>
                   <SelectItem value="primaryText">Blank Primary Text</SelectItem>
                   <SelectItem value="headline">Blank Headline</SelectItem>
