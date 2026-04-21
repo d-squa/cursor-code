@@ -114,7 +114,10 @@ export interface GoogleAdsShellDiff {
         businessName: string;
       }>;
     }>;
-    skippedNew: AdSheetRow[]; // new RSA rows are surfaced but not auto-created in this pass
+    /** New RSA rows the user added in the spreadsheet — auto-created on apply. */
+    added: AdSheetRow[];
+    /** Rows that couldn't be matched to a known (campaign, ad group) — surfaced as warnings. */
+    skippedNew: AdSheetRow[];
   };
 }
 
