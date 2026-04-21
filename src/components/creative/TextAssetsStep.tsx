@@ -1546,7 +1546,11 @@ export function TextAssetsStep({
       const parsed = await parseGoogleAdsShell(file);
       const currentKeywordRows = buildCurrentKeywordRows(scoped.keywords, scoped.expansion);
       const diff = diffShell({
-        current: { keywords: currentKeywordRows, ads: scoped.adRows },
+        current: {
+          keywords: currentKeywordRows,
+          ads: scoped.adRows,
+          shell: scoped.expansion.map((e) => ({ campaignName: e.campaignName, adGroupName: e.adGroupName })),
+        },
         uploaded: parsed,
       });
       setShellDiff(diff);
