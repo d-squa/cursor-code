@@ -110,6 +110,7 @@ export function TextAssetsStep({
   const [hasGoogleConfigured, setHasGoogleConfigured] = useState(false);
   const [shellDiff, setShellDiff] = useState<GoogleAdsShellDiff | null>(null);
   const [shellOpen, setShellOpen] = useState(false);
+  const [googleSearchEditorOpen, setGoogleSearchEditorOpen] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
   const [selectedNewCreatives, setSelectedNewCreatives] = useState<Set<string>>(new Set());
@@ -1642,8 +1643,17 @@ export function TextAssetsStep({
           onUploadGoogleAdsShellForPhase={handleUploadGoogleAdsShellForPhase}
           onDownloadGoogleSearchShell={handleDownloadGoogleSearchShell}
           onUploadGoogleSearchShell={handleUploadGoogleSearchShell}
+          onOpenGoogleSearchEditor={() => setGoogleSearchEditorOpen(true)}
         />
       </div>
+
+      <GoogleSearchTextAssetEditor
+        open={googleSearchEditorOpen}
+        onOpenChange={setGoogleSearchEditorOpen}
+        rows={mergedRows}
+        onRowChange={handleRowChange}
+        onBulkUpdate={handleBulkUpdate}
+      />
 
       <GoogleAdsShellReviewDialog
         open={shellOpen}
