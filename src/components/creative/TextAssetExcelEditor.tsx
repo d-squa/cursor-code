@@ -1721,6 +1721,14 @@ export function TextAssetExcelEditor({
                 }
                 setSelectedRowIds(new Set(rows.map((r) => r.id)));
                 toast.success(`Selected all ${rows.length} rows`);
+              } else if (scope === 'invalid') {
+                const invalidIds = rows.filter(r => validateTextAssetRow(r).length > 0).map(r => r.id);
+                if (invalidIds.length === 0) {
+                  toast.info('No invalid creatives found');
+                  return;
+                }
+                setSelectedRowIds(new Set(invalidIds));
+                toast.success(`Selected ${invalidIds.length} invalid creative${invalidIds.length === 1 ? '' : 's'}`);
               } else if (scope === 'all') {
                 selectAllBlanks();
               } else if (scope === 'primaryText') selectByBlankField('primaryText', 'Primary Text');
