@@ -159,38 +159,26 @@ function rowToDraft(row: CreativeTextAssetRow): GoogleSearchAdDraft {
 function draftToRowUpdates(d: GoogleSearchAdDraft): Partial<CreativeTextAssetRow> {
   // Persist slots 1..5 directly into known columns; keep the full 15/6 lists +
   // pins inside the headline_pins / description_pins JSON so nothing is lost.
-  return {
+  const updates: Record<string, unknown> = {
     headline: d.headlines[0] || '',
-    // @ts-expect-error these fields exist on the row type
     headline2: d.headlines[1] || '',
-    // @ts-expect-error
     headline3: d.headlines[2] || '',
-    // @ts-expect-error
     headline4: d.headlines[3] || '',
-    // @ts-expect-error
     headline5: d.headlines[4] || '',
     description: d.descriptions[0] || '',
-    // @ts-expect-error
     description2: d.descriptions[1] || '',
-    // @ts-expect-error
     description3: d.descriptions[2] || '',
-    // @ts-expect-error
     description4: d.descriptions[3] || '',
-    // @ts-expect-error
     description5: d.descriptions[4] || '',
     destinationUrl: d.finalUrl,
-    // @ts-expect-error
     path_1: d.path1,
-    // @ts-expect-error
     path_2: d.path2,
     brandName: d.businessName,
-    // @ts-expect-error overflow + pins payload
     headline_pins: { values: d.headlines, pins: d.headlinePins },
-    // @ts-expect-error
     description_pins: { values: d.descriptions, pins: d.descriptionPins },
-    // @ts-expect-error not yet in TS row shape, but persisted for UI roundtrip
     googleAdSubtype: d.subtype,
   };
+  return updates as Partial<CreativeTextAssetRow>;
 }
 
 // ---------- Inline preview (per-row mini Google SERP card) ----------
@@ -516,7 +504,7 @@ export function GoogleSearchTextAssetEditor({
                   <tr>
                     <th className="px-2 py-2 w-8 border-b">
                       <Checkbox
-                        checked={allChecked || (someChecked && 'indeterminate')}
+                        checked={allChecked ? true : someChecked ? 'indeterminate' : false}
                         onCheckedChange={(v) => selectAll(!!v)}
                       />
                     </th>
