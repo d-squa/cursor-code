@@ -945,10 +945,23 @@ export function TextAssetExcelEditor({
         // Inject a synthetic "Google Search Campaigns" parent header before the
         // first Google Search phase in this market. The parent shows a single
         // download/upload Shell pair scoped to ALL Google Search campaigns.
+        const normalizeGoogleSearchPhase = (label: string) => {
+          const idx = String(label || '').lastIndexOf(' • ');
+          return idx === -1 ? String(label || '').trim() : String(label || '').slice(0, idx).trim();
+        };
         const phaseRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase);
+        const normalizedPhase = normalizeGoogleSearchPhase(phase);
+        const phaseFamilyRows = rows.filter(
+          (r) =>
+            r.platform === platform &&
+            r.market === market &&
+            normalizeGoogleSearchPhase(r.phase) === normalizedPhase,
+        );
         const isSearchPhase =
           (platform || '').toLowerCase() === 'google' &&
-          phaseRows.some((r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy);
+          phaseFamilyRows.some(
+            (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
+          );
         const searchParentKey = `gsearch:${platform}|${market}`;
         const alreadyInjected = items.some((it) => it.groupKey === searchParentKey);
         if (isSearchPhase && !alreadyInjected) {
@@ -2087,10 +2100,18 @@ export function TextAssetExcelEditor({
                               const raw = item.groupKey.replace(/^phase:/, '');
                               const [platform, market, phase] = raw.split('|');
                               if ((platform || '').toLowerCase() !== 'google') return null;
-                              const phaseRows = rows.filter(
-                                (r) => r.platform === platform && r.market === market && r.phase === phase,
+                              const normalizeGoogleSearchPhase = (label: string) => {
+                                const idx = String(label || '').lastIndexOf(' • ');
+                                return idx === -1 ? String(label || '').trim() : String(label || '').slice(0, idx).trim();
+                              };
+                              const normalizedPhase = normalizeGoogleSearchPhase(phase);
+                              const phaseFamilyRows = rows.filter(
+                                (r) =>
+                                  r.platform === platform &&
+                                  r.market === market &&
+                                  normalizeGoogleSearchPhase(r.phase) === normalizedPhase,
                               );
-                              const isSearchPhase = phaseRows.some(
+                              const isSearchPhase = phaseFamilyRows.some(
                                 (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
                               );
                               if (isSearchPhase) return null;
