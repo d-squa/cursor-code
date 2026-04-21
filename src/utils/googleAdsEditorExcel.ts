@@ -398,26 +398,39 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
-  // If there are no creative assignments yet, seed the Ads tab with one empty
-  // row per (campaign, ad group) shell entry so the structure is still visible
-  // and can be filled in directly in the spreadsheet.
-  const effectiveAdRows: AdSheetRow[] = input.adRows.length > 0
-    ? input.adRows
-    : input.expansion.map((e) => ({
-        campaignName: e.campaignName,
-        adGroupName: e.adGroupName,
-        adName: '',
-        assignmentId: null,
-        finalUrl: '',
-        path1: '',
-        path2: '',
-        headlines: Array(15).fill(''),
-        headlinePins: Array(15).fill(null),
-        descriptions: Array(4).fill(''),
-        descriptionPins: Array(4).fill(null),
-        longHeadlines: Array(5).fill(''),
-        businessName: '',
-      }));
+  // Always emit one row per (campaign, ad group) shell entry — even when there
+  // are creative assignments — so every ad group remains visible and editable
+  // in the Ads tab. Existing assignments come first; ad groups with no
+  // assignment yet are appended as empty shell rows so users can fill them in
+  // directly in the spreadsheet.
+  const emptyShellRow = (campaignName: string, adGroupName: string): AdSheetRow => ({
+    campaignName,
+    adGroupName,
+    adName: '',
+    assignmentId: null,
+    finalUrl: '',
+    path1: '',
+    path2: '',
+    headlines: Array(15).fill(''),
+    headlinePins: Array(15).fill(null),
+    descriptions: Array(4).fill(''),
+    descriptionPins: Array(4).fill(null),
+    longHeadlines: Array(5).fill(''),
+    businessName: '',
+  });
+
+  const pairKey = (c: string, g: string) => `${c}\u0000${g}`;
+  const seenPairs = new Set<string>(
+    input.adRows.map((r) => pairKey(r.campaignName, r.adGroupName)),
+  );
+  const missingShellRows: AdSheetRow[] = [];
+  for (const e of input.expansion) {
+    const key = pairKey(e.campaignName, e.adGroupName);
+    if (seenPairs.has(key)) continue;
+    seenPairs.add(key);
+    missingShellRows.push(emptyShellRow(e.campaignName, e.adGroupName));
+  }
+  const effectiveAdRows: AdSheetRow[] = [...input.adRows, ...missingShellRows];
 
   for (const r of effectiveAdRows) {
     const row: (string | number)[] = [
