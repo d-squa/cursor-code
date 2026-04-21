@@ -2155,6 +2155,26 @@ export function TextAssetExcelEditor({
                                   className="flex items-center gap-1 ml-2 shrink-0"
                                   onClick={(e) => e.stopPropagation()}
                                 >
+                                  {onOpenGoogleNonSearchEditor && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="h-6 px-2 text-xs"
+                                            onClick={() => onOpenGoogleNonSearchEditor(market, phase)}
+                                          >
+                                            <Settings2 className="h-3 w-3 mr-1" />
+                                            Edit Ads
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Open the unified editor for this phase (PMax / Demand Gen / Video / Display).
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
                                   {onDownloadGoogleAdsShellForPhase && (
                                     <TooltipProvider>
                                       <Tooltip>
