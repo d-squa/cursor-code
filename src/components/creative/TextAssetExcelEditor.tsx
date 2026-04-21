@@ -1866,7 +1866,15 @@ export function TextAssetExcelEditor({
           )}
           <div className="h-5 w-px bg-border mx-1" />
           <Select onValueChange={(value) => {
-            if (value === 'all') selectAllBlanks();
+            if (value === 'allRows') {
+              if (rows.length === 0) {
+                toast.info('No rows to select');
+                return;
+              }
+              setSelectedRowIds(new Set(rows.map((r) => r.id)));
+              toast.success(`Selected all ${rows.length} rows`);
+            }
+            else if (value === 'all') selectAllBlanks();
             else if (value === 'primaryText') selectByBlankField('primaryText', 'Primary Text');
             else if (value === 'headline') selectByBlankField('headline', 'Headline');
             else if (value === 'description') selectByBlankField('description', 'Description');
@@ -1876,9 +1884,10 @@ export function TextAssetExcelEditor({
           }}>
             <SelectTrigger className="w-[140px] h-8">
               <Target className="h-4 w-4 mr-1" />
-              <SelectValue placeholder="Select Blanks" />
+              <SelectValue placeholder="Select..." />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="allRows">All Rows</SelectItem>
               <SelectItem value="all">Any Blank Field</SelectItem>
               <SelectItem value="primaryText">Blank Primary Text</SelectItem>
               <SelectItem value="headline">Blank Headline</SelectItem>
