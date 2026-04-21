@@ -48,6 +48,8 @@ interface BulkParameterEditorProps {
   rows: CreativeTextAssetRow[];
   selectedRowIds: Set<string>;
   onBulkUpdate: (ids: string[], updates: Partial<CreativeTextAssetRow>) => void;
+  /** Optional: invoked when the user picks a quick-select scope (All Rows / blank field). */
+  onQuickSelect?: (scope: 'allRows' | 'all' | 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl') => void;
 }
 
 type ParameterType = 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl' | 'displayLink';
@@ -150,7 +152,7 @@ interface SkippedEntity {
   reason: string;
 }
 
-export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: BulkParameterEditorProps) {
+export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate, onQuickSelect }: BulkParameterEditorProps) {
   const [activeParameter, setActiveParameter] = useState<ParameterType>('primaryText');
   const [inputValue, setInputValue] = useState('');
   const [applyScope, setApplyScope] = useState<ApplyScope>('selection');
@@ -401,6 +403,33 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     <>
       <div className="bg-card/50 border-b px-4 py-3">
         <div className="flex flex-wrap items-end gap-3">
+          {/* Quick row-selection dropdown — sits to the left of the Parameter selector */}
+          {onQuickSelect && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Select</label>
+              <Select
+                onValueChange={(value) => {
+                  onQuickSelect(value as Parameters<NonNullable<typeof onQuickSelect>>[0]);
+                }}
+              >
+                <SelectTrigger className="w-[150px] h-9">
+                  <Target className="h-4 w-4 mr-1" />
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="allRows">All Rows</SelectItem>
+                  <SelectItem value="all">Any Blank Field</SelectItem>
+                  <SelectItem value="primaryText">Blank Primary Text</SelectItem>
+                  <SelectItem value="headline">Blank Headline</SelectItem>
+                  <SelectItem value="description">Blank Description</SelectItem>
+                  <SelectItem value="caption">Blank Caption</SelectItem>
+                  <SelectItem value="callToAction">Blank CTA</SelectItem>
+                  <SelectItem value="destinationUrl">Blank URL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Parameter selector */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Parameter</label>
