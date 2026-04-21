@@ -1281,24 +1281,26 @@ export function TextAssetsStep({
       return { base: text, strategy: '' };
     };
 
-    // Collect (platform, market, basePhase) groups that already have a real or
-    // uploaded Google placeholder row, so we can suppress the empty
-    // "— Campaign shell —" structural placeholders for the same group.
-    const occupiedGroups = new Set<string>();
-    const addOccupied = (platform: string, market: string, phase: string) => {
+    // Collect (platform, market, basePhase, adSet) tuples that already have a
+    // real or uploaded Google placeholder row, so we can suppress the empty
+    // "— Campaign shell —" structural placeholders for the *same ad set*. We
+    // intentionally keep the ad-set in the key so that an empty ad group in a
+    // phase that has another populated ad group still surfaces as a shell row.
+    const occupiedSlots = new Set<string>();
+    const addOccupied = (platform: string, market: string, phase: string, adSet: string) => {
       const { base } = splitPhaseLabel(phase);
-      occupiedGroups.add(`${platform}|${market}|${base}`);
+      occupiedSlots.add(`${platform}|${market}|${base}|${adSet || ''}`);
     };
     for (const r of out) {
-      addOccupied((r.platform || '').toLowerCase(), r.market, r.phase || '');
+      addOccupied((r.platform || '').toLowerCase(), r.market, r.phase || '', r.adSet || '');
     }
     for (const p of googlePlaceholderRows) {
-      addOccupied((p.platform || '').toLowerCase(), p.market, p.phase || '');
+      addOccupied((p.platform || '').toLowerCase(), p.market, p.phase || '', p.adSet || '');
     }
 
     // Add Meta/TikTok/Google structural placeholders for ad sets without any
-    // assignment, but suppress them when a real or uploaded row already covers
-    // the same (platform, market, base phase).
+    // assignment, but suppress them only when a real or uploaded row already
+    // covers the same (platform, market, base phase, ad set) slot.
     if (structurePlaceholderRows.length > 0) {
       const realKeys = new Set(
         rows.map((r) => `${(r.platform || '').toLowerCase()}|${r.market}|${r.phase}|${r.adSet}`),
@@ -1308,26 +1310,26 @@ export function TextAssetsStep({
         if (realKeys.has(key)) continue;
         const platform = (p.platform || '').toLowerCase();
         const { base } = splitPhaseLabel(p.phase || '');
-        if (occupiedGroups.has(`${platform}|${p.market}|${base}`)) continue;
+        if (occupiedSlots.has(`${platform}|${p.market}|${base}|${p.adSet || ''}`)) continue;
         out.push(p);
       }
     }
 
-    // Add Google shell placeholders — but suppress them whenever a real assignment
-    // already exists for the same (market, base phase). Real assignments carry the
-    // full DSP taxonomy ad-set name; comparing on `adSet` would treat them as
-    // different rows and produce duplicates, so we group by base phase instead.
+    // Add Google shell placeholders — suppress only when a real assignment
+    // already exists for the same (market, base phase, ad set). Real
+    // assignments may decorate adSet with full DSP taxonomy, but the ad-set
+    // identity itself is still what distinguishes one ad group from another.
     if (googlePlaceholderRows.length > 0) {
-      const realGoogleGroups = new Set<string>();
+      const realGoogleSlots = new Set<string>();
       for (const r of rows) {
         if ((r.platform || '').toLowerCase() !== 'google') continue;
         const { base } = splitPhaseLabel(r.phase || '');
-        realGoogleGroups.add(`${r.market}|${base}`);
+        realGoogleSlots.add(`${r.market}|${base}|${r.adSet || ''}`);
       }
 
       for (const p of googlePlaceholderRows) {
         const { base } = splitPhaseLabel(p.phase || '');
-        if (realGoogleGroups.has(`${p.market}|${base}`)) continue;
+        if (realGoogleSlots.has(`${p.market}|${base}|${p.adSet || ''}`)) continue;
         out.push(p);
       }
     }
