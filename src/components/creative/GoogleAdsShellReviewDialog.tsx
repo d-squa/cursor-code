@@ -105,11 +105,13 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
             </TabsTrigger>
             <TabsTrigger value="ads">
               Ads
-              <Badge variant="secondary" className="ml-2">{diff.ads.updated.length}</Badge>
+              <Badge variant="secondary" className="ml-2">
+                {diff.ads.updated.length + diff.ads.added.length}
+              </Badge>
             </TabsTrigger>
             {diff.ads.skippedNew.length > 0 && (
               <TabsTrigger value="skipped">
-                New rows
+                Unmatched
                 <Badge variant="outline" className="ml-2">{diff.ads.skippedNew.length}</Badge>
               </TabsTrigger>
             )}
