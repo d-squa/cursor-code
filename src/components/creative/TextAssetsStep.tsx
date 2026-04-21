@@ -508,6 +508,26 @@ export function TextAssetsStep({
           }
         }
 
+        // Build a (platform, market, phase) → googleCampaignType lookup so we can
+        // restore the campaign type on saved Google assignments. Without this,
+        // PMax / Demand Gen / Video / Display rows lose their type on reload and
+        // the non-Search editor can't detect them. See Issue #132.
+        const googleTypeByKey = new Map<string, string>();
+        const normalizePhase = (p: string) => String(p || '').trim().toLowerCase();
+        const structureKey = (market: string, phase: string) =>
+          `${String(market || '').trim().toLowerCase()}::${normalizePhase(phase)}`;
+        (campaignStructures || []).forEach((s) => {
+          if (String(s.platform || '').toLowerCase() !== 'google') return;
+          if (!s.googleCampaignType) return;
+          const market = s.market || 'Global';
+          const phases = (s.phases && s.phases.length > 0)
+            ? s.phases
+            : (s.funnelStage ? [s.funnelStage] : []);
+          for (const phase of phases) {
+            googleTypeByKey.set(structureKey(market, phase), s.googleCampaignType);
+          }
+        });
+
         // Transform to CreativeTextAssetRow format with taxonomy names
         const transformedRows: CreativeTextAssetRowWithTikTok[] = assignments.map((assignment: any) => {
           const creative = assignment.creatives;
@@ -663,7 +683,11 @@ export function TextAssetsStep({
             market: assignment.market || 'Global',
             phase: assignment.phase_name || 'Default',
             adSet: adSetName,
-            googleCampaignType: assignment.platform === 'google' && assignment.ad_strategy ? 'Search' : undefined,
+            googleCampaignType: assignment.platform === 'google'
+              ? (assignment.ad_strategy
+                  ? 'Search'
+                  : googleTypeByKey.get(structureKey(assignment.market || 'Global', assignment.phase_name || 'Default')))
+              : undefined,
             googleStrategy: assignment.ad_strategy || null,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
@@ -765,7 +789,7 @@ export function TextAssetsStep({
     };
 
     loadAssignments();
-  }, [savedAssignments, campaignId, campaignName]);
+  }, [savedAssignments, campaignId, campaignName, campaignStructures]);
 
   // Handle individual row changes
   // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
