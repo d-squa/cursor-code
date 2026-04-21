@@ -1340,8 +1340,47 @@ export function TextAssetsStep({
     async (market: string, phaseLabel: string) => {
       try {
         const ctx = await loadGoogleShellContext();
-        const scoped = scopeShellContext(ctx, market, phaseLabel);
+        const normalizeSearchPhase = (label: string) => {
+          const idx = String(label || '').lastIndexOf(' • ');
+          return (idx === -1 ? String(label || '') : String(label || '').slice(0, idx)).trim().toLowerCase();
+        };
+
+        let scoped = scopeShellContext(ctx, market, phaseLabel);
+
         if (scoped.expansion.length === 0) {
+          const normalizedPhase = normalizeSearchPhase(phaseLabel);
+          const requestedSearchFamily = rows.some(
+            (row) =>
+              (row.platform || '').toLowerCase() === 'google' &&
+              row.market === market &&
+              normalizeSearchPhase(row.phase) === normalizedPhase &&
+              (String(row.googleCampaignType || '').toLowerCase().includes('search') || !!row.googleStrategy),
+          );
+
+          if (requestedSearchFamily) {
+            const searchExpansion = ctx.expansion.filter((ref) =>
+              String(ref.googleCampaignType || '').toLowerCase().includes('search'),
+            );
+            const allowedCampaignNames = new Set(searchExpansion.map((entry) => entry.campaignName));
+            const searchScoped = {
+              ...ctx,
+              expansion: searchExpansion,
+              adRows: ctx.adRows.filter((row) => allowedCampaignNames.has(row.campaignName)),
+            };
+
+            if (searchScoped.expansion.length > 0) {
+              downloadGoogleAdsShell({
+                campaignName: `${searchScoped.campaignName} - Google Search`,
+                expansion: searchScoped.expansion,
+                keywords: searchScoped.keywords,
+                adRows: searchScoped.adRows,
+                includeKeywords: true,
+              });
+              toast.success('Google Search shell downloaded');
+              return;
+            }
+          }
+
           toast.error('No Google Ads structure found for this phase');
           return;
         }
@@ -1359,7 +1398,7 @@ export function TextAssetsStep({
         toast.error('Failed to download Google Ads shell');
       }
     },
-    [loadGoogleShellContext, scopeShellContext],
+    [loadGoogleShellContext, rows, scopeShellContext],
   );
 
   const handleUploadGoogleAdsShellForPhase = useCallback(
