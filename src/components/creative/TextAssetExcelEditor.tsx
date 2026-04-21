@@ -942,6 +942,36 @@ export function TextAssetExcelEditor({
       
       // Phase header
       if (phase !== prevPhase) {
+        // Inject a synthetic "Google Search Campaigns" parent header before the
+        // first Google Search phase in this market. The parent shows a single
+        // download/upload Shell pair scoped to ALL Google Search campaigns.
+        const phaseLower = (phase || '').toLowerCase();
+        const isSearchPhase =
+          (platform || '').toLowerCase() === 'google' &&
+          (phaseLower.includes('search') || phaseLower.includes(' • '));
+        const searchParentKey = `gsearch:${platform}|${market}`;
+        const alreadyInjected = items.some((it) => it.groupKey === searchParentKey);
+        if (isSearchPhase && !alreadyInjected) {
+          const searchPhaseRows = rows.filter(
+            (r) =>
+              r.platform === platform &&
+              r.market === market &&
+              ((r.phase || '').toLowerCase().includes('search') ||
+                (r.phase || '').toLowerCase().includes(' • ')),
+          );
+          items.push({
+            type: 'group',
+            key: searchParentKey,
+            groupLabel: 'Google Search Campaigns',
+            groupKey: searchParentKey,
+            level: 2,
+            rowIds: searchPhaseRows.map((r) => r.id),
+          });
+        }
+        if (isSearchPhase && collapsedGroups.has(searchParentKey)) {
+          prevPhase = phase;
+          continue;
+        }
         const phaseKey = `phase:${platform}|${market}|${phase}`;
         const phaseRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase);
         items.push({ 
@@ -949,7 +979,7 @@ export function TextAssetExcelEditor({
           key: phaseKey, 
           groupLabel: phase, 
           groupKey: phaseKey,
-          level: 2,
+          level: isSearchPhase ? 3 : 2,
           rowIds: phaseRows.map(r => r.id)
         });
         prevPhase = phase;
