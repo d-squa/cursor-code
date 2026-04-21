@@ -74,6 +74,17 @@ export default function CreativeMatching() {
     }
   }, [progress?.campaignId, loadExistingAssignments, matchingState.savedAssignments?.length]);
 
+  // Always ensure campaign structures are loaded when a campaign is selected.
+  // The text assets editor (content step) needs these to render structural
+  // shells for Google Search, Video, and other ad sets that have no
+  // creatives assigned yet — otherwise these campaigns disappear after a
+  // hard refresh because `loadExistingAssignments` does not populate them.
+  useEffect(() => {
+    if (progress?.campaignId && matchingState.structures.length === 0) {
+      loadCampaignStructures(progress.campaignId);
+    }
+  }, [progress?.campaignId, matchingState.structures.length, loadCampaignStructures]);
+
   // When entering the mesh step, always reload fresh structures from DB
   // This ensures ad set splits and other structural changes are reflected
   useEffect(() => {
