@@ -945,10 +945,10 @@ export function TextAssetExcelEditor({
         // Inject a synthetic "Google Search Campaigns" parent header before the
         // first Google Search phase in this market. The parent shows a single
         // download/upload Shell pair scoped to ALL Google Search campaigns.
-        const phaseLower = (phase || '').toLowerCase();
+        const phaseRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase);
         const isSearchPhase =
           (platform || '').toLowerCase() === 'google' &&
-          (phaseLower.includes('search') || phaseLower.includes(' • '));
+          phaseRows.some((r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy);
         const searchParentKey = `gsearch:${platform}|${market}`;
         const alreadyInjected = items.some((it) => it.groupKey === searchParentKey);
         if (isSearchPhase && !alreadyInjected) {
@@ -956,8 +956,7 @@ export function TextAssetExcelEditor({
             (r) =>
               r.platform === platform &&
               r.market === market &&
-              ((r.phase || '').toLowerCase().includes('search') ||
-                (r.phase || '').toLowerCase().includes(' • ')),
+              (String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy),
           );
           items.push({
             type: 'group',
@@ -973,7 +972,6 @@ export function TextAssetExcelEditor({
           continue;
         }
         const phaseKey = `phase:${platform}|${market}|${phase}`;
-        const phaseRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase);
         items.push({ 
           type: 'group', 
           key: phaseKey, 
@@ -2089,8 +2087,12 @@ export function TextAssetExcelEditor({
                               const raw = item.groupKey.replace(/^phase:/, '');
                               const [platform, market, phase] = raw.split('|');
                               if ((platform || '').toLowerCase() !== 'google') return null;
-                              const phaseLower = (phase || '').toLowerCase();
-                              const isSearchPhase = phaseLower.includes('search') || phaseLower.includes(' • ');
+                              const phaseRows = rows.filter(
+                                (r) => r.platform === platform && r.market === market && r.phase === phase,
+                              );
+                              const isSearchPhase = phaseRows.some(
+                                (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
+                              );
                               if (isSearchPhase) return null;
                               if (!onDownloadGoogleAdsShellForPhase && !onUploadGoogleAdsShellForPhase) return null;
                               const inputKey = `${market}|${phase}`;

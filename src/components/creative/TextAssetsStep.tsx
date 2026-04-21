@@ -249,6 +249,8 @@ export function TextAssetsStep({
               market: ref.market,
               phase: phaseLabel,
               adSet: ref.adGroupName,
+              googleCampaignType: ref.googleCampaignType,
+              googleStrategy: ref.strategy,
               creativeName: '— Shell placeholder —',
               creativeFormat: 'image',
               taxonomyCampaignName: ref.campaignName,
@@ -637,6 +639,8 @@ export function TextAssetsStep({
             market: assignment.market || 'Global',
             phase: assignment.phase_name || 'Default',
             adSet: adSetName,
+            googleCampaignType: assignment.platform === 'google' && assignment.ad_strategy ? 'Search' : undefined,
+            googleStrategy: assignment.ad_strategy || null,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
             // Taxonomy names

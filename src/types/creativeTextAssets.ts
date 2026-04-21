@@ -121,6 +121,8 @@ export interface CreativeTextAssetRow {
   market: string;
   phase: string;
   adSet: string;
+  googleCampaignType?: string;
+  googleStrategy?: string | null;
   creativeName: string;
   originalFilename?: string;
   folderPath?: string;
