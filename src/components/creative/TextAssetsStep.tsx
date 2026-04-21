@@ -1384,6 +1384,62 @@ export function TextAssetsStep({
     [loadGoogleShellContext, scopeShellContext],
   );
 
+  // Search-only scoping: include every Google Search expansion (Brand/Generic/
+  // Competition × all markets) in a single shell file. Non-Search Google phases
+  // (PMax, Demand Gen, …) are excluded — they keep their own per-phase buttons.
+  const scopeShellToSearch = useCallback((ctx: GoogleShellContext): GoogleShellContext => {
+    const expansion = ctx.expansion.filter((ref) =>
+      String(ref.googleCampaignType || '').toLowerCase().includes('search'),
+    );
+    const allowedCampaignNames = new Set(expansion.map((e) => e.campaignName));
+    const adRows = ctx.adRows.filter((row) => allowedCampaignNames.has(row.campaignName));
+    return { ...ctx, expansion, adRows };
+  }, []);
+
+  const handleDownloadGoogleSearchShell = useCallback(async () => {
+    try {
+      const ctx = await loadGoogleShellContext();
+      const scoped = scopeShellToSearch(ctx);
+      if (scoped.expansion.length === 0) {
+        toast.error('No Google Search campaigns found');
+        return;
+      }
+      downloadGoogleAdsShell({
+        campaignName: `${scoped.campaignName} - Google Search`,
+        expansion: scoped.expansion,
+        keywords: scoped.keywords,
+        adRows: scoped.adRows,
+      });
+      toast.success('Google Search shell downloaded');
+    } catch (err) {
+      console.error('[GoogleAdsShell] search download failed', err);
+      toast.error('Failed to download Google Search shell');
+    }
+  }, [loadGoogleShellContext, scopeShellToSearch]);
+
+  const handleUploadGoogleSearchShell = useCallback(async (file: File) => {
+    try {
+      const ctx = await loadGoogleShellContext();
+      const scoped = scopeShellToSearch(ctx);
+      if (scoped.expansion.length === 0) {
+        toast.error('No Google Search campaigns found');
+        return;
+      }
+      shellContextRef.current = ctx;
+      const parsed = await parseGoogleAdsShell(file);
+      const currentKeywordRows = buildCurrentKeywordRows(scoped.keywords, scoped.expansion);
+      const diff = diffShell({
+        current: { keywords: currentKeywordRows, ads: scoped.adRows },
+        uploaded: parsed,
+      });
+      setShellDiff(diff);
+      setShellOpen(true);
+    } catch (err) {
+      console.error('[GoogleAdsShell] search upload parse failed', err);
+      toast.error('Could not read the Google Search shell file');
+    }
+  }, [loadGoogleShellContext, scopeShellToSearch]);
+
   const applyShellDiff = useCallback(async (selected: GoogleAdsShellDiff) => {
     const ctx = shellContextRef.current;
     if (!ctx) return;
