@@ -1848,14 +1848,6 @@ export function TextAssetExcelEditor({
             </>
           )}
           
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-1" />
-            Download Excel
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4 mr-1" />
-            Upload Excel
-          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -1863,42 +1855,26 @@ export function TextAssetExcelEditor({
             className="hidden"
             onChange={handleFileUpload}
           />
-          {hasGoogleRows && onDownloadGoogleAdsShell && (
-            <>
-              <div className="h-5 w-px bg-border mx-1" />
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={() => onDownloadGoogleAdsShell()}>
-                      <Download className="h-4 w-4 mr-1" />
-                      Google Ads Shell
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Download a Google Ads Editor xlsx (Campaigns, Keywords, Ads tabs) for Search / PMax / Lead Gen.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              {onUploadGoogleAdsShell && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => googleShellInputRef.current?.click()}>
-                    <Upload className="h-4 w-4 mr-1" />
-                    Upload Shell
-                  </Button>
-                  <input
-                    ref={googleShellInputRef}
-                    type="file"
-                    accept=".xlsx,.xls"
-                    className="hidden"
-                    onChange={handleGoogleShellPick}
-                  />
-                </>
-              )}
-            </>
+          {hasGoogleRows && onUploadGoogleAdsShell && (
+            <input
+              ref={googleShellInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleGoogleShellPick}
+            />
           )}
           <div className="h-5 w-px bg-border mx-1" />
           <Select onValueChange={(value) => {
-            if (value === 'all') selectAllBlanks();
+            if (value === 'allRows') {
+              if (rows.length === 0) {
+                toast.info('No rows to select');
+                return;
+              }
+              setSelectedRowIds(new Set(rows.map((r) => r.id)));
+              toast.success(`Selected all ${rows.length} rows`);
+            }
+            else if (value === 'all') selectAllBlanks();
             else if (value === 'primaryText') selectByBlankField('primaryText', 'Primary Text');
             else if (value === 'headline') selectByBlankField('headline', 'Headline');
             else if (value === 'description') selectByBlankField('description', 'Description');
@@ -1908,9 +1884,10 @@ export function TextAssetExcelEditor({
           }}>
             <SelectTrigger className="w-[140px] h-8">
               <Target className="h-4 w-4 mr-1" />
-              <SelectValue placeholder="Select Blanks" />
+              <SelectValue placeholder="Select..." />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="allRows">All Rows</SelectItem>
               <SelectItem value="all">Any Blank Field</SelectItem>
               <SelectItem value="primaryText">Blank Primary Text</SelectItem>
               <SelectItem value="headline">Blank Headline</SelectItem>
