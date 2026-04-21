@@ -24,7 +24,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Copy, Clipboard, Trash2, Search } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+import { Copy, Clipboard, Trash2, Search, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
@@ -445,6 +447,67 @@ export function GoogleSearchTextAssetEditor({
     toast.success(`Selected ${ids.length} invalid ad${ids.length === 1 ? '' : 's'}`);
   }, [drafts, isDraftInvalid]);
 
+  // ----- New Ad creation -----
+  // Build the unique list of campaigns and (campaign -> ad groups) pairs from
+  // the existing drafts so the user can attach a new ad to any known structure.
+  const campaignOptions = useMemo(() => {
+    const map = new Map<string, { campaign: string; market: string; adGroups: Set<string> }>();
+    for (const d of drafts) {
+      const key = `${d.campaignName}__${d.market}`;
+      if (!map.has(key)) {
+        map.set(key, { campaign: d.campaignName, market: d.market, adGroups: new Set() });
+      }
+      if (d.adGroupName) map.get(key)!.adGroups.add(d.adGroupName);
+    }
+    return Array.from(map.entries()).map(([key, v]) => ({
+      key,
+      campaign: v.campaign,
+      market: v.market,
+      adGroups: Array.from(v.adGroups),
+    }));
+  }, [drafts]);
+
+  const [newAdOpen, setNewAdOpen] = useState(false);
+  const [newAdCampaignKey, setNewAdCampaignKey] = useState<string>('');
+  const [newAdGroup, setNewAdGroup] = useState<string>('');
+  const [newAdSubtype, setNewAdSubtype] = useState<GoogleAdSubtype>('rsa');
+
+  const newAdCampaign = campaignOptions.find((c) => c.key === newAdCampaignKey);
+
+  const handleCreateNewAd = useCallback(() => {
+    if (!newAdCampaign) {
+      toast.info('Pick a campaign first');
+      return;
+    }
+    if (!newAdGroup) {
+      toast.info('Pick an ad group first');
+      return;
+    }
+    const newId = `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const draft: GoogleSearchAdDraft = {
+      rowId: newId,
+      assignmentId: '',
+      campaignName: newAdCampaign.campaign,
+      adGroupName: newAdGroup,
+      market: newAdCampaign.market,
+      subtype: newAdSubtype,
+      headlines: pad([], HEADLINE_COUNT, ''),
+      headlinePins: pad([], HEADLINE_COUNT, null),
+      descriptions: pad([], DESCRIPTION_COUNT, ''),
+      descriptionPins: pad([], DESCRIPTION_COUNT, null),
+      path1: '',
+      path2: '',
+      finalUrl: '',
+      businessName: '',
+    };
+    setDrafts((prev) => [...prev, draft]);
+    setFocusedId(newId);
+    setNewAdOpen(false);
+    setNewAdGroup('');
+    toast.success(`New ${SUBTYPE_LABEL[newAdSubtype]} added`);
+  }, [newAdCampaign, newAdGroup, newAdSubtype]);
+
+
   const handleCopyRow = useCallback((rowId: string) => {
     const d = drafts.find((x) => x.rowId === rowId);
     if (!d) return;
@@ -602,6 +665,76 @@ export function GoogleSearchTextAssetEditor({
             <Copy className="h-3.5 w-3.5 mr-1.5" />
             Apply focused to all
           </Button>
+
+          {/* New Ad — pick campaign / ad group / asset type */}
+          <Popover open={newAdOpen} onOpenChange={setNewAdOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="default"
+                size="sm"
+                className="h-8"
+                disabled={campaignOptions.length === 0}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                New Ad
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] p-3 space-y-3" align="start">
+              <div className="text-sm font-medium">Add a new ad</div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Campaign</Label>
+                <Select
+                  value={newAdCampaignKey}
+                  onValueChange={(v) => { setNewAdCampaignKey(v); setNewAdGroup(''); }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select campaign…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {campaignOptions.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>
+                        {c.campaign} <span className="text-muted-foreground">· {c.market}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Ad group</Label>
+                <Select
+                  value={newAdGroup}
+                  onValueChange={setNewAdGroup}
+                  disabled={!newAdCampaign}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder={newAdCampaign ? 'Select ad group…' : 'Pick a campaign first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {newAdCampaign?.adGroups.map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Asset type</Label>
+                <Select value={newAdSubtype} onValueChange={(v) => setNewAdSubtype(v as GoogleAdSubtype)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rsa">{SUBTYPE_LABEL.rsa}</SelectItem>
+                    <SelectItem value="sitelink">{SUBTYPE_LABEL.sitelink}</SelectItem>
+                    <SelectItem value="callout">{SUBTYPE_LABEL.callout}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" className="w-full h-8" onClick={handleCreateNewAd}>
+                Create ad
+              </Button>
+            </PopoverContent>
+          </Popover>
+
           <div className="ml-auto text-xs text-muted-foreground">
             Showing {filteredDrafts.length} of {drafts.length} ad{drafts.length === 1 ? '' : 's'} • {selectedIds.size} selected
           </div>
