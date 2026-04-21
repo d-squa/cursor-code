@@ -976,30 +976,29 @@ export function TextAssetExcelEditor({
       }
       
       if (collapsedGroups.has(`market:${platform}|${market}`)) continue;
-      
+
+      // Determine if this row belongs to the synthetic Google Search parent group
+      const normalizeGoogleSearchPhase = (label: string) => {
+        const idx = String(label || '').lastIndexOf(' • ');
+        return idx === -1 ? String(label || '').trim() : String(label || '').slice(0, idx).trim();
+      };
+      const normalizedPhase = normalizeGoogleSearchPhase(phase);
+      const phaseFamilyRows = rows.filter(
+        (r) =>
+          r.platform === platform &&
+          r.market === market &&
+          normalizeGoogleSearchPhase(r.phase) === normalizedPhase,
+      );
+      const isSearchPhase =
+        (platform || '').toLowerCase() === 'google' &&
+        phaseFamilyRows.some(
+          (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
+        );
+      const searchParentKey = `gsearch:${platform}|${market}`;
+
       // Phase header
       if (phase !== prevPhase) {
-        // Inject a synthetic "Google Search Campaigns" parent header before the
-        // first Google Search phase in this market. The parent shows a single
-        // download/upload Shell pair scoped to ALL Google Search campaigns.
-        const normalizeGoogleSearchPhase = (label: string) => {
-          const idx = String(label || '').lastIndexOf(' • ');
-          return idx === -1 ? String(label || '').trim() : String(label || '').slice(0, idx).trim();
-        };
         const phaseRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase);
-        const normalizedPhase = normalizeGoogleSearchPhase(phase);
-        const phaseFamilyRows = rows.filter(
-          (r) =>
-            r.platform === platform &&
-            r.market === market &&
-            normalizeGoogleSearchPhase(r.phase) === normalizedPhase,
-        );
-        const isSearchPhase =
-          (platform || '').toLowerCase() === 'google' &&
-          phaseFamilyRows.some(
-            (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
-          );
-        const searchParentKey = `gsearch:${platform}|${market}`;
         const alreadyInjected = items.some((it) => it.groupKey === searchParentKey);
         if (isSearchPhase && !alreadyInjected) {
           const searchPhaseRows = rows.filter(
@@ -1017,22 +1016,23 @@ export function TextAssetExcelEditor({
             rowIds: searchPhaseRows.map((r) => r.id),
           });
         }
-        if (isSearchPhase && collapsedGroups.has(searchParentKey)) {
-          prevPhase = phase;
-          continue;
+        if (!(isSearchPhase && collapsedGroups.has(searchParentKey))) {
+          const phaseKey = `phase:${platform}|${market}|${phase}`;
+          items.push({
+            type: 'group',
+            key: phaseKey,
+            groupLabel: phase,
+            groupKey: phaseKey,
+            level: isSearchPhase ? 3 : 2,
+            rowIds: phaseRows.map(r => r.id)
+          });
         }
-        const phaseKey = `phase:${platform}|${market}|${phase}`;
-        items.push({ 
-          type: 'group', 
-          key: phaseKey, 
-          groupLabel: phase, 
-          groupKey: phaseKey,
-          level: isSearchPhase ? 3 : 2,
-          rowIds: phaseRows.map(r => r.id)
-        });
         prevPhase = phase;
       }
-      
+
+      // Hide everything below a collapsed Google Search parent (applies to all rows in family, not just first)
+      if (isSearchPhase && collapsedGroups.has(searchParentKey)) continue;
+
       if (collapsedGroups.has(`phase:${platform}|${market}|${phase}`)) continue;
       
       // Ad Set header
@@ -1042,7 +1042,7 @@ export function TextAssetExcelEditor({
         key: adSetKey, 
         groupLabel: adSet, 
         groupKey: adSetKey,
-        level: 3,
+        level: isSearchPhase ? 4 : 3,
         rowIds: groupRows.map(r => r.id)
       });
       
@@ -1658,7 +1658,8 @@ export function TextAssetExcelEditor({
       case 1: return 'pl-6';
       case 2: return 'pl-10';
       case 3: return 'pl-14';
-      default: return 'pl-18';
+      case 4: return 'pl-[4.5rem]';
+      default: return 'pl-20';
     }
   };
 
@@ -2019,8 +2020,8 @@ export function TextAssetExcelEditor({
                             </div>
                           )}
                           <div 
-                            className={cn("flex items-center gap-2 py-2 shrink-0", item.level !== 3 && getLevelIndent(item.level!))}
-                            style={{ width: item.level === 3 ? STICKY_WIDTH - HIERARCHY_COLUMNS[0].width : STICKY_WIDTH }}
+                            className={cn("flex items-center gap-2 py-2 shrink-0", !(item.level === 3 || item.level === 4) && getLevelIndent(item.level!), item.level === 4 && 'pl-4')}
+                            style={{ width: (item.level === 3 || item.level === 4) ? STICKY_WIDTH - HIERARCHY_COLUMNS[0].width : STICKY_WIDTH }}
                           >
                             {isCollapsed ? (
                               <ChevronRight className="h-4 w-4 shrink-0" />
