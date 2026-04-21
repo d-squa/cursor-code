@@ -3,6 +3,13 @@ import * as XLSX from 'xlsx';
 import type { CreativeTextAssetRow, AdFormat } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
 import { AD_FORMAT_LABELS, ALL_AD_FORMATS } from '@/utils/adFormatDetection';
+import {
+  GOOGLE_NON_SEARCH_SHEETS,
+  buildSheetForGoogleType,
+  validateGoogleNonSearchRow,
+  googleRowMatchKey,
+} from '@/utils/googleNonSearchExcel';
+import { detectGoogleNonSearchType, type GoogleNonSearchType } from '@/components/creative/GoogleNonSearchTextAssetEditor';
 
 // Column definitions for the Excel export/import
 export const TEXT_ASSET_COLUMNS = [
