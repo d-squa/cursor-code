@@ -1410,9 +1410,20 @@ export function TextAssetExcelEditor({
     if (!file) return;
     
     try {
-      const { updatedRows, matchCount, errorCount } = await parseTextAssetExcel(file, rows);
+      const { updatedRows, matchCount, errorCount, rejectedRows } = await parseTextAssetExcel(file, rows);
       onImportRows(updatedRows);
-      toast.success(`Imported: ${matchCount} matched, ${errorCount} unmatched`);
+      const rejectedCount = rejectedRows?.length || 0;
+      if (rejectedCount > 0) {
+        const sample = rejectedRows!.slice(0, 3)
+          .map((r) => `• [${r.sheet}] ${r.errors[0]}`)
+          .join('\n');
+        toast.warning(
+          `Imported ${matchCount} rows · ${rejectedCount} rejected for exceeding character limits`,
+          { description: sample, duration: 8000 },
+        );
+      } else {
+        toast.success(`Imported: ${matchCount} matched, ${errorCount} unmatched`);
+      }
     } catch (error) {
       console.error('Import error:', error);
       toast.error('Failed to import file');
