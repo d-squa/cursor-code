@@ -496,10 +496,10 @@ export function GoogleSearchTextAssetEditor({
 
         {/* Body: table on left, preview on right */}
         <div className="flex-1 overflow-hidden flex">
-          {/* Table */}
-          <div className="flex-1 overflow-hidden border-r">
-            <ScrollArea className="h-full">
-              <table className="w-full text-xs border-collapse">
+          {/* Table — overflow-auto on the wrapper guarantees both axes scroll
+              even when the inner table grows wider than the viewport. */}
+          <div className="flex-1 overflow-auto border-r">
+            <table className="text-xs border-collapse" style={{ minWidth: 'max-content', tableLayout: 'fixed' }}>
                 <thead className="sticky top-0 z-10 bg-muted">
                   <tr>
                     <th className="px-2 py-2 w-8 border-b">
