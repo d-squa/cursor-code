@@ -1358,7 +1358,16 @@ export function TextAssetsStep({
           );
 
           if (requestedSearchFamily) {
-            const searchScoped = scopeShellToSearch(ctx);
+            const searchExpansion = ctx.expansion.filter((ref) =>
+              String(ref.googleCampaignType || '').toLowerCase().includes('search'),
+            );
+            const allowedCampaignNames = new Set(searchExpansion.map((entry) => entry.campaignName));
+            const searchScoped = {
+              ...ctx,
+              expansion: searchExpansion,
+              adRows: ctx.adRows.filter((row) => allowedCampaignNames.has(row.campaignName)),
+            };
+
             if (searchScoped.expansion.length > 0) {
               downloadGoogleAdsShell({
                 campaignName: `${searchScoped.campaignName} - Google Search`,
@@ -1389,7 +1398,7 @@ export function TextAssetsStep({
         toast.error('Failed to download Google Ads shell');
       }
     },
-    [loadGoogleShellContext, rows, scopeShellContext, scopeShellToSearch],
+    [loadGoogleShellContext, rows, scopeShellContext],
   );
 
   const handleUploadGoogleAdsShellForPhase = useCallback(
