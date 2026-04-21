@@ -533,8 +533,12 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
     //   76 Business Name | 77 LEN
     for (let i = 1; i < aoa.length; i++) {
       const row = aoa[i];
-      const adName = String(row?.[2] || '').trim();
-      if (!adName) continue;
+      const campaignName = String(row?.[0] || '').trim();
+      const adGroupName = String(row?.[1] || '').trim();
+      // Allow rows without an explicit Ad Name — we'll auto-generate it from the
+      // campaign/ad-group taxonomy. We still skip rows that have no campaign at
+      // all (they're truly empty).
+      if (!campaignName) continue;
       const headlines: string[] = [];
       const headlinePins: (number | null)[] = [];
       for (let h = 0; h < 15; h++) {
@@ -551,10 +555,19 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
       for (let l = 0; l < 5; l++) {
         longHeadlines.push(String(row[66 + l * 2] || ''));
       }
+      const businessName = String(row[76] || '').trim();
+      // A row is meaningful only if at least one creative field is filled.
+      const hasContent =
+        headlines.some((h) => h.trim()) ||
+        descriptions.some((d) => d.trim()) ||
+        longHeadlines.some((l) => l.trim()) ||
+        !!businessName;
+      const explicitName = String(row?.[2] || '').trim();
+      if (!explicitName && !hasContent) continue;
       ads.push({
-        campaignName: String(row[0] || '').trim(),
-        adGroupName: String(row[1] || '').trim(),
-        adName,
+        campaignName,
+        adGroupName,
+        adName: explicitName, // may be empty — auto-filled in diffShell
         assignmentId: String(row[3] || '').trim() || null,
         finalUrl: String(row[4] || '').trim(),
         path1: String(row[5] || '').trim(),
@@ -564,7 +577,7 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
         descriptions,
         descriptionPins,
         longHeadlines,
-        businessName: String(row[76] || '').trim(),
+        businessName,
       });
     }
   }
