@@ -2803,9 +2803,15 @@ export function TextAssetExcelEditor({
                             const isSelected = isInSelection(rowIndex, absoluteColIdx);
                             const isEditing = editingCell === cellKey(rowIndex, absoluteColIdx);
 
-                            // For Google rows, ad text is authored in the dedicated
-                            // Google Search editor — hide unrelated content columns.
+                            // For Google SEARCH rows only, ad text is authored in the
+                            // dedicated Google Search editor — hide unrelated content columns.
+                            // Other Google campaign types (Demand Gen, Video, PMax, etc.)
+                            // keep their normal text fields visible in the main grid.
                             const isGoogleRow = (row.platform || '').toLowerCase() === 'google';
+                            const isGoogleSearchRow =
+                              isGoogleRow &&
+                              (String((row as any).googleCampaignType || '').toLowerCase().includes('search') ||
+                                !!(row as any).googleStrategy);
                             const GOOGLE_HIDDEN_COLS = new Set([
                               'placements',
                               'primaryText',
@@ -2815,7 +2821,7 @@ export function TextAssetExcelEditor({
                               'callToAction',
                               'thumbnail',
                             ]);
-                            if (isGoogleRow && GOOGLE_HIDDEN_COLS.has(col.key)) {
+                            if (isGoogleSearchRow && GOOGLE_HIDDEN_COLS.has(col.key)) {
                               return (
                                 <div
                                   key={col.key}
