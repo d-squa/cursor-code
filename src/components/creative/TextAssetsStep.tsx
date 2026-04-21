@@ -1119,19 +1119,20 @@ export function TextAssetsStep({
     await handleDeleteAssignments([assignmentId]);
   }, [handleDeleteAssignments]);
 
-  // Build placeholder rows for Meta/TikTok ad sets that have no creative
-  // assignments yet, so the user can still author copy for them.
-  // (Google has its own shell-driven placeholders above.)
+  // Build shell rows for ad sets that have no creative assignments yet so the
+  // hierarchy still shows the full campaign shell (including Google Search and
+  // Video structures). These rows are structural only and are not saved as ads.
   const structurePlaceholderRows = useMemo<CreativeTextAssetRow[]>(() => {
     if (!campaignStructures || campaignStructures.length === 0) return [];
     const placeholders: CreativeTextAssetRow[] = [];
     campaignStructures.forEach((s, idx) => {
       const platform = String(s.platform || '').toLowerCase();
-      // Skip Google — handled by googlePlaceholderRows.
-      if (platform === 'google' || platform.includes('google')) return;
       const market = s.market || 'Global';
       const phase = (s.phases && s.phases[0]) || s.funnelStage || 'Default';
       const adSet = s.adSetName || 'Ad Set';
+      const googleCampaignType = platform.includes('google') ? s.googleCampaignType : undefined;
+      const isGoogleVideo = String(googleCampaignType || '').toLowerCase().includes('video');
+      const mediaType: 'image' | 'video' = isGoogleVideo ? 'video' : 'image';
       placeholders.push({
         id: `structure_shell_${platform}_${market}_${phase}_${adSet}_${idx}`,
         creativeId: '',
@@ -1140,13 +1141,15 @@ export function TextAssetsStep({
         market,
         phase,
         adSet,
-        creativeName: '— No creative assigned —',
-        creativeFormat: 'image',
+        googleCampaignType,
+        googleStrategy: platform.includes('google') ? s.keywordStrategy || null : null,
+        creativeName: platform.includes('google') ? '— Campaign shell —' : '— No creative assigned —',
+        creativeFormat: mediaType,
         taxonomyCampaignName: s.campaignName || campaignName,
         taxonomyAdSetName: adSet,
         taxonomyAdName: '',
-        adFormat: 'other',
-        suggestedAdFormat: 'other',
+        adFormat: isGoogleVideo ? 'display_video' : 'other',
+        suggestedAdFormat: isGoogleVideo ? 'display_video' : 'other',
         adFormatConfirmed: false,
         primaryText: '',
         headline: '',
@@ -1156,8 +1159,9 @@ export function TextAssetsStep({
         autoBuildUtm: false,
         isValid: true,
         validationErrors: [],
-        mediaType: 'image',
+        mediaType,
         pushStatus: 'draft',
+        isShellPlaceholder: true,
       } as CreativeTextAssetRow);
     });
     return placeholders;
