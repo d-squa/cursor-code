@@ -77,6 +77,10 @@ interface TextAssetExcelEditorProps {
   onDownloadGoogleAdsShellForPhase?: (market: string, phase: string) => void | Promise<void>;
   /** Optional: upload a Google Ads shell scoped to a single (market, phase). */
   onUploadGoogleAdsShellForPhase?: (market: string, phase: string, file: File) => void | Promise<void>;
+  /** Optional: download a single shell containing ALL Google Search campaigns. */
+  onDownloadGoogleSearchShell?: () => void | Promise<void>;
+  /** Optional: upload a Google Search-only shell (applies across all Search campaigns). */
+  onUploadGoogleSearchShell?: (file: File) => void | Promise<void>;
   /** Whether the current campaign has any Google rows (controls visibility of Google buttons). */
   hasGoogleRows?: boolean;
 }
