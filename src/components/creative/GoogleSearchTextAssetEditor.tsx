@@ -81,9 +81,14 @@ const SUBTYPE_LABEL: Record<GoogleAdSubtype, string> = {
 
 function isGoogleSearchRow(r: CreativeTextAssetRow): boolean {
   if ((r.platform || '').toLowerCase() !== 'google') return false;
+  // Strict: only rows with googleCampaignType explicitly containing "search"
+  // are treated as Search. Empty / missing type used to fall through and leak
+  // PMax / Demand Gen / Video / Display rows into this editor — see Issue #129.
+  // googleStrategy is also a reliable Search signal (Brand / Generic / Competition).
   const type = String(r.googleCampaignType || '').toLowerCase();
-  if (type && !type.includes('search')) return false;
-  return true;
+  if (type.includes('search')) return true;
+  if (!type && !!r.googleStrategy) return true;
+  return false;
 }
 
 /** Read a possibly-extended pins payload that may also carry overflow values. */
