@@ -881,6 +881,43 @@ export function TextAssetExcelEditor({
     setCollapsedGroups(new Set(platformKeys));
   }, [rows]);
 
+  // Expand the tree down to a specific ActiPlan level.
+  // Levels: 'platform' | 'market' | 'phase' | 'adset'
+  // Expanding to a level means: every group ABOVE that level is open, and groups
+  // AT or BELOW that level are collapsed (so users see headers at that depth).
+  const expandToLevel = useCallback(
+    (level: 'platform' | 'market' | 'phase' | 'adset') => {
+      const next = new Set<string>();
+      if (level === 'platform') {
+        // Show only platform headers — collapse every platform group
+        rows.forEach((r) => next.add(`platform:${r.platform}`));
+      } else if (level === 'market') {
+        // Show platforms + markets — collapse market groups
+        rows.forEach((r) => next.add(`market:${r.platform}|${r.market}`));
+      } else if (level === 'phase') {
+        // Show platforms + markets + phases — collapse phase groups (and the
+        // synthetic Google Search parent so Search strategies stay grouped).
+        rows.forEach((r) => {
+          next.add(`phase:${r.platform}|${r.market}|${r.phase}`);
+          if ((r.platform || '').toLowerCase() === 'google') {
+            next.add(`gsearch:${r.platform}|${r.market}`);
+          }
+        });
+      }
+      // 'adset' (fully expanded) → empty set
+      setCollapsedGroups(next);
+    },
+    [rows],
+  );
+
+  const collapseToLevel = useCallback(
+    (level: 'platform' | 'market' | 'phase') => {
+      // Same effect as expandToLevel — kept as a separate handler for clarity.
+      expandToLevel(level);
+    },
+    [expandToLevel],
+  );
+
   // Build flat list with group headers
   const flatList = useMemo(() => {
     const items: { type: 'group' | 'row' | 'processingGroup'; key: string; row?: CreativeTextAssetRow; groupLabel?: string; groupKey?: string; level?: number; rowIds?: string[]; processingGroupType?: 'carousel' | 'asset_customization'; processingGroupId?: string; groupOrder?: number; isInProcessingGroup?: boolean }[] = [];
@@ -1681,28 +1718,29 @@ export function TextAssetExcelEditor({
         <div className="flex items-center gap-2 flex-wrap">
           {/* Tree view controls */}
           <div className="flex items-center gap-1 border-r pr-2 mr-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={expandAll}>
-                    <ChevronsUpDown className="h-4 w-4" />
-                    <span className="ml-1 text-xs">Expand All</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Expand all groups</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={collapseAll}>
-                    <ChevronsUpDown className="h-4 w-4 rotate-90" />
-                    <span className="ml-1 text-xs">Collapse All</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Collapse all groups</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Select
+              onValueChange={(value) => {
+                if (value === 'expand-all') expandAll();
+                else if (value === 'collapse-all') collapseAll();
+                else if (value === 'platform') expandToLevel('platform');
+                else if (value === 'market') expandToLevel('market');
+                else if (value === 'phase') expandToLevel('phase');
+                else if (value === 'adset') expandToLevel('adset');
+              }}
+            >
+              <SelectTrigger className="h-8 w-[150px]">
+                <ChevronsUpDown className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="Expand / Collapse" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expand-all">Expand All</SelectItem>
+                <SelectItem value="collapse-all">Collapse All</SelectItem>
+                <SelectItem value="platform">Show Platforms</SelectItem>
+                <SelectItem value="market">Show Markets</SelectItem>
+                <SelectItem value="phase">Show Phases</SelectItem>
+                <SelectItem value="adset">Show Ad Sets</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           
           {/* Row actions */}
