@@ -34,11 +34,27 @@ import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 
 export type GoogleNonSearchType = 'pmax' | 'demand_gen' | 'video' | 'display' | 'other';
 
+function normalizeGooglePhaseFamily(value: string): string {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+
+  const withoutStrategy = trimmed
+    .replace(/\s+[•·]\s+(brand|generic|competition)\s*$/i, '')
+    .replace(/\s*[-–—]\s*(brand|generic|competition)\s*$/i, '');
+
+  return withoutStrategy
+    .replace(/^(?:google ads\s*[—–-]\s*)?(search|video(?:\s*\(youtube\))?|display|demand\s*gen|performance\s*max|pmax|shopping|app\s*promotion|app)\s*[—–:-]\s*/i, '')
+    .trim()
+    .toLowerCase();
+}
+
 export function detectGoogleNonSearchType(row: CreativeTextAssetRow): GoogleNonSearchType | null {
   if ((row.platform || '').toLowerCase() !== 'google') return null;
-  const type = String(row.googleCampaignType || '').toLowerCase();
+  const explicitType = String(row.googleCampaignType || '').toLowerCase();
+  const fallbackPhase = String(row.phase || '').toLowerCase();
+  const type = `${explicitType} ${fallbackPhase}`.trim();
   if (!type) return null;
-  if (type.includes('search')) return null;
+  if (explicitType.includes('search') || (!explicitType && fallbackPhase.includes('search'))) return null;
   if (type.includes('performance') || type.includes('pmax') || type.includes('p-max')) return 'pmax';
   if (type.includes('demand')) return 'demand_gen';
   if (type.includes('video') || type.includes('youtube')) return 'video';
@@ -317,11 +333,7 @@ export function GoogleNonSearchTextAssetEditor({
       if (!type) return false;
       if (scopeMarket && r.market !== scopeMarket) return false;
       if (scopePhase) {
-        const stripStrategy = (label: string) => {
-          const idx = label.lastIndexOf(' • ');
-          return idx === -1 ? label.trim() : label.slice(0, idx).trim();
-        };
-        if (stripStrategy(r.phase || '') !== stripStrategy(scopePhase)) return false;
+        if (normalizeGooglePhaseFamily(r.phase || '') !== normalizeGooglePhaseFamily(scopePhase)) return false;
       }
       return true;
     });
