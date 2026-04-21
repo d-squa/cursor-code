@@ -683,7 +683,11 @@ export function TextAssetsStep({
             market: assignment.market || 'Global',
             phase: assignment.phase_name || 'Default',
             adSet: adSetName,
-            googleCampaignType: assignment.platform === 'google' && assignment.ad_strategy ? 'Search' : undefined,
+            googleCampaignType: assignment.platform === 'google'
+              ? (assignment.ad_strategy
+                  ? 'Search'
+                  : googleTypeByKey.get(structureKey(assignment.market || 'Global', assignment.phase_name || 'Default')))
+              : undefined,
             googleStrategy: assignment.ad_strategy || null,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
