@@ -310,10 +310,18 @@ export interface BuildWorkbookInput {
   expansion: ExpandedCampaignRef[];
   keywords: GoogleKeywordLike[];
   adRows: AdSheetRow[];
+  /**
+   * Whether to include the Keywords tab in the workbook.
+   * - Search shell: true (Brand/Generic/Competition keywords from Unified Targeting)
+   * - PMax / Demand Gen / Display / etc.: false (these campaign types don't use keywords)
+   * Defaults to true for backwards compatibility.
+   */
+  includeKeywords?: boolean;
 }
 
 export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   const wb = XLSX.utils.book_new();
+  const includeKeywords = input.includeKeywords !== false;
 
   // ---- Campaigns tab (read-only reference) ----
   const campaignsAoa: (string | number)[][] = [
