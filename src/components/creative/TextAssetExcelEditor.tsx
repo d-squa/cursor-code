@@ -2020,7 +2020,7 @@ export function TextAssetExcelEditor({
                             </div>
                           )}
                           <div 
-                            className={cn("flex items-center gap-2 py-2 shrink-0", !(item.level === 3 || item.level === 4) && getLevelIndent(item.level!), item.level === 4 && 'pl-4')}
+                            className={cn("flex items-center gap-2 py-2 shrink-0", !(item.level === 3 || item.level === 4) && getLevelIndent(item.level!), item.level === 3 && 'pl-2', item.level === 4 && 'pl-12')}
                             style={{ width: (item.level === 3 || item.level === 4) ? STICKY_WIDTH - HIERARCHY_COLUMNS[0].width : STICKY_WIDTH }}
                           >
                             {isCollapsed ? (
