@@ -931,8 +931,9 @@ export function TextAssetsStep({
     setIsSaving(true);
 
     try {
-      // Update creatives with text assets
-      const updates = rows.map(row => ({
+      // Update creatives with text assets. Structural shell rows have no
+      // creativeId, so they are intentionally excluded from persistence.
+      const updates = rows.filter(row => row.creativeId).map(row => ({
         id: row.creativeId,
         primary_text: row.primaryText,
         headline: row.headline,
