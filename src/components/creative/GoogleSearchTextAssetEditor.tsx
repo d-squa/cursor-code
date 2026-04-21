@@ -140,11 +140,37 @@ function rowToDraft(row: CreativeTextAssetRow): GoogleSearchAdDraft {
       ? 'callout'
       : 'rsa';
 
+  // Build the campaign label so it follows the same taxonomy formatting as
+  // the ad-group label. For shells (and any row where `taxonomyCampaignName`
+  // is just the raw client campaign name) we append the platform + market
+  // suffix — mirroring the taxonomy fallback used elsewhere
+  // (`<name>_<PLATFORM>_<MARKET>`).
+  const rawCampaign =
+    (row.taxonomyCampaignName && row.taxonomyCampaignName.trim()) ||
+    (row.phase && row.phase.trim()) ||
+    '';
+  const platformUpper = (row.platform || 'GOOGLE').toUpperCase();
+  const marketUpper = (row.market || '').toUpperCase();
+  const alreadyHasTaxonomy =
+    !!marketUpper && rawCampaign.toUpperCase().includes(`_${marketUpper}`);
+  const campaignLabel = rawCampaign
+    ? alreadyHasTaxonomy
+      ? rawCampaign
+      : marketUpper
+        ? `${rawCampaign}_${platformUpper}_${marketUpper}`
+        : rawCampaign
+    : '';
+
+  const adGroupLabel =
+    (row.taxonomyAdSetName && row.taxonomyAdSetName.trim()) ||
+    (row.adSet && row.adSet.trim()) ||
+    '';
+
   return {
     rowId: row.id,
     assignmentId: row.assignmentId || '',
-    campaignName: row.taxonomyCampaignName || row.phase || '',
-    adGroupName: row.taxonomyAdSetName || row.adSet || '',
+    campaignName: campaignLabel,
+    adGroupName: adGroupLabel,
     market: row.market,
     subtype,
     headlines,
