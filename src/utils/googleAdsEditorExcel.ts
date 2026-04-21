@@ -589,6 +589,13 @@ export interface DiffInput {
   current: {
     keywords: KeywordSheetRow[];
     ads: AdSheetRow[];
+    /**
+     * Optional list of (campaign, ad group) pairs that exist in the plan shell
+     * even when no creative assignments have been created yet. Used to recognise
+     * uploaded rows as "known shell entries" so they're treated as new ads to
+     * auto-create instead of being flagged as unmatched.
+     */
+    shell?: Array<{ campaignName: string; adGroupName: string }>;
   };
   uploaded: ParsedShell;
 }
@@ -631,6 +638,12 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   for (const a of input.current.ads) {
     if (a.assignmentId) curAdsById.set(a.assignmentId, a);
     knownShellKeys.add(`${a.campaignName}::${a.adGroupName}`);
+  }
+  // Also seed shell keys from the plan structure itself, so uploaded rows for
+  // (campaign, ad group) pairs that don't yet have any creative assignments
+  // are still recognised as valid targets for auto-creation.
+  for (const s of input.current.shell || []) {
+    knownShellKeys.add(`${s.campaignName}::${s.adGroupName}`);
   }
 
   // Per-shell counter so auto-generated names stay unique.
