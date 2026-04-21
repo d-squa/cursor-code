@@ -1174,52 +1174,71 @@ export function TextAssetsStep({
   const mergedRows = useMemo(() => {
     const out = [...rows];
 
-    // Add Meta/TikTok placeholders for ad sets without any assignment.
+    // Split a phase label like "Search — Conversion • Brand" or
+    // "Search — Conversion - Brand" into base + strategy so we can compare
+    // placeholders against real rows regardless of which separator was used.
+    const splitPhaseLabel = (label: string): { base: string; strategy: string } => {
+      const text = (label || '').trim();
+      // Try bullet first (used by Google placeholders), then trailing " - Strategy".
+      const bulletIdx = text.lastIndexOf(' • ');
+      if (bulletIdx !== -1) {
+        return {
+          base: text.slice(0, bulletIdx).trim(),
+          strategy: text.slice(bulletIdx + 3).trim().toLowerCase(),
+        };
+      }
+      const m = text.match(/^(.*?)\s*[-–—]\s*(brand|generic|competition)\s*$/i);
+      if (m) return { base: m[1].trim(), strategy: m[2].toLowerCase() };
+      return { base: text, strategy: '' };
+    };
+
+    // Collect (platform, market, basePhase) groups that already have a real or
+    // uploaded Google placeholder row, so we can suppress the empty
+    // "— Campaign shell —" structural placeholders for the same group.
+    const occupiedGroups = new Set<string>();
+    const addOccupied = (platform: string, market: string, phase: string) => {
+      const { base } = splitPhaseLabel(phase);
+      occupiedGroups.add(`${platform}|${market}|${base}`);
+    };
+    for (const r of out) {
+      addOccupied((r.platform || '').toLowerCase(), r.market, r.phase || '');
+    }
+    for (const p of googlePlaceholderRows) {
+      addOccupied((p.platform || '').toLowerCase(), p.market, p.phase || '');
+    }
+
+    // Add Meta/TikTok/Google structural placeholders for ad sets without any
+    // assignment, but suppress them when a real or uploaded row already covers
+    // the same (platform, market, base phase).
     if (structurePlaceholderRows.length > 0) {
       const realKeys = new Set(
         rows.map((r) => `${(r.platform || '').toLowerCase()}|${r.market}|${r.phase}|${r.adSet}`),
       );
       for (const p of structurePlaceholderRows) {
         const key = `${(p.platform || '').toLowerCase()}|${p.market}|${p.phase}|${p.adSet}`;
-        if (!realKeys.has(key)) out.push(p);
+        if (realKeys.has(key)) continue;
+        const platform = (p.platform || '').toLowerCase();
+        const { base } = splitPhaseLabel(p.phase || '');
+        if (occupiedGroups.has(`${platform}|${p.market}|${base}`)) continue;
+        out.push(p);
       }
     }
 
     // Add Google shell placeholders — but suppress them whenever a real assignment
-    // already exists for the same (market, base phase, strategy). Real assignments
-    // carry the full DSP taxonomy ad-set name (e.g. MXM_ONAD_..._DE_WF) which the
-    // push will use, while placeholders use simple split labels (Default_LANG_ENG).
-    // Comparing on `adSet` would treat them as different rows and produce duplicates,
-    // so we group by (market, phaseBase, strategy) instead and let the real rows win.
+    // already exists for the same (market, base phase). Real assignments carry the
+    // full DSP taxonomy ad-set name; comparing on `adSet` would treat them as
+    // different rows and produce duplicates, so we group by base phase instead.
     if (googlePlaceholderRows.length > 0) {
-      // Split a phase label like "Search — Conversion • Brand" into base + strategy.
-      const splitPhaseLabel = (label: string): { base: string; strategy: string } => {
-        const idx = label.lastIndexOf(' • ');
-        if (idx === -1) return { base: label.trim(), strategy: '' };
-        return {
-          base: label.slice(0, idx).trim(),
-          strategy: label.slice(idx + 3).trim().toLowerCase(),
-        };
-      };
-
-      // Build the set of (market, phaseBase, strategy) groups that already have at
-      // least one real Google assignment. For real rows the phase has no strategy
-      // decoration, so we derive the strategy from the placeholder side instead and
-      // match by the base phase only.
       const realGoogleGroups = new Set<string>();
-      for (const r of out) {
-        if (r.platform !== 'google') continue;
+      for (const r of rows) {
+        if ((r.platform || '').toLowerCase() !== 'google') continue;
         const { base } = splitPhaseLabel(r.phase || '');
-        // We don't know the real row's strategy from the row itself; mark every
-        // strategy bucket for that (market, phase) as occupied. This is correct
-        // because the placeholder's strategy split only matters when no real
-        // assignment exists yet for that base phase.
-        realGoogleGroups.add(`${r.market}|${base}|*`);
+        realGoogleGroups.add(`${r.market}|${base}`);
       }
 
       for (const p of googlePlaceholderRows) {
         const { base } = splitPhaseLabel(p.phase || '');
-        if (realGoogleGroups.has(`${p.market}|${base}|*`)) continue;
+        if (realGoogleGroups.has(`${p.market}|${base}`)) continue;
         out.push(p);
       }
     }
