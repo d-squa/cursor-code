@@ -129,11 +129,13 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
   },
   video: {
     label: 'Video (YouTube)',
-    headlineCount: 2, headlineMax: 40,
-    longHeadlineCount: 0, longHeadlineMax: 90,
-    descriptionCount: 4, descriptionMax: 90,
+    // Google YouTube Video Action / TrueView for Action format:
+    //   2 short headlines × 15, 1 long headline × 90, 1 description × 90.
+    headlineCount: 2, headlineMax: 15,
+    longHeadlineCount: 1, longHeadlineMax: 90,
+    descriptionCount: 1, descriptionMax: 90,
     hasBusinessName: true, businessNameMax: 25,
-    minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
+    minHeadlines: 1, minLongHeadlines: 1, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
     requiresYoutubeVideo: true,
     requiresCallToAction: true,
