@@ -1556,6 +1556,62 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return resourceName;
   }
 
+  /**
+   * Ensure a CALL_TO_ACTION asset exists for the given CTA enum value
+   * (e.g. "LEARN_MORE"). Demand Gen Video Responsive Ads reference these via
+   * `AdCallToActionAsset.asset` (a resource name), NOT inline text.
+   * Returns the asset resource name.
+   */
+  private async ensureCallToActionAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    ctaEnum: string,
+  ): Promise<string> {
+    const enumValue = (ctaEnum || "LEARN_MORE").toUpperCase();
+    try {
+      const gaql = `SELECT asset.resource_name, asset.call_to_action_asset.call_to_action FROM asset WHERE asset.type = 'CALL_TO_ACTION' AND asset.call_to_action_asset.call_to_action = '${enumValue}' LIMIT 1`;
+      const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:search`;
+      const searchResp = await fetch(searchUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
+      if (searchResp.ok) {
+        const searchData = await searchResp.json();
+        const existing = searchData?.results?.[0]?.asset?.resourceName;
+        if (existing) return existing;
+      }
+    } catch (e) {
+      console.warn("[google.ensureCallToActionAsset] lookup failed:", e);
+    }
+
+    const assetOp = {
+      create: {
+        name: `CTA ${enumValue} ${Date.now()}`,
+        callToActionAsset: { callToAction: enumValue },
+      },
+    };
+
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Call-to-action asset creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) {
+      throw new Error("Call-to-action asset creation returned no resourceName");
+    }
+    return resourceName;
+  }
+
   async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
     try {
       const customerId = params.accountId.replace(/-/g, "");
