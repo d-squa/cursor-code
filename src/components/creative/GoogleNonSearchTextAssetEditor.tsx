@@ -328,8 +328,10 @@ interface Props {
 }
 
 export function GoogleNonSearchTextAssetEditor({
-  open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate,
+  open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate, onDeleteAssignments,
 }: Props) {
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [drafts, setDrafts] = useState<NonSearchAdDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
