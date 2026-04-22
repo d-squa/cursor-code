@@ -405,6 +405,7 @@ export function buildAdRowsFromAssignments(
         a.long_headline_5,
       ].map((v) => String(v || '')),
       businessName: a.business_name || '',
+      callToAction: normalizeGoogleCta((a as any).call_to_action) || '',
     });
   }
   return rows;
@@ -544,7 +545,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
         descriptionPins: Array(5).fill(null),
         longHeadlines: Array(5).fill(''),
         businessName: '',
-      });
+        callToAction: '',
     }
     effectiveAdRows = [...input.adRows, ...shellRows];
   }
@@ -739,6 +740,7 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
         descriptionPins,
         longHeadlines,
         businessName,
+        callToAction: ctaCol >= 0 ? (normalizeGoogleCta(String(row[ctaCol] || '')) || '') : '',
       });
     }
   }
