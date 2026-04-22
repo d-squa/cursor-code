@@ -823,6 +823,29 @@ export function GoogleNonSearchTextAssetEditor({
                     />
                   </Section>
 
+                  {focusedSchema.requiresYoutubeVideo && (
+                    <Section
+                      title="YouTube Video"
+                      subtitle={
+                        focusedDraft.youtubeVideoUrl && !extractYouTubeId(focusedDraft.youtubeVideoUrl)
+                          ? 'invalid YouTube URL — required'
+                          : 'required — paste a YouTube watch / shorts / embed URL or 11-char ID'
+                      }
+                    >
+                      <LimitedInput
+                        value={focusedDraft.youtubeVideoUrl}
+                        max={2048}
+                        placeholder="https://www.youtube.com/watch?v=…"
+                        onChange={(v) => updateField(focusedDraft.rowId, { youtubeVideoUrl: v })}
+                      />
+                      {extractYouTubeId(focusedDraft.youtubeVideoUrl) && (
+                        <div className="text-[10px] text-muted-foreground">
+                          Detected video ID: <span className="font-mono">{extractYouTubeId(focusedDraft.youtubeVideoUrl)}</span>
+                        </div>
+                      )}
+                    </Section>
+                  )}
+
                   <div className="flex gap-2 pt-2 border-t">
                     <Button variant="outline" size="sm" onClick={() => handleCopyRow(focusedDraft.rowId)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy this ad
