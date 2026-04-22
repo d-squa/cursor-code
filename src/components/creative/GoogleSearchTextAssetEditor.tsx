@@ -989,14 +989,6 @@ export function GoogleSearchTextAssetEditor({
                             className="h-7 text-xs"
                           />
                         </td>
-                        <td className="px-1 py-2 align-top" onClick={(e) => e.stopPropagation()}>
-                          <Input
-                            value={d.businessName}
-                            onChange={(e) => updateDraft(d.rowId, { businessName: e.target.value.slice(0, BUSINESS_MAX) })}
-                            className="h-7 text-xs"
-                            maxLength={BUSINESS_MAX}
-                          />
-                        </td>
                         <td className="px-1 py-2 align-top text-center" onClick={(e) => e.stopPropagation()}>
                           <TooltipProvider>
                             <Tooltip>
