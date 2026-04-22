@@ -583,6 +583,12 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     if (spec.hasBusinessName) {
       row.push(r.businessName, '');
     }
+    if (includeCta) {
+      // Export the UI-friendly label (e.g. "Learn More") so users see/edit a
+      // human-readable value. Import re-normalises to the enum.
+      const opt = GOOGLE_CTA_OPTIONS.find((o) => o.value === normalizeGoogleCta(r.callToAction));
+      row.push(opt ? opt.label : '');
+    }
     adsAoa.push(row);
   }
   const adsWs = XLSX.utils.aoa_to_sheet(adsAoa);
@@ -695,6 +701,8 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
       longHeadlineCols.push(idx);
     }
     const businessNameCol = indexOfHeader('Business Name');
+    // CTA column header is dynamic (includes the label list hint), so match by prefix.
+    const ctaCol = header.findIndex((h) => /^Call to Action/i.test(h));
     const finalUrlCol = indexOfHeader('Final URL');
     const youtubeVideoUrlCol = indexOfHeader('YouTube Video URL');
     const path1Col = indexOfHeader('Path 1');
