@@ -448,9 +448,6 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     for (let i = 0; i < 4; i++) {
       row.push(r.descriptions[i] || '', '', r.descriptionPins[i] ?? '');
     }
-    for (let i = 0; i < 5; i++) {
-      row.push(r.longHeadlines[i] || '', '');
-    }
     row.push(r.businessName, '');
     adsAoa.push(row);
   }
