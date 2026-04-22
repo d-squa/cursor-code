@@ -1079,7 +1079,7 @@ export function GoogleSearchTextAssetEditor({
         </div>
 
         <div className="px-4 py-3 border-t flex justify-end gap-2 shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+          <Button variant="outline" onClick={() => void handleDialogOpenChange(false)}>Done</Button>
         </div>
       </DialogContent>
 
