@@ -82,12 +82,12 @@ export interface AdSheetRow {
   finalUrl: string;
   path1: string;
   path2: string;
-  headlines: string[]; // length 15
-  headlinePins: (number | null)[]; // length 15
-  descriptions: string[]; // length 4
-  descriptionPins: (number | null)[]; // length 4
-  longHeadlines: string[]; // length 5 (PMax)
-  businessName: string; // PMax
+  headlines: string[]; // up to 15 (Search RSA), 5 (PMax/Demand Gen/Display), 2 (Video)
+  headlinePins: (number | null)[]; // matches headlines length
+  descriptions: string[]; // up to 5 (PMax/Demand Gen/Display), 4 (Search RSA/Video)
+  descriptionPins: (number | null)[]; // matches descriptions length
+  longHeadlines: string[]; // length 5 (PMax/Display); empty for Search RSA, Demand Gen, Video
+  businessName: string; // PMax/Demand Gen/Display
 }
 
 export interface GoogleAdsShellDiff {
