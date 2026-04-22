@@ -334,11 +334,14 @@ export function TextAssetsStep({
               position,
               ad_set_id,
               ad_set_name,
+              ad_group_name,
                status,
                dsp_creative_id,
               ad_strategy,
               call_to_action,
               destination_url,
+              path_1,
+              path_2,
               headline,
               headline_2,
               headline_3,
@@ -655,7 +658,7 @@ export function TextAssetsStep({
           );
           
           // Determine the ad set name - prioritize stored values, then taxonomy
-          let adSetName = assignment.ad_set_name || savedAssignment?.adSetName;
+          let adSetName = assignment.ad_group_name || assignment.ad_set_name || savedAssignment?.adSetName;
           
           // If no stored ad set name, use the generated taxonomy name
           if (!adSetName && taxonomyAdSetName) {
@@ -1072,6 +1075,8 @@ export function TextAssetsStep({
         await supabase
           .from('creative_assignments')
           .update({
+            ad_group_name: row.adSet || null,
+            ad_strategy: (row as any).googleStrategy || null,
             primary_text: row.primaryText || null,
             headline: row.headline || null,
             headline_2: (row as any).headline2 || null,
@@ -1092,6 +1097,8 @@ export function TextAssetsStep({
             brand_name: row.brandName || null,
             headline_pins: (row as any).headline_pins || null,
             description_pins: (row as any).description_pins || null,
+            path_1: (row as any).path_1 || null,
+            path_2: (row as any).path_2 || null,
             call_to_action: row.callToAction || null,
             destination_url: row.destinationUrl || null,
             carousel_group_id: row.carouselGroupId || null,
