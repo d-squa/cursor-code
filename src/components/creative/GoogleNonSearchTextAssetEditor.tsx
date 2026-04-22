@@ -355,6 +355,11 @@ export function GoogleNonSearchTextAssetEditor({
     return rows.filter((r) => {
       const type = detectGoogleNonSearchType(r);
       if (!type) return false;
+      // Hide structural shell placeholders — they are display-only rows used to
+      // visualize empty campaign shells in the hierarchy view, and would
+      // otherwise show up as permanently "Invalid" ads that block the user from
+      // proceeding even though no creative is actually assigned.
+      if ((r as any).isShellPlaceholder) return false;
       if (scopeMarket && r.market !== scopeMarket) return false;
       if (scopePhase) {
         const rowPhaseRaw = String(r.phase || '').trim();
