@@ -89,6 +89,8 @@ export interface AdSheetRow {
   descriptionPins: (number | null)[]; // matches descriptions length
   longHeadlines: string[]; // length 5 (PMax/Display); empty for Search RSA, Demand Gen, Video
   businessName: string; // PMax/Demand Gen/Display
+  /** Canonical Google CTA enum (e.g. LEARN_MORE) — required for PMax/Demand Gen/Video. */
+  callToAction: string;
 }
 
 export interface GoogleAdsShellDiff {
