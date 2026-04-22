@@ -2014,7 +2014,34 @@ class GoogleAdsAdapter implements PlatformAdapter {
           || assets.imageUrls?.[0];
         const logoUrl: string | undefined = assets.logoUrl;
 
-        const businessNameDg = (params as any).businessName || params.creativeName || "Brand";
+        // Demand Gen / Video field limits (Google Ads API):
+        //   headline: 40 chars, description: 90, longHeadline: 90, businessName: 25
+        // Re-derive from raw inputs because the upstream `headlines` array was
+        // already clipped to 30 chars for SEARCH RSA. We also strip file extensions
+        // from businessName when callers accidentally pass a creative filename.
+        const dgHeadlines = rawHeadlines
+          .map((h: string) => String(h || "").trim())
+          .filter(Boolean)
+          .map((h: string) => h.substring(0, 40));
+        const dgDescriptions = rawDescriptions
+          .map((d: string) => String(d || "").trim())
+          .filter(Boolean)
+          .map((d: string) => d.substring(0, 90));
+        const dgLongHeadline = (dgHeadlines[0] || params.creativeName || "Learn More").substring(0, 90);
+        const rawBusinessName = String((params as any).businessName || params.creativeName || "Brand").trim();
+        // Drop trailing file extension (e.g. ".JPG", ".mp4") if present.
+        const cleanedBusinessName = rawBusinessName.replace(/\.[a-zA-Z0-9]{2,5}$/, "");
+        const businessNameDg = (cleanedBusinessName || "Brand").substring(0, 25);
+
+        // Validate minimums for Demand Gen
+        if (dgHeadlines.length === 0 || dgDescriptions.length === 0) {
+          return {
+            success: false,
+            creativeId: "",
+            platform: "google",
+            error: `Demand Gen ads require at least 1 headline and 1 description (got ${dgHeadlines.length} headlines, ${dgDescriptions.length} descriptions). Add text assets to this creative before pushing.`,
+          };
+        }
 
         try {
           if (youtubeVideoId) {
