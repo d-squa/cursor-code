@@ -371,13 +371,17 @@ export function GoogleSearchTextAssetEditor({
   // Filter rows to Google Search and rebuild drafts whenever the dialog opens
   // or upstream rows change.
   const googleRows = useMemo(() => rows.filter(isGoogleSearchRow), [rows]);
+  const visibleGoogleRows = useMemo(
+    () => googleRows.filter((row) => !!row.assignmentId),
+    [googleRows],
+  );
 
   useEffect(() => {
     if (!open) return;
-    setDrafts(googleRows.map(rowToDraft));
-    setFocusedId(googleRows[0]?.id ?? null);
+    setDrafts(visibleGoogleRows.map(rowToDraft));
+    setFocusedId(visibleGoogleRows[0]?.id ?? null);
     setSelectedIds(new Set());
-  }, [open, googleRows]);
+  }, [open, visibleGoogleRows]);
 
   // Per-subtype validation. Mirrors Google Ads minimum requirements so that
   // "Invalid" filter surfaces ads the user still needs to finish.
@@ -498,12 +502,13 @@ export function GoogleSearchTextAssetEditor({
   // the existing drafts so the user can attach a new ad to any known structure.
   const campaignOptions = useMemo(() => {
     const map = new Map<string, { campaign: string; market: string; adGroups: Set<string> }>();
-    for (const d of drafts) {
-      const key = `${d.campaignName}__${d.market}`;
+    for (const row of googleRows) {
+      const draft = rowToDraft(row);
+      const key = `${draft.campaignName}__${draft.market}`;
       if (!map.has(key)) {
-        map.set(key, { campaign: d.campaignName, market: d.market, adGroups: new Set() });
+        map.set(key, { campaign: draft.campaignName, market: draft.market, adGroups: new Set() });
       }
-      if (d.adGroupName) map.get(key)!.adGroups.add(d.adGroupName);
+      if (draft.adGroupName) map.get(key)!.adGroups.add(draft.adGroupName);
     }
     return Array.from(map.entries()).map(([key, v]) => ({
       key,
@@ -511,7 +516,7 @@ export function GoogleSearchTextAssetEditor({
       market: v.market,
       adGroups: Array.from(v.adGroups),
     }));
-  }, [drafts]);
+  }, [googleRows]);
 
   const [newAdOpen, setNewAdOpen] = useState(false);
   const [newAdCampaignKey, setNewAdCampaignKey] = useState<string>('');
