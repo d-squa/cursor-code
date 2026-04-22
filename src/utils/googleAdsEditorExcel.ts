@@ -129,6 +129,88 @@ const PATH_LIMIT = 15;
 const LONG_HEADLINE_LIMIT = 90;
 const BUSINESS_NAME_LIMIT = 25;
 
+// ---------- Per-Google-type Ads sheet specs ----------
+//
+// Each Google campaign type has different text-asset slot counts and limits.
+// The Ads sheet is generated from this spec so the columns + LEN formulas
+// always match the platform requirements (Search RSA, PMax, Demand Gen,
+// Demand Gen Video / YouTube in-feed, Responsive Display).
+
+export type GoogleAdsSheetType = 'search' | 'pmax' | 'demand_gen' | 'video' | 'display' | 'other';
+
+export interface GoogleAdsSheetSpec {
+  type: GoogleAdsSheetType;
+  headlineCount: number;
+  headlineLimit: number;
+  descriptionCount: number;
+  descriptionLimit: number;
+  longHeadlineCount: number; // 0 disables the column block
+  longHeadlineLimit: number;
+  hasBusinessName: boolean;
+  businessNameLimit: number;
+}
+
+const SEARCH_SPEC: GoogleAdsSheetSpec = {
+  type: 'search',
+  headlineCount: 15, headlineLimit: HEADLINE_LIMIT,
+  descriptionCount: 4, descriptionLimit: DESCRIPTION_LIMIT,
+  longHeadlineCount: 0, longHeadlineLimit: LONG_HEADLINE_LIMIT,
+  hasBusinessName: true, businessNameLimit: BUSINESS_NAME_LIMIT,
+};
+
+const PMAX_SPEC: GoogleAdsSheetSpec = {
+  type: 'pmax',
+  headlineCount: 5, headlineLimit: 30,
+  descriptionCount: 5, descriptionLimit: 90,
+  longHeadlineCount: 5, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+const DEMAND_GEN_SPEC: GoogleAdsSheetSpec = {
+  type: 'demand_gen',
+  headlineCount: 5, headlineLimit: 40,
+  descriptionCount: 5, descriptionLimit: 90,
+  longHeadlineCount: 0, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+const VIDEO_SPEC: GoogleAdsSheetSpec = {
+  type: 'video',
+  headlineCount: 2, headlineLimit: 40,
+  descriptionCount: 4, descriptionLimit: 90,
+  longHeadlineCount: 0, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+const DISPLAY_SPEC: GoogleAdsSheetSpec = {
+  type: 'display',
+  headlineCount: 5, headlineLimit: 30,
+  descriptionCount: 5, descriptionLimit: 90,
+  longHeadlineCount: 5, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+export function getGoogleAdsSheetSpec(googleCampaignType?: string | null): GoogleAdsSheetSpec {
+  const t = String(googleCampaignType || '').toLowerCase();
+  if (!t) return SEARCH_SPEC;
+  if (t.includes('search')) return SEARCH_SPEC;
+  if (t.includes('performance') || t === 'pmax' || t.includes('pmax')) return PMAX_SPEC;
+  if (t.includes('demand') && (t.includes('video') || t.includes('youtube'))) return VIDEO_SPEC;
+  if (t.includes('video') || t.includes('youtube')) return VIDEO_SPEC;
+  if (t.includes('demand')) return DEMAND_GEN_SPEC;
+  if (t.includes('display')) return DISPLAY_SPEC;
+  return SEARCH_SPEC;
+}
+
+/** Pick a single spec for a workbook by inspecting all expansion rows.
+ * If they're mixed (full-shell export), default to Search RSA which is the
+ * historical layout (15H/4D + Business Name, no Long Headlines). */
+function pickSheetSpec(expansion: ExpandedCampaignRef[]): GoogleAdsSheetSpec {
+  const types = new Set(expansion.map((e) => String(e.googleCampaignType || '').toLowerCase()));
+  if (types.size === 1) return getGoogleAdsSheetSpec([...types][0]);
+  return SEARCH_SPEC;
+}
+
 // ---------- Expansion ----------
 
 const STRATEGIES: Array<'brand' | 'generic' | 'competition'> = ['brand', 'generic', 'competition'];
