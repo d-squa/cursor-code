@@ -4562,8 +4562,6 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               .eq("phase_name", phase.name)
               .order("position");
 
-            let adsCreated = 0;
-
             if (assignmentError) {
               console.error(`Error fetching Google Ads creative assignments:`, assignmentError);
             } else if (googleAssignments && googleAssignments.length > 0) {
