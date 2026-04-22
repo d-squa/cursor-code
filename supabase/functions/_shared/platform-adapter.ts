@@ -1980,13 +1980,13 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 headlines: headlines.slice(0, 5).map((text) => ({ text })),
                 longHeadlines: [{ text: longHeadline }],
                 descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
-                businessName: businessNameDg,
+                // businessName is an AdTextAsset, not a raw string.
+                businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                // v23 field is `call_to_actions` (repeated AdCallToActionAsset),
-                // NOT `call_to_action`. Sending the wrong field name produces
-                // "Unknown name 'callToAction'".
-                callToActions: [{ text: ctaDisplayDg }],
+                // v23: call_to_actions is repeated AdCallToActionAsset whose
+                // text field is `actionText` (not `text`).
+                callToActions: [{ actionText: ctaDisplayDg }],
               },
               finalUrls: [params.landingPageUrl],
             };
