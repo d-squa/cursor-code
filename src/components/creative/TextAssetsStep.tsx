@@ -2025,6 +2025,7 @@ export function TextAssetsStep({
       <GoogleSearchTextAssetEditor
         open={googleSearchEditorOpen}
         onOpenChange={setGoogleSearchEditorOpen}
+        onBeforeClose={saveTextAssets}
         rows={mergedRows}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
