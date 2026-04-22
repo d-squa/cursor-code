@@ -546,6 +546,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
         longHeadlines: Array(5).fill(''),
         businessName: '',
         callToAction: '',
+      });
     }
     effectiveAdRows = [...input.adRows, ...shellRows];
   }
