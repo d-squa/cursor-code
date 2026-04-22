@@ -761,8 +761,18 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   const adsSkippedNew: AdSheetRow[] = [];
   const curAdsById = new Map<string, AdSheetRow>();
   const knownShellKeys = new Set<string>();
+  // Fallback lookup: when an uploaded row has no __assignmentId__ (e.g. user
+  // cleared the helper column or pasted from a sheet that omits it) we still
+  // want to map it back to the existing assignment so edits like "Final URL"
+  // actually overwrite the row instead of being dropped as an unmatched "new".
+  const curAdsByTriple = new Map<string, AdSheetRow>();
+  const tripleKey = (campaign: string, adGroup: string, adName: string) =>
+    `${campaign.trim().toLowerCase()}::${adGroup.trim().toLowerCase()}::${(adName || '').trim().toLowerCase()}`;
   for (const a of input.current.ads) {
     if (a.assignmentId) curAdsById.set(a.assignmentId, a);
+    if (a.assignmentId && a.adName) {
+      curAdsByTriple.set(tripleKey(a.campaignName, a.adGroupName, a.adName), a);
+    }
     knownShellKeys.add(`${a.campaignName}::${a.adGroupName}`);
   }
   // Also seed shell keys from the plan structure itself, so uploaded rows for
@@ -776,8 +786,27 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   const newRowCounter = new Map<string, number>();
 
   for (const after of input.uploaded.ads) {
+    // Resolve to an existing assignment either by explicit __assignmentId__
+    // or, when that column was cleared/missing, by matching the
+    // (campaign, ad group, ad name) triple. Without this fallback the row
+    // silently slipped into the "new ad" path and changes like Final URL
+    // were dropped because the shell-key check usually didn't match either.
+    let resolvedBefore: AdSheetRow | undefined;
+    let resolvedAssignmentId: string | null = null;
     if (after.assignmentId && curAdsById.has(after.assignmentId)) {
-      const before = curAdsById.get(after.assignmentId)!;
+      resolvedBefore = curAdsById.get(after.assignmentId);
+      resolvedAssignmentId = after.assignmentId;
+    } else if (after.adName) {
+      const tk = tripleKey(after.campaignName, after.adGroupName, after.adName);
+      const match = curAdsByTriple.get(tk);
+      if (match?.assignmentId) {
+        resolvedBefore = match;
+        resolvedAssignmentId = match.assignmentId;
+      }
+    }
+
+    if (resolvedBefore && resolvedAssignmentId) {
+      const before = resolvedBefore;
       const changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'] = {};
       if (before.finalUrl !== after.finalUrl) changes.finalUrl = after.finalUrl;
       if (before.path1 !== after.path1) changes.path1 = after.path1;
@@ -792,7 +821,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
 
       if (Object.keys(changes).length > 0) {
         adsUpdated.push({
-          assignmentId: after.assignmentId,
+          assignmentId: resolvedAssignmentId,
           campaignName: after.campaignName,
           adGroupName: after.adGroupName,
           adName: after.adName,
