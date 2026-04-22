@@ -931,7 +931,16 @@ export function TextAssetsStep({
       const errors = validateTextAssetRow(row);
       return { ...row, validationErrors: errors, isValid: errors.length === 0 } as CreativeTextAssetRowWithTikTok;
     });
-    setRows(validatedRows as CreativeTextAssetRowWithTikTok[]);
+    // The editor receives `mergedRows` (real assignments + Google Search RSA
+    // placeholders), so importedRows contains both. Split them back into the
+    // correct state slice — otherwise placeholder rows leak into `rows` and
+    // duplicate after the next merge, while real edits get dropped.
+    const importedById = new Map(validatedRows.map(r => [r.id, r] as const));
+    setRows(prev => prev.map(row => (importedById.get(row.id) as CreativeTextAssetRowWithTikTok | undefined) ?? row));
+    setGooglePlaceholderRows(prev => prev.map(row => {
+      const imported = importedById.get(row.id);
+      return imported ? ({ ...row, ...imported } as CreativeTextAssetRow) : row;
+    }));
   }, []);
 
   // Existing creative IDs to exclude from add dialog
