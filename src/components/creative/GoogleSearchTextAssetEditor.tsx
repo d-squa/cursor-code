@@ -73,6 +73,8 @@ export interface GoogleSearchAdDraft {
 interface GoogleSearchTextAssetEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Persist current editor rows before closing. Return false to keep the dialog open. */
+  onBeforeClose?: () => Promise<boolean>;
   /** All rows currently in the editor (filtered for Google Search inside). */
   rows: CreativeTextAssetRow[];
   /** Persist a single row update back to the parent state. */
@@ -368,6 +370,7 @@ function PinSelect({
 export function GoogleSearchTextAssetEditor({
   open,
   onOpenChange,
+  onBeforeClose,
   rows,
   onRowChange,
   onBulkUpdate,
@@ -688,8 +691,22 @@ export function GoogleSearchTextAssetEditor({
   const allChecked = filteredDrafts.length > 0 && visibleSelectedCount === filteredDrafts.length;
   const someChecked = visibleSelectedCount > 0 && !allChecked;
 
+  const handleDialogOpenChange = useCallback(async (nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+
+    if (onBeforeClose) {
+      const ok = await onBeforeClose();
+      if (!ok) return;
+    }
+
+    onOpenChange(false);
+  }, [onBeforeClose, onOpenChange]);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
@@ -1062,7 +1079,7 @@ export function GoogleSearchTextAssetEditor({
         </div>
 
         <div className="px-4 py-3 border-t flex justify-end gap-2 shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
+          <Button variant="outline" onClick={() => void handleDialogOpenChange(false)}>Done</Button>
         </div>
       </DialogContent>
 
