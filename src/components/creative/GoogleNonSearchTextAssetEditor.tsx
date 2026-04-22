@@ -532,6 +532,7 @@ export function GoogleNonSearchTextAssetEditor({
           descriptions: pad(clipboard.descriptions.map((x) => x.slice(0, sch.descriptionMax)), sch.descriptionCount, ''),
           businessName: sch.hasBusinessName ? clipboard.businessName.slice(0, sch.businessNameMax) : '',
           finalUrl: clipboard.finalUrl,
+          youtubeVideoUrl: sch.requiresYoutubeVideo ? clipboard.youtubeVideoUrl : d.youtubeVideoUrl,
         };
       });
       // Bulk-sync upstream — apply per-row updates so each row gets its
