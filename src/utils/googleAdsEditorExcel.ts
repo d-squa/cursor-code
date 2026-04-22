@@ -80,6 +80,7 @@ export interface AdSheetRow {
   adName: string;
   assignmentId: string | null; // null = newly added in sheet (ignored on apply for now)
   finalUrl: string;
+  youtubeVideoUrl: string;
   path1: string;
   path2: string;
   headlines: string[]; // up to 15 (Search RSA), 5 (PMax/Demand Gen/Display), 2 (Video)
@@ -104,6 +105,7 @@ export interface GoogleAdsShellDiff {
       adName: string;
       changes: Partial<{
         finalUrl: string;
+        youtubeVideoUrl: string;
         path1: string;
         path2: string;
         headlines: string[];
@@ -326,7 +328,11 @@ export interface AssignmentLite {
   long_headline_4?: string | null;
   long_headline_5?: string | null;
   business_name?: string | null;
-  creatives?: { name?: string | null } | null;
+  creatives?: {
+    name?: string | null;
+    platform_metadata?: Record<string, unknown> | null;
+    media_urls?: string[] | null;
+  } | null;
 }
 
 export function buildAdRowsFromAssignments(
