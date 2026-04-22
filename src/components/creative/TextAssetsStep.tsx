@@ -1098,7 +1098,7 @@ export function TextAssetsStep({
             description: update.description,
             call_to_action: update.call_to_action,
             destination_url: update.destination_url,
-            ...(mergedMetadata ? { platform_metadata: mergedMetadata } : {}),
+            ...(mergedMetadata ? { platform_metadata: mergedMetadata as any } : {}),
           })
           .eq('id', update.id);
 
