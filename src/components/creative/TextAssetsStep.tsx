@@ -1287,15 +1287,38 @@ export function TextAssetsStep({
     // intentionally keep the ad-set in the key so that an empty ad group in a
     // phase that has another populated ad group still surfaces as a shell row.
     const occupiedSlots = new Set<string>();
+    // Google Search shells have an extra dimension (Brand/Generic/Competition).
+    // Uploaded RSA placeholders use ref.adGroupName="Default", while structural
+    // placeholders carry a taxonomy-decorated adSetName like "MyTaxo · Brand".
+    // To dedupe, track Google Search occupancy by (market, basePhase, strategy)
+    // independently of the ad-set label.
+    const occupiedGoogleSearchStrategies = new Set<string>();
     const addOccupied = (platform: string, market: string, phase: string, adSet: string) => {
       const { base } = splitPhaseLabel(phase);
       occupiedSlots.add(`${platform}|${market}|${base}|${adSet || ''}`);
     };
+    const addOccupiedGoogleStrategy = (
+      market: string,
+      phase: string,
+      strategy: string | null | undefined,
+    ) => {
+      if (!strategy) return;
+      const { base } = splitPhaseLabel(phase);
+      occupiedGoogleSearchStrategies.add(
+        `${market}|${base}|${String(strategy).toLowerCase()}`,
+      );
+    };
     for (const r of out) {
       addOccupied((r.platform || '').toLowerCase(), r.market, r.phase || '', r.adSet || '');
+      if ((r.platform || '').toLowerCase() === 'google') {
+        const { strategy } = splitPhaseLabel(r.phase || '');
+        addOccupiedGoogleStrategy(r.market, r.phase || '', strategy || (r as any).googleStrategy);
+      }
     }
     for (const p of googlePlaceholderRows) {
       addOccupied((p.platform || '').toLowerCase(), p.market, p.phase || '', p.adSet || '');
+      const { strategy } = splitPhaseLabel(p.phase || '');
+      addOccupiedGoogleStrategy(p.market, p.phase || '', strategy || (p as any).googleStrategy);
     }
 
     // Add Meta/TikTok/Google structural placeholders for ad sets without any
@@ -1311,6 +1334,20 @@ export function TextAssetsStep({
         const platform = (p.platform || '').toLowerCase();
         const { base } = splitPhaseLabel(p.phase || '');
         if (occupiedSlots.has(`${platform}|${p.market}|${base}|${p.adSet || ''}`)) continue;
+        // Google Search: also suppress when an uploaded/real row covers the
+        // same (market, basePhase, strategy) regardless of ad-set label, so
+        // that a "MyTaxo · Brand" structural placeholder collapses with the
+        // uploaded "Default" ad group from the RSA shell.
+        const strat = (p as any).googleStrategy;
+        if (
+          platform === 'google' &&
+          strat &&
+          occupiedGoogleSearchStrategies.has(
+            `${p.market}|${base}|${String(strat).toLowerCase()}`,
+          )
+        ) {
+          continue;
+        }
         out.push(p);
       }
     }
