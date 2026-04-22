@@ -800,6 +800,14 @@ export function TextAssetsStep({
             advantage_plus_optimize_text_per_person: assignment.advantage_plus_optimize_text_per_person ?? undefined,
             advantage_plus_sitelinks: assignment.advantage_plus_sitelinks ?? undefined,
             advantage_plus_products: assignment.advantage_plus_products ?? undefined,
+            youtubeVideoUrl: (() => {
+              const meta = (creative?.platform_metadata as Record<string, any> | null) || {};
+              const fromMeta = meta.youtube_video_url || meta.youtubeVideoUrl || meta.youtube_video_id || meta.youtubeVideoId;
+              if (fromMeta) return String(fromMeta);
+              const firstMedia = creative?.media_urls?.[0];
+              if (firstMedia && /youtu\.?be/i.test(String(firstMedia))) return String(firstMedia);
+              return undefined;
+            })(),
           };
         });
 
@@ -1046,10 +1054,42 @@ export function TextAssetsStep({
         description: row.description,
         call_to_action: row.callToAction,
         destination_url: row.destinationUrl,
+        youtubeVideoUrl: row.youtubeVideoUrl,
       }));
 
       // Batch update creatives
       for (const update of updates) {
+        // For Demand Gen / Video Google ads, persist the YouTube URL +
+        // extracted ID into platform_metadata so the DSP push can attach the
+        // video asset to the creative.
+        let platformMetadataPatch: Record<string, unknown> | null = null;
+        if (update.youtubeVideoUrl && String(update.youtubeVideoUrl).trim()) {
+          const url = String(update.youtubeVideoUrl).trim();
+          const idMatch = url.match(/[?&]v=([A-Za-z0-9_-]{11})/)
+            || url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/)
+            || url.match(/\/(?:shorts|embed|v)\/([A-Za-z0-9_-]{11})/)
+            || url.match(/^([A-Za-z0-9_-]{11})$/);
+          const youtubeId = idMatch ? idMatch[1] : undefined;
+          platformMetadataPatch = {
+            youtube_video_url: url,
+            ...(youtubeId ? { youtube_video_id: youtubeId } : {}),
+          };
+        }
+
+        // Read existing metadata so we merge instead of overwriting other keys.
+        let mergedMetadata: Record<string, unknown> | undefined;
+        if (platformMetadataPatch) {
+          const { data: existing } = await supabase
+            .from('creatives')
+            .select('platform_metadata')
+            .eq('id', update.id)
+            .maybeSingle();
+          mergedMetadata = {
+            ...((existing?.platform_metadata as Record<string, unknown> | null) || {}),
+            ...platformMetadataPatch,
+          };
+        }
+
         const { error } = await supabase
           .from('creatives')
           .update({
@@ -1058,6 +1098,7 @@ export function TextAssetsStep({
             description: update.description,
             call_to_action: update.call_to_action,
             destination_url: update.destination_url,
+            ...(mergedMetadata ? { platform_metadata: mergedMetadata } : {}),
           })
           .eq('id', update.id);
 
