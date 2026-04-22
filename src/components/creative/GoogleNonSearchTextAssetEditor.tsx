@@ -39,6 +39,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/utils/googleCtaOptions';
 
 // ---------- Type detection ----------
 
@@ -96,6 +97,11 @@ interface SchemaSpec {
    * "YouTube Video URL" input and validates that the row carries one.
    */
   requiresYoutubeVideo: boolean;
+  /**
+   * If true, Google Ads requires a Call-to-Action button on the served ad.
+   * Surfaces a CTA dropdown and validates a value is set before push.
+   */
+  requiresCallToAction: boolean;
 }
 
 const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
