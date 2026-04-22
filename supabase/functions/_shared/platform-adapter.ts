@@ -2089,8 +2089,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
                 longHeadlines: [{ text: dgLongHeadline }],
                 descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
-                // businessName is an AdTextAsset, not a raw string.
-                businessName: { text: businessNameDg },
+                // businessName on DemandGenVideoResponsiveAdInfo is a plain string,
+                // NOT an AdTextAsset. Wrapping it in { text: ... } yields a cryptic
+                // "required field was not present" from the API.
+                businessName: businessNameDg,
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
                 ...(ctaAssetResource ? { callToActions: [{ asset: ctaAssetResource }] } : {}),
