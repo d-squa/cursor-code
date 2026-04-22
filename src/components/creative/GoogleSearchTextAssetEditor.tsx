@@ -355,9 +355,12 @@ export function GoogleSearchTextAssetEditor({
   rows,
   onRowChange,
   onBulkUpdate,
+  onDeleteAssignments,
 }: GoogleSearchTextAssetEditorProps) {
   // Internal in-memory drafts so users can edit freely and we sync back on change.
   const [drafts, setDrafts] = useState<GoogleSearchAdDraft[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<GoogleSearchAdDraft | null>(null);
