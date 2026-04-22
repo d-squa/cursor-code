@@ -1028,13 +1028,17 @@ export function TextAssetsStep({
   }, []);
 
   // Save text assets to database (no navigation)
-  const saveTextAssets = useCallback(async (): Promise<boolean> => {
+  const persistTextAssets = useCallback(async (
+    rowsToSave: CreativeTextAssetRow[],
+    placeholderRowsToSave: CreativeTextAssetRow[],
+    options?: { successMessage?: string; skipSuccessToast?: boolean },
+  ): Promise<boolean> => {
     setIsSaving(true);
 
     try {
       // Update creatives with text assets. Structural shell rows have no
       // creativeId, so they are intentionally excluded from persistence.
-      const updates = rows.filter(row => row.creativeId).map(row => ({
+      const updates = rowsToSave.filter(row => row.creativeId).map(row => ({
         id: row.creativeId,
         primary_text: row.primaryText,
         headline: row.headline,
@@ -1063,7 +1067,7 @@ export function TextAssetsStep({
       }
 
       // Persist carousel group data to creative_assignments
-      for (const row of rows) {
+      for (const row of rowsToSave) {
         const assignmentId = row.assignmentId;
         if (!assignmentId) continue;
 
@@ -1195,7 +1199,7 @@ export function TextAssetsStep({
       // the Launch Status page (Meshed Creatives) and cannot be pushed to DSP.
       // For each placeholder, we create a lightweight text-only creative row
       // and a matching creative_assignment carrying the headlines/descriptions.
-      const rsaPlaceholders = googlePlaceholderRows.filter(
+      const rsaPlaceholders = placeholderRowsToSave.filter(
         (p) => (p.platform || '').toLowerCase() === 'google' && !p.assignmentId,
       );
       if (rsaPlaceholders.length > 0) {
@@ -1225,10 +1229,6 @@ export function TextAssetsStep({
           if (creativeErr) throw creativeErr;
 
           // 2. Create the creative_assignment carrying the RSA copy.
-          // IMPORTANT: persist `ad_strategy` and `ad_group_name` so the row is
-          // recognised as Google Search on reload. Without `ad_strategy`, the
-          // load path computes googleCampaignType from the structure lookup
-          // and the row falls out of `isGoogleSearchRow`, hiding the RSA.
           const { data: createdAssignment, error: assignErr } = await supabase
             .from('creative_assignments')
             .insert({
@@ -1269,8 +1269,6 @@ export function TextAssetsStep({
           newAssignmentIds.set(p.id, createdAssignment.id);
         }
 
-        // Update local placeholder state so subsequent saves go through the
-        // standard "update existing assignment" path instead of re-inserting.
         if (newAssignmentIds.size > 0) {
           setGooglePlaceholderRows((prev) =>
             prev.map((r) => {
@@ -1282,15 +1280,13 @@ export function TextAssetsStep({
       }
 
       // Also push updates to RSAs that already have an assignmentId (subsequent edits).
-      const rsaWithAssignment = googlePlaceholderRows.filter(
+      const rsaWithAssignment = placeholderRowsToSave.filter(
         (p) => (p.platform || '').toLowerCase() === 'google' && p.assignmentId,
       );
       for (const p of rsaWithAssignment) {
         await supabase
           .from('creative_assignments')
           .update({
-            // Backfill ad_strategy / ad_group_name on previously-saved RSAs
-            // so they keep being detected as Google Search after a refresh.
             ad_strategy: (p as any).googleStrategy || 'brand',
             ad_group_name: p.adSet || 'Default',
             primary_text: p.primaryText || null,
@@ -1315,8 +1311,10 @@ export function TextAssetsStep({
           .eq('id', p.assignmentId);
       }
 
-      const totalSaved = rows.length + rsaPlaceholders.length + rsaWithAssignment.length;
-      toast.success(`Saved text assets for ${totalSaved} creatives`);
+      const totalSaved = rowsToSave.length + rsaPlaceholders.length + rsaWithAssignment.length;
+      if (!options?.skipSuccessToast && totalSaved > 0) {
+        toast.success(options?.successMessage || `Saved text assets for ${totalSaved} creatives`);
+      }
       return true;
     } catch (error) {
       console.error('Error saving text assets:', error);
@@ -1325,7 +1323,26 @@ export function TextAssetsStep({
     } finally {
       setIsSaving(false);
     }
-  }, [rows, googlePlaceholderRows, campaignId]);
+  }, [campaignId]);
+
+  const saveTextAssets = useCallback(async (): Promise<boolean> => {
+    return persistTextAssets(rows, googlePlaceholderRows);
+  }, [persistTextAssets, rows, googlePlaceholderRows]);
+
+  const saveGoogleSearchTextAssets = useCallback(async (): Promise<boolean> => {
+    const isGoogleSearchRow = (row: CreativeTextAssetRow) => {
+      if ((row.platform || '').toLowerCase() !== 'google') return false;
+      const type = String(row.googleCampaignType || '').toLowerCase();
+      if (type.includes('search')) return true;
+      if (!type && !!row.googleStrategy) return true;
+      return false;
+    };
+
+    const googleSearchRows = rows.filter(isGoogleSearchRow);
+    const googleSearchPlaceholders = googlePlaceholderRows.filter(isGoogleSearchRow);
+
+    return persistTextAssets(googleSearchRows, googleSearchPlaceholders);
+  }, [persistTextAssets, rows, googlePlaceholderRows]);
 
   const handleSaveAndProceed = useCallback(async () => {
     const ok = await saveTextAssets();
@@ -2045,7 +2062,7 @@ export function TextAssetsStep({
       <GoogleSearchTextAssetEditor
         open={googleSearchEditorOpen}
         onOpenChange={setGoogleSearchEditorOpen}
-        onBeforeClose={saveTextAssets}
+        onBeforeClose={saveGoogleSearchTextAssets}
         rows={mergedRows}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
