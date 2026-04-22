@@ -745,6 +745,19 @@ export function GoogleSearchTextAssetEditor({
             Apply focused to all
           </Button>
 
+          {onDeleteAssignments && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={requestDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className="h-8"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete selected ({selectedIds.size})
+            </Button>
+          )}
+
           {/* New Ad — pick campaign / ad group / asset type */}
           <Popover open={newAdOpen} onOpenChange={setNewAdOpen}>
             <PopoverTrigger asChild>
