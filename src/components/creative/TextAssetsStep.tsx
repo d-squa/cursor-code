@@ -767,7 +767,10 @@ export function TextAssetsStep({
             path_1: assignment.path_1 || undefined,
             path_2: assignment.path_2 || undefined,
             caption: creative?.caption || '',
-            callToAction: (creative?.call_to_action || 'LEARN_MORE') as CallToAction,
+            // Prefer the assignment-level CTA (which the editor / Excel import writes)
+            // over the creative-library default. Falls back to LEARN_MORE only when
+            // neither layer has a value.
+            callToAction: (assignment.call_to_action || creative?.call_to_action || 'LEARN_MORE') as CallToAction,
             destinationUrl: assignment.destination_url || creative?.destination_url || '',
             autoBuildUtm: false,
             // Organic posts are always valid (skip validation)
