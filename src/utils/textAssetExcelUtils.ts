@@ -391,7 +391,14 @@ const HEADER_ALIASES: Record<string, TextAssetColumnKey> = {
   'link': 'destinationUrl',
   'final url': 'destinationUrl',
   'landing page': 'destinationUrl',
-  
+
+  // YouTube Video URL aliases
+  'youtube video url': 'youtubeVideoUrl',
+  'youtube url': 'youtubeVideoUrl',
+  'youtube video': 'youtubeVideoUrl',
+  'youtubevideourl': 'youtubeVideoUrl',
+  'youtube_video_url': 'youtubeVideoUrl',
+
   // Display Link aliases
   'display link': 'displayLink',
   'displaylink': 'displayLink',
