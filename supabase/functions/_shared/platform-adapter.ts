@@ -114,6 +114,10 @@ export interface CreateCreativeParams {
     imageIds?: string[];
     videoUrl?: string;
     imageUrls?: string[];
+    // Google Demand Gen / Video specific:
+    youtubeVideoId?: string; // Pre-uploaded YouTube video ID (preferred for Demand Gen video ads)
+    imageUrl?: string;       // Source image URL — will be uploaded as a Google Ads imageAsset
+    logoUrl?: string;        // Optional brand/logo URL
   };
   adText: string;
   callToAction: string;
