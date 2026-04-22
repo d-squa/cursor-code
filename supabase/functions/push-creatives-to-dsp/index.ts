@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import { getAccessToken } from "../_shared/vault-helper.ts";
+import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 import { createApiLogger } from "../_shared/api-logger.ts";
+import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
+import { getPlatformAdapter } from "../_shared/platform-adapter.ts";
 
 const FUNCTION_NAME = "push-creatives-to-dsp";
 const logger = createApiLogger(FUNCTION_NAME);
@@ -91,12 +93,13 @@ const META_LOCALE_TO_LANGUAGE_ID: Record<string, number> = {
   id: 62,
 };
 
-type PlatformKey = "meta" | "tiktok";
+type PlatformKey = "meta" | "tiktok" | "google";
 
 function toPlatformKey(platformLabel: string): PlatformKey | null {
   const p = platformLabel.toLowerCase();
   if (p.includes("meta") || p.includes("facebook")) return "meta";
   if (p.includes("tiktok")) return "tiktok";
+  if (p.includes("google")) return "google";
   return null;
 }
 
@@ -257,6 +260,29 @@ function findMarketAndPhaseConfig(
   }
 
   return { market: null, phase: null };
+}
+
+function resolveGoogleCustomerIdFromCampaign(
+  campaign: any,
+  marketName: string,
+  phaseName: string | null,
+): string | null {
+  const { market } = findMarketAndPhaseConfig(campaign, "google", marketName, phaseName);
+
+  const candidates = [
+    market?.googleCustomerId,
+    market?.adAccountId,
+    market?.ad_account_id,
+    market?.accountId,
+    market?.account_id,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "").trim();
+    if (normalized) return normalized;
+  }
+
+  return null;
 }
 
 function resolveConfiguredMetaPageId(
@@ -1488,7 +1514,35 @@ const handler = async (req: Request): Promise<Response> => {
       const platformKey = toPlatformKey(entry.platform);
       if (!platformKey) continue;
 
-      const platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
+      let platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
+
+      if (platformKey === "google") {
+        const { data: marketAssignments } = await supabase
+          .from("creative_assignments")
+          .select("id")
+          .eq("campaign_id", campaign.id)
+          .ilike("platform", "google")
+          .eq("market", entry.market)
+          .eq("phase_name", entry.phase_name)
+          .limit(1);
+
+        if ((marketAssignments?.length || 0) === 0) {
+          continue;
+        }
+
+        const googleCustomerCandidates = [
+          resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name),
+        ].filter(Boolean) as string[];
+
+        for (const candidate of googleCustomerCandidates) {
+          const googlePlatformCandidates = await getGooglePlatformCandidatesForCustomer(supabase, campaign.user_id, candidate);
+          if (googlePlatformCandidates.length > 0) {
+            platformRow = googlePlatformCandidates[0] as any;
+            break;
+          }
+        }
+      }
+
       if (!platformRow) {
         results.push({
           platform: entry.platform,
@@ -1500,7 +1554,9 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      const accessToken = await getAccessToken(supabase, platformRow.id, platformRow.access_token);
+      const accessToken = platformKey === "google"
+        ? await getAccessTokenWithRefresh(supabase, platformRow.id, platformRow.access_token, "google")
+        : await getAccessToken(supabase, platformRow.id, platformRow.access_token);
       if (!accessToken) {
         results.push({
           platform: entry.platform,
@@ -2290,6 +2346,112 @@ const handler = async (req: Request): Promise<Response> => {
             }
             console.log(`[push-creatives] ✅ Meta carousel pushed: ${childAttachments.length} cards, ad_id=${adData.id}`);
 
+          } else if (platformKey === "google") {
+            const googleAdapter = getPlatformAdapter("google") as any;
+            const googleCustomerId = resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name)
+              || platform.ad_account_id;
+
+            if (!googleCustomerId) {
+              await supabase
+                .from("creative_assignments")
+                .update({ status: "error", error_message: "Missing Google Ads customer ID" })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+
+            const cleanCustomerId = String(googleCustomerId).replace(/-/g, "");
+
+            let effectiveManagerId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID")?.replace(/\D/g, "") || cleanCustomerId;
+            try {
+              const { data: googleAccount } = await supabase
+                .from("google_ad_accounts")
+                .select("manager_customer_id")
+                .or(`customer_id.eq.${cleanCustomerId},customer_id.eq.${googleCustomerId}`)
+                .maybeSingle();
+
+              if (googleAccount?.manager_customer_id) {
+                effectiveManagerId = String(googleAccount.manager_customer_id).replace(/\D/g, "") || effectiveManagerId;
+              }
+            } catch (managerLookupError) {
+              console.warn(`[push-creatives] Failed to resolve Google manager account:`, managerLookupError);
+            }
+
+            const developerToken = (Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "").replace(/\s+/g, "");
+            if (!developerToken) {
+              await supabase
+                .from("creative_assignments")
+                .update({ status: "error", error_message: "Google Ads developer token not configured" })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+
+            const headlines: string[] = [
+              assignment.headline || creative.headline || creative.name || "Learn More",
+              assignment.headline_2 || "Visit Today",
+              assignment.headline_3 || "Get Started",
+              assignment.headline_4,
+              assignment.headline_5,
+            ]
+              .filter(Boolean)
+              .map((headline: string) => headline.substring(0, 30));
+
+            const descriptions: string[] = [
+              assignment.description || creative.description || creative.primary_text || "",
+              assignment.description_2 || assignment.primary_text || "",
+              assignment.description_3,
+              assignment.description_4,
+              assignment.description_5,
+            ]
+              .filter(Boolean)
+              .map((description: string) => description.substring(0, 90));
+
+            const landingPageUrl = normalizeHttpUrl(
+              assignment.destination_url
+                || creative.destination_url
+                || (phase as any)?.googleLandingPageUrl
+                || (market as any)?.googleLandingPageUrl,
+            );
+
+            if (!landingPageUrl) {
+              await supabase
+                .from("creative_assignments")
+                .update({ status: "error", error_message: "Missing Google Ads landing page URL" })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+
+            const adResult = await googleAdapter.createCreative({
+              accountId: cleanCustomerId,
+              accessToken: platform.access_token,
+              adGroupId: String(targetEntityId || "").replace(/-/g, ""),
+              creativeName: creative.name,
+              creativeType: "responsive_search_ad",
+              assets: {},
+              adText: descriptions[0] || creative.name,
+              callToAction: headlines[1] || "Learn More",
+              landingPageUrl,
+              developerToken,
+              loginCustomerId: effectiveManagerId,
+            } as any);
+
+            if (!adResult.success) {
+              await supabase
+                .from("creative_assignments")
+                .update({ status: "error", error_message: adResult.error || "Failed to create Google Ads ad" })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+
+            await supabase
+              .from("creative_assignments")
+              .update({ status: "pushed", dsp_creative_id: adResult.creativeId, error_message: null })
+              .eq("id", assignment.id);
+
+            localPushed++;
           } else if (platformKey === "tiktok") {
             // ========== TIKTOK CAROUSEL AD ==========
             const marketAny = market as any;
