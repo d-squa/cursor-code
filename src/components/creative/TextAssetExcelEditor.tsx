@@ -983,10 +983,18 @@ export function TextAssetExcelEditor({
       
       if (collapsedGroups.has(`market:${platform}|${market}`)) continue;
 
-      // Determine if this row belongs to the synthetic Google Search parent group
+      // Determine if this row belongs to the synthetic Google Search parent group.
+      // Google Search strategy labels can appear as either
+      //   "Phase • Brand" or "Phase - Brand"
+      // depending on whether the row came from placeholders, uploads, or saved
+      // assignments. Normalize both so Brand / Generic / Competition stay under
+      // one shared Search parent.
       const normalizeGoogleSearchPhase = (label: string) => {
-        const idx = String(label || '').lastIndexOf(' • ');
-        return idx === -1 ? String(label || '').trim() : String(label || '').slice(0, idx).trim();
+        const text = String(label || '').trim();
+        const bulletIdx = text.lastIndexOf(' • ');
+        if (bulletIdx !== -1) return text.slice(0, bulletIdx).trim();
+        const match = text.match(/^(.*?)\s*[-–—]\s*(brand|generic|competition)\s*$/i);
+        return match ? match[1].trim() : text;
       };
       const normalizedPhase = normalizeGoogleSearchPhase(phase);
       const phaseFamilyRows = rows.filter(
@@ -2145,8 +2153,11 @@ export function TextAssetExcelEditor({
                               const [platform, market, phase] = raw.split('|');
                               if ((platform || '').toLowerCase() !== 'google') return null;
                               const normalizeGoogleSearchPhase = (label: string) => {
-                                const idx = String(label || '').lastIndexOf(' • ');
-                                return idx === -1 ? String(label || '').trim() : String(label || '').slice(0, idx).trim();
+                                const text = String(label || '').trim();
+                                const bulletIdx = text.lastIndexOf(' • ');
+                                if (bulletIdx !== -1) return text.slice(0, bulletIdx).trim();
+                                const match = text.match(/^(.*?)\s*[-–—]\s*(brand|generic|competition)\s*$/i);
+                                return match ? match[1].trim() : text;
                               };
                               const normalizedPhase = normalizeGoogleSearchPhase(phase);
                               const phaseFamilyRows = rows.filter(
