@@ -391,6 +391,7 @@ export function TextAssetsStep({
                 media_urls,
                 width,
                 height,
+                platform_metadata,
                 tiktok_asset_advertiser_id,
                 external_post_id,
                 external_page_id
