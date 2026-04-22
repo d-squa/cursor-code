@@ -1206,6 +1206,10 @@ export function TextAssetsStep({
           if (creativeErr) throw creativeErr;
 
           // 2. Create the creative_assignment carrying the RSA copy.
+          // IMPORTANT: persist `ad_strategy` and `ad_group_name` so the row is
+          // recognised as Google Search on reload. Without `ad_strategy`, the
+          // load path computes googleCampaignType from the structure lookup
+          // and the row falls out of `isGoogleSearchRow`, hiding the RSA.
           const { data: createdAssignment, error: assignErr } = await supabase
             .from('creative_assignments')
             .insert({
@@ -1215,6 +1219,8 @@ export function TextAssetsStep({
               market: p.market,
               phase_name: p.phase || 'Default',
               ad_set_name: p.adSet || 'Default',
+              ad_group_name: p.adSet || 'Default',
+              ad_strategy: (p as any).googleStrategy || 'brand',
               display_name: p.creativeName || p.taxonomyAdName || null,
               assigned_by: userId,
               status: 'pending',
@@ -1264,6 +1270,10 @@ export function TextAssetsStep({
         await supabase
           .from('creative_assignments')
           .update({
+            // Backfill ad_strategy / ad_group_name on previously-saved RSAs
+            // so they keep being detected as Google Search after a refresh.
+            ad_strategy: (p as any).googleStrategy || 'brand',
+            ad_group_name: p.adSet || 'Default',
             primary_text: p.primaryText || null,
             headline: p.headline || null,
             headline_2: (p as any).headline2 || null,
