@@ -80,6 +80,7 @@ export interface AdSheetRow {
   adName: string;
   assignmentId: string | null; // null = newly added in sheet (ignored on apply for now)
   finalUrl: string;
+  youtubeVideoUrl: string;
   path1: string;
   path2: string;
   headlines: string[]; // up to 15 (Search RSA), 5 (PMax/Demand Gen/Display), 2 (Video)
@@ -104,6 +105,7 @@ export interface GoogleAdsShellDiff {
       adName: string;
       changes: Partial<{
         finalUrl: string;
+        youtubeVideoUrl: string;
         path1: string;
         path2: string;
         headlines: string[];
@@ -326,7 +328,11 @@ export interface AssignmentLite {
   long_headline_4?: string | null;
   long_headline_5?: string | null;
   business_name?: string | null;
-  creatives?: { name?: string | null } | null;
+  creatives?: {
+    name?: string | null;
+    platform_metadata?: Record<string, unknown> | null;
+    media_urls?: string[] | null;
+  } | null;
 }
 
 export function buildAdRowsFromAssignments(
@@ -352,12 +358,27 @@ export function buildAdRowsFromAssignments(
       expansion.find((e) => e.market === a.market && e.phaseName === a.phase_name);
     if (!ref) continue;
 
+    const creativeMeta = (a.creatives?.platform_metadata as Record<string, unknown> | null) || null;
+    const youtubeVideoUrl = (() => {
+      const fromMeta = creativeMeta && (
+        creativeMeta.youtube_video_url ||
+        creativeMeta.youtubeVideoUrl ||
+        creativeMeta.youtube_video_id ||
+        creativeMeta.youtubeVideoId
+      );
+      if (fromMeta) return String(fromMeta);
+      const firstMedia = a.creatives?.media_urls?.[0];
+      if (firstMedia && /youtu\.?be/i.test(String(firstMedia))) return String(firstMedia);
+      return '';
+    })();
+
     rows.push({
       campaignName: ref.campaignName,
       adGroupName: ref.adGroupName,
       adName: a.creatives?.name || 'Untitled Ad',
       assignmentId: a.id,
       finalUrl: a.destination_url || '',
+      youtubeVideoUrl,
       path1: a.path_1 || '',
       path2: a.path_2 || '',
       headlines: [
@@ -465,6 +486,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     'Ad Name',
     '__assignmentId__',
     'Final URL',
+    'YouTube Video URL',
     'Path 1',
     `LEN P1 (max ${PATH_LIMIT})`,
     'Path 2',
@@ -511,6 +533,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
         adName: '',
         assignmentId: null,
         finalUrl: '',
+        youtubeVideoUrl: '',
         path1: '',
         path2: '',
         headlines: Array(15).fill(''),
@@ -531,6 +554,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
       r.adName,
       r.assignmentId || '',
       r.finalUrl,
+      r.youtubeVideoUrl || '',
       r.path1,
       '',
       r.path2,
@@ -555,9 +579,9 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   const colLetter = (idx: number) => XLSX.utils.encode_col(idx);
   for (let r = 1; r < adsAoa.length; r++) {
     const rowNum = r + 1;
-    setLenFormula(adsWs, 6, rowNum, colLetter(5), PATH_LIMIT);
-    setLenFormula(adsWs, 8, rowNum, colLetter(7), PATH_LIMIT);
-    let cur = 9;
+    setLenFormula(adsWs, 7, rowNum, colLetter(6), PATH_LIMIT);
+    setLenFormula(adsWs, 9, rowNum, colLetter(8), PATH_LIMIT);
+    let cur = 10;
     for (let i = 0; i < spec.headlineCount; i++) {
       setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.headlineLimit);
       cur += 3;
@@ -661,6 +685,7 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
     }
     const businessNameCol = indexOfHeader('Business Name');
     const finalUrlCol = indexOfHeader('Final URL');
+    const youtubeVideoUrlCol = indexOfHeader('YouTube Video URL');
     const path1Col = indexOfHeader('Path 1');
     const path2Col = indexOfHeader('Path 2');
     const adNameCol = indexOfHeader('Ad Name');
@@ -703,6 +728,7 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
         adName: explicitName,
         assignmentId: assignmentIdCol >= 0 ? (String(row[assignmentIdCol] || '').trim() || null) : null,
         finalUrl: finalUrlCol >= 0 ? String(row[finalUrlCol] || '').trim() : '',
+        youtubeVideoUrl: youtubeVideoUrlCol >= 0 ? String(row[youtubeVideoUrlCol] || '').trim() : '',
         path1: path1Col >= 0 ? String(row[path1Col] || '').trim() : '',
         path2: path2Col >= 0 ? String(row[path2Col] || '').trim() : '',
         headlines,
@@ -816,6 +842,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
       const before = resolvedBefore;
       const changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'] = {};
       if (before.finalUrl !== after.finalUrl) changes.finalUrl = after.finalUrl;
+      if (before.youtubeVideoUrl !== after.youtubeVideoUrl) changes.youtubeVideoUrl = after.youtubeVideoUrl;
       if (before.path1 !== after.path1) changes.path1 = after.path1;
       if (before.path2 !== after.path2) changes.path2 = after.path2;
       if (!arrEq(before.headlines, after.headlines)) changes.headlines = after.headlines;
