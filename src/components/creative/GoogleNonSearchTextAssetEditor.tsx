@@ -754,6 +754,16 @@ export function GoogleNonSearchTextAssetEditor({
                     <Button variant="outline" size="sm" onClick={() => handleCopyRow(focusedDraft.rowId)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy this ad
                     </Button>
+                    {onDeleteAssignments && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => requestDeleteOne(focusedDraft.rowId)}
+                        className="ml-auto"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               </ScrollArea>
