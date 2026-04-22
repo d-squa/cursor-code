@@ -1493,8 +1493,31 @@ const handler = async (req: Request): Promise<Response> => {
       let platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
 
       if (platformKey === "google") {
-        const googleCustomerId = (entry.dsp_entity_id ? undefined : undefined);
-        const googleAssignmentsForLookup = (assignments?: any[]) => assignments;
+        const { data: marketAssignments } = await supabase
+          .from("creative_assignments")
+          .select("id")
+          .eq("campaign_id", campaign.id)
+          .ilike("platform", "google")
+          .eq("market", entry.market)
+          .eq("phase_name", entry.phase_name)
+          .limit(1);
+
+        if ((marketAssignments?.length || 0) === 0) {
+          continue;
+        }
+
+        const googleCustomerCandidates = [
+          targetEntityIdFromLaunchStatus(entry.dsp_entity_id),
+          resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name),
+        ].filter(Boolean) as string[];
+
+        for (const candidate of googleCustomerCandidates) {
+          const googlePlatformCandidates = await getGooglePlatformCandidatesForCustomer(supabase, campaign.user_id, candidate);
+          if (googlePlatformCandidates.length > 0) {
+            platformRow = googlePlatformCandidates[0] as any;
+            break;
+          }
+        }
       }
 
       if (!platformRow) {
