@@ -10,6 +10,8 @@ import {
   googleRowMatchKey,
 } from '@/utils/googleNonSearchExcel';
 import { detectGoogleNonSearchType, type GoogleNonSearchType } from '@/components/creative/GoogleNonSearchTextAssetEditor';
+import { GOOGLE_CTA_OPTIONS } from '@/utils/googleCtaOptions';
+import { injectDropdownsIntoXlsx, type SheetDropdownSpec } from '@/utils/xlsxDataValidation';
 
 // Column definitions for the Excel export/import
 export const TEXT_ASSET_COLUMNS = [
@@ -98,11 +100,16 @@ export const EDITABLE_COLUMNS: TextAssetColumnKey[] = [
 ];
 
 
+// CTA dropdown options exported as a UI-friendly comma-joined list. Excel's
+// inline data-validation list has a ~255-char total cap; our 15 short labels
+// fit well under that, so we can embed them directly without a hidden sheet.
+const GOOGLE_CTA_DROPDOWN_LABELS = GOOGLE_CTA_OPTIONS.map((o) => o.label);
+
 // Generate Excel file from text asset rows
-export function generateTextAssetExcel(
+export async function generateTextAssetExcel(
   rows: CreativeTextAssetRow[],
   campaignName: string
-): Blob {
+): Promise<Blob> {
   const workbook = XLSX.utils.book_new();
   
   // Create header row
@@ -115,7 +122,9 @@ export function generateTextAssetExcel(
       return value ? 'Yes' : 'No';
     }
     if (col.key === 'callToAction' && value) {
-      return String(value).replace(/_/g, ' ');
+      // Show UI-friendly label (e.g. "Contact Us") so it matches the dropdown.
+      const opt = GOOGLE_CTA_OPTIONS.find((o) => o.value === String(value).toUpperCase().replace(/\s+/g, '_'));
+      return opt ? opt.label : String(value).replace(/_/g, ' ');
     }
     if (col.key === 'adFormat' && value) {
       return AD_FORMAT_LABELS[value as AdFormat] || value;
@@ -132,11 +141,24 @@ export function generateTextAssetExcel(
   // Set column widths
   worksheet['!cols'] = TEXT_ASSET_COLUMNS.map(col => ({ wch: col.width }));
   
-  // Add ad format validation (data validation for dropdown)
-  // Note: XLSX doesn't fully support data validation in all cases
-  
   // Add the main "Creative Content" worksheet first.
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Creative Content');
+
+  // Track per-sheet CTA column positions so we can inject dropdowns afterwards.
+  const dropdownSpecs: SheetDropdownSpec[] = [];
+
+  // Main sheet CTA dropdown
+  const mainCtaIdx = TEXT_ASSET_COLUMNS.findIndex((c) => c.key === 'callToAction');
+  if (mainCtaIdx >= 0 && data.length > 0) {
+    dropdownSpecs.push({
+      sheetName: 'Creative Content',
+      columnIndex: mainCtaIdx,
+      startRow: 2,
+      endRow: Math.max(1000, data.length + 1),
+      options: GOOGLE_CTA_DROPDOWN_LABELS,
+      prompt: 'Pick a Google-supported call to action.',
+    });
+  }
 
   // For Google: add one dedicated sheet per non-Search campaign type, with
   // type-specific columns and character limits embedded into each header.
@@ -146,20 +168,36 @@ export function generateTextAssetExcel(
     if (gData.length === 0) return; // skip empty types
     const gSheet = XLSX.utils.aoa_to_sheet([gHeaders, ...gData]);
     gSheet['!cols'] = gWidths.map((w) => ({ wch: w }));
-    XLSX.utils.book_append_sheet(workbook, gSheet, GOOGLE_NON_SEARCH_SHEETS[type].sheetName);
+    const sheetName = GOOGLE_NON_SEARCH_SHEETS[type].sheetName;
+    XLSX.utils.book_append_sheet(workbook, gSheet, sheetName);
+
+    // Find the CTA column on this per-type sheet by matching the header label
+    // prefix ("Call to Action (...)") since the helper appends the label list.
+    const ctaIdx = gHeaders.findIndex((h) => h.startsWith('Call to Action'));
+    if (ctaIdx >= 0) {
+      dropdownSpecs.push({
+        sheetName,
+        columnIndex: ctaIdx,
+        startRow: 2,
+        endRow: Math.max(1000, gData.length + 1),
+        options: GOOGLE_CTA_DROPDOWN_LABELS,
+        prompt: 'Pick a Google-supported call to action.',
+      });
+    }
   });
 
-  // Generate blob
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  // Generate buffer and post-process to inject dropdown validations.
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+  const finalBuffer = await injectDropdownsIntoXlsx(excelBuffer, dropdownSpecs);
+  return new Blob([finalBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
 // Download text asset Excel file
-export function downloadTextAssetExcel(
+export async function downloadTextAssetExcel(
   rows: CreativeTextAssetRow[],
   campaignName: string
-): void {
-  const blob = generateTextAssetExcel(rows, campaignName);
+): Promise<void> {
+  const blob = await generateTextAssetExcel(rows, campaignName);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
