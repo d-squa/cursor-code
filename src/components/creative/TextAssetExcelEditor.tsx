@@ -1463,9 +1463,13 @@ export function TextAssetExcelEditor({
   }, [rows, onImportRows]);
 
   // Download Excel
-  const handleDownload = useCallback(() => {
-    downloadTextAssetExcel(rows, campaignName);
-    toast.success('Excel file downloaded');
+  const handleDownload = useCallback(async () => {
+    try {
+      await downloadTextAssetExcel(rows, campaignName);
+      toast.success('Excel file downloaded');
+    } catch (e) {
+      toast.error('Failed to generate Excel');
+    }
   }, [rows, campaignName]);
 
   // Undo/Redo
