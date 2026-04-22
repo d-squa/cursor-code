@@ -20,6 +20,7 @@
 
 import * as XLSX from 'xlsx';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, GOOGLE_CTA_LABEL_LIST } from '@/utils/googleCtaOptions';
 
 // ---------- Types ----------
 
@@ -89,6 +90,8 @@ export interface AdSheetRow {
   descriptionPins: (number | null)[]; // matches descriptions length
   longHeadlines: string[]; // length 5 (PMax/Display); empty for Search RSA, Demand Gen, Video
   businessName: string; // PMax/Demand Gen/Display
+  /** Canonical Google CTA enum (e.g. LEARN_MORE) — required for PMax/Demand Gen/Video. */
+  callToAction: string;
 }
 
 export interface GoogleAdsShellDiff {
@@ -114,6 +117,7 @@ export interface GoogleAdsShellDiff {
         descriptionPins: (number | null)[];
         longHeadlines: string[];
         businessName: string;
+        callToAction: string;
       }>;
     }>;
     /** New RSA rows the user added in the spreadsheet — auto-created on apply. */
@@ -403,6 +407,7 @@ export function buildAdRowsFromAssignments(
         a.long_headline_5,
       ].map((v) => String(v || '')),
       businessName: a.business_name || '',
+      callToAction: normalizeGoogleCta((a as any).call_to_action) || '',
     });
   }
   return rows;
@@ -504,6 +509,12 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   if (spec.hasBusinessName) {
     adsHeader.push('Business Name', `LEN BN (max ${spec.businessNameLimit})`);
   }
+  // CTA — required for PMax / Demand Gen / Video; optional for Display.
+  // Hidden on Search RSA (Google Search ads don't use a CTA button).
+  const includeCta = spec.type !== 'search';
+  if (includeCta) {
+    adsHeader.push(`Call to Action (${GOOGLE_CTA_LABEL_LIST})`);
+  }
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
@@ -542,6 +553,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
         descriptionPins: Array(5).fill(null),
         longHeadlines: Array(5).fill(''),
         businessName: '',
+        callToAction: '',
       });
     }
     effectiveAdRows = [...input.adRows, ...shellRows];
@@ -571,6 +583,12 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     }
     if (spec.hasBusinessName) {
       row.push(r.businessName, '');
+    }
+    if (includeCta) {
+      // Export the UI-friendly label (e.g. "Learn More") so users see/edit a
+      // human-readable value. Import re-normalises to the enum.
+      const opt = GOOGLE_CTA_OPTIONS.find((o) => o.value === normalizeGoogleCta(r.callToAction));
+      row.push(opt ? opt.label : '');
     }
     adsAoa.push(row);
   }
@@ -684,6 +702,8 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
       longHeadlineCols.push(idx);
     }
     const businessNameCol = indexOfHeader('Business Name');
+    // CTA column header is dynamic (includes the label list hint), so match by prefix.
+    const ctaCol = header.findIndex((h) => /^Call to Action/i.test(h));
     const finalUrlCol = indexOfHeader('Final URL');
     const youtubeVideoUrlCol = indexOfHeader('YouTube Video URL');
     const path1Col = indexOfHeader('Path 1');
@@ -737,6 +757,7 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
         descriptionPins,
         longHeadlines,
         businessName,
+        callToAction: ctaCol >= 0 ? (normalizeGoogleCta(String(row[ctaCol] || '')) || '') : '',
       });
     }
   }
@@ -852,6 +873,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
         changes.descriptionPins = after.descriptionPins;
       if (!arrEq(before.longHeadlines, after.longHeadlines)) changes.longHeadlines = after.longHeadlines;
       if (before.businessName !== after.businessName) changes.businessName = after.businessName;
+      if ((before.callToAction || '') !== (after.callToAction || '')) changes.callToAction = after.callToAction;
 
       if (Object.keys(changes).length > 0) {
         adsUpdated.push({
@@ -1018,6 +1040,7 @@ export function adChangesToAssignmentUpdate(
     upd.long_headline_5 = changes.longHeadlines[4] || null;
   }
   if (changes.businessName !== undefined) upd.business_name = changes.businessName;
+  if (changes.callToAction !== undefined) upd.call_to_action = changes.callToAction || null;
   return upd;
 }
 
