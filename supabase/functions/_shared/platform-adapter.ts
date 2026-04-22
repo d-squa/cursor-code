@@ -79,6 +79,23 @@ function mapGoogleCtaToDisplay(input?: string | null): string {
   return "";
 }
 
+/** Normalize a UI label/enum/display string into the canonical Google CTA enum. */
+function mapGoogleCtaToEnum(input?: string | null): string {
+  if (!input) return "LEARN_MORE";
+  const raw = String(input).trim();
+  if (!raw) return "LEARN_MORE";
+  const upper = raw.toUpperCase().replace(/\s+/g, "_");
+  if (GOOGLE_CTA_DISPLAY_MAP[upper]) return upper;
+  const lower = raw.toLowerCase();
+  for (const [enumVal, display] of Object.entries(GOOGLE_CTA_DISPLAY_MAP)) {
+    if (display.toLowerCase() === lower) return enumVal;
+  }
+  if (/^install[_ ]?(app|now)$/i.test(raw)) return "INSTALL";
+  if (/^watch[_ ]?more$/i.test(raw)) return "WATCH_NOW";
+  return "LEARN_MORE";
+}
+
+
 export interface PlatformAdapter {
   createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult>;
   updateCampaign(params: UpdateCampaignParams): Promise<UpdateCampaignResult>;
