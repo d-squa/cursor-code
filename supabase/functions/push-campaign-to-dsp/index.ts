@@ -5495,6 +5495,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any, s
           });
 
           // ============= CREATE ADS FROM ASSIGNED CREATIVES (TikTok) =============
+          let adsCreated = 0;
           if (skipCreatives) {
             console.log(`⏭️ Skipping creative processing (shell-only mode) for TikTok ${market.name}/${phase.name}`);
           } else {
@@ -5523,8 +5524,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any, s
             .eq("market", market.name)
             .eq("phase_name", phase.name)
             .order("position");
-
-          let adsCreated = 0;
 
           if (tiktokAssignmentError) {
             console.error(`Error fetching TikTok creative assignments:`, tiktokAssignmentError);
