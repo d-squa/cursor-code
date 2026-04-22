@@ -508,6 +508,12 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   if (spec.hasBusinessName) {
     adsHeader.push('Business Name', `LEN BN (max ${spec.businessNameLimit})`);
   }
+  // CTA — required for PMax / Demand Gen / Video; optional for Display.
+  // Hidden on Search RSA (Google Search ads don't use a CTA button).
+  const includeCta = spec.type !== 'search';
+  if (includeCta) {
+    adsHeader.push(`Call to Action (${GOOGLE_CTA_LABEL_LIST})`);
+  }
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
