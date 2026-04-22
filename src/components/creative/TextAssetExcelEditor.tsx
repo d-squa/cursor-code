@@ -938,8 +938,13 @@ export function TextAssetExcelEditor({
       const matchesPhase =
         normalizedPhase == null || normalizeGoogleSearchPhase(row.phase) === normalizedPhase;
       if (!matchesPhase) return false;
+      const campaignType = String(row.googleCampaignType || '').toLowerCase();
+      // Exclude Video / Demand Gen / Display / PMax explicitly — these are non-search even if a strategy label leaked through.
+      if (/(video|demand[_\s-]?gen|display|performance[_\s-]?max|pmax|shopping)/.test(campaignType)) return false;
+      const phaseLabel = String(row.phase || '').toLowerCase();
+      if (/(video|demand[_\s-]?gen|display|performance[_\s-]?max|pmax|shopping)/.test(phaseLabel)) return false;
       return (
-        String(row.googleCampaignType || '').toLowerCase().includes('search') ||
+        campaignType.includes('search') ||
         !!row.googleStrategy ||
         normalizeGoogleSearchPhase(row.phase).toLowerCase().includes('search')
       );
