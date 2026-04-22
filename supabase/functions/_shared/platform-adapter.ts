@@ -2086,9 +2086,9 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
             ad = {
               demandGenVideoResponsiveAd: {
-                headlines: headlines.slice(0, 5).map((text) => ({ text })),
-                longHeadlines: [{ text: longHeadline }],
-                descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
+                headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
+                longHeadlines: [{ text: dgLongHeadline }],
+                descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
                 // businessName is an AdTextAsset, not a raw string.
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
