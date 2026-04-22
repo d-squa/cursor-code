@@ -84,6 +84,7 @@ export const EDITABLE_COLUMNS: TextAssetColumnKey[] = [
   'brandName',
   'callToAction',
   'destinationUrl',
+  'youtubeVideoUrl',
   'overrideLandingPageUrl',
   'displayLink',
   'displayName',
