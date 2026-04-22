@@ -79,6 +79,23 @@ function mapGoogleCtaToDisplay(input?: string | null): string {
   return "";
 }
 
+/** Normalize a UI label/enum/display string into the canonical Google CTA enum. */
+function mapGoogleCtaToEnum(input?: string | null): string {
+  if (!input) return "LEARN_MORE";
+  const raw = String(input).trim();
+  if (!raw) return "LEARN_MORE";
+  const upper = raw.toUpperCase().replace(/\s+/g, "_");
+  if (GOOGLE_CTA_DISPLAY_MAP[upper]) return upper;
+  const lower = raw.toLowerCase();
+  for (const [enumVal, display] of Object.entries(GOOGLE_CTA_DISPLAY_MAP)) {
+    if (display.toLowerCase() === lower) return enumVal;
+  }
+  if (/^install[_ ]?(app|now)$/i.test(raw)) return "INSTALL";
+  if (/^watch[_ ]?more$/i.test(raw)) return "WATCH_NOW";
+  return "LEARN_MORE";
+}
+
+
 export interface PlatformAdapter {
   createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult>;
   updateCampaign(params: UpdateCampaignParams): Promise<UpdateCampaignResult>;
@@ -1556,6 +1573,62 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return resourceName;
   }
 
+  /**
+   * Ensure a CALL_TO_ACTION asset exists for the given CTA enum value
+   * (e.g. "LEARN_MORE"). Demand Gen Video Responsive Ads reference these via
+   * `AdCallToActionAsset.asset` (a resource name), NOT inline text.
+   * Returns the asset resource name.
+   */
+  private async ensureCallToActionAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    ctaEnum: string,
+  ): Promise<string> {
+    const enumValue = (ctaEnum || "LEARN_MORE").toUpperCase();
+    try {
+      const gaql = `SELECT asset.resource_name, asset.call_to_action_asset.call_to_action FROM asset WHERE asset.type = 'CALL_TO_ACTION' AND asset.call_to_action_asset.call_to_action = '${enumValue}' LIMIT 1`;
+      const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:search`;
+      const searchResp = await fetch(searchUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
+      if (searchResp.ok) {
+        const searchData = await searchResp.json();
+        const existing = searchData?.results?.[0]?.asset?.resourceName;
+        if (existing) return existing;
+      }
+    } catch (e) {
+      console.warn("[google.ensureCallToActionAsset] lookup failed:", e);
+    }
+
+    const assetOp = {
+      create: {
+        name: `CTA ${enumValue} ${Date.now()}`,
+        callToActionAsset: { callToAction: enumValue },
+      },
+    };
+
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Call-to-action asset creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) {
+      throw new Error("Call-to-action asset creation returned no resourceName");
+    }
+    return resourceName;
+  }
+
   async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
     try {
       const customerId = params.accountId.replace(/-/g, "");
@@ -1968,12 +2041,21 @@ class GoogleAdsAdapter implements PlatformAdapter {
               }
             }
 
-            // Google's `AdCallToActionAsset.text` (Demand Gen Video / Video
-            // Responsive) accepts a fixed set of display phrases. Map our
-            // internal enum (e.g. LEARN_MORE) to the exact display string Google
-            // expects ("Learn more"). Fall back to "Learn more" if missing.
-            const ctaInputDg = String(params.callToAction || "").trim();
-            const ctaDisplayDg = mapGoogleCtaToDisplay(ctaInputDg) || "Learn more";
+            // DemandGenVideoResponsiveAdInfo.call_to_actions is a repeated
+            // AdCallToActionAsset whose only field is `asset` (a resource name
+            // pointing at a CALL_TO_ACTION asset). We must create/lookup the
+            // CTA asset first, then reference it.
+            const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction);
+            let ctaAssetResource: string | null = null;
+            try {
+              ctaAssetResource = await this.ensureCallToActionAsset(
+                customerId,
+                headers,
+                ctaEnumDg,
+              );
+            } catch (e) {
+              console.warn("[google.createCreative] CTA asset creation failed, omitting:", e);
+            }
 
             ad = {
               demandGenVideoResponsiveAd: {
@@ -1984,9 +2066,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                // v23: call_to_actions is repeated AdCallToActionAsset whose
-                // text field is `actionText` (not `text`).
-                callToActions: [{ actionText: ctaDisplayDg }],
+                ...(ctaAssetResource ? { callToActions: [{ asset: ctaAssetResource }] } : {}),
               },
               finalUrls: [params.landingPageUrl],
             };
