@@ -323,6 +323,14 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             advantage_plus_optimize_text_per_person: assignment.advantage_plus_optimize_text_per_person ?? undefined,
             advantage_plus_sitelinks: assignment.advantage_plus_sitelinks ?? undefined,
             advantage_plus_products: assignment.advantage_plus_products ?? undefined,
+            youtubeVideoUrl: (() => {
+              const meta = (creative?.platform_metadata as Record<string, any> | null) || {};
+              const fromMeta = meta.youtube_video_url || meta.youtubeVideoUrl || meta.youtube_video_id || meta.youtubeVideoId;
+              if (fromMeta) return String(fromMeta);
+              const firstMedia = creative?.media_urls?.[0];
+              if (firstMedia && /youtu\.?be/i.test(String(firstMedia))) return String(firstMedia);
+              return undefined;
+            })(),
           };
         });
 
