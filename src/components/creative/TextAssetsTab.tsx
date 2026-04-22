@@ -186,7 +186,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
               platform_thumbnail_id,
               tiktok_asset_advertiser_id,
               external_post_id,
-              external_page_id
+              external_page_id,
+              platform_metadata
             )
           `)
           .eq('campaign_id', effectiveCampaignId);
@@ -323,6 +324,14 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             advantage_plus_optimize_text_per_person: assignment.advantage_plus_optimize_text_per_person ?? undefined,
             advantage_plus_sitelinks: assignment.advantage_plus_sitelinks ?? undefined,
             advantage_plus_products: assignment.advantage_plus_products ?? undefined,
+            youtubeVideoUrl: (() => {
+              const meta = (creative?.platform_metadata as Record<string, any> | null) || {};
+              const fromMeta = meta.youtube_video_url || meta.youtubeVideoUrl || meta.youtube_video_id || meta.youtubeVideoId;
+              if (fromMeta) return String(fromMeta);
+              const firstMedia = creative?.media_urls?.[0];
+              if (firstMedia && /youtu\.?be/i.test(String(firstMedia))) return String(firstMedia);
+              return undefined;
+            })(),
           };
         });
 
@@ -463,6 +472,35 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
       if (!user?.id) throw new Error('User session not found while saving text assets');
       // Update creatives with text assets
       for (const row of rows) {
+        if (!row.creativeId) continue;
+
+        // For Google Demand Gen / Video ads, persist the YouTube URL +
+        // extracted ID into platform_metadata so the DSP push can attach the
+        // video asset to the creative. Mirror the logic in TextAssetsStep so
+        // the editor's YouTube field round-trips on Save.
+        let mergedMetadata: Record<string, unknown> | undefined;
+        if (row.youtubeVideoUrl !== undefined) {
+          const url = String(row.youtubeVideoUrl || '').trim();
+          const { data: existing } = await supabase
+            .from('creatives')
+            .select('platform_metadata')
+            .eq('id', row.creativeId)
+            .maybeSingle();
+          const baseMeta = (existing?.platform_metadata as Record<string, unknown> | null) || {};
+          mergedMetadata = { ...baseMeta };
+          if (url) {
+            const idMatch = url.match(/[?&]v=([A-Za-z0-9_-]{11})/)
+              || url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/)
+              || url.match(/\/(?:shorts|embed|v)\/([A-Za-z0-9_-]{11})/)
+              || url.match(/^([A-Za-z0-9_-]{11})$/);
+            mergedMetadata.youtube_video_url = url;
+            if (idMatch?.[1]) mergedMetadata.youtube_video_id = idMatch[1];
+          } else {
+            delete mergedMetadata.youtube_video_url;
+            delete mergedMetadata.youtube_video_id;
+          }
+        }
+
         const { error } = await supabase
           .from('creatives')
           .update({
@@ -471,6 +509,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             description: row.description,
             call_to_action: row.callToAction,
             destination_url: row.destinationUrl,
+            ...(mergedMetadata ? { platform_metadata: mergedMetadata as any } : {}),
           })
           .eq('id', row.creativeId);
 
