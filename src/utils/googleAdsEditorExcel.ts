@@ -471,10 +471,6 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
       setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), DESCRIPTION_LIMIT);
       cur += 3;
     }
-    for (let i = 0; i < 5; i++) {
-      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), LONG_HEADLINE_LIMIT);
-      cur += 2;
-    }
     setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), BUSINESS_NAME_LIMIT);
   }
 
