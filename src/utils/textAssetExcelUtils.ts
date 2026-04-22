@@ -46,6 +46,7 @@ export const TEXT_ASSET_COLUMNS = [
   { key: 'brandName', label: 'Brand/Business Name', width: 20 },
   { key: 'callToAction', label: 'CTA', width: 15 },
   { key: 'destinationUrl', label: 'Destination URL', width: 50 },
+  { key: 'youtubeVideoUrl', label: 'YouTube Video URL', width: 50 },
   { key: 'overrideLandingPageUrl', label: 'Sitelink URL', width: 50 },
   { key: 'displayLink', label: 'Display Link', width: 20 },
   { key: 'displayName', label: 'Display Name', width: 20 },
@@ -83,6 +84,7 @@ export const EDITABLE_COLUMNS: TextAssetColumnKey[] = [
   'brandName',
   'callToAction',
   'destinationUrl',
+  'youtubeVideoUrl',
   'overrideLandingPageUrl',
   'displayLink',
   'displayName',
@@ -305,6 +307,7 @@ export async function parseTextAssetExcel(
             if (columnIndices.description !== undefined) updates.description = String(dataRow[columnIndices.description] || '');
             if (columnIndices.caption !== undefined) updates.caption = String(dataRow[columnIndices.caption] || '');
             if (columnIndices.destinationUrl !== undefined) updates.destinationUrl = String(dataRow[columnIndices.destinationUrl] || '');
+            if (columnIndices.youtubeVideoUrl !== undefined) updates.youtubeVideoUrl = String(dataRow[columnIndices.youtubeVideoUrl] || '');
             if (columnIndices.displayLink !== undefined) updates.displayLink = String(dataRow[columnIndices.displayLink] || '');
             if (columnIndices.callToAction !== undefined) {
               const ctaValue = String(dataRow[columnIndices.callToAction] || '').toUpperCase().replace(/ /g, '_');
@@ -388,7 +391,14 @@ const HEADER_ALIASES: Record<string, TextAssetColumnKey> = {
   'link': 'destinationUrl',
   'final url': 'destinationUrl',
   'landing page': 'destinationUrl',
-  
+
+  // YouTube Video URL aliases
+  'youtube video url': 'youtubeVideoUrl',
+  'youtube url': 'youtubeVideoUrl',
+  'youtube video': 'youtubeVideoUrl',
+  'youtubevideourl': 'youtubeVideoUrl',
+  'youtube_video_url': 'youtubeVideoUrl',
+
   // Display Link aliases
   'display link': 'displayLink',
   'displaylink': 'displayLink',
