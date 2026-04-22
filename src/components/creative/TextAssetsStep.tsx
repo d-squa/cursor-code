@@ -1636,7 +1636,7 @@ export function TextAssetsStep({
          headline_pins, description_pins,
          long_headline_1, long_headline_2, long_headline_3, long_headline_4, long_headline_5,
          business_name,
-         creatives ( name )`,
+         creatives ( name, platform_metadata, media_urls )`,
       )
       .eq('campaign_id', campaignId)
       .eq('platform', 'google');
