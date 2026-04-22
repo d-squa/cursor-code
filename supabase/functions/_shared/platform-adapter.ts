@@ -1664,27 +1664,107 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       const adGroupResourceName = `customers/${customerId}/adGroups/${params.adGroupId}`;
 
-      // Build responsive search ad (most common)
-      const adOp = {
-        create: {
-          adGroup: adGroupResourceName,
-          status: "ENABLED",
-          ad: {
-            responsiveSearchAd: {
-              headlines: [
-                { text: params.creativeName.substring(0, 30) },
-                { text: params.adText.substring(0, 30) },
-                { text: params.callToAction.substring(0, 30) },
-              ],
-              descriptions: [
-                { text: params.adText.substring(0, 90) },
-                { text: params.creativeName.substring(0, 90) },
-              ],
-            },
-            finalUrls: [params.landingPageUrl],
+      // Discover the parent campaign's advertisingChannelType so we choose the right ad format.
+      // RSA is ONLY valid for SEARCH campaigns. For VIDEO/DEMAND_GEN/DISPLAY/PMAX,
+      // headlines & descriptions are parameters of the corresponding ad format
+      // (videoResponsiveAd, demandGenVideoResponsiveAd, responsiveDisplayAd, asset group), not RSA.
+      let channelType = "SEARCH";
+      try {
+        const gaql = `SELECT campaign.advertising_channel_type, campaign.advertising_channel_sub_type FROM ad_group WHERE ad_group.id = ${params.adGroupId} LIMIT 1`;
+        const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:search`;
+        const searchResp = await fetch(searchUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query: gaql }),
+        });
+        if (searchResp.ok) {
+          const searchData = await searchResp.json();
+          const row = searchData?.results?.[0];
+          channelType = row?.campaign?.advertisingChannelType || "SEARCH";
+        }
+      } catch (lookupErr) {
+        console.warn("[google.createCreative] Failed to resolve channel type, defaulting to SEARCH:", lookupErr);
+      }
+
+      // Collect headlines/descriptions provided by the caller (text-asset overrides),
+      // falling back to legacy single-string fields for backwards compatibility.
+      const rawHeadlines: string[] = Array.isArray((params as any).headlines) && (params as any).headlines.length > 0
+        ? (params as any).headlines
+        : [params.creativeName, params.adText, params.callToAction].filter(Boolean);
+      const rawDescriptions: string[] = Array.isArray((params as any).descriptions) && (params as any).descriptions.length > 0
+        ? (params as any).descriptions
+        : [params.adText, params.creativeName].filter(Boolean);
+
+      const headlines = rawHeadlines
+        .map((h: string) => String(h || "").trim())
+        .filter(Boolean)
+        .map((h: string) => h.substring(0, 30));
+      const descriptions = rawDescriptions
+        .map((d: string) => String(d || "").trim())
+        .filter(Boolean)
+        .map((d: string) => d.substring(0, 90));
+      const longHeadline = (headlines[0] || params.creativeName || "Learn More").substring(0, 90);
+      const businessName = (params as any).businessName || params.creativeName || "Brand";
+
+      const upperChannel = String(channelType || "SEARCH").toUpperCase();
+      let ad: Record<string, any>;
+
+      if (upperChannel === "SEARCH") {
+        if (headlines.length < 3 || descriptions.length < 2) {
+          return {
+            success: false,
+            creativeId: "",
+            platform: "google",
+            error: `Responsive Search Ad requires at least 3 headlines and 2 descriptions (got ${headlines.length} headlines, ${descriptions.length} descriptions).`,
+          };
+        }
+        ad = {
+          responsiveSearchAd: {
+            headlines: headlines.slice(0, 15).map((text) => ({ text })),
+            descriptions: descriptions.slice(0, 4).map((text) => ({ text })),
           },
-        },
-      };
+          finalUrls: [params.landingPageUrl],
+        };
+      } else if (upperChannel === "DISPLAY") {
+        ad = {
+          responsiveDisplayAd: {
+            headlines: headlines.slice(0, 5).map((text) => ({ text })),
+            longHeadline: { text: longHeadline },
+            descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
+            businessName,
+          },
+          finalUrls: [params.landingPageUrl],
+        };
+      } else if (upperChannel === "VIDEO" || upperChannel === "DEMAND_GEN") {
+        // For VIDEO/DEMAND_GEN, the actual creative is a video/image asset.
+        // Text fields here are parameters of that asset and require the asset IDs.
+        // Don't attempt to create an RSA — surface a clear, actionable error.
+        return {
+          success: false,
+          creativeId: "",
+          platform: "google",
+          error:
+            `Text assets on ${upperChannel === "VIDEO" ? "Video" : "Demand Gen"} campaigns are parameters of the video/image creative, not standalone ads. ` +
+            `Upload the video/image asset first, then these headlines/descriptions will be attached to it.`,
+        };
+      } else if (upperChannel === "PERFORMANCE_MAX") {
+        return {
+          success: false,
+          creativeId: "",
+          platform: "google",
+          error:
+            `Performance Max campaigns use Asset Groups, not standalone ads. Headlines/descriptions must be pushed via the asset group flow.`,
+        };
+      } else {
+        return {
+          success: false,
+          creativeId: "",
+          platform: "google",
+          error: `Unsupported Google Ads channel type "${channelType}" for text-asset push.`,
+        };
+      }
+
+      const adOp = { create: { adGroup: adGroupResourceName, status: "ENABLED", ad } };
 
       const url = `${this.API_BASE}/customers/${customerId}/adGroupAds:mutate`;
       const resp = await fetch(url, {
