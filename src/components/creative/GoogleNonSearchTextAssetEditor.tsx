@@ -90,6 +90,12 @@ interface SchemaSpec {
   /** Whether business name is required to be considered valid. */
   requiresBusinessName: boolean;
   requiresFinalUrl: boolean;
+  /**
+   * If true, this campaign type uploads a YouTube video (or image) as the
+   * actual creative — text assets are parameters of that asset. Surfaces a
+   * "YouTube Video URL" input and validates that the row carries one.
+   */
+  requiresYoutubeVideo: boolean;
 }
 
 const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
@@ -101,6 +107,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 3, minLongHeadlines: 1, minDescriptions: 2,
     requiresBusinessName: true, requiresFinalUrl: true,
+    requiresYoutubeVideo: false,
   },
   demand_gen: {
     label: 'Demand Gen',
@@ -110,6 +117,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
+    requiresYoutubeVideo: true,
   },
   video: {
     label: 'Video (YouTube)',
@@ -119,6 +127,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
+    requiresYoutubeVideo: true,
   },
   display: {
     label: 'Display',
@@ -128,6 +137,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 1, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
+    requiresYoutubeVideo: false,
   },
   other: {
     label: 'Google Ads',
@@ -137,6 +147,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
+    requiresYoutubeVideo: false,
   },
 };
 
