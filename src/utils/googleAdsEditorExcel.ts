@@ -786,8 +786,27 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   const newRowCounter = new Map<string, number>();
 
   for (const after of input.uploaded.ads) {
+    // Resolve to an existing assignment either by explicit __assignmentId__
+    // or, when that column was cleared/missing, by matching the
+    // (campaign, ad group, ad name) triple. Without this fallback the row
+    // silently slipped into the "new ad" path and changes like Final URL
+    // were dropped because the shell-key check usually didn't match either.
+    let resolvedBefore: AdSheetRow | undefined;
+    let resolvedAssignmentId: string | null = null;
     if (after.assignmentId && curAdsById.has(after.assignmentId)) {
-      const before = curAdsById.get(after.assignmentId)!;
+      resolvedBefore = curAdsById.get(after.assignmentId);
+      resolvedAssignmentId = after.assignmentId;
+    } else if (after.adName) {
+      const tk = tripleKey(after.campaignName, after.adGroupName, after.adName);
+      const match = curAdsByTriple.get(tk);
+      if (match?.assignmentId) {
+        resolvedBefore = match;
+        resolvedAssignmentId = match.assignmentId;
+      }
+    }
+
+    if (resolvedBefore && resolvedAssignmentId) {
+      const before = resolvedBefore;
       const changes: GoogleAdsShellDiff['ads']['updated'][number]['changes'] = {};
       if (before.finalUrl !== after.finalUrl) changes.finalUrl = after.finalUrl;
       if (before.path1 !== after.path1) changes.path1 = after.path1;
@@ -802,7 +821,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
 
       if (Object.keys(changes).length > 0) {
         adsUpdated.push({
-          assignmentId: after.assignmentId,
+          assignmentId: resolvedAssignmentId,
           campaignName: after.campaignName,
           adGroupName: after.adGroupName,
           adName: after.adName,
