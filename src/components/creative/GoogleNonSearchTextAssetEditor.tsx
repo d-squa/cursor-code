@@ -178,6 +178,8 @@ export interface NonSearchAdDraft {
   finalUrl: string;
   /** YouTube video URL or ID — required for Demand Gen video / Video (YouTube) ads. */
   youtubeVideoUrl: string;
+  /** Canonical Google CTA enum (e.g. LEARN_MORE) — required for PMax/Demand Gen/Video. */
+  callToAction: string;
 }
 
 function pad<T>(arr: T[] | undefined, length: number, filler: T): T[] {
@@ -262,6 +264,7 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
     businessName: String(r.business_name || row.brandName || ''),
     finalUrl: String(row.destinationUrl || ''),
     youtubeVideoUrl: String(row.youtubeVideoUrl || ''),
+    callToAction: normalizeGoogleCta(row.callToAction || r.call_to_action) || '',
   };
 }
 
@@ -286,6 +289,10 @@ function draftToRowUpdates(d: NonSearchAdDraft): Partial<CreativeTextAssetRow> {
     brandName: d.businessName,
     destinationUrl: d.finalUrl,
     youtubeVideoUrl: d.youtubeVideoUrl,
+    callToAction: d.callToAction,
+    // snake_case mirror so the push endpoint (which reads creative.call_to_action)
+    // and the Excel round-trip both pick it up.
+    call_to_action: d.callToAction,
     // Persist full lists too so re-opening the editor restores everything.
     headline_pins: { values: d.headlines, pins: [] as (number | null)[] },
     description_pins: { values: d.descriptions, pins: [] as (number | null)[] },
