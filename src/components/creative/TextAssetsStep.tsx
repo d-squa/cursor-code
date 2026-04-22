@@ -752,7 +752,7 @@ export function TextAssetsStep({
             description_pins: assignment.description_pins || undefined,
             caption: creative?.caption || '',
             callToAction: (creative?.call_to_action || 'LEARN_MORE') as CallToAction,
-            destinationUrl: creative?.destination_url || '',
+            destinationUrl: assignment.destination_url || creative?.destination_url || '',
             autoBuildUtm: false,
             // Organic posts are always valid (skip validation)
             isValid: isOrganic ? true : true,
