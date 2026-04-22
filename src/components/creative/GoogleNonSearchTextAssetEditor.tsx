@@ -25,7 +25,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Copy, Clipboard, LayoutGrid } from 'lucide-react';
+import { Copy, Clipboard, LayoutGrid, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
@@ -313,11 +323,15 @@ interface Props {
   scopePhase?: string;
   onRowChange: (rowId: string, updates: Partial<CreativeTextAssetRow>) => void;
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
+  /** Delete one or more creative assignments (by assignmentId). */
+  onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
 }
 
 export function GoogleNonSearchTextAssetEditor({
-  open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate,
+  open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate, onDeleteAssignments,
 }: Props) {
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [drafts, setDrafts] = useState<NonSearchAdDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -465,6 +479,49 @@ export function GoogleNonSearchTextAssetEditor({
     toast.success(`Selected ${ids.length} invalid ad${ids.length === 1 ? '' : 's'}`);
   }, [drafts]);
 
+  const requestDeleteSelected = useCallback(() => {
+    if (!onDeleteAssignments) return;
+    const ids = filteredDrafts.filter((d) => selectedIds.has(d.rowId));
+    const assignmentIds = ids.map((d) => d.assignmentId).filter(Boolean);
+    if (assignmentIds.length === 0) {
+      toast.info('Select rows to delete');
+      return;
+    }
+    setConfirmDelete({ ids: ids.map((d) => d.rowId), assignmentIds });
+  }, [filteredDrafts, selectedIds, onDeleteAssignments]);
+
+  const requestDeleteOne = useCallback((rowId: string) => {
+    if (!onDeleteAssignments) return;
+    const d = drafts.find((x) => x.rowId === rowId);
+    if (!d || !d.assignmentId) {
+      toast.error('No assignment found for this row');
+      return;
+    }
+    setConfirmDelete({ ids: [rowId], assignmentIds: [d.assignmentId] });
+  }, [drafts, onDeleteAssignments]);
+
+  const performDelete = useCallback(async () => {
+    if (!confirmDelete || !onDeleteAssignments) return;
+    setDeleting(true);
+    try {
+      await onDeleteAssignments(confirmDelete.assignmentIds);
+      const removed = new Set(confirmDelete.ids);
+      setDrafts((prev) => prev.filter((d) => !removed.has(d.rowId)));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+      setFocusedId((prev) => (prev && removed.has(prev) ? null : prev));
+      toast.success(`Deleted ${confirmDelete.assignmentIds.length} ad${confirmDelete.assignmentIds.length === 1 ? '' : 's'}`);
+      setConfirmDelete(null);
+    } catch (err) {
+      toast.error('Failed to delete', { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirmDelete, onDeleteAssignments]);
+
   const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
   const focusedSchema = focusedDraft ? SCHEMAS[focusedDraft.type] : null;
 
@@ -533,6 +590,19 @@ export function GoogleNonSearchTextAssetEditor({
             <Clipboard className="h-3.5 w-3.5 mr-1.5" />
             Paste to selected ({selectedIds.size})
           </Button>
+
+          {onDeleteAssignments && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={requestDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className="h-8"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete selected ({selectedIds.size})
+            </Button>
+          )}
 
           <div className="ml-auto text-xs text-muted-foreground">
             {drafts.length} ad{drafts.length === 1 ? '' : 's'} · {filteredDrafts.length} shown
@@ -684,6 +754,16 @@ export function GoogleNonSearchTextAssetEditor({
                     <Button variant="outline" size="sm" onClick={() => handleCopyRow(focusedDraft.rowId)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy this ad
                     </Button>
+                    {onDeleteAssignments && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => requestDeleteOne(focusedDraft.rowId)}
+                        className="ml-auto"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               </ScrollArea>
@@ -695,6 +775,30 @@ export function GoogleNonSearchTextAssetEditor({
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && !deleting && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {confirmDelete?.assignmentIds.length ?? 0} ad
+              {(confirmDelete?.assignmentIds.length ?? 0) === 1 ? '' : 's'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the creative assignment{(confirmDelete?.assignmentIds.length ?? 0) === 1 ? '' : 's'} and any text assets attached to {(confirmDelete?.assignmentIds.length ?? 0) === 1 ? 'it' : 'them'}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); performDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
