@@ -334,11 +334,14 @@ export function TextAssetsStep({
               position,
               ad_set_id,
               ad_set_name,
+              ad_group_name,
                status,
                dsp_creative_id,
               ad_strategy,
               call_to_action,
               destination_url,
+              path_1,
+              path_2,
               headline,
               headline_2,
               headline_3,
@@ -428,7 +431,7 @@ export function TextAssetsStep({
         // Campaign metadata (needed for taxonomy)
         const campaignResult = await supabase
           .from('campaigns')
-          .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, market_splits, team_id, teams(name)')
+          .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, market_splits, generic_config, team_id, teams(name)')
           .eq('id', campaignId)
           .single();
 
@@ -539,17 +542,27 @@ export function TextAssetsStep({
         const normalizePhase = (p: string) => String(p || '').trim().toLowerCase();
         const structureKey = (market: string, phase: string) =>
           `${String(market || '').trim().toLowerCase()}::${normalizePhase(phase)}`;
+        const registerGooglePhaseType = (phase: any, fallbackMarket?: string) => {
+          if (!phase?.googleCampaignType) return;
+          const market = phase?.market || fallbackMarket || 'Global';
+          const phaseName = String(phase?.name || '').trim();
+          if (!phaseName) return;
+          googleTypeByKey.set(structureKey(market, phaseName), phase.googleCampaignType);
+        };
+
         (campaignStructures || []).forEach((s) => {
           if (String(s.platform || '').toLowerCase() !== 'google') return;
-          if (!s.googleCampaignType) return;
           const market = s.market || 'Global';
           const phases = (s.phases && s.phases.length > 0)
             ? s.phases
             : (s.funnelStage ? [s.funnelStage] : []);
           for (const phase of phases) {
-            googleTypeByKey.set(structureKey(market, phase), s.googleCampaignType);
+            registerGooglePhaseType({ name: phase, market, googleCampaignType: s.googleCampaignType }, market);
           }
         });
+
+        const derivedGoogleConfig = deriveGoogleShellData(campaign as any);
+        derivedGoogleConfig.googlePhases.forEach((phase: any) => registerGooglePhaseType(phase, phase?.market));
 
         // Transform to CreativeTextAssetRow format with taxonomy names
         const transformedRows: CreativeTextAssetRowWithTikTok[] = assignments.map((assignment: any) => {
@@ -645,7 +658,7 @@ export function TextAssetsStep({
           );
           
           // Determine the ad set name - prioritize stored values, then taxonomy
-          let adSetName = assignment.ad_set_name || savedAssignment?.adSetName;
+          let adSetName = assignment.ad_group_name || assignment.ad_set_name || savedAssignment?.adSetName;
           
           // If no stored ad set name, use the generated taxonomy name
           if (!adSetName && taxonomyAdSetName) {
@@ -750,6 +763,8 @@ export function TextAssetsStep({
             brandName: assignment.business_name || assignment.brand_name || undefined,
             headline_pins: assignment.headline_pins || undefined,
             description_pins: assignment.description_pins || undefined,
+            path_1: assignment.path_1 || undefined,
+            path_2: assignment.path_2 || undefined,
             caption: creative?.caption || '',
             callToAction: (creative?.call_to_action || 'LEARN_MORE') as CallToAction,
             destinationUrl: assignment.destination_url || creative?.destination_url || '',
@@ -1060,6 +1075,8 @@ export function TextAssetsStep({
         await supabase
           .from('creative_assignments')
           .update({
+            ad_group_name: row.adSet || null,
+            ad_strategy: (row as any).googleStrategy || null,
             primary_text: row.primaryText || null,
             headline: row.headline || null,
             headline_2: (row as any).headline2 || null,
@@ -1080,6 +1097,8 @@ export function TextAssetsStep({
             brand_name: row.brandName || null,
             headline_pins: (row as any).headline_pins || null,
             description_pins: (row as any).description_pins || null,
+            path_1: (row as any).path_1 || null,
+            path_2: (row as any).path_2 || null,
             call_to_action: row.callToAction || null,
             destination_url: row.destinationUrl || null,
             carousel_group_id: row.carouselGroupId || null,
