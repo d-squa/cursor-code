@@ -761,8 +761,18 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   const adsSkippedNew: AdSheetRow[] = [];
   const curAdsById = new Map<string, AdSheetRow>();
   const knownShellKeys = new Set<string>();
+  // Fallback lookup: when an uploaded row has no __assignmentId__ (e.g. user
+  // cleared the helper column or pasted from a sheet that omits it) we still
+  // want to map it back to the existing assignment so edits like "Final URL"
+  // actually overwrite the row instead of being dropped as an unmatched "new".
+  const curAdsByTriple = new Map<string, AdSheetRow>();
+  const tripleKey = (campaign: string, adGroup: string, adName: string) =>
+    `${campaign.trim().toLowerCase()}::${adGroup.trim().toLowerCase()}::${(adName || '').trim().toLowerCase()}`;
   for (const a of input.current.ads) {
     if (a.assignmentId) curAdsById.set(a.assignmentId, a);
+    if (a.assignmentId && a.adName) {
+      curAdsByTriple.set(tripleKey(a.campaignName, a.adGroupName, a.adName), a);
+    }
     knownShellKeys.add(`${a.campaignName}::${a.adGroupName}`);
   }
   // Also seed shell keys from the plan structure itself, so uploaded rows for
