@@ -4079,13 +4079,33 @@ const handler = async (req: Request): Promise<Response> => {
               .filter(Boolean)
               .map((description: string) => description.substring(0, 90));
 
+            // Resolve Demand Gen / Video media: prefer YouTube ID from platform_metadata,
+            // then try to extract one from media_urls, otherwise fall back to first image URL.
+            const creativePlatformMeta = (creative.platform_metadata as Record<string, any> | null) || {};
+            const mediaUrls: string[] = Array.isArray(creative.media_urls) ? creative.media_urls : [];
+            const youtubeIdFromMeta: string | undefined =
+              creativePlatformMeta.youtube_video_id
+              || creativePlatformMeta.youtubeVideoId
+              || undefined;
+            const firstMediaUrl: string | undefined = mediaUrls[0];
+            const isImageUrl = !!firstMediaUrl && /\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/i.test(firstMediaUrl);
+            const businessName: string | undefined =
+              (creative as any).brand_name
+              || (campaign as any)?.client_name
+              || (campaign as any)?.brand_name
+              || undefined;
+
             const adResult = await googleAdapter.createCreative({
               accountId: cleanCustomerId,
               accessToken: platform.access_token,
               adGroupId,
               creativeName: creative.name,
               creativeType: "responsive_search_ad",
-              assets: {},
+              assets: {
+                youtubeVideoId: youtubeIdFromMeta,
+                videoUrl: !youtubeIdFromMeta && firstMediaUrl && !isImageUrl ? firstMediaUrl : undefined,
+                imageUrl: isImageUrl ? firstMediaUrl : undefined,
+              },
               adText: descriptions[0] || creative.name,
               callToAction: headlines[1] || headlines[0] || "Learn More",
               landingPageUrl,
@@ -4093,6 +4113,7 @@ const handler = async (req: Request): Promise<Response> => {
               loginCustomerId: effectiveManagerId,
               headlines,
               descriptions,
+              businessName,
             } as any);
 
             if (!adResult.success) {
