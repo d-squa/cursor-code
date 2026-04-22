@@ -455,7 +455,11 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     XLSX.utils.book_append_sheet(wb, keywordsWs, 'Keywords');
   }
 
-  // ---- Ads tab (RSA / PMax) ----
+  // ---- Ads tab (per Google campaign type) ----
+  // Column layout adapts to the workbook's Google campaign type so each
+  // export reflects the platform's real text-asset slots/limits.
+  const spec = pickSheetSpec(input.expansion);
+
   const adsHeader: string[] = [
     'Campaign',
     'Ad Group',
@@ -467,22 +471,24 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     'Path 2',
     `LEN P2 (max ${PATH_LIMIT})`,
   ];
-  for (let i = 1; i <= 15; i++) {
-    adsHeader.push(`Headline ${i}`, `LEN H${i} (max ${HEADLINE_LIMIT})`, `Pin H${i}`);
+  for (let i = 1; i <= spec.headlineCount; i++) {
+    adsHeader.push(`Headline ${i}`, `LEN H${i} (max ${spec.headlineLimit})`, `Pin H${i}`);
   }
-  for (let i = 1; i <= 4; i++) {
-    adsHeader.push(`Description ${i}`, `LEN D${i} (max ${DESCRIPTION_LIMIT})`, `Pin D${i}`);
+  for (let i = 1; i <= spec.descriptionCount; i++) {
+    adsHeader.push(`Description ${i}`, `LEN D${i} (max ${spec.descriptionLimit})`, `Pin D${i}`);
   }
-  // Note: Search RSA ads do NOT support Long Headlines — those are PMax/Display/Demand Gen-only.
-  adsHeader.push('Business Name', `LEN BN (max ${BUSINESS_NAME_LIMIT})`);
+  for (let i = 1; i <= spec.longHeadlineCount; i++) {
+    adsHeader.push(`Long Headline ${i}`, `LEN LH${i} (max ${spec.longHeadlineLimit})`);
+  }
+  if (spec.hasBusinessName) {
+    adsHeader.push('Business Name', `LEN BN (max ${spec.businessNameLimit})`);
+  }
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
   // Always emit one row per (campaign, ad group) shell entry — even when there
   // are creative assignments — so every ad group remains visible and editable
-  // in the Ads tab. Existing assignments come first; ad groups with no
-  // assignment yet are appended as empty shell rows so users can fill them in
-  // directly in the spreadsheet.
+  // in the Ads tab.
   const emptyShellRow = (campaignName: string, adGroupName: string): AdSheetRow => ({
     campaignName,
     adGroupName,
@@ -493,8 +499,8 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     path2: '',
     headlines: Array(15).fill(''),
     headlinePins: Array(15).fill(null),
-    descriptions: Array(4).fill(''),
-    descriptionPins: Array(4).fill(null),
+    descriptions: Array(5).fill(''),
+    descriptionPins: Array(5).fill(null),
     longHeadlines: Array(5).fill(''),
     businessName: '',
   });
@@ -520,43 +526,49 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
       r.assignmentId || '',
       r.finalUrl,
       r.path1,
-      '', // LEN placeholder, filled below as formula
+      '',
       r.path2,
       '',
     ];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < spec.headlineCount; i++) {
       row.push(r.headlines[i] || '', '', r.headlinePins[i] ?? '');
     }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < spec.descriptionCount; i++) {
       row.push(r.descriptions[i] || '', '', r.descriptionPins[i] ?? '');
     }
-    row.push(r.businessName, '');
+    for (let i = 0; i < spec.longHeadlineCount; i++) {
+      row.push(r.longHeadlines[i] || '', '');
+    }
+    if (spec.hasBusinessName) {
+      row.push(r.businessName, '');
+    }
     adsAoa.push(row);
   }
   const adsWs = XLSX.utils.aoa_to_sheet(adsAoa);
 
-  // Fill LEN formulas + conditional red font for over-limit cells
-  // Column letters helper:
   const colLetter = (idx: number) => XLSX.utils.encode_col(idx);
   for (let r = 1; r < adsAoa.length; r++) {
-    const rowNum = r + 1; // 1-indexed
-    // Path1 LEN at col index 6 -> source col 5 (Path 1 letter F)
+    const rowNum = r + 1;
     setLenFormula(adsWs, 6, rowNum, colLetter(5), PATH_LIMIT);
     setLenFormula(adsWs, 8, rowNum, colLetter(7), PATH_LIMIT);
     let cur = 9;
-    for (let i = 0; i < 15; i++) {
-      // Headline at cur, LEN at cur+1, Pin at cur+2
-      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), HEADLINE_LIMIT);
+    for (let i = 0; i < spec.headlineCount; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.headlineLimit);
       cur += 3;
     }
-    for (let i = 0; i < 4; i++) {
-      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), DESCRIPTION_LIMIT);
+    for (let i = 0; i < spec.descriptionCount; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.descriptionLimit);
       cur += 3;
     }
-    setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), BUSINESS_NAME_LIMIT);
+    for (let i = 0; i < spec.longHeadlineCount; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.longHeadlineLimit);
+      cur += 2;
+    }
+    if (spec.hasBusinessName) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.businessNameLimit);
+    }
   }
 
-  // Auto column widths (best-effort)
   adsWs['!cols'] = adsHeader.map((h) => ({ wch: h.startsWith('LEN') || h.startsWith('Pin') ? 10 : Math.max(14, Math.min(40, h.length + 2)) }));
 
   XLSX.utils.book_append_sheet(wb, adsWs, 'Ads');
