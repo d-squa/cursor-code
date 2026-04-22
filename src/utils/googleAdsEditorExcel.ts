@@ -371,10 +371,9 @@ export function buildAdRowsFromAssignments(
         .slice(0, 15)
         .map((v) => String(v || '')),
       headlinePins: padPins(parsePins(a.headline_pins), 15),
-      descriptions: [a.description, a.description_2, a.description_3, a.description_4]
-        .map((v) => String(v || ''))
-        .slice(0, 4),
-      descriptionPins: padPins(parsePins(a.description_pins), 4),
+      descriptions: [a.description, a.description_2, a.description_3, a.description_4, a.description_5]
+        .map((v) => String(v || '')),
+      descriptionPins: padPins(parsePins(a.description_pins), 5),
       longHeadlines: [
         a.long_headline_1,
         a.long_headline_2,
