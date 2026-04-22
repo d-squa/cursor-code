@@ -117,6 +117,7 @@ export interface GoogleAdsShellDiff {
         descriptionPins: (number | null)[];
         longHeadlines: string[];
         businessName: string;
+        callToAction: string;
       }>;
     }>;
     /** New RSA rows the user added in the spreadsheet — auto-created on apply. */
@@ -872,6 +873,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
         changes.descriptionPins = after.descriptionPins;
       if (!arrEq(before.longHeadlines, after.longHeadlines)) changes.longHeadlines = after.longHeadlines;
       if (before.businessName !== after.businessName) changes.businessName = after.businessName;
+      if ((before.callToAction || '') !== (after.callToAction || '')) changes.callToAction = after.callToAction;
 
       if (Object.keys(changes).length > 0) {
         adsUpdated.push({
@@ -1038,6 +1040,7 @@ export function adChangesToAssignmentUpdate(
     upd.long_headline_5 = changes.longHeadlines[4] || null;
   }
   if (changes.businessName !== undefined) upd.business_name = changes.businessName;
+  if (changes.callToAction !== undefined) upd.call_to_action = changes.callToAction || null;
   return upd;
 }
 
