@@ -591,6 +591,19 @@ export function GoogleNonSearchTextAssetEditor({
             Paste to selected ({selectedIds.size})
           </Button>
 
+          {onDeleteAssignments && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={requestDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className="h-8"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete selected ({selectedIds.size})
+            </Button>
+          )}
+
           <div className="ml-auto text-xs text-muted-foreground">
             {drafts.length} ad{drafts.length === 1 ? '' : 's'} · {filteredDrafts.length} shown
           </div>
