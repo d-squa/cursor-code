@@ -307,6 +307,7 @@ export async function parseTextAssetExcel(
             if (columnIndices.description !== undefined) updates.description = String(dataRow[columnIndices.description] || '');
             if (columnIndices.caption !== undefined) updates.caption = String(dataRow[columnIndices.caption] || '');
             if (columnIndices.destinationUrl !== undefined) updates.destinationUrl = String(dataRow[columnIndices.destinationUrl] || '');
+            if (columnIndices.youtubeVideoUrl !== undefined) updates.youtubeVideoUrl = String(dataRow[columnIndices.youtubeVideoUrl] || '');
             if (columnIndices.displayLink !== undefined) updates.displayLink = String(dataRow[columnIndices.displayLink] || '');
             if (columnIndices.callToAction !== undefined) {
               const ctaValue = String(dataRow[columnIndices.callToAction] || '').toUpperCase().replace(/ /g, '_');
