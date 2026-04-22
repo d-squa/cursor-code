@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import { getAccessToken } from "../_shared/vault-helper.ts";
+import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 import { createApiLogger } from "../_shared/api-logger.ts";
+import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
 
 const FUNCTION_NAME = "push-creatives-to-dsp";
 const logger = createApiLogger(FUNCTION_NAME);
@@ -91,12 +92,13 @@ const META_LOCALE_TO_LANGUAGE_ID: Record<string, number> = {
   id: 62,
 };
 
-type PlatformKey = "meta" | "tiktok";
+type PlatformKey = "meta" | "tiktok" | "google";
 
 function toPlatformKey(platformLabel: string): PlatformKey | null {
   const p = platformLabel.toLowerCase();
   if (p.includes("meta") || p.includes("facebook")) return "meta";
   if (p.includes("tiktok")) return "tiktok";
+  if (p.includes("google")) return "google";
   return null;
 }
 
