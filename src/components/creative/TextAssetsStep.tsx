@@ -860,6 +860,14 @@ export function TextAssetsStep({
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
     }));
+    // Also patch uploaded Google Search RSA placeholders so edits persist —
+    // these rows live in a separate state slice and are merged into mergedRows.
+    setGooglePlaceholderRows(prev => prev.map(row => {
+      if (row.id !== id) return row;
+      const updated = { ...row, ...updates } as CreativeTextAssetRow;
+      const errors = validateTextAssetRow(updated);
+      return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
+    }));
   }, []);
 
   // Handle bulk updates
