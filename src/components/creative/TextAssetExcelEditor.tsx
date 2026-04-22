@@ -973,7 +973,13 @@ export function TextAssetExcelEditor({
     for (const key of sortedKeys) {
       const [platform, market, phase, adSet] = key.split('|');
       const groupRows = grouped.get(key)!;
-      
+
+      // Skip ad-set groups that contain only structural shell placeholders
+      // (no real creative assignments) — these surface as empty ad-set rows
+      // in the editor with no children and just clutter the hierarchy.
+      const hasRealRows = groupRows.some((r) => !(r as any).isShellPlaceholder);
+      if (!hasRealRows) continue;
+
       // Platform header
       if (platform !== prevPlatform) {
         const platformKey = `platform:${platform}`;
