@@ -371,8 +371,12 @@ export function GoogleSearchTextAssetEditor({
   // Filter rows to Google Search and rebuild drafts whenever the dialog opens
   // or upstream rows change.
   const googleRows = useMemo(() => rows.filter(isGoogleSearchRow), [rows]);
+  // Hide only the empty structural shell placeholders (synthesized from the
+  // campaign tree). Uploaded RSA rows have no assignmentId yet but ARE real
+  // user-authored ads — they must remain visible. Real persisted assignments
+  // also have no `isShellPlaceholder` flag and stay visible.
   const visibleGoogleRows = useMemo(
-    () => googleRows.filter((row) => !!row.assignmentId),
+    () => googleRows.filter((row) => !(row as any).isShellPlaceholder),
     [googleRows],
   );
 
