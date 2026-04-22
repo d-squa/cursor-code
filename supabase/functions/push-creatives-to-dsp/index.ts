@@ -1490,7 +1490,13 @@ const handler = async (req: Request): Promise<Response> => {
       const platformKey = toPlatformKey(entry.platform);
       if (!platformKey) continue;
 
-      const platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
+      let platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
+
+      if (platformKey === "google") {
+        const googleCustomerId = (entry.dsp_entity_id ? undefined : undefined);
+        const googleAssignmentsForLookup = (assignments?: any[]) => assignments;
+      }
+
       if (!platformRow) {
         results.push({
           platform: entry.platform,
@@ -1502,7 +1508,9 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      const accessToken = await getAccessToken(supabase, platformRow.id, platformRow.access_token);
+      const accessToken = platformKey === "google"
+        ? await getAccessTokenWithRefresh(supabase, platformRow.id, platformRow.access_token, "google")
+        : await getAccessToken(supabase, platformRow.id, platformRow.access_token);
       if (!accessToken) {
         results.push({
           platform: entry.platform,
