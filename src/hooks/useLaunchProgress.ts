@@ -17,7 +17,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
   const [creativeAssignments, setCreativeAssignments] = useState<CreativeAssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const reloadTimeoutRef = useRef<number | null>(null);
+  const reloadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scheduleReload = useCallback((delayMs = 150) => {
     if (reloadTimeoutRef.current !== null) {
