@@ -83,6 +83,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     sheetName: 'Demand Gen',
     label: 'Demand Gen',
     structuralColumns: STRUCTURAL,
+    // Demand Gen single image: 5 headlines (40), 5 descriptions (90), business name (25). No long headline.
     textColumns: [
       ...range('headline', 5, 40, 'Headline', 26),
       ...range('description', 5, 90, 'Description', 38),
@@ -93,10 +94,10 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     sheetName: 'Video (YouTube)',
     label: 'Video (YouTube)',
     structuralColumns: STRUCTURAL,
+    // Demand Gen video (in-feed): 2 headlines (40), 4 descriptions (90). No long headline per user spec.
     textColumns: [
-      ...range('headline', 1, 15, 'Headline', 18),
-      ...rangeNumbered('long_headline_', 1, 90, 'Long Headline', 38),
-      ...range('description', 1, 90, 'Description', 38),
+      ...range('headline', 2, 40, 'Headline', 26),
+      ...range('description', 4, 90, 'Description', 38),
     ],
   },
   display: {
@@ -104,9 +105,10 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     sheetName: 'Display',
     label: 'Display',
     structuralColumns: STRUCTURAL,
+    // Responsive Display: 5 headlines (30), 5 long headlines (90), 5 descriptions (90), business name (25).
     textColumns: [
       ...range('headline', 5, 30, 'Headline', 22),
-      ...rangeNumbered('long_headline_', 1, 90, 'Long Headline', 38),
+      ...rangeNumbered('long_headline_', 5, 90, 'Long Headline', 38),
       ...range('description', 5, 90, 'Description', 38),
     ],
   },
