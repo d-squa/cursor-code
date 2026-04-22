@@ -90,6 +90,12 @@ interface SchemaSpec {
   /** Whether business name is required to be considered valid. */
   requiresBusinessName: boolean;
   requiresFinalUrl: boolean;
+  /**
+   * If true, this campaign type uploads a YouTube video (or image) as the
+   * actual creative — text assets are parameters of that asset. Surfaces a
+   * "YouTube Video URL" input and validates that the row carries one.
+   */
+  requiresYoutubeVideo: boolean;
 }
 
 const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
@@ -101,6 +107,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 3, minLongHeadlines: 1, minDescriptions: 2,
     requiresBusinessName: true, requiresFinalUrl: true,
+    requiresYoutubeVideo: false,
   },
   demand_gen: {
     label: 'Demand Gen',
@@ -110,6 +117,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
+    requiresYoutubeVideo: true,
   },
   video: {
     label: 'Video (YouTube)',
@@ -119,6 +127,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
+    requiresYoutubeVideo: true,
   },
   display: {
     label: 'Display',
@@ -128,6 +137,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 1, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
+    requiresYoutubeVideo: false,
   },
   other: {
     label: 'Google Ads',
@@ -137,6 +147,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     hasBusinessName: true, businessNameMax: 25,
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
+    requiresYoutubeVideo: false,
   },
 };
 
@@ -154,6 +165,8 @@ export interface NonSearchAdDraft {
   descriptions: string[];
   businessName: string;
   finalUrl: string;
+  /** YouTube video URL or ID — required for Demand Gen video / Video (YouTube) ads. */
+  youtubeVideoUrl: string;
 }
 
 function pad<T>(arr: T[] | undefined, length: number, filler: T): T[] {
@@ -230,6 +243,7 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
     descriptions,
     businessName: String(r.business_name || row.brandName || ''),
     finalUrl: String(row.destinationUrl || ''),
+    youtubeVideoUrl: String(row.youtubeVideoUrl || ''),
   };
 }
 
@@ -253,6 +267,7 @@ function draftToRowUpdates(d: NonSearchAdDraft): Partial<CreativeTextAssetRow> {
     business_name: d.businessName,
     brandName: d.businessName,
     destinationUrl: d.finalUrl,
+    youtubeVideoUrl: d.youtubeVideoUrl,
     // Persist full lists too so re-opening the editor restores everything.
     headline_pins: { values: d.headlines, pins: [] as (number | null)[] },
     description_pins: { values: d.descriptions, pins: [] as (number | null)[] },
@@ -261,6 +276,32 @@ function draftToRowUpdates(d: NonSearchAdDraft): Partial<CreativeTextAssetRow> {
 }
 
 // ---------- Validation ----------
+
+/**
+ * Extract a YouTube video ID from a watch / shorts / embed URL — or accept a
+ * bare 11-character ID. Returns undefined if no ID can be extracted.
+ */
+export function extractYouTubeId(input?: string | null): string | undefined {
+  if (!input) return undefined;
+  const s = String(input).trim();
+  if (!s) return undefined;
+  // Bare ID
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  try {
+    const u = new URL(s);
+    const v = u.searchParams.get('v');
+    if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+    const parts = u.pathname.split('/').filter(Boolean);
+    // /shorts/<id> /embed/<id> /v/<id>
+    const idx = parts.findIndex((p) => ['shorts', 'embed', 'v'].includes(p.toLowerCase()));
+    if (idx >= 0 && parts[idx + 1] && /^[A-Za-z0-9_-]{11}$/.test(parts[idx + 1])) return parts[idx + 1];
+    // youtu.be/<id>
+    if (u.hostname.includes('youtu.be') && parts[0] && /^[A-Za-z0-9_-]{11}$/.test(parts[0])) return parts[0];
+  } catch {
+    // not a URL — fall through
+  }
+  return undefined;
+}
 
 function isDraftInvalid(d: NonSearchAdDraft): boolean {
   const schema = SCHEMAS[d.type];
@@ -272,6 +313,7 @@ function isDraftInvalid(d: NonSearchAdDraft): boolean {
   if (filledD < schema.minDescriptions) return true;
   if (schema.requiresBusinessName && !d.businessName.trim()) return true;
   if (schema.requiresFinalUrl && !d.finalUrl.trim()) return true;
+  if (schema.requiresYoutubeVideo && !extractYouTubeId(d.youtubeVideoUrl)) return true;
   return false;
 }
 
@@ -490,6 +532,7 @@ export function GoogleNonSearchTextAssetEditor({
           descriptions: pad(clipboard.descriptions.map((x) => x.slice(0, sch.descriptionMax)), sch.descriptionCount, ''),
           businessName: sch.hasBusinessName ? clipboard.businessName.slice(0, sch.businessNameMax) : '',
           finalUrl: clipboard.finalUrl,
+          youtubeVideoUrl: sch.requiresYoutubeVideo ? clipboard.youtubeVideoUrl : d.youtubeVideoUrl,
         };
       });
       // Bulk-sync upstream — apply per-row updates so each row gets its
@@ -779,6 +822,29 @@ export function GoogleNonSearchTextAssetEditor({
                       onChange={(v) => updateField(focusedDraft.rowId, { finalUrl: v })}
                     />
                   </Section>
+
+                  {focusedSchema.requiresYoutubeVideo && (
+                    <Section
+                      title="YouTube Video"
+                      subtitle={
+                        focusedDraft.youtubeVideoUrl && !extractYouTubeId(focusedDraft.youtubeVideoUrl)
+                          ? 'invalid YouTube URL — required'
+                          : 'required — paste a YouTube watch / shorts / embed URL or 11-char ID'
+                      }
+                    >
+                      <LimitedInput
+                        value={focusedDraft.youtubeVideoUrl}
+                        max={2048}
+                        placeholder="https://www.youtube.com/watch?v=…"
+                        onChange={(v) => updateField(focusedDraft.rowId, { youtubeVideoUrl: v })}
+                      />
+                      {extractYouTubeId(focusedDraft.youtubeVideoUrl) && (
+                        <div className="text-[10px] text-muted-foreground">
+                          Detected video ID: <span className="font-mono">{extractYouTubeId(focusedDraft.youtubeVideoUrl)}</span>
+                        </div>
+                      )}
+                    </Section>
+                  )}
 
                   <div className="flex gap-2 pt-2 border-t">
                     <Button variant="outline" size="sm" onClick={() => handleCopyRow(focusedDraft.rowId)}>
