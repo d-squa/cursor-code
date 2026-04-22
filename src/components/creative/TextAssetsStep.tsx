@@ -1638,6 +1638,35 @@ export function TextAssetsStep({
           .eq('id', campaignId);
         if (error) throw error;
       }
+      // Map DB column names to in-memory CreativeTextAssetRow keys so we can
+      // mirror DB writes into local state. The editor reads from local `rows`
+      // state, so without this the user would see the toast but the cells
+      // would stay blank until a full reload.
+      const DB_TO_ROW: Record<string, string> = {
+        destination_url: 'destinationUrl',
+        path_1: 'path_1',
+        path_2: 'path_2',
+        headline: 'headline',
+        headline_2: 'headline2',
+        headline_3: 'headline3',
+        headline_4: 'headline4',
+        headline_5: 'headline5',
+        headline_pins: 'headline_pins',
+        description: 'description',
+        description_2: 'description2',
+        description_3: 'description3',
+        description_4: 'description4',
+        description_5: 'description5',
+        description_pins: 'description_pins',
+        long_headline_1: 'long_headline_1',
+        long_headline_2: 'long_headline_2',
+        long_headline_3: 'long_headline_3',
+        long_headline_4: 'long_headline_4',
+        long_headline_5: 'long_headline_5',
+        business_name: 'business_name',
+      };
+
+      const localUpdatesByAssignmentId = new Map<string, Record<string, unknown>>();
       for (const u of selected.ads.updated) {
         const payload = adChangesToAssignmentUpdate(u.changes);
         if (Object.keys(payload).length === 0) continue;
@@ -1646,6 +1675,28 @@ export function TextAssetsStep({
           .update(payload as any)
           .eq('id', u.assignmentId);
         if (error) throw error;
+
+        const rowPatch: Record<string, unknown> = {};
+        for (const [dbKey, value] of Object.entries(payload)) {
+          const rowKey = DB_TO_ROW[dbKey];
+          if (rowKey) rowPatch[rowKey] = value;
+        }
+        // brandName mirrors business_name in the row model.
+        if ('business_name' in payload) {
+          rowPatch.brandName = (payload as any).business_name ?? '';
+        }
+        if (Object.keys(rowPatch).length > 0) {
+          localUpdatesByAssignmentId.set(u.assignmentId, rowPatch);
+        }
+      }
+
+      if (localUpdatesByAssignmentId.size > 0) {
+        setRows((prev) =>
+          prev.map((r) => {
+            const patch = localUpdatesByAssignmentId.get((r as any).assignmentId);
+            return patch ? ({ ...r, ...patch } as CreativeTextAssetRow) : r;
+          }),
+        );
       }
 
       // New RSA rows from the spreadsheet — appended as additional Google shell
