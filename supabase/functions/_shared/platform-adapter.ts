@@ -1369,6 +1369,118 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return headers;
   }
 
+  /**
+   * Upload an image (downloaded from a URL) to the Google Ads asset library
+   * as an imageAsset. Returns the asset resource name (customers/X/assets/Y).
+   */
+  private async uploadImageAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    imageUrl: string,
+    name: string,
+  ): Promise<string> {
+    const imgResp = await fetch(imageUrl);
+    if (!imgResp.ok) {
+      throw new Error(`Failed to download image (${imgResp.status})`);
+    }
+    const arrayBuffer = await imgResp.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(
+        null,
+        Array.from(bytes.subarray(i, i + chunkSize)),
+      );
+    }
+    const base64Data = btoa(binary);
+
+    const safeName = `${(name || "image").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 80)} ${Date.now()}`;
+    const assetOp = {
+      create: {
+        name: safeName,
+        type: "IMAGE",
+        imageAsset: { data: base64Data },
+      },
+    };
+
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Image asset upload failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) {
+      throw new Error("Image asset upload returned no resourceName");
+    }
+    return resourceName;
+  }
+
+  /**
+   * Ensure a YouTube video asset exists in the account; create it if not.
+   * Returns the asset resource name (customers/X/assets/Y).
+   */
+  private async ensureYouTubeVideoAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    youtubeVideoId: string,
+    name: string,
+  ): Promise<string> {
+    try {
+      const gaql = `SELECT asset.resource_name, asset.youtube_video_asset.youtube_video_id FROM asset WHERE asset.type = 'YOUTUBE_VIDEO' AND asset.youtube_video_asset.youtube_video_id = '${youtubeVideoId}' LIMIT 1`;
+      const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:search`;
+      const searchResp = await fetch(searchUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
+      if (searchResp.ok) {
+        const searchData = await searchResp.json();
+        const existing = searchData?.results?.[0]?.asset?.resourceName;
+        if (existing) return existing;
+      }
+    } catch (e) {
+      console.warn("[google.ensureYouTubeVideoAsset] lookup failed:", e);
+    }
+
+    const safeName = `${(name || "youtube").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 80)} ${youtubeVideoId}`;
+    const assetOp = {
+      create: {
+        name: safeName,
+        type: "YOUTUBE_VIDEO",
+        youtubeVideoAsset: { youtubeVideoId },
+      },
+    };
+
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`YouTube video asset creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) {
+      throw new Error("YouTube video asset creation returned no resourceName");
+    }
+    return resourceName;
+  }
+
   async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
     try {
       const customerId = params.accountId.replace(/-/g, "");
