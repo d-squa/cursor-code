@@ -2041,12 +2041,21 @@ class GoogleAdsAdapter implements PlatformAdapter {
               }
             }
 
-            // Google's `AdCallToActionAsset.text` (Demand Gen Video / Video
-            // Responsive) accepts a fixed set of display phrases. Map our
-            // internal enum (e.g. LEARN_MORE) to the exact display string Google
-            // expects ("Learn more"). Fall back to "Learn more" if missing.
-            const ctaInputDg = String(params.callToAction || "").trim();
-            const ctaDisplayDg = mapGoogleCtaToDisplay(ctaInputDg) || "Learn more";
+            // DemandGenVideoResponsiveAdInfo.call_to_actions is a repeated
+            // AdCallToActionAsset whose only field is `asset` (a resource name
+            // pointing at a CALL_TO_ACTION asset). We must create/lookup the
+            // CTA asset first, then reference it.
+            const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction);
+            let ctaAssetResource: string | null = null;
+            try {
+              ctaAssetResource = await this.ensureCallToActionAsset(
+                customerId,
+                headers,
+                ctaEnumDg,
+              );
+            } catch (e) {
+              console.warn("[google.createCreative] CTA asset creation failed, omitting:", e);
+            }
 
             ad = {
               demandGenVideoResponsiveAd: {
@@ -2057,9 +2066,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                // v23: call_to_actions is repeated AdCallToActionAsset whose
-                // text field is `actionText` (not `text`).
-                callToActions: [{ actionText: ctaDisplayDg }],
+                ...(ctaAssetResource ? { callToActions: [{ asset: ctaAssetResource }] } : {}),
               },
               finalUrls: [params.landingPageUrl],
             };
