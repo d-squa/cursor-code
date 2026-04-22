@@ -559,6 +559,9 @@ export function GoogleNonSearchTextAssetEditor({
           businessName: sch.hasBusinessName ? clipboard.businessName.slice(0, sch.businessNameMax) : '',
           finalUrl: clipboard.finalUrl,
           youtubeVideoUrl: sch.requiresYoutubeVideo ? clipboard.youtubeVideoUrl : d.youtubeVideoUrl,
+          callToAction: sch.requiresCallToAction
+            ? (normalizeGoogleCta(clipboard.callToAction) || d.callToAction)
+            : d.callToAction,
         };
       });
       // Bulk-sync upstream — apply per-row updates so each row gets its
