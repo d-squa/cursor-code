@@ -339,6 +339,7 @@ function isDraftInvalid(d: NonSearchAdDraft): boolean {
   if (schema.requiresBusinessName && !d.businessName.trim()) return true;
   if (schema.requiresFinalUrl && !d.finalUrl.trim()) return true;
   if (schema.requiresYoutubeVideo && !extractYouTubeId(d.youtubeVideoUrl)) return true;
+  if (schema.requiresCallToAction && !normalizeGoogleCta(d.callToAction)) return true;
   return false;
 }
 
