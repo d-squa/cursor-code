@@ -1270,6 +1270,10 @@ export function TextAssetsStep({
         await supabase
           .from('creative_assignments')
           .update({
+            // Backfill ad_strategy / ad_group_name on previously-saved RSAs
+            // so they keep being detected as Google Search after a refresh.
+            ad_strategy: (p as any).googleStrategy || 'brand',
+            ad_group_name: p.adSet || 'Default',
             primary_text: p.primaryText || null,
             headline: p.headline || null,
             headline_2: (p as any).headline2 || null,
