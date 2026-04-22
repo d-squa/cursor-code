@@ -2016,7 +2016,7 @@ export function TextAssetExcelEditor({
       <div className="flex-1 overflow-hidden relative" ref={containerRef}>
         <div className="h-full flex">
           {/* Sticky columns (left side) */}
-          <div className="shrink-0 bg-background z-10 border-r shadow-sm" style={{ width: STICKY_WIDTH }}>
+          <div className="shrink-0 h-full bg-background z-10 border-r shadow-sm" style={{ width: STICKY_WIDTH }}>
             <ScrollArea className="h-full">
               {/* Header for sticky columns */}
               <div className="sticky top-0 z-20 bg-muted border-b flex">
@@ -2666,7 +2666,7 @@ export function TextAssetExcelEditor({
           </div>
 
           {/* Scrollable columns (right side) */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 h-full min-w-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="min-w-max">
                 {/* Header for scrollable columns */}
