@@ -5,7 +5,7 @@
 //
 //   - Performance Max (PMax): 5 H × 30, 5 LH × 90, 5 D × 90, BizName(25)
 //   - Demand Gen        : 5 H × 40, 5 D × 90, BizName(25)
-//   - Video / YouTube   : 1 H × 15, 1 LH × 90, 1 D × 90
+//   - Video / YouTube   : 2 H × 15, 1 LH × 90, 1 D × 90, BizName(25)
 //   - Display           : 5 H × 30, 1 LH × 90, 5 D × 90, BizName(25)
 //   - Shopping / App / Other → falls back to Display schema
 //
@@ -129,11 +129,13 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
   },
   video: {
     label: 'Video (YouTube)',
-    headlineCount: 2, headlineMax: 40,
-    longHeadlineCount: 0, longHeadlineMax: 90,
-    descriptionCount: 4, descriptionMax: 90,
+    // Google YouTube Video Action / TrueView for Action format:
+    //   2 short headlines × 15, 1 long headline × 90, 1 description × 90.
+    headlineCount: 2, headlineMax: 15,
+    longHeadlineCount: 1, longHeadlineMax: 90,
+    descriptionCount: 1, descriptionMax: 90,
     hasBusinessName: true, businessNameMax: 25,
-    minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
+    minHeadlines: 1, minLongHeadlines: 1, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
     requiresYoutubeVideo: true,
     requiresCallToAction: true,

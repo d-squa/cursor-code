@@ -104,12 +104,14 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     sheetName: 'Video (YouTube)',
     label: 'Video (YouTube)',
     structuralColumns: STRUCTURAL,
-    // Demand Gen video (in-feed): 2 headlines (40), 4 descriptions (90). No long headline per user spec.
+    // Google YouTube Video Action / TrueView for Action:
+    //   2 short headlines × 15, 1 long headline × 90, 1 description × 90.
     textColumns: [
       { key: 'youtubeVideoUrl', label: 'YouTube Video URL', max: 2048, width: 50 },
       CTA_COL,
-      ...range('headline', 2, 40, 'Headline', 26),
-      ...range('description', 4, 90, 'Description', 38),
+      ...range('headline', 2, 15, 'Headline', 18),
+      ...rangeNumbered('long_headline_', 1, 90, 'Long Headline', 38),
+      ...range('description', 1, 90, 'Description', 38),
     ],
   },
   display: {
