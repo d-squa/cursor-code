@@ -1809,6 +1809,7 @@ export function TextAssetsStep({
         scopePhase={googleNonSearchEditor.phase}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
+        onDeleteAssignments={handleDeleteAssignments}
       />
 
       <GoogleAdsShellReviewDialog
