@@ -21,6 +21,7 @@
 import * as XLSX from 'xlsx';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, GOOGLE_CTA_LABEL_LIST } from '@/utils/googleCtaOptions';
+import { injectDropdownsIntoXlsx, type SheetDropdownSpec } from '@/utils/xlsxDataValidation';
 
 // ---------- Types ----------
 
