@@ -341,13 +341,43 @@ export function GoogleNonSearchTextAssetEditor({
 
   // Filter input rows: must be google, must have a detectable non-Search type,
   // and (optionally) match the scope requested by the caller.
+  //
+  // Phase-leak guard: when a `scopePhase` is set, the family-normalised phase
+  // match (e.g. "Display — Retargeting" → "retargeting") can collide with
+  // another phase that shares the same suffix, pulling unrelated empty
+  // placeholder assignments into the editor. We keep the loose family match for
+  // populated rows (so legitimate strategy splits like "Search · Brand" still
+  // appear) but require an EXACT phase match for empty rows. That way the
+  // user only sees blank cards for the phase they actually opened.
   const scopedRows = useMemo(() => {
+    const targetPhaseRaw = (scopePhase || '').trim();
+    const targetPhaseFamily = normalizeGooglePhaseFamily(scopePhase || '');
     return rows.filter((r) => {
       const type = detectGoogleNonSearchType(r);
       if (!type) return false;
       if (scopeMarket && r.market !== scopeMarket) return false;
       if (scopePhase) {
-        if (normalizeGooglePhaseFamily(r.phase || '') !== normalizeGooglePhaseFamily(scopePhase)) return false;
+        const rowPhaseRaw = String(r.phase || '').trim();
+        const rowFamily = normalizeGooglePhaseFamily(rowPhaseRaw);
+        if (rowFamily !== targetPhaseFamily) return false;
+
+        // Family matches but exact phase string differs — only allow if the
+        // row carries actual text content. Empty placeholders from sibling
+        // phases stay hidden.
+        if (rowPhaseRaw && targetPhaseRaw && rowPhaseRaw !== targetPhaseRaw) {
+          const r_ = r as any;
+          const hasContent = Boolean(
+            (r_.headline && String(r_.headline).trim()) ||
+            (r_.headline2 && String(r_.headline2).trim()) ||
+            (r_.long_headline_1 && String(r_.long_headline_1).trim()) ||
+            (r_.description && String(r_.description).trim()) ||
+            (r_.description2 && String(r_.description2).trim()) ||
+            (r_.business_name && String(r_.business_name).trim()) ||
+            (r.brandName && String(r.brandName).trim()) ||
+            (r.destinationUrl && String(r.destinationUrl).trim())
+          );
+          if (!hasContent) return false;
+        }
       }
       return true;
     });
