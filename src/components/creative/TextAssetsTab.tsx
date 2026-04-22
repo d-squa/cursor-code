@@ -186,7 +186,8 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
               platform_thumbnail_id,
               tiktok_asset_advertiser_id,
               external_post_id,
-              external_page_id
+              external_page_id,
+              platform_metadata
             )
           `)
           .eq('campaign_id', effectiveCampaignId);
