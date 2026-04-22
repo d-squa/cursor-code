@@ -156,6 +156,8 @@ export function validateGoogleNonSearchRow(
   const spec = GOOGLE_NON_SEARCH_SHEETS[type];
   const errors: string[] = [];
   const updates: Record<string, unknown> = {};
+  const headlineValues: string[] = [];
+  const descriptionValues: string[] = [];
 
   for (const col of spec.textColumns) {
     const raw = rowByHeader[col.label];
@@ -166,7 +168,25 @@ export function validateGoogleNonSearchRow(
       continue;
     }
     if (value !== '') (updates as any)[col.key] = value;
+
+    if (String(col.key).startsWith('headline')) {
+      headlineValues.push(value);
+    }
+    if (String(col.key).startsWith('description')) {
+      descriptionValues.push(value);
+    }
   }
+
+  // Keep the JSON-backed canonical asset arrays in sync with Excel imports.
+  // The Google non-search editor reads these payloads when present, so if we
+  // only update the flat columns the UI can keep showing stale/blank values.
+  if (headlineValues.length > 0) {
+    updates.headline_pins = { values: headlineValues, pins: Array(headlineValues.length).fill(null) };
+  }
+  if (descriptionValues.length > 0) {
+    updates.description_pins = { values: descriptionValues, pins: Array(descriptionValues.length).fill(null) };
+  }
+
   // Allow updating brand/business name + final URL from structural cols.
   for (const col of spec.structuralColumns) {
     if (col.key !== 'brandName' && col.key !== 'destinationUrl') continue;
