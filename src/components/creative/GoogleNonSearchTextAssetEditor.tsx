@@ -479,6 +479,49 @@ export function GoogleNonSearchTextAssetEditor({
     toast.success(`Selected ${ids.length} invalid ad${ids.length === 1 ? '' : 's'}`);
   }, [drafts]);
 
+  const requestDeleteSelected = useCallback(() => {
+    if (!onDeleteAssignments) return;
+    const ids = filteredDrafts.filter((d) => selectedIds.has(d.rowId));
+    const assignmentIds = ids.map((d) => d.assignmentId).filter(Boolean);
+    if (assignmentIds.length === 0) {
+      toast.info('Select rows to delete');
+      return;
+    }
+    setConfirmDelete({ ids: ids.map((d) => d.rowId), assignmentIds });
+  }, [filteredDrafts, selectedIds, onDeleteAssignments]);
+
+  const requestDeleteOne = useCallback((rowId: string) => {
+    if (!onDeleteAssignments) return;
+    const d = drafts.find((x) => x.rowId === rowId);
+    if (!d || !d.assignmentId) {
+      toast.error('No assignment found for this row');
+      return;
+    }
+    setConfirmDelete({ ids: [rowId], assignmentIds: [d.assignmentId] });
+  }, [drafts, onDeleteAssignments]);
+
+  const performDelete = useCallback(async () => {
+    if (!confirmDelete || !onDeleteAssignments) return;
+    setDeleting(true);
+    try {
+      await onDeleteAssignments(confirmDelete.assignmentIds);
+      const removed = new Set(confirmDelete.ids);
+      setDrafts((prev) => prev.filter((d) => !removed.has(d.rowId)));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+      setFocusedId((prev) => (prev && removed.has(prev) ? null : prev));
+      toast.success(`Deleted ${confirmDelete.assignmentIds.length} ad${confirmDelete.assignmentIds.length === 1 ? '' : 's'}`);
+      setConfirmDelete(null);
+    } catch (err) {
+      toast.error('Failed to delete', { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirmDelete, onDeleteAssignments]);
+
   const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
   const focusedSchema = focusedDraft ? SCHEMAS[focusedDraft.type] : null;
 
