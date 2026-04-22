@@ -370,6 +370,7 @@ function PinSelect({
 export function GoogleSearchTextAssetEditor({
   open,
   onOpenChange,
+  onBeforeClose,
   rows,
   onRowChange,
   onBulkUpdate,
