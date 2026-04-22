@@ -391,9 +391,7 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
   for (let i = 1; i <= 4; i++) {
     adsHeader.push(`Description ${i}`, `LEN D${i} (max ${DESCRIPTION_LIMIT})`, `Pin D${i}`);
   }
-  for (let i = 1; i <= 5; i++) {
-    adsHeader.push(`Long Headline ${i}`, `LEN LH${i} (max ${LONG_HEADLINE_LIMIT})`);
-  }
+  // Note: Search RSA ads do NOT support Long Headlines — those are PMax/Display/Demand Gen-only.
   adsHeader.push('Business Name', `LEN BN (max ${BUSINESS_NAME_LIMIT})`);
 
   const adsAoa: (string | number)[][] = [adsHeader];
