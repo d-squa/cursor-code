@@ -1741,16 +1741,106 @@ class GoogleAdsAdapter implements PlatformAdapter {
         };
       } else if (upperChannel === "VIDEO" || upperChannel === "DEMAND_GEN") {
         // For VIDEO/DEMAND_GEN, the actual creative is a video/image asset.
-        // Text fields here are parameters of that asset and require the asset IDs.
-        // Don't attempt to create an RSA — surface a clear, actionable error.
-        return {
-          success: false,
-          creativeId: "",
-          platform: "google",
-          error:
-            `Text assets on ${upperChannel === "VIDEO" ? "Video" : "Demand Gen"} campaigns are parameters of the video/image creative, not standalone ads. ` +
-            `Upload the video/image asset first, then these headlines/descriptions will be attached to it.`,
-        };
+        // Headlines & descriptions are parameters of that asset.
+        // We auto-upload the media to Google Ads as assets, then build the appropriate ad.
+        const assets = (params as any).assets || {};
+        const youtubeVideoId: string | undefined = assets.youtubeVideoId
+          || extractYouTubeId(assets.videoUrl);
+        const imageUrl: string | undefined = assets.imageUrl
+          || assets.imageUrls?.[0];
+        const logoUrl: string | undefined = assets.logoUrl;
+
+        const businessNameDg = (params as any).businessName || params.creativeName || "Brand";
+
+        try {
+          if (youtubeVideoId) {
+            // ---- Demand Gen / Video: video ad ----
+            const youtubeAssetResource = await this.ensureYouTubeVideoAsset(
+              customerId,
+              headers,
+              youtubeVideoId,
+              params.creativeName,
+            );
+
+            // Upload optional logo image as imageAsset (square logos help Demand Gen)
+            let logoAssetResource: string | null = null;
+            if (logoUrl) {
+              try {
+                logoAssetResource = await this.uploadImageAsset(
+                  customerId,
+                  headers,
+                  logoUrl,
+                  `${params.creativeName} logo`,
+                );
+              } catch (e) {
+                console.warn("[google.createCreative] Failed to upload logo asset:", e);
+              }
+            }
+
+            ad = {
+              demandGenVideoResponsiveAd: {
+                headlines: headlines.slice(0, 5).map((text) => ({ text })),
+                longHeadlines: [{ text: longHeadline }],
+                descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
+                businessName: businessNameDg,
+                videos: [{ asset: youtubeAssetResource }],
+                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                callToAction: { text: params.callToAction || "LEARN_MORE" },
+              },
+              finalUrls: [params.landingPageUrl],
+            };
+          } else if (imageUrl) {
+            // ---- Demand Gen: image ad ----
+            const imageAssetResource = await this.uploadImageAsset(
+              customerId,
+              headers,
+              imageUrl,
+              params.creativeName,
+            );
+
+            let logoAssetResource: string | null = null;
+            if (logoUrl) {
+              try {
+                logoAssetResource = await this.uploadImageAsset(
+                  customerId,
+                  headers,
+                  logoUrl,
+                  `${params.creativeName} logo`,
+                );
+              } catch (e) {
+                console.warn("[google.createCreative] Failed to upload logo asset:", e);
+              }
+            }
+
+            ad = {
+              demandGenMultiAssetAd: {
+                headlines: headlines.slice(0, 5).map((text) => ({ text })),
+                descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
+                businessName: businessNameDg,
+                marketingImages: [{ asset: imageAssetResource }],
+                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                callToAction: { text: params.callToAction || "LEARN_MORE" },
+              },
+              finalUrls: [params.landingPageUrl],
+            };
+          } else {
+            return {
+              success: false,
+              creativeId: "",
+              platform: "google",
+              error:
+                `${upperChannel === "VIDEO" ? "Video" : "Demand Gen"} ads require a video (YouTube) or image asset. ` +
+                `Attach a YouTube video URL or an image to this creative before pushing.`,
+            };
+          }
+        } catch (assetErr: any) {
+          return {
+            success: false,
+            creativeId: "",
+            platform: "google",
+            error: `Failed to prepare Google Ads asset: ${assetErr?.message || assetErr}`,
+          };
+        }
       } else if (upperChannel === "PERFORMANCE_MAX") {
         return {
           success: false,
