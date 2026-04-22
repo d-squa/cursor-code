@@ -1336,6 +1336,23 @@ class TikTokAdapter implements PlatformAdapter {
 class GoogleAdsAdapter implements PlatformAdapter {
   private readonly API_BASE = `https://googleads.googleapis.com/v23`;
 
+  private summarizeGoogleAdsError(errorText: string): string {
+    try {
+      const parsed = JSON.parse(errorText);
+      const firstError = parsed?.error?.details?.[0]?.errors?.[0];
+      const contextError = firstError?.errorCode?.contextError;
+      const trigger = firstError?.trigger?.stringValue;
+
+      if (contextError === "OPERATION_NOT_PERMITTED_FOR_CONTEXT" && trigger === "OWNED_AND_OPERATED") {
+        return "This Google ad group does not accept Responsive Search Ads. The current phase is using a Video or Demand Gen context, so this creative type is not supported there.";
+      }
+
+      return firstError?.message || parsed?.error?.message || errorText;
+    } catch {
+      return errorText;
+    }
+  }
+
   private getHeaders(accessToken: string, developerToken: string, loginCustomerId?: string): Record<string, string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
@@ -1678,7 +1695,12 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       if (!resp.ok) {
         const errText = await resp.text();
-        return { success: false, creativeId: "", platform: "google", error: errText };
+        return {
+          success: false,
+          creativeId: "",
+          platform: "google",
+          error: this.summarizeGoogleAdsError(errText),
+        };
       }
 
       const data = await resp.json();
