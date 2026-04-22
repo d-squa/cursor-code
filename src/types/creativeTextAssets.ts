@@ -179,6 +179,11 @@ export interface CreativeTextAssetRow {
   displayPath?: string;
   displayName?: string;
 
+  // Google Demand Gen / Video: YouTube video URL or ID. Persisted to
+  // creatives.platform_metadata.youtube_video_id and used by the DSP push to
+  // attach the video asset to Demand Gen / Video ads.
+  youtubeVideoUrl?: string;
+
   // Meta Advantage+ assignment-level settings
   advantage_plus_video_touchups?: boolean;
   advantage_plus_text_improvements?: boolean;
