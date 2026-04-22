@@ -4535,6 +4535,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             console.log(`✅ Google Ads ad group created: ${adGroupResult.adGroupId}${strategyName ? ` [${strategyName}]` : ""}`);
 
             // Step 3: Create Ads from assigned creatives
+            let adsCreated = 0;
             if (skipCreatives) {
               console.log(`⏭️ Skipping creative processing (shell-only mode) for Google Ads ${market.name}/${phase.name}`);
             } else {
@@ -4560,8 +4561,6 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               .eq("market", market.name)
               .eq("phase_name", phase.name)
               .order("position");
-
-            let adsCreated = 0;
 
             if (assignmentError) {
               console.error(`Error fetching Google Ads creative assignments:`, assignmentError);
