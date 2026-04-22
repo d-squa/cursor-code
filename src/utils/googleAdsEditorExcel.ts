@@ -944,6 +944,7 @@ export function adChangesToAssignmentUpdate(
     upd.description_2 = changes.descriptions[1] || null;
     upd.description_3 = changes.descriptions[2] || null;
     upd.description_4 = changes.descriptions[3] || null;
+    upd.description_5 = changes.descriptions[4] || null;
   }
   if (changes.descriptionPins) upd.description_pins = changes.descriptionPins;
   if (changes.longHeadlines) {
