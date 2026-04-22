@@ -73,6 +73,8 @@ export interface GoogleSearchAdDraft {
 interface GoogleSearchTextAssetEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Persist current editor rows before closing. Return false to keep the dialog open. */
+  onBeforeClose?: () => Promise<boolean>;
   /** All rows currently in the editor (filtered for Google Search inside). */
   rows: CreativeTextAssetRow[];
   /** Persist a single row update back to the parent state. */
