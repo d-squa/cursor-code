@@ -46,6 +46,7 @@ export const TEXT_ASSET_COLUMNS = [
   { key: 'brandName', label: 'Brand/Business Name', width: 20 },
   { key: 'callToAction', label: 'CTA', width: 15 },
   { key: 'destinationUrl', label: 'Destination URL', width: 50 },
+  { key: 'youtubeVideoUrl', label: 'YouTube Video URL', width: 50 },
   { key: 'overrideLandingPageUrl', label: 'Sitelink URL', width: 50 },
   { key: 'displayLink', label: 'Display Link', width: 20 },
   { key: 'displayName', label: 'Display Name', width: 20 },
