@@ -1170,7 +1170,124 @@ export function TextAssetsStep({
         console.log(`[TextAssetsStep] Persisted AC group "${group.label}" with ${memberInserts.length} members`);
       }
 
-      toast.success(`Saved text assets for ${rows.length} creatives`);
+      // ========== PERSIST GOOGLE SEARCH RSA PLACEHOLDERS ==========
+      // Uploaded Google Search RSAs live in `googlePlaceholderRows` with no
+      // creativeId / assignmentId. Without persistence, they never appear on
+      // the Launch Status page (Meshed Creatives) and cannot be pushed to DSP.
+      // For each placeholder, we create a lightweight text-only creative row
+      // and a matching creative_assignment carrying the headlines/descriptions.
+      const rsaPlaceholders = googlePlaceholderRows.filter(
+        (p) => (p.platform || '').toLowerCase() === 'google' && !p.assignmentId,
+      );
+      if (rsaPlaceholders.length > 0) {
+        const { data: sd } = await supabase.auth.getSession();
+        const userId = sd.session?.user?.id;
+        if (!userId) throw new Error('User session not found while saving Google Search RSAs');
+
+        const newAssignmentIds = new Map<string, string>(); // row.id -> assignmentId
+
+        for (const p of rsaPlaceholders) {
+          // 1. Create a text-only creative shell so the FK is satisfied.
+          const { data: createdCreative, error: creativeErr } = await supabase
+            .from('creatives')
+            .insert({
+              user_id: userId,
+              campaign_id: campaignId,
+              name: p.creativeName || p.taxonomyAdName || 'Google Search RSA',
+              platform: 'google',
+              market: p.market,
+              phase_name: p.phase || null,
+              creative_type: 'image',
+              status: 'draft',
+              media_urls: [],
+            } as any)
+            .select('id')
+            .single();
+          if (creativeErr) throw creativeErr;
+
+          // 2. Create the creative_assignment carrying the RSA copy.
+          const { data: createdAssignment, error: assignErr } = await supabase
+            .from('creative_assignments')
+            .insert({
+              campaign_id: campaignId,
+              creative_id: createdCreative.id,
+              platform: 'google',
+              market: p.market,
+              phase_name: p.phase || 'Default',
+              ad_set_name: p.adSet || 'Default',
+              display_name: p.creativeName || p.taxonomyAdName || null,
+              assigned_by: userId,
+              status: 'pending',
+              primary_text: p.primaryText || null,
+              headline: p.headline || null,
+              headline_2: (p as any).headline2 || null,
+              headline_3: (p as any).headline3 || null,
+              headline_4: (p as any).headline4 || null,
+              headline_5: (p as any).headline5 || null,
+              description: p.description || null,
+              description_2: (p as any).description2 || null,
+              description_3: (p as any).description3 || null,
+              description_4: (p as any).description4 || null,
+              description_5: (p as any).description5 || null,
+              headline_pins: (p as any).headline_pins || null,
+              description_pins: (p as any).description_pins || null,
+              path_1: (p as any).path_1 || null,
+              path_2: (p as any).path_2 || null,
+              brand_name: p.brandName || null,
+              call_to_action: p.callToAction || null,
+              destination_url: p.destinationUrl || null,
+            } as any)
+            .select('id')
+            .single();
+          if (assignErr) throw assignErr;
+
+          newAssignmentIds.set(p.id, createdAssignment.id);
+        }
+
+        // Update local placeholder state so subsequent saves go through the
+        // standard "update existing assignment" path instead of re-inserting.
+        if (newAssignmentIds.size > 0) {
+          setGooglePlaceholderRows((prev) =>
+            prev.map((r) => {
+              const newId = newAssignmentIds.get(r.id);
+              return newId ? ({ ...r, assignmentId: newId } as CreativeTextAssetRow) : r;
+            }),
+          );
+        }
+      }
+
+      // Also push updates to RSAs that already have an assignmentId (subsequent edits).
+      const rsaWithAssignment = googlePlaceholderRows.filter(
+        (p) => (p.platform || '').toLowerCase() === 'google' && p.assignmentId,
+      );
+      for (const p of rsaWithAssignment) {
+        await supabase
+          .from('creative_assignments')
+          .update({
+            primary_text: p.primaryText || null,
+            headline: p.headline || null,
+            headline_2: (p as any).headline2 || null,
+            headline_3: (p as any).headline3 || null,
+            headline_4: (p as any).headline4 || null,
+            headline_5: (p as any).headline5 || null,
+            description: p.description || null,
+            description_2: (p as any).description2 || null,
+            description_3: (p as any).description3 || null,
+            description_4: (p as any).description4 || null,
+            description_5: (p as any).description5 || null,
+            headline_pins: (p as any).headline_pins || null,
+            description_pins: (p as any).description_pins || null,
+            path_1: (p as any).path_1 || null,
+            path_2: (p as any).path_2 || null,
+            brand_name: p.brandName || null,
+            call_to_action: p.callToAction || null,
+            destination_url: p.destinationUrl || null,
+          } as any)
+          .eq('id', p.assignmentId);
+      }
+
+      const totalSaved = rows.length + rsaPlaceholders.length + rsaWithAssignment.length;
+      toast.success(`Saved text assets for ${totalSaved} creatives`);
       return true;
     } catch (error) {
       console.error('Error saving text assets:', error);
@@ -1179,7 +1296,7 @@ export function TextAssetsStep({
     } finally {
       setIsSaving(false);
     }
-  }, [rows, campaignId]);
+  }, [rows, googlePlaceholderRows, campaignId]);
 
   const handleSaveAndProceed = useCallback(async () => {
     const ok = await saveTextAssets();
