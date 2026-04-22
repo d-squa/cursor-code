@@ -1918,11 +1918,13 @@ export function TextAssetsStep({
       // placeholders so they appear in the editor with their copy already filled.
       // The user can then save them through the normal flow.
       if (selected.ads.added.length > 0) {
-        const expansionByCampaign = new Map(ctx.expansion.map((e) => [e.campaignName, e]));
+        const expansionByShellKey = new Map(
+          ctx.expansion.map((e) => [`${e.campaignName}::${e.adGroupName}`, e] as const),
+        );
         setGooglePlaceholderRows((prev) => {
           const next = [...prev];
           selected.ads.added.forEach((a, i) => {
-            const ref = expansionByCampaign.get(a.campaignName);
+            const ref = expansionByShellKey.get(`${a.campaignName}::${a.adGroupName}`);
             if (!ref) return;
             const phaseLabel = ref.strategy
               ? `${ref.phaseName} • ${ref.strategy.charAt(0).toUpperCase()}${ref.strategy.slice(1)}`
