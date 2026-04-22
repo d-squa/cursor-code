@@ -91,6 +91,25 @@ const SUBTYPE_LABEL: Record<GoogleAdSubtype, string> = {
   callout: 'Callout',
 };
 
+function normalizeGoogleSearchPhaseLabel(label: string): string {
+  const text = String(label || '').trim();
+  const bulletIdx = text.lastIndexOf(' • ');
+  if (bulletIdx !== -1) return text.slice(0, bulletIdx).trim();
+  const match = text.match(/^(.*?)\s*[-–—]\s*(brand|generic|competition)\s*$/i);
+  return match ? match[1].trim() : text;
+}
+
+function getGoogleSearchCampaignFamilyLabel(row: CreativeTextAssetRow): string {
+  const fromPhase = normalizeGoogleSearchPhaseLabel(String(row.phase || ''));
+  if (fromPhase) return fromPhase;
+
+  const rawCampaign = String(row.taxonomyCampaignName || '').trim();
+  const withoutMarketSuffix = rawCampaign.replace(/_GOOGLE_[A-Z0-9]+$/i, '').trim();
+  const normalizedCampaign = normalizeGoogleSearchPhaseLabel(withoutMarketSuffix || rawCampaign);
+
+  return normalizedCampaign || rawCampaign;
+}
+
 function isGoogleSearchRow(r: CreativeTextAssetRow): boolean {
   if ((r.platform || '').toLowerCase() !== 'google') return false;
   // Strict: only rows with googleCampaignType explicitly containing "search"
@@ -505,18 +524,21 @@ export function GoogleSearchTextAssetEditor({
     const map = new Map<string, { campaign: string; market: string; adGroups: Set<string> }>();
     for (const row of googleRows) {
       const draft = rowToDraft(row);
-      const key = `${draft.campaignName}__${draft.market}`;
+      const campaignFamilyLabel = getGoogleSearchCampaignFamilyLabel(row) || draft.campaignName;
+      const key = `${campaignFamilyLabel}__${draft.market}`;
       if (!map.has(key)) {
-        map.set(key, { campaign: draft.campaignName, market: draft.market, adGroups: new Set() });
+        map.set(key, { campaign: campaignFamilyLabel, market: draft.market, adGroups: new Set() });
       }
       if (draft.adGroupName) map.get(key)!.adGroups.add(draft.adGroupName);
     }
-    return Array.from(map.entries()).map(([key, v]) => ({
-      key,
-      campaign: v.campaign,
-      market: v.market,
-      adGroups: Array.from(v.adGroups),
-    }));
+    return Array.from(map.entries())
+      .map(([key, v]) => ({
+        key,
+        campaign: v.campaign,
+        market: v.market,
+        adGroups: Array.from(v.adGroups).sort((a, b) => a.localeCompare(b)),
+      }))
+      .sort((a, b) => a.market.localeCompare(b.market) || a.campaign.localeCompare(b.campaign));
   }, [googleRows]);
 
   const [newAdOpen, setNewAdOpen] = useState(false);
