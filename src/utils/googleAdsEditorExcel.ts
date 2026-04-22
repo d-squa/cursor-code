@@ -533,8 +533,7 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
     //   4 Final URL | 5 Path1 | 6 LEN | 7 Path2 | 8 LEN
     //   9.. headline triples (15) -> 9 + 15*3 = 54 end
     //   54.. description triples (4) -> 54 + 4*3 = 66 end
-    //   66.. long headline pairs (5) -> 66 + 5*2 = 76 end
-    //   76 Business Name | 77 LEN
+    //   66 Business Name | 67 LEN
     for (let i = 1; i < aoa.length; i++) {
       const row = aoa[i];
       const campaignName = String(row?.[0] || '').trim();
@@ -555,16 +554,13 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
         descriptions.push(String(row[54 + d * 3] || ''));
         descriptionPins.push(toPin(row[54 + d * 3 + 2]));
       }
-      const longHeadlines: string[] = [];
-      for (let l = 0; l < 5; l++) {
-        longHeadlines.push(String(row[66 + l * 2] || ''));
-      }
-      const businessName = String(row[76] || '').trim();
+      // Search RSA ads no longer have Long Headline columns in the shell.
+      const longHeadlines: string[] = Array(5).fill('');
+      const businessName = String(row[66] || '').trim();
       // A row is meaningful only if at least one creative field is filled.
       const hasContent =
         headlines.some((h) => h.trim()) ||
         descriptions.some((d) => d.trim()) ||
-        longHeadlines.some((l) => l.trim()) ||
         !!businessName;
       const explicitName = String(row?.[2] || '').trim();
       if (!explicitName && !hasContent) continue;
