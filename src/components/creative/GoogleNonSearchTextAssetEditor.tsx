@@ -114,6 +114,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 3, minLongHeadlines: 1, minDescriptions: 2,
     requiresBusinessName: true, requiresFinalUrl: true,
     requiresYoutubeVideo: false,
+    requiresCallToAction: true,
   },
   demand_gen: {
     label: 'Demand Gen',
@@ -124,6 +125,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
     requiresYoutubeVideo: true,
+    requiresCallToAction: true,
   },
   video: {
     label: 'Video (YouTube)',
@@ -134,6 +136,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
     requiresYoutubeVideo: true,
+    requiresCallToAction: true,
   },
   display: {
     label: 'Display',
@@ -144,6 +147,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 1, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
     requiresYoutubeVideo: false,
+    requiresCallToAction: false,
   },
   other: {
     label: 'Google Ads',
@@ -154,6 +158,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
     requiresYoutubeVideo: false,
+    requiresCallToAction: false,
   },
 };
 
