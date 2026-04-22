@@ -17,6 +17,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +79,8 @@ interface GoogleSearchTextAssetEditorProps {
   onRowChange: (rowId: string, updates: Partial<CreativeTextAssetRow>) => void;
   /** Persist a bulk update to multiple rows at once. */
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
+  /** Optional: permanently delete creative assignments by id. */
+  onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
 }
 
 // ---------- Helpers ----------
@@ -343,9 +355,12 @@ export function GoogleSearchTextAssetEditor({
   rows,
   onRowChange,
   onBulkUpdate,
+  onDeleteAssignments,
 }: GoogleSearchTextAssetEditorProps) {
   // Internal in-memory drafts so users can edit freely and we sync back on change.
   const [drafts, setDrafts] = useState<GoogleSearchAdDraft[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<GoogleSearchAdDraft | null>(null);
@@ -607,6 +622,39 @@ export function GoogleSearchTextAssetEditor({
     toast.success(`Applied to ${targets.length} other ad${targets.length > 1 ? 's' : ''}`);
   }, [drafts, focusedId, onBulkUpdate]);
 
+  const requestDeleteSelected = useCallback(() => {
+    if (!onDeleteAssignments) return;
+    const selected = filteredDrafts.filter((d) => selectedIds.has(d.rowId));
+    const assignmentIds = selected.map((d) => d.assignmentId).filter(Boolean);
+    if (assignmentIds.length === 0) {
+      toast.info('Select rows with saved assignments to delete');
+      return;
+    }
+    setConfirmDelete({ ids: selected.map((d) => d.rowId), assignmentIds });
+  }, [filteredDrafts, selectedIds, onDeleteAssignments]);
+
+  const performDelete = useCallback(async () => {
+    if (!confirmDelete || !onDeleteAssignments) return;
+    setDeleting(true);
+    try {
+      await onDeleteAssignments(confirmDelete.assignmentIds);
+      const removed = new Set(confirmDelete.ids);
+      setDrafts((prev) => prev.filter((d) => !removed.has(d.rowId)));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+      setFocusedId((prev) => (prev && removed.has(prev) ? null : prev));
+      toast.success(`Deleted ${confirmDelete.assignmentIds.length} ad${confirmDelete.assignmentIds.length === 1 ? '' : 's'}`);
+      setConfirmDelete(null);
+    } catch (err) {
+      toast.error('Failed to delete', { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirmDelete, onDeleteAssignments]);
+
   const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
   const visibleSelectedCount = filteredDrafts.filter((d) => selectedIds.has(d.rowId)).length;
   const allChecked = filteredDrafts.length > 0 && visibleSelectedCount === filteredDrafts.length;
@@ -696,6 +744,19 @@ export function GoogleSearchTextAssetEditor({
             <Copy className="h-3.5 w-3.5 mr-1.5" />
             Apply focused to all
           </Button>
+
+          {onDeleteAssignments && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={requestDeleteSelected}
+              disabled={selectedIds.size === 0}
+              className="h-8"
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Delete selected ({selectedIds.size})
+            </Button>
+          )}
 
           {/* New Ad — pick campaign / ad group / asset type */}
           <Popover open={newAdOpen} onOpenChange={setNewAdOpen}>
@@ -984,6 +1045,30 @@ export function GoogleSearchTextAssetEditor({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Done</Button>
         </div>
       </DialogContent>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && !deleting && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {confirmDelete?.assignmentIds.length ?? 0} ad
+              {(confirmDelete?.assignmentIds.length ?? 0) === 1 ? '' : 's'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the creative assignment{(confirmDelete?.assignmentIds.length ?? 0) === 1 ? '' : 's'} and any text assets attached to {(confirmDelete?.assignmentIds.length ?? 0) === 1 ? 'it' : 'them'}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); performDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -1850,6 +1850,7 @@ export function TextAssetsStep({
         rows={mergedRows}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
+        onDeleteAssignments={handleDeleteAssignments}
       />
 
       <GoogleNonSearchTextAssetEditor
