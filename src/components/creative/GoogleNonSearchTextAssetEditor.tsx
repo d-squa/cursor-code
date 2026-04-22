@@ -875,6 +875,31 @@ export function GoogleNonSearchTextAssetEditor({
                     </Section>
                   )}
 
+                  <Section
+                    title="Call to Action"
+                    subtitle={
+                      focusedSchema.requiresCallToAction
+                        ? 'required — choose a Google-supported CTA button'
+                        : 'optional'
+                    }
+                  >
+                    <Select
+                      value={focusedDraft.callToAction || ''}
+                      onValueChange={(v) => updateField(focusedDraft.rowId, { callToAction: v })}
+                    >
+                      <SelectTrigger className={cn('h-8 text-xs', focusedSchema.requiresCallToAction && !focusedDraft.callToAction && 'border-destructive')}>
+                        <SelectValue placeholder="Select a call to action…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GOOGLE_CTA_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Section>
+
                   <div className="flex gap-2 pt-2 border-t">
                     <Button variant="outline" size="sm" onClick={() => handleCopyRow(focusedDraft.rowId)}>
                       <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy this ad
