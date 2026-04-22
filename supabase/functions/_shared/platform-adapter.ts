@@ -2098,7 +2098,12 @@ class GoogleAdsAdapter implements PlatformAdapter {
               finalUrls: [params.landingPageUrl],
             };
           } else if (imageUrl) {
-            // ---- Demand Gen: image ad ----
+            // ---- Demand Gen: image ad (DemandGenMultiAssetAd) ----
+            // Google REQUIRES: ≥1 marketingImage (1.91:1), ≥1 squareMarketingImage (1:1),
+            // ≥1 logoImage, ≥2 headlines, ≥2 descriptions, businessName, callToActionText.
+            // We upload the same source image for all three image slots if only one is provided —
+            // Google validates dimensions server-side and will surface a clearer error if the
+            // aspect ratio is wrong, instead of the cryptic "required field was not present".
             const imageAssetResource = await this.uploadImageAsset(
               customerId,
               headers,
@@ -2119,18 +2124,32 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 console.warn("[google.createCreative] Failed to upload logo asset:", e);
               }
             }
+            // Logo is required by Google. Fall back to the marketing image if no
+            // dedicated logo was provided (advertiser will see a validation warning
+            // about aspect ratio rather than a hard "required field" error).
+            if (!logoAssetResource) {
+              logoAssetResource = imageAssetResource;
+            }
+
+            // Ensure minimum text counts (≥2 each). Pad by repeating the first item
+            // if the user only supplied one — better than a hard failure.
+            const headlinesMa = dgHeadlines.length >= 2
+              ? dgHeadlines.slice(0, 5)
+              : [dgHeadlines[0], dgHeadlines[0]];
+            const descriptionsMa = dgDescriptions.length >= 2
+              ? dgDescriptions.slice(0, 5)
+              : [dgDescriptions[0], dgDescriptions[0]];
 
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
             ad = {
               demandGenMultiAssetAd: {
-                headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
-                descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
-                // businessName is an AdTextAsset, not a raw string.
-                businessName: { text: businessNameDg },
+                headlines: headlinesMa.map((text) => ({ text })),
+                descriptions: descriptionsMa.map((text) => ({ text })),
+                businessName: businessNameDg,
                 marketingImages: [{ asset: imageAssetResource }],
-                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                // DemandGenMultiAssetAdInfo uses a plain string field.
+                squareMarketingImages: [{ asset: imageAssetResource }],
+                logoImages: [{ asset: logoAssetResource }],
                 callToActionText: ctaDisplayMa,
               },
               finalUrls: [params.landingPageUrl],
