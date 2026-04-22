@@ -277,6 +277,32 @@ function draftToRowUpdates(d: NonSearchAdDraft): Partial<CreativeTextAssetRow> {
 
 // ---------- Validation ----------
 
+/**
+ * Extract a YouTube video ID from a watch / shorts / embed URL — or accept a
+ * bare 11-character ID. Returns undefined if no ID can be extracted.
+ */
+export function extractYouTubeId(input?: string | null): string | undefined {
+  if (!input) return undefined;
+  const s = String(input).trim();
+  if (!s) return undefined;
+  // Bare ID
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  try {
+    const u = new URL(s);
+    const v = u.searchParams.get('v');
+    if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+    const parts = u.pathname.split('/').filter(Boolean);
+    // /shorts/<id> /embed/<id> /v/<id>
+    const idx = parts.findIndex((p) => ['shorts', 'embed', 'v'].includes(p.toLowerCase()));
+    if (idx >= 0 && parts[idx + 1] && /^[A-Za-z0-9_-]{11}$/.test(parts[idx + 1])) return parts[idx + 1];
+    // youtu.be/<id>
+    if (u.hostname.includes('youtu.be') && parts[0] && /^[A-Za-z0-9_-]{11}$/.test(parts[0])) return parts[0];
+  } catch {
+    // not a URL — fall through
+  }
+  return undefined;
+}
+
 function isDraftInvalid(d: NonSearchAdDraft): boolean {
   const schema = SCHEMAS[d.type];
   const filledH = d.headlines.filter((x) => x && x.trim()).length;
@@ -287,6 +313,7 @@ function isDraftInvalid(d: NonSearchAdDraft): boolean {
   if (filledD < schema.minDescriptions) return true;
   if (schema.requiresBusinessName && !d.businessName.trim()) return true;
   if (schema.requiresFinalUrl && !d.finalUrl.trim()) return true;
+  if (schema.requiresYoutubeVideo && !extractYouTubeId(d.youtubeVideoUrl)) return true;
   return false;
 }
 
