@@ -619,53 +619,86 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
   }
 
   // ---- Ads sheet ----
+  // Header-driven parsing so this works for every per-type layout
+  // (Search RSA, PMax, Demand Gen, Video, Display) which differ in
+  // headline / description / long-headline counts.
   const adsSheet = wb.Sheets['Ads'];
   const ads: AdSheetRow[] = [];
   if (adsSheet) {
     const aoa = XLSX.utils.sheet_to_json(adsSheet, { header: 1 }) as any[][];
-    // Cols (0-indexed): 0 Campaign | 1 AdGroup | 2 AdName | 3 __assignmentId__ |
-    //   4 Final URL | 5 Path1 | 6 LEN | 7 Path2 | 8 LEN
-    //   9.. headline triples (15) -> 9 + 15*3 = 54 end
-    //   54.. description triples (4) -> 54 + 4*3 = 66 end
-    //   66 Business Name | 67 LEN
+    const header = (aoa[0] || []).map((h) => String(h ?? '').trim());
+    const indexOfHeader = (label: string) => header.findIndex((h) => h === label);
+
+    const headlineCols: number[] = [];
+    const headlinePinCols: number[] = [];
+    for (let i = 1; i <= 15; i++) {
+      const idx = indexOfHeader(`Headline ${i}`);
+      if (idx === -1) break;
+      headlineCols.push(idx);
+      const pinIdx = indexOfHeader(`Pin H${i}`);
+      headlinePinCols.push(pinIdx);
+    }
+    const descriptionCols: number[] = [];
+    const descriptionPinCols: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const idx = indexOfHeader(`Description ${i}`);
+      if (idx === -1) break;
+      descriptionCols.push(idx);
+      const pinIdx = indexOfHeader(`Pin D${i}`);
+      descriptionPinCols.push(pinIdx);
+    }
+    const longHeadlineCols: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const idx = indexOfHeader(`Long Headline ${i}`);
+      if (idx === -1) break;
+      longHeadlineCols.push(idx);
+    }
+    const businessNameCol = indexOfHeader('Business Name');
+    const finalUrlCol = indexOfHeader('Final URL');
+    const path1Col = indexOfHeader('Path 1');
+    const path2Col = indexOfHeader('Path 2');
+    const adNameCol = indexOfHeader('Ad Name');
+    const assignmentIdCol = indexOfHeader('__assignmentId__');
+
     for (let i = 1; i < aoa.length; i++) {
       const row = aoa[i];
       const campaignName = String(row?.[0] || '').trim();
       const adGroupName = String(row?.[1] || '').trim();
-      // Allow rows without an explicit Ad Name — we'll auto-generate it from the
-      // campaign/ad-group taxonomy. We still skip rows that have no campaign at
-      // all (they're truly empty).
       if (!campaignName) continue;
+
       const headlines: string[] = [];
       const headlinePins: (number | null)[] = [];
-      for (let h = 0; h < 15; h++) {
-        headlines.push(String(row[9 + h * 3] || ''));
-        headlinePins.push(toPin(row[9 + h * 3 + 2]));
+      for (let h = 0; h < headlineCols.length; h++) {
+        headlines.push(String(row[headlineCols[h]] || ''));
+        headlinePins.push(headlinePinCols[h] >= 0 ? toPin(row[headlinePinCols[h]]) : null);
       }
       const descriptions: string[] = [];
       const descriptionPins: (number | null)[] = [];
-      for (let d = 0; d < 4; d++) {
-        descriptions.push(String(row[54 + d * 3] || ''));
-        descriptionPins.push(toPin(row[54 + d * 3 + 2]));
+      for (let d = 0; d < descriptionCols.length; d++) {
+        descriptions.push(String(row[descriptionCols[d]] || ''));
+        descriptionPins.push(descriptionPinCols[d] >= 0 ? toPin(row[descriptionPinCols[d]]) : null);
       }
-      // Search RSA ads no longer have Long Headline columns in the shell.
       const longHeadlines: string[] = Array(5).fill('');
-      const businessName = String(row[66] || '').trim();
-      // A row is meaningful only if at least one creative field is filled.
+      for (let l = 0; l < longHeadlineCols.length; l++) {
+        longHeadlines[l] = String(row[longHeadlineCols[l]] || '');
+      }
+      const businessName = businessNameCol >= 0 ? String(row[businessNameCol] || '').trim() : '';
+
       const hasContent =
         headlines.some((h) => h.trim()) ||
         descriptions.some((d) => d.trim()) ||
+        longHeadlines.some((l) => l.trim()) ||
         !!businessName;
-      const explicitName = String(row?.[2] || '').trim();
+      const explicitName = adNameCol >= 0 ? String(row[adNameCol] || '').trim() : '';
       if (!explicitName && !hasContent) continue;
       ads.push({
         campaignName,
         adGroupName,
-        adName: explicitName, // may be empty — auto-filled in diffShell
-        assignmentId: String(row[3] || '').trim() || null,
-        finalUrl: String(row[4] || '').trim(),
-        path1: String(row[5] || '').trim(),
-        path2: String(row[7] || '').trim(),
+        adName: explicitName,
+        assignmentId: assignmentIdCol >= 0 ? (String(row[assignmentIdCol] || '').trim() || null) : null,
+        finalUrl: finalUrlCol >= 0 ? String(row[finalUrlCol] || '').trim() : '',
+        path1: path1Col >= 0 ? String(row[path1Col] || '').trim() : '',
+        path2: path2Col >= 0 ? String(row[path2Col] || '').trim() : '',
         headlines,
         headlinePins,
         descriptions,
