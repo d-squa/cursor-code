@@ -154,6 +154,8 @@ export interface NonSearchAdDraft {
   descriptions: string[];
   businessName: string;
   finalUrl: string;
+  /** YouTube video URL or ID — required for Demand Gen video / Video (YouTube) ads. */
+  youtubeVideoUrl: string;
 }
 
 function pad<T>(arr: T[] | undefined, length: number, filler: T): T[] {
