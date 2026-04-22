@@ -1917,12 +1917,16 @@ class GoogleAdsAdapter implements PlatformAdapter {
           finalUrls: [params.landingPageUrl],
         };
       } else if (upperChannel === "DISPLAY") {
+        // ResponsiveDisplayAd accepts an optional `callToActionText` string —
+        // must be a Google-recognised display phrase, not a raw enum.
+        const ctaDisplayDisp = mapGoogleCtaToDisplay(String(params.callToAction || "").trim());
         ad = {
           responsiveDisplayAd: {
             headlines: headlines.slice(0, 5).map((text) => ({ text })),
             longHeadline: { text: longHeadline },
             descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
             businessName,
+            ...(ctaDisplayDisp ? { callToActionText: ctaDisplayDisp } : {}),
           },
           finalUrls: [params.landingPageUrl],
         };
