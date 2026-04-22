@@ -153,6 +153,13 @@ export function buildSheetForGoogleType(
   const data = filtered.map((row) =>
     cols.map((c) => {
       const value = (row as any)[c.key];
+      if (c.key === 'callToAction') {
+        // Export the UI-friendly label (e.g. "Learn More") so users see/edit a
+        // human-readable value. Import re-normalises to the enum.
+        const normalized = normalizeGoogleCta(value);
+        const opt = GOOGLE_CTA_OPTIONS.find((o) => o.value === normalized);
+        return opt ? opt.label : '';
+      }
       return value == null ? '' : String(value);
     }),
   );
@@ -174,6 +181,20 @@ export function validateGoogleNonSearchRow(
     const raw = rowByHeader[col.label];
     if (raw == null) continue;
     const value = String(raw);
+
+    // CTA column: accept either UI label or enum, normalise back to enum.
+    if (col.key === 'callToAction') {
+      if (value.trim() === '') continue;
+      const normalized = normalizeGoogleCta(value);
+      if (!normalized) {
+        errors.push(`"${col.label}" — "${value}" is not a recognised CTA. Use one of: ${GOOGLE_CTA_LABEL_LIST}`);
+        continue;
+      }
+      (updates as any).callToAction = normalized;
+      (updates as any).call_to_action = normalized;
+      continue;
+    }
+
     if (value.length > col.max) {
       errors.push(`"${col.label}" is ${value.length} chars (max ${col.max})`);
       continue;
@@ -188,9 +209,6 @@ export function validateGoogleNonSearchRow(
     }
   }
 
-  // Keep the JSON-backed canonical asset arrays in sync with Excel imports.
-  // The Google non-search editor reads these payloads when present, so if we
-  // only update the flat columns the UI can keep showing stale/blank values.
   if (headlineValues.length > 0) {
     updates.headline_pins = { values: headlineValues, pins: Array(headlineValues.length).fill(null) };
   }
