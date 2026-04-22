@@ -485,11 +485,44 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
-  // Only emit rows for creative assignments that were successfully matched to
-  // the campaign shell. Empty (campaign, ad group) pairs without assignments
-  // are intentionally excluded — the Ads tab is for editing real ads, not for
-  // planning shell structure (use the Campaigns tab for that reference).
-  const effectiveAdRows: AdSheetRow[] = input.adRows;
+  // Default: only emit rows for creative assignments that were successfully
+  // matched to the campaign shell (PMax / Demand Gen / Display / Video get
+  // their text assets from Creative Mesh matches).
+  //
+  // Exception — Google Search (RSA): Search campaigns don't receive creative
+  // assignments from Creative Mesh, so we must surface the campaign shell as
+  // empty rows so users can author headlines / descriptions / paths / final
+  // URLs directly in the Ads tab. One shell row per (campaign, ad group) that
+  // doesn't already have an assignment row.
+  const isSearchWorkbook = spec.type === 'search';
+  let effectiveAdRows: AdSheetRow[] = input.adRows;
+  if (isSearchWorkbook) {
+    const existingPairs = new Set(
+      input.adRows.map((r) => `${r.campaignName}::${r.adGroupName}`),
+    );
+    const shellRows: AdSheetRow[] = [];
+    for (const ref of input.expansion) {
+      const key = `${ref.campaignName}::${ref.adGroupName}`;
+      if (existingPairs.has(key)) continue;
+      existingPairs.add(key); // dedupe within shell as well
+      shellRows.push({
+        campaignName: ref.campaignName,
+        adGroupName: ref.adGroupName,
+        adName: '',
+        assignmentId: null,
+        finalUrl: '',
+        path1: '',
+        path2: '',
+        headlines: Array(15).fill(''),
+        headlinePins: Array(15).fill(null),
+        descriptions: Array(5).fill(''),
+        descriptionPins: Array(5).fill(null),
+        longHeadlines: Array(5).fill(''),
+        businessName: '',
+      });
+    }
+    effectiveAdRows = [...input.adRows, ...shellRows];
+  }
 
   for (const r of effectiveAdRows) {
     const row: (string | number)[] = [
