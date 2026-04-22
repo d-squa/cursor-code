@@ -34,6 +34,51 @@ function extractYouTubeId(input?: string | null): string | undefined {
   return undefined;
 }
 
+/**
+ * Map a Google Ads CTA enum (e.g. LEARN_MORE) or a UI label ("Learn More")
+ * to the exact display string Google Ads expects on the button ("Learn more").
+ *
+ * Google's `AdCallToActionAsset.text` and `DemandGenMultiAssetAdInfo.call_to_action_text`
+ * accept a free-form string but only render a fixed allowlist of phrases.
+ * Mirrors `src/utils/googleCtaOptions.ts` (kept inline here because edge
+ * functions cannot import from `src/`).
+ */
+const GOOGLE_CTA_DISPLAY_MAP: Record<string, string> = {
+  LEARN_MORE: "Learn more",
+  SHOP_NOW: "Shop now",
+  SIGN_UP: "Sign up",
+  SUBSCRIBE: "Subscribe",
+  DOWNLOAD: "Download",
+  BOOK_NOW: "Book now",
+  CONTACT_US: "Contact us",
+  GET_QUOTE: "Get quote",
+  APPLY_NOW: "Apply now",
+  ORDER_NOW: "Order now",
+  INSTALL: "Install",
+  WATCH_NOW: "Watch now",
+  GET_OFFER: "Get offer",
+  VISIT_SITE: "Visit site",
+  SEE_MORE: "See more",
+};
+
+function mapGoogleCtaToDisplay(input?: string | null): string {
+  if (!input) return "";
+  const raw = String(input).trim();
+  if (!raw) return "";
+  // Try direct enum hit first.
+  const upper = raw.toUpperCase().replace(/\s+/g, "_");
+  if (GOOGLE_CTA_DISPLAY_MAP[upper]) return GOOGLE_CTA_DISPLAY_MAP[upper];
+  // Then try matching by display text (case-insensitive).
+  const lower = raw.toLowerCase();
+  for (const display of Object.values(GOOGLE_CTA_DISPLAY_MAP)) {
+    if (display.toLowerCase() === lower) return display;
+  }
+  // Common aliases.
+  if (/^install[_ ]?(app|now)$/i.test(raw)) return "Install";
+  if (/^watch[_ ]?more$/i.test(raw)) return "Watch now";
+  return "";
+}
+
 export interface PlatformAdapter {
   createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult>;
   updateCampaign(params: UpdateCampaignParams): Promise<UpdateCampaignResult>;
@@ -1872,12 +1917,16 @@ class GoogleAdsAdapter implements PlatformAdapter {
           finalUrls: [params.landingPageUrl],
         };
       } else if (upperChannel === "DISPLAY") {
+        // ResponsiveDisplayAd accepts an optional `callToActionText` string —
+        // must be a Google-recognised display phrase, not a raw enum.
+        const ctaDisplayDisp = mapGoogleCtaToDisplay(String(params.callToAction || "").trim());
         ad = {
           responsiveDisplayAd: {
             headlines: headlines.slice(0, 5).map((text) => ({ text })),
             longHeadline: { text: longHeadline },
             descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
             businessName,
+            ...(ctaDisplayDisp ? { callToActionText: ctaDisplayDisp } : {}),
           },
           finalUrls: [params.landingPageUrl],
         };
