@@ -2089,10 +2089,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
                 longHeadlines: [{ text: dgLongHeadline }],
                 descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
-                // businessName on DemandGenVideoResponsiveAdInfo is a plain string,
-                // NOT an AdTextAsset. Wrapping it in { text: ... } yields a cryptic
-                // "required field was not present" from the API.
-                businessName: businessNameDg,
+                // businessName on DemandGenVideoResponsiveAdInfo is an AdTextAsset
+                // (v23). Multi-asset ad uses a plain string. Mismatch yields:
+                // "Invalid value at ... business_name (AdTextAsset)".
+                businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
                 ...(ctaAssetResource ? { callToActions: [{ asset: ctaAssetResource }] } : {}),
