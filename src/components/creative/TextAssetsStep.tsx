@@ -1353,8 +1353,9 @@ export function TextAssetsStep({
       
       if (error) throw error;
       
-      // Remove from local state
+      // Remove from local state (both regular rows and Google Search RSA placeholders)
       setRows(prev => prev.filter(r => !uniqueIds.includes((r as any).assignmentId)));
+      setGooglePlaceholderRows(prev => prev.filter(r => !uniqueIds.includes((r as any).assignmentId)));
       toast.success(uniqueIds.length === 1 ? 'Assignment deleted' : `${uniqueIds.length} creatives deleted`);
     } catch (error) {
       console.error('Error deleting assignments:', error);
