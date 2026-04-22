@@ -2179,9 +2179,13 @@ export function TextAssetExcelEditor({
                                   r.market === market &&
                                   normalizeGoogleSearchPhase(r.phase) === normalizedPhase,
                               );
-                              const isSearchPhase = phaseFamilyRows.some(
-                                (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
-                              );
+                              const isSearchPhase = phaseFamilyRows.some((r) => {
+                                const ct = String(r.googleCampaignType || '').toLowerCase();
+                                const pl = String(r.phase || '').toLowerCase();
+                                if (/(video|demand[_\s-]?gen|display|performance[_\s-]?max|pmax|shopping)/.test(ct)) return false;
+                                if (/(video|demand[_\s-]?gen|display|performance[_\s-]?max|pmax|shopping)/.test(pl)) return false;
+                                return ct.includes('search') || !!r.googleStrategy;
+                              });
                               if (isSearchPhase) return null;
                               if (!onDownloadGoogleAdsShellForPhase && !onUploadGoogleAdsShellForPhase) return null;
                               const inputKey = `${market}|${phase}`;
