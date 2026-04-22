@@ -323,6 +323,8 @@ interface Props {
   scopePhase?: string;
   onRowChange: (rowId: string, updates: Partial<CreativeTextAssetRow>) => void;
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
+  /** Delete one or more creative assignments (by assignmentId). */
+  onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
 }
 
 export function GoogleNonSearchTextAssetEditor({
