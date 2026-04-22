@@ -2346,7 +2346,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
             console.log(`[push-creatives] ✅ Meta carousel pushed: ${childAttachments.length} cards, ad_id=${adData.id}`);
 
-          } else if (platformKey === "google") {
+          } else if (platformKey === "tiktok") {
             const googleAdapter = getPlatformAdapter("google") as any;
             const googleCustomerId = resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name)
               || platform.ad_account_id;
@@ -2387,28 +2387,8 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            const headlines: string[] = [
-              assignment.headline || creative.headline || creative.name || "Learn More",
-              assignment.headline_2 || "Visit Today",
-              assignment.headline_3 || "Get Started",
-              assignment.headline_4,
-              assignment.headline_5,
-            ]
-              .filter(Boolean)
-              .map((headline: string) => headline.substring(0, 30));
-
-            const descriptions: string[] = [
-              assignment.description || creative.description || creative.primary_text || "",
-              assignment.description_2 || assignment.primary_text || "",
-              assignment.description_3,
-              assignment.description_4,
-              assignment.description_5,
-            ]
-              .filter(Boolean)
-              .map((description: string) => description.substring(0, 90));
-
             const landingPageUrl = normalizeHttpUrl(
-              assignment.destination_url
+              resolvedText.destinationUrl
                 || creative.destination_url
                 || (phase as any)?.googleLandingPageUrl
                 || (market as any)?.googleLandingPageUrl,
@@ -2430,8 +2410,8 @@ const handler = async (req: Request): Promise<Response> => {
               creativeName: creative.name,
               creativeType: "responsive_search_ad",
               assets: {},
-              adText: descriptions[0] || creative.name,
-              callToAction: headlines[1] || "Learn More",
+              adText: resolvedText.description || resolvedText.primaryText || creative.name,
+              callToAction: resolvedText.headline || creative.name || "Learn More",
               landingPageUrl,
               developerToken,
               loginCustomerId: effectiveManagerId,
