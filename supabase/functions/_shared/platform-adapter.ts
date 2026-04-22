@@ -2019,7 +2019,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
               demandGenMultiAssetAd: {
                 headlines: headlines.slice(0, 5).map((text) => ({ text })),
                 descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
-                businessName: businessNameDg,
+                // businessName is an AdTextAsset, not a raw string.
+                businessName: { text: businessNameDg },
                 marketingImages: [{ asset: imageAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
                 // DemandGenMultiAssetAdInfo uses a plain string field.
