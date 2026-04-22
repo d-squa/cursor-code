@@ -10,6 +10,8 @@ import {
   googleRowMatchKey,
 } from '@/utils/googleNonSearchExcel';
 import { detectGoogleNonSearchType, type GoogleNonSearchType } from '@/components/creative/GoogleNonSearchTextAssetEditor';
+import { GOOGLE_CTA_OPTIONS } from '@/utils/googleCtaOptions';
+import { injectDropdownsIntoXlsx, type SheetDropdownSpec } from '@/utils/xlsxDataValidation';
 
 // Column definitions for the Excel export/import
 export const TEXT_ASSET_COLUMNS = [
