@@ -204,13 +204,17 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
   const r = row as any;
   const schema = SCHEMAS[type];
 
-  // Headlines: flat cols 1..5 + overflow values in headline_pins.values
+  // Headlines: flat cols 1..5 + overflow values in headline_pins.values.
+  // Prefer non-empty JSON values only where they exist; stale blank payloads
+  // should not override freshly imported flat columns.
   const baseHeadlines = [r.headline, r.headline2, r.headline3, r.headline4, r.headline5]
     .map((v) => String(v || ''));
   const headlineOverflow = readJsonValues(r.headline_pins ?? r.headlinePins) || [];
-  const mergedHeadlines = headlineOverflow.length >= schema.headlineCount
-    ? headlineOverflow
-    : [...baseHeadlines, ...headlineOverflow.slice(5)];
+  const mergedHeadlines = Array.from({ length: Math.max(schema.headlineCount, baseHeadlines.length, headlineOverflow.length) }, (_, i) => {
+    const overflowValue = String(headlineOverflow[i] || '');
+    const baseValue = String(baseHeadlines[i] || '');
+    return overflowValue.trim() ? overflowValue : baseValue;
+  });
   const headlines = pad(mergedHeadlines, schema.headlineCount, '');
 
   // Long headlines: long_headline_1..5
@@ -219,13 +223,16 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
   ].map((v) => String(v || ''));
   const longHeadlines = pad(baseLongHeadlines, schema.longHeadlineCount, '');
 
-  // Descriptions: flat cols 1..5 + overflow
+  // Descriptions: flat cols 1..5 + overflow. Same merge rule as headlines so
+  // empty JSON payloads do not mask visible flat-column content.
   const baseDescriptions = [r.description, r.description2, r.description3, r.description4, r.description5]
     .map((v) => String(v || ''));
   const descOverflow = readJsonValues(r.description_pins ?? r.descriptionPins) || [];
-  const mergedDescriptions = descOverflow.length >= schema.descriptionCount
-    ? descOverflow
-    : [...baseDescriptions, ...descOverflow.slice(5)];
+  const mergedDescriptions = Array.from({ length: Math.max(schema.descriptionCount, baseDescriptions.length, descOverflow.length) }, (_, i) => {
+    const overflowValue = String(descOverflow[i] || '');
+    const baseValue = String(baseDescriptions[i] || '');
+    return overflowValue.trim() ? overflowValue : baseValue;
+  });
   const descriptions = pad(mergedDescriptions, schema.descriptionCount, '');
 
   return {
