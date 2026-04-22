@@ -2666,7 +2666,7 @@ export function TextAssetExcelEditor({
           </div>
 
           {/* Scrollable columns (right side) */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 h-full min-w-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="min-w-max">
                 {/* Header for scrollable columns */}
