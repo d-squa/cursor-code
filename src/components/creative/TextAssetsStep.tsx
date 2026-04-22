@@ -892,6 +892,12 @@ export function TextAssetsStep({
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
     }));
+    setGooglePlaceholderRows(prev => prev.map(row => {
+      if (!ids.includes(row.id)) return row;
+      const updated = { ...row, ...updates } as CreativeTextAssetRow;
+      const errors = validateTextAssetRow(updated);
+      return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
+    }));
   }, []);
 
   // Handle import from Excel
