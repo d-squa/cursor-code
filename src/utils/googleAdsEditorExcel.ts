@@ -485,37 +485,11 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
-  // Always emit one row per (campaign, ad group) shell entry — even when there
-  // are creative assignments — so every ad group remains visible and editable
-  // in the Ads tab.
-  const emptyShellRow = (campaignName: string, adGroupName: string): AdSheetRow => ({
-    campaignName,
-    adGroupName,
-    adName: '',
-    assignmentId: null,
-    finalUrl: '',
-    path1: '',
-    path2: '',
-    headlines: Array(15).fill(''),
-    headlinePins: Array(15).fill(null),
-    descriptions: Array(5).fill(''),
-    descriptionPins: Array(5).fill(null),
-    longHeadlines: Array(5).fill(''),
-    businessName: '',
-  });
-
-  const pairKey = (c: string, g: string) => `${c}\u0000${g}`;
-  const seenPairs = new Set<string>(
-    input.adRows.map((r) => pairKey(r.campaignName, r.adGroupName)),
-  );
-  const missingShellRows: AdSheetRow[] = [];
-  for (const e of input.expansion) {
-    const key = pairKey(e.campaignName, e.adGroupName);
-    if (seenPairs.has(key)) continue;
-    seenPairs.add(key);
-    missingShellRows.push(emptyShellRow(e.campaignName, e.adGroupName));
-  }
-  const effectiveAdRows: AdSheetRow[] = [...input.adRows, ...missingShellRows];
+  // Only emit rows for creative assignments that were successfully matched to
+  // the campaign shell. Empty (campaign, ad group) pairs without assignments
+  // are intentionally excluded — the Ads tab is for editing real ads, not for
+  // planning shell structure (use the Campaigns tab for that reference).
+  const effectiveAdRows: AdSheetRow[] = input.adRows;
 
   for (const r of effectiveAdRows) {
     const row: (string | number)[] = [
