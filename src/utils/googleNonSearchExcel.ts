@@ -84,7 +84,9 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     label: 'Demand Gen',
     structuralColumns: STRUCTURAL,
     // Demand Gen single image: 5 headlines (40), 5 descriptions (90), business name (25). No long headline.
+    // YouTube Video URL is required for video Demand Gen ads (image is optional fallback).
     textColumns: [
+      { key: 'youtubeVideoUrl', label: 'YouTube Video URL', max: 2048, width: 50 },
       ...range('headline', 5, 40, 'Headline', 26),
       ...range('description', 5, 90, 'Description', 38),
     ],
@@ -96,6 +98,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     structuralColumns: STRUCTURAL,
     // Demand Gen video (in-feed): 2 headlines (40), 4 descriptions (90). No long headline per user spec.
     textColumns: [
+      { key: 'youtubeVideoUrl', label: 'YouTube Video URL', max: 2048, width: 50 },
       ...range('headline', 2, 40, 'Headline', 26),
       ...range('description', 4, 90, 'Description', 38),
     ],
