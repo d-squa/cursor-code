@@ -4,6 +4,7 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 import { createApiLogger } from "../_shared/api-logger.ts";
 import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
+import { getPlatformAdapter } from "../_shared/platform-adapter.ts";
 
 const FUNCTION_NAME = "push-creatives-to-dsp";
 const logger = createApiLogger(FUNCTION_NAME);
@@ -259,6 +260,29 @@ function findMarketAndPhaseConfig(
   }
 
   return { market: null, phase: null };
+}
+
+function resolveGoogleCustomerIdFromCampaign(
+  campaign: any,
+  marketName: string,
+  phaseName: string | null,
+): string | null {
+  const { market } = findMarketAndPhaseConfig(campaign, "google", marketName, phaseName);
+
+  const candidates = [
+    market?.googleCustomerId,
+    market?.adAccountId,
+    market?.ad_account_id,
+    market?.accountId,
+    market?.account_id,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "").trim();
+    if (normalized) return normalized;
+  }
+
+  return null;
 }
 
 function resolveConfiguredMetaPageId(
