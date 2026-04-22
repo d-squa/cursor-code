@@ -4,6 +4,36 @@
  * Ensures consistent behavior across platforms while isolating platform-specific implementation
  */
 
+/**
+ * Extract a YouTube video ID from a YouTube URL (watch, youtu.be, shorts, embed).
+ * Returns undefined if no ID can be extracted.
+ */
+function extractYouTubeId(input?: string | null): string | undefined {
+  if (!input) return undefined;
+  const s = String(input).trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
+  try {
+    const u = new URL(s);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : undefined;
+    }
+    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      const v = u.searchParams.get("v");
+      if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) return v;
+      const parts = u.pathname.split("/").filter(Boolean);
+      const idx = parts.findIndex((p) => p === "shorts" || p === "embed" || p === "v");
+      if (idx >= 0 && parts[idx + 1] && /^[a-zA-Z0-9_-]{11}$/.test(parts[idx + 1])) {
+        return parts[idx + 1];
+      }
+    }
+  } catch {
+    // not a URL
+  }
+  return undefined;
+}
+
 export interface PlatformAdapter {
   createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult>;
   updateCampaign(params: UpdateCampaignParams): Promise<UpdateCampaignResult>;
