@@ -79,6 +79,8 @@ interface GoogleSearchTextAssetEditorProps {
   onRowChange: (rowId: string, updates: Partial<CreativeTextAssetRow>) => void;
   /** Persist a bulk update to multiple rows at once. */
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
+  /** Optional: permanently delete creative assignments by id. */
+  onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
 }
 
 // ---------- Helpers ----------
