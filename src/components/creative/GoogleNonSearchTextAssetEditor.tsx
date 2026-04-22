@@ -453,6 +453,9 @@ export function GoogleNonSearchTextAssetEditor({
     });
   }, [rows, scopeMarket, scopePhase]);
 
+  // Only (re)build drafts when the dialog opens. Rebuilding on every `scopedRows`
+  // change would wipe local edits and steal focus back to the first ad on each
+  // keystroke (because the parent re-renders rows on every onRowChange).
   useEffect(() => {
     if (!open) return;
     const built = scopedRows
@@ -464,7 +467,8 @@ export function GoogleNonSearchTextAssetEditor({
     setDrafts(built);
     setFocusedId(built[0]?.rowId ?? null);
     setSelectedIds(new Set());
-  }, [open, scopedRows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const filteredDrafts = useMemo(() => {
     return drafts.filter((d) => {
