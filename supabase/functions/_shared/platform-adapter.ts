@@ -4,6 +4,36 @@
  * Ensures consistent behavior across platforms while isolating platform-specific implementation
  */
 
+/**
+ * Extract a YouTube video ID from a YouTube URL (watch, youtu.be, shorts, embed).
+ * Returns undefined if no ID can be extracted.
+ */
+function extractYouTubeId(input?: string | null): string | undefined {
+  if (!input) return undefined;
+  const s = String(input).trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(s)) return s;
+  try {
+    const u = new URL(s);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : undefined;
+    }
+    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      const v = u.searchParams.get("v");
+      if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) return v;
+      const parts = u.pathname.split("/").filter(Boolean);
+      const idx = parts.findIndex((p) => p === "shorts" || p === "embed" || p === "v");
+      if (idx >= 0 && parts[idx + 1] && /^[a-zA-Z0-9_-]{11}$/.test(parts[idx + 1])) {
+        return parts[idx + 1];
+      }
+    }
+  } catch {
+    // not a URL
+  }
+  return undefined;
+}
+
 export interface PlatformAdapter {
   createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult>;
   updateCampaign(params: UpdateCampaignParams): Promise<UpdateCampaignResult>;
@@ -114,6 +144,10 @@ export interface CreateCreativeParams {
     imageIds?: string[];
     videoUrl?: string;
     imageUrls?: string[];
+    // Google Demand Gen / Video specific:
+    youtubeVideoId?: string; // Pre-uploaded YouTube video ID (preferred for Demand Gen video ads)
+    imageUrl?: string;       // Source image URL — will be uploaded as a Google Ads imageAsset
+    logoUrl?: string;        // Optional brand/logo URL
   };
   adText: string;
   callToAction: string;
@@ -1365,6 +1399,118 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return headers;
   }
 
+  /**
+   * Upload an image (downloaded from a URL) to the Google Ads asset library
+   * as an imageAsset. Returns the asset resource name (customers/X/assets/Y).
+   */
+  private async uploadImageAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    imageUrl: string,
+    name: string,
+  ): Promise<string> {
+    const imgResp = await fetch(imageUrl);
+    if (!imgResp.ok) {
+      throw new Error(`Failed to download image (${imgResp.status})`);
+    }
+    const arrayBuffer = await imgResp.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(
+        null,
+        Array.from(bytes.subarray(i, i + chunkSize)),
+      );
+    }
+    const base64Data = btoa(binary);
+
+    const safeName = `${(name || "image").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 80)} ${Date.now()}`;
+    const assetOp = {
+      create: {
+        name: safeName,
+        type: "IMAGE",
+        imageAsset: { data: base64Data },
+      },
+    };
+
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Image asset upload failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) {
+      throw new Error("Image asset upload returned no resourceName");
+    }
+    return resourceName;
+  }
+
+  /**
+   * Ensure a YouTube video asset exists in the account; create it if not.
+   * Returns the asset resource name (customers/X/assets/Y).
+   */
+  private async ensureYouTubeVideoAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    youtubeVideoId: string,
+    name: string,
+  ): Promise<string> {
+    try {
+      const gaql = `SELECT asset.resource_name, asset.youtube_video_asset.youtube_video_id FROM asset WHERE asset.type = 'YOUTUBE_VIDEO' AND asset.youtube_video_asset.youtube_video_id = '${youtubeVideoId}' LIMIT 1`;
+      const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:search`;
+      const searchResp = await fetch(searchUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
+      if (searchResp.ok) {
+        const searchData = await searchResp.json();
+        const existing = searchData?.results?.[0]?.asset?.resourceName;
+        if (existing) return existing;
+      }
+    } catch (e) {
+      console.warn("[google.ensureYouTubeVideoAsset] lookup failed:", e);
+    }
+
+    const safeName = `${(name || "youtube").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 80)} ${youtubeVideoId}`;
+    const assetOp = {
+      create: {
+        name: safeName,
+        type: "YOUTUBE_VIDEO",
+        youtubeVideoAsset: { youtubeVideoId },
+      },
+    };
+
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`YouTube video asset creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) {
+      throw new Error("YouTube video asset creation returned no resourceName");
+    }
+    return resourceName;
+  }
+
   async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
     try {
       const customerId = params.accountId.replace(/-/g, "");
@@ -1737,16 +1883,106 @@ class GoogleAdsAdapter implements PlatformAdapter {
         };
       } else if (upperChannel === "VIDEO" || upperChannel === "DEMAND_GEN") {
         // For VIDEO/DEMAND_GEN, the actual creative is a video/image asset.
-        // Text fields here are parameters of that asset and require the asset IDs.
-        // Don't attempt to create an RSA — surface a clear, actionable error.
-        return {
-          success: false,
-          creativeId: "",
-          platform: "google",
-          error:
-            `Text assets on ${upperChannel === "VIDEO" ? "Video" : "Demand Gen"} campaigns are parameters of the video/image creative, not standalone ads. ` +
-            `Upload the video/image asset first, then these headlines/descriptions will be attached to it.`,
-        };
+        // Headlines & descriptions are parameters of that asset.
+        // We auto-upload the media to Google Ads as assets, then build the appropriate ad.
+        const assets = (params as any).assets || {};
+        const youtubeVideoId: string | undefined = assets.youtubeVideoId
+          || extractYouTubeId(assets.videoUrl);
+        const imageUrl: string | undefined = assets.imageUrl
+          || assets.imageUrls?.[0];
+        const logoUrl: string | undefined = assets.logoUrl;
+
+        const businessNameDg = (params as any).businessName || params.creativeName || "Brand";
+
+        try {
+          if (youtubeVideoId) {
+            // ---- Demand Gen / Video: video ad ----
+            const youtubeAssetResource = await this.ensureYouTubeVideoAsset(
+              customerId,
+              headers,
+              youtubeVideoId,
+              params.creativeName,
+            );
+
+            // Upload optional logo image as imageAsset (square logos help Demand Gen)
+            let logoAssetResource: string | null = null;
+            if (logoUrl) {
+              try {
+                logoAssetResource = await this.uploadImageAsset(
+                  customerId,
+                  headers,
+                  logoUrl,
+                  `${params.creativeName} logo`,
+                );
+              } catch (e) {
+                console.warn("[google.createCreative] Failed to upload logo asset:", e);
+              }
+            }
+
+            ad = {
+              demandGenVideoResponsiveAd: {
+                headlines: headlines.slice(0, 5).map((text) => ({ text })),
+                longHeadlines: [{ text: longHeadline }],
+                descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
+                businessName: businessNameDg,
+                videos: [{ asset: youtubeAssetResource }],
+                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                callToAction: { text: params.callToAction || "LEARN_MORE" },
+              },
+              finalUrls: [params.landingPageUrl],
+            };
+          } else if (imageUrl) {
+            // ---- Demand Gen: image ad ----
+            const imageAssetResource = await this.uploadImageAsset(
+              customerId,
+              headers,
+              imageUrl,
+              params.creativeName,
+            );
+
+            let logoAssetResource: string | null = null;
+            if (logoUrl) {
+              try {
+                logoAssetResource = await this.uploadImageAsset(
+                  customerId,
+                  headers,
+                  logoUrl,
+                  `${params.creativeName} logo`,
+                );
+              } catch (e) {
+                console.warn("[google.createCreative] Failed to upload logo asset:", e);
+              }
+            }
+
+            ad = {
+              demandGenMultiAssetAd: {
+                headlines: headlines.slice(0, 5).map((text) => ({ text })),
+                descriptions: descriptions.slice(0, 5).map((text) => ({ text })),
+                businessName: businessNameDg,
+                marketingImages: [{ asset: imageAssetResource }],
+                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                callToAction: { text: params.callToAction || "LEARN_MORE" },
+              },
+              finalUrls: [params.landingPageUrl],
+            };
+          } else {
+            return {
+              success: false,
+              creativeId: "",
+              platform: "google",
+              error:
+                `${upperChannel === "VIDEO" ? "Video" : "Demand Gen"} ads require a video (YouTube) or image asset. ` +
+                `Attach a YouTube video URL or an image to this creative before pushing.`,
+            };
+          }
+        } catch (assetErr: any) {
+          return {
+            success: false,
+            creativeId: "",
+            platform: "google",
+            error: `Failed to prepare Google Ads asset: ${assetErr?.message || assetErr}`,
+          };
+        }
       } else if (upperChannel === "PERFORMANCE_MAX") {
         return {
           success: false,
