@@ -1642,10 +1642,31 @@ export function TextAssetsStep({
       .eq('platform', 'google');
     if (aErr) throw aErr;
 
+    const liveRowsByAssignmentId = new Map(
+      mergedRows
+        .filter((row) => row.platform === 'google' && row.assignmentId)
+        .map((row) => [row.assignmentId, row] as const),
+    );
+
     const adRows = buildAdRowsFromAssignments(
       (assignments || []) as unknown as AssignmentLite[],
       expansion,
-    );
+    ).map((adRow) => {
+      const liveRow = adRow.assignmentId ? liveRowsByAssignmentId.get(adRow.assignmentId) : undefined;
+      if (!liveRow) return adRow;
+      const r = liveRow as any;
+      return {
+        ...adRow,
+        finalUrl: liveRow.destinationUrl || adRow.finalUrl,
+        youtubeVideoUrl: liveRow.youtubeVideoUrl || adRow.youtubeVideoUrl || '',
+        path1: r.path_1 || adRow.path1,
+        path2: r.path_2 || adRow.path2,
+        headlines: [r.headline, r.headline2, r.headline3, r.headline4, r.headline5, ...adRow.headlines.slice(5)].map((v) => String(v || '')),
+        descriptions: [r.description, r.description2, r.description3, r.description4, r.description5].map((v) => String(v || '')),
+        longHeadlines: [r.long_headline_1, r.long_headline_2, r.long_headline_3, r.long_headline_4, r.long_headline_5].map((v) => String(v || '')),
+        businessName: String(r.business_name || liveRow.brandName || adRow.businessName || ''),
+      };
+    });
 
     return {
       campaignName: camp?.name || campaignName || 'Campaign',
@@ -1923,25 +1944,61 @@ export function TextAssetsStep({
         business_name: 'business_name',
       };
 
+      const rowByAssignmentId = new Map(
+        mergedRows
+          .filter((row) => row.assignmentId)
+          .map((row) => [row.assignmentId, row] as const),
+      );
       const localUpdatesByAssignmentId = new Map<string, Record<string, unknown>>();
       for (const u of selected.ads.updated) {
         const payload = adChangesToAssignmentUpdate(u.changes);
-        if (Object.keys(payload).length === 0) continue;
-        const { error } = await supabase
-          .from('creative_assignments')
-          .update(payload as any)
-          .eq('id', u.assignmentId);
-        if (error) throw error;
+        if (Object.keys(payload).length > 0) {
+          const { error } = await supabase
+            .from('creative_assignments')
+            .update(payload as any)
+            .eq('id', u.assignmentId);
+          if (error) throw error;
+        }
 
         const rowPatch: Record<string, unknown> = {};
         for (const [dbKey, value] of Object.entries(payload)) {
           const rowKey = DB_TO_ROW[dbKey];
           if (rowKey) rowPatch[rowKey] = value;
         }
-        // brandName mirrors business_name in the row model.
         if ('business_name' in payload) {
           rowPatch.brandName = (payload as any).business_name ?? '';
         }
+
+        if (u.changes.youtubeVideoUrl !== undefined) {
+          const targetRow = rowByAssignmentId.get(u.assignmentId);
+          if (targetRow?.creativeId) {
+            const { data: creativeData, error: creativeReadError } = await supabase
+              .from('creatives')
+              .select('platform_metadata')
+              .eq('id', targetRow.creativeId)
+              .single();
+            if (creativeReadError) throw creativeReadError;
+
+            const nextUrl = String(u.changes.youtubeVideoUrl || '').trim();
+            const nextMetadata = { ...(((creativeData?.platform_metadata as Record<string, unknown> | null) || {})) };
+            if (nextUrl) {
+              const idMatch = nextUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/) || nextUrl.match(/youtu\.be\/([A-Za-z0-9_-]{11})/) || nextUrl.match(/embed\/([A-Za-z0-9_-]{11})/);
+              nextMetadata.youtube_video_url = nextUrl;
+              if (idMatch?.[1]) nextMetadata.youtube_video_id = idMatch[1];
+            } else {
+              delete nextMetadata.youtube_video_url;
+              delete nextMetadata.youtube_video_id;
+            }
+
+            const { error: creativeUpdateError } = await supabase
+              .from('creatives')
+              .update({ platform_metadata: nextMetadata as any })
+              .eq('id', targetRow.creativeId);
+            if (creativeUpdateError) throw creativeUpdateError;
+          }
+          rowPatch.youtubeVideoUrl = u.changes.youtubeVideoUrl || '';
+        }
+
         if (Object.keys(rowPatch).length > 0) {
           localUpdatesByAssignmentId.set(u.assignmentId, rowPatch);
         }
@@ -2024,6 +2081,7 @@ export function TextAssetsStep({
               brandName: a.businessName || '',
               callToAction: 'LEARN_MORE',
               destinationUrl: a.finalUrl || '',
+              youtubeVideoUrl: a.youtubeVideoUrl || '',
               autoBuildUtm: false,
               isValid: true,
               validationErrors: [],

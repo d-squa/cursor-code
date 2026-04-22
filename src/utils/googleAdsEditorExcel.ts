@@ -987,7 +987,6 @@ export function adChangesToAssignmentUpdate(
 ): Record<string, unknown> {
   const upd: Record<string, unknown> = {};
   if (changes.finalUrl !== undefined) upd.destination_url = changes.finalUrl;
-  if (changes.youtubeVideoUrl !== undefined) upd.youtubeVideoUrl = changes.youtubeVideoUrl;
   if (changes.path1 !== undefined) upd.path_1 = changes.path1;
   if (changes.path2 !== undefined) upd.path_2 = changes.path2;
   if (changes.headlines) {
