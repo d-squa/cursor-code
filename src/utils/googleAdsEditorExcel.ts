@@ -430,7 +430,7 @@ export interface BuildWorkbookInput {
   includeKeywords?: boolean;
 }
 
-export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
+export async function downloadGoogleAdsShell(input: BuildWorkbookInput): Promise<void> {
   const wb = XLSX.utils.book_new();
   const includeKeywords = input.includeKeywords !== false;
 
@@ -622,9 +622,22 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
 
   XLSX.utils.book_append_sheet(wb, adsWs, 'Ads');
 
-  // Trigger download
-  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  // Trigger download — patch the workbook to add a CTA dropdown if applicable.
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+  const dropdownSpecs: SheetDropdownSpec[] = [];
+  if (includeCta) {
+    const ctaIdx = adsHeader.length - 1; // CTA is the last appended column
+    dropdownSpecs.push({
+      sheetName: 'Ads',
+      columnIndex: ctaIdx,
+      startRow: 2,
+      endRow: Math.max(1000, adsAoa.length),
+      options: GOOGLE_CTA_OPTIONS.map((o) => o.label),
+      prompt: 'Pick a Google-supported call to action.',
+    });
+  }
+  const finalBuf = await injectDropdownsIntoXlsx(buf, dropdownSpecs);
+  const blob = new Blob([finalBuf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
