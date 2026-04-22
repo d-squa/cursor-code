@@ -622,6 +622,39 @@ export function GoogleSearchTextAssetEditor({
     toast.success(`Applied to ${targets.length} other ad${targets.length > 1 ? 's' : ''}`);
   }, [drafts, focusedId, onBulkUpdate]);
 
+  const requestDeleteSelected = useCallback(() => {
+    if (!onDeleteAssignments) return;
+    const selected = filteredDrafts.filter((d) => selectedIds.has(d.rowId));
+    const assignmentIds = selected.map((d) => d.assignmentId).filter(Boolean);
+    if (assignmentIds.length === 0) {
+      toast.info('Select rows with saved assignments to delete');
+      return;
+    }
+    setConfirmDelete({ ids: selected.map((d) => d.rowId), assignmentIds });
+  }, [filteredDrafts, selectedIds, onDeleteAssignments]);
+
+  const performDelete = useCallback(async () => {
+    if (!confirmDelete || !onDeleteAssignments) return;
+    setDeleting(true);
+    try {
+      await onDeleteAssignments(confirmDelete.assignmentIds);
+      const removed = new Set(confirmDelete.ids);
+      setDrafts((prev) => prev.filter((d) => !removed.has(d.rowId)));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+      setFocusedId((prev) => (prev && removed.has(prev) ? null : prev));
+      toast.success(`Deleted ${confirmDelete.assignmentIds.length} ad${confirmDelete.assignmentIds.length === 1 ? '' : 's'}`);
+      setConfirmDelete(null);
+    } catch (err) {
+      toast.error('Failed to delete', { description: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirmDelete, onDeleteAssignments]);
+
   const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
   const visibleSelectedCount = filteredDrafts.filter((d) => selectedIds.has(d.rowId)).length;
   const allChecked = filteredDrafts.length > 0 && visibleSelectedCount === filteredDrafts.length;
