@@ -13,6 +13,7 @@
 
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { detectGoogleNonSearchType, type GoogleNonSearchType } from '@/components/creative/GoogleNonSearchTextAssetEditor';
+import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, GOOGLE_CTA_LABEL_LIST } from '@/utils/googleCtaOptions';
 
 export interface GoogleNonSearchFieldSpec {
   /** Underlying CreativeTextAssetRow key written on import. */
@@ -66,6 +67,11 @@ function rangeNumbered(prefix: string, n: number, max: number, label: string, wi
   return out;
 }
 
+// Header label used for the CTA column. Shows the picker hint with the full
+// list of accepted UI labels so the spreadsheet user knows what to type.
+const CTA_HEADER = `Call to Action (${GOOGLE_CTA_LABEL_LIST})`;
+const CTA_COL: GoogleNonSearchFieldSpec = { key: 'callToAction', label: CTA_HEADER, max: 80, width: 22 };
+
 export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSearchSheetSpec> = {
   pmax: {
     type: 'pmax',
@@ -73,6 +79,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     label: 'Performance Max',
     structuralColumns: STRUCTURAL,
     textColumns: [
+      CTA_COL,
       ...range('headline', 5, 30, 'Headline', 22),
       ...rangeNumbered('long_headline_', 5, 90, 'Long Headline', 38),
       ...range('description', 5, 90, 'Description', 38),
@@ -87,6 +94,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     // YouTube Video URL is required for video Demand Gen ads (image is optional fallback).
     textColumns: [
       { key: 'youtubeVideoUrl', label: 'YouTube Video URL', max: 2048, width: 50 },
+      CTA_COL,
       ...range('headline', 5, 40, 'Headline', 26),
       ...range('description', 5, 90, 'Description', 38),
     ],
@@ -99,6 +107,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     // Demand Gen video (in-feed): 2 headlines (40), 4 descriptions (90). No long headline per user spec.
     textColumns: [
       { key: 'youtubeVideoUrl', label: 'YouTube Video URL', max: 2048, width: 50 },
+      CTA_COL,
       ...range('headline', 2, 40, 'Headline', 26),
       ...range('description', 4, 90, 'Description', 38),
     ],
@@ -110,6 +119,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     structuralColumns: STRUCTURAL,
     // Responsive Display: 5 headlines (30), 5 long headlines (90), 5 descriptions (90), business name (25).
     textColumns: [
+      CTA_COL,
       ...range('headline', 5, 30, 'Headline', 22),
       ...rangeNumbered('long_headline_', 5, 90, 'Long Headline', 38),
       ...range('description', 5, 90, 'Description', 38),
@@ -121,6 +131,7 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
     label: 'Other Google',
     structuralColumns: STRUCTURAL,
     textColumns: [
+      CTA_COL,
       ...range('headline', 5, 30, 'Headline', 22),
       ...rangeNumbered('long_headline_', 5, 90, 'Long Headline', 38),
       ...range('description', 5, 90, 'Description', 38),
@@ -142,6 +153,13 @@ export function buildSheetForGoogleType(
   const data = filtered.map((row) =>
     cols.map((c) => {
       const value = (row as any)[c.key];
+      if (c.key === 'callToAction') {
+        // Export the UI-friendly label (e.g. "Learn More") so users see/edit a
+        // human-readable value. Import re-normalises to the enum.
+        const normalized = normalizeGoogleCta(value);
+        const opt = GOOGLE_CTA_OPTIONS.find((o) => o.value === normalized);
+        return opt ? opt.label : '';
+      }
       return value == null ? '' : String(value);
     }),
   );
@@ -163,6 +181,20 @@ export function validateGoogleNonSearchRow(
     const raw = rowByHeader[col.label];
     if (raw == null) continue;
     const value = String(raw);
+
+    // CTA column: accept either UI label or enum, normalise back to enum.
+    if (col.key === 'callToAction') {
+      if (value.trim() === '') continue;
+      const normalized = normalizeGoogleCta(value);
+      if (!normalized) {
+        errors.push(`"${col.label}" — "${value}" is not a recognised CTA. Use one of: ${GOOGLE_CTA_LABEL_LIST}`);
+        continue;
+      }
+      (updates as any).callToAction = normalized;
+      (updates as any).call_to_action = normalized;
+      continue;
+    }
+
     if (value.length > col.max) {
       errors.push(`"${col.label}" is ${value.length} chars (max ${col.max})`);
       continue;
@@ -177,9 +209,6 @@ export function validateGoogleNonSearchRow(
     }
   }
 
-  // Keep the JSON-backed canonical asset arrays in sync with Excel imports.
-  // The Google non-search editor reads these payloads when present, so if we
-  // only update the flat columns the UI can keep showing stale/blank values.
   if (headlineValues.length > 0) {
     updates.headline_pins = { values: headlineValues, pins: Array(headlineValues.length).fill(null) };
   }

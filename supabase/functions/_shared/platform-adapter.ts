@@ -1919,6 +1919,13 @@ class GoogleAdsAdapter implements PlatformAdapter {
               }
             }
 
+            // Google's `AdCallToActionAsset.text` (Demand Gen Video / Video
+            // Responsive) accepts a fixed set of display phrases. Map our
+            // internal enum (e.g. LEARN_MORE) to the exact display string Google
+            // expects ("Learn more"). Fall back to "Learn more" if missing.
+            const ctaInputDg = String(params.callToAction || "").trim();
+            const ctaDisplayDg = mapGoogleCtaToDisplay(ctaInputDg) || "Learn more";
+
             ad = {
               demandGenVideoResponsiveAd: {
                 headlines: headlines.slice(0, 5).map((text) => ({ text })),
@@ -1927,7 +1934,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 businessName: businessNameDg,
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                callToAction: { text: params.callToAction || "LEARN_MORE" },
+                // v23 field is `call_to_actions` (repeated AdCallToActionAsset),
+                // NOT `call_to_action`. Sending the wrong field name produces
+                // "Unknown name 'callToAction'".
+                callToActions: [{ text: ctaDisplayDg }],
               },
               finalUrls: [params.landingPageUrl],
             };
@@ -1954,6 +1964,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
               }
             }
 
+            const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
+
             ad = {
               demandGenMultiAssetAd: {
                 headlines: headlines.slice(0, 5).map((text) => ({ text })),
@@ -1961,7 +1973,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 businessName: businessNameDg,
                 marketingImages: [{ asset: imageAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                callToAction: { text: params.callToAction || "LEARN_MORE" },
+                // DemandGenMultiAssetAdInfo uses a plain string field.
+                callToActionText: ctaDisplayMa,
               },
               finalUrls: [params.landingPageUrl],
             };

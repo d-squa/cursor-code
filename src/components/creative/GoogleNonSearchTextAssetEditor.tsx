@@ -39,6 +39,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/utils/googleCtaOptions';
 
 // ---------- Type detection ----------
 
@@ -96,6 +97,11 @@ interface SchemaSpec {
    * "YouTube Video URL" input and validates that the row carries one.
    */
   requiresYoutubeVideo: boolean;
+  /**
+   * If true, Google Ads requires a Call-to-Action button on the served ad.
+   * Surfaces a CTA dropdown and validates a value is set before push.
+   */
+  requiresCallToAction: boolean;
 }
 
 const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
@@ -108,6 +114,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 3, minLongHeadlines: 1, minDescriptions: 2,
     requiresBusinessName: true, requiresFinalUrl: true,
     requiresYoutubeVideo: false,
+    requiresCallToAction: true,
   },
   demand_gen: {
     label: 'Demand Gen',
@@ -118,6 +125,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
     requiresYoutubeVideo: true,
+    requiresCallToAction: true,
   },
   video: {
     label: 'Video (YouTube)',
@@ -128,6 +136,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
     requiresYoutubeVideo: true,
+    requiresCallToAction: true,
   },
   display: {
     label: 'Display',
@@ -138,6 +147,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 1, minDescriptions: 1,
     requiresBusinessName: true, requiresFinalUrl: true,
     requiresYoutubeVideo: false,
+    requiresCallToAction: false,
   },
   other: {
     label: 'Google Ads',
@@ -148,6 +158,7 @@ const SCHEMAS: Record<GoogleNonSearchType, SchemaSpec> = {
     minHeadlines: 1, minLongHeadlines: 0, minDescriptions: 1,
     requiresBusinessName: false, requiresFinalUrl: true,
     requiresYoutubeVideo: false,
+    requiresCallToAction: false,
   },
 };
 
@@ -167,6 +178,8 @@ export interface NonSearchAdDraft {
   finalUrl: string;
   /** YouTube video URL or ID — required for Demand Gen video / Video (YouTube) ads. */
   youtubeVideoUrl: string;
+  /** Canonical Google CTA enum (e.g. LEARN_MORE) — required for PMax/Demand Gen/Video. */
+  callToAction: string;
 }
 
 function pad<T>(arr: T[] | undefined, length: number, filler: T): T[] {
@@ -251,6 +264,7 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
     businessName: String(r.business_name || row.brandName || ''),
     finalUrl: String(row.destinationUrl || ''),
     youtubeVideoUrl: String(row.youtubeVideoUrl || ''),
+    callToAction: normalizeGoogleCta(row.callToAction || r.call_to_action) || '',
   };
 }
 
@@ -275,6 +289,10 @@ function draftToRowUpdates(d: NonSearchAdDraft): Partial<CreativeTextAssetRow> {
     brandName: d.businessName,
     destinationUrl: d.finalUrl,
     youtubeVideoUrl: d.youtubeVideoUrl,
+    callToAction: d.callToAction,
+    // snake_case mirror so the push endpoint (which reads creative.call_to_action)
+    // and the Excel round-trip both pick it up.
+    call_to_action: d.callToAction,
     // Persist full lists too so re-opening the editor restores everything.
     headline_pins: { values: d.headlines, pins: [] as (number | null)[] },
     description_pins: { values: d.descriptions, pins: [] as (number | null)[] },
@@ -321,6 +339,7 @@ function isDraftInvalid(d: NonSearchAdDraft): boolean {
   if (schema.requiresBusinessName && !d.businessName.trim()) return true;
   if (schema.requiresFinalUrl && !d.finalUrl.trim()) return true;
   if (schema.requiresYoutubeVideo && !extractYouTubeId(d.youtubeVideoUrl)) return true;
+  if (schema.requiresCallToAction && !normalizeGoogleCta(d.callToAction)) return true;
   return false;
 }
 
@@ -540,6 +559,9 @@ export function GoogleNonSearchTextAssetEditor({
           businessName: sch.hasBusinessName ? clipboard.businessName.slice(0, sch.businessNameMax) : '',
           finalUrl: clipboard.finalUrl,
           youtubeVideoUrl: sch.requiresYoutubeVideo ? clipboard.youtubeVideoUrl : d.youtubeVideoUrl,
+          callToAction: sch.requiresCallToAction
+            ? (normalizeGoogleCta(clipboard.callToAction) || d.callToAction)
+            : d.callToAction,
         };
       });
       // Bulk-sync upstream — apply per-row updates so each row gets its
@@ -852,6 +874,31 @@ export function GoogleNonSearchTextAssetEditor({
                       )}
                     </Section>
                   )}
+
+                  <Section
+                    title="Call to Action"
+                    subtitle={
+                      focusedSchema.requiresCallToAction
+                        ? 'required — choose a Google-supported CTA button'
+                        : 'optional'
+                    }
+                  >
+                    <Select
+                      value={focusedDraft.callToAction || ''}
+                      onValueChange={(v) => updateField(focusedDraft.rowId, { callToAction: v })}
+                    >
+                      <SelectTrigger className={cn('h-8 text-xs', focusedSchema.requiresCallToAction && !focusedDraft.callToAction && 'border-destructive')}>
+                        <SelectValue placeholder="Select a call to action…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GOOGLE_CTA_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Section>
 
                   <div className="flex gap-2 pt-2 border-t">
                     <Button variant="outline" size="sm" onClick={() => handleCopyRow(focusedDraft.rowId)}>
