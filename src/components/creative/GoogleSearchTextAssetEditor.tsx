@@ -308,9 +308,6 @@ function GoogleAdPreview({ draft, compact = false }: { draft: GoogleSearchAdDraf
       </div>
       <div className="text-lg text-primary font-medium leading-snug">{headline}</div>
       <div className="text-sm text-muted-foreground leading-snug">{description}</div>
-      {draft.businessName && (
-        <div className="text-xs text-muted-foreground pt-1 border-t">{draft.businessName}</div>
-      )}
     </div>
   );
 }
@@ -869,7 +866,7 @@ export function GoogleSearchTextAssetEditor({
                     <th className="px-1 py-2 text-left border-b min-w-[180px]">Path 1</th>
                     <th className="px-1 py-2 text-left border-b min-w-[180px]">Path 2</th>
                     <th className="px-1 py-2 text-left border-b min-w-[320px]">Final URL</th>
-                    <th className="px-1 py-2 text-left border-b min-w-[200px]">Business name</th>
+                    
                     <th className="px-1 py-2 w-10 border-b" />
                   </tr>
                 </thead>
