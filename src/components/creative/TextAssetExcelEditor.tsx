@@ -924,6 +924,29 @@ export function TextAssetExcelEditor({
     [expandToLevel],
   );
 
+  const normalizeGoogleSearchPhase = useCallback((label: string) => {
+    const text = String(label || '').trim();
+    const bulletIdx = text.lastIndexOf(' • ');
+    if (bulletIdx !== -1) return text.slice(0, bulletIdx).trim();
+    const match = text.match(/^(.*?)\s*[-–—]\s*(brand|generic|competition)\s*$/i);
+    return match ? match[1].trim() : text;
+  }, []);
+
+  const isGoogleSearchFamilyRow = useCallback(
+    (row: CreativeTextAssetRow, normalizedPhase?: string) => {
+      if ((row.platform || '').toLowerCase() !== 'google') return false;
+      const matchesPhase =
+        normalizedPhase == null || normalizeGoogleSearchPhase(row.phase) === normalizedPhase;
+      if (!matchesPhase) return false;
+      return (
+        String(row.googleCampaignType || '').toLowerCase().includes('search') ||
+        !!row.googleStrategy ||
+        normalizeGoogleSearchPhase(row.phase).toLowerCase().includes('search')
+      );
+    },
+    [normalizeGoogleSearchPhase],
+  );
+
   // Build flat list with group headers
   const flatList = useMemo(() => {
     const items: { type: 'group' | 'row' | 'processingGroup'; key: string; row?: CreativeTextAssetRow; groupLabel?: string; groupKey?: string; level?: number; rowIds?: string[]; processingGroupType?: 'carousel' | 'asset_customization'; processingGroupId?: string; groupOrder?: number; isInProcessingGroup?: boolean }[] = [];
@@ -983,19 +1006,6 @@ export function TextAssetExcelEditor({
       
       if (collapsedGroups.has(`market:${platform}|${market}`)) continue;
 
-      // Determine if this row belongs to the synthetic Google Search parent group.
-      // Google Search strategy labels can appear as either
-      //   "Phase • Brand" or "Phase - Brand"
-      // depending on whether the row came from placeholders, uploads, or saved
-      // assignments. Normalize both so Brand / Generic / Competition stay under
-      // one shared Search parent.
-      const normalizeGoogleSearchPhase = (label: string) => {
-        const text = String(label || '').trim();
-        const bulletIdx = text.lastIndexOf(' • ');
-        if (bulletIdx !== -1) return text.slice(0, bulletIdx).trim();
-        const match = text.match(/^(.*?)\s*[-–—]\s*(brand|generic|competition)\s*$/i);
-        return match ? match[1].trim() : text;
-      };
       const normalizedPhase = normalizeGoogleSearchPhase(phase);
       const phaseFamilyRows = rows.filter(
         (r) =>
@@ -1005,9 +1015,7 @@ export function TextAssetExcelEditor({
       );
       const isSearchPhase =
         (platform || '').toLowerCase() === 'google' &&
-        phaseFamilyRows.some(
-          (r) => String(r.googleCampaignType || '').toLowerCase().includes('search') || !!r.googleStrategy,
-        );
+        phaseFamilyRows.some((r) => isGoogleSearchFamilyRow(r, normalizedPhase));
       const searchParentKey = `gsearch:${platform}|${market}`;
 
       // Phase header
@@ -1144,13 +1152,13 @@ export function TextAssetExcelEditor({
       }
       
       // Ungrouped rows
-      for (const row of ungrouped) {
+      for (const row of ungrouped.filter((entry) => !(entry as any).isShellPlaceholder)) {
         items.push({ type: 'row', key: row.id, row });
       }
     }
     
     return items;
-  }, [rows, collapsedGroups]);
+  }, [rows, collapsedGroups, normalizeGoogleSearchPhase, isGoogleSearchFamilyRow]);
 
   // Get row indices for actual data rows
   const rowItems = useMemo(() => flatList.filter(item => item.type === 'row'), [flatList]);
