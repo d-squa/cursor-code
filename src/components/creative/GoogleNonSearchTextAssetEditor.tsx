@@ -232,6 +232,7 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
     descriptions,
     businessName: String(r.business_name || row.brandName || ''),
     finalUrl: String(row.destinationUrl || ''),
+    youtubeVideoUrl: String(row.youtubeVideoUrl || ''),
   };
 }
 
@@ -255,6 +256,7 @@ function draftToRowUpdates(d: NonSearchAdDraft): Partial<CreativeTextAssetRow> {
     business_name: d.businessName,
     brandName: d.businessName,
     destinationUrl: d.finalUrl,
+    youtubeVideoUrl: d.youtubeVideoUrl,
     // Persist full lists too so re-opening the editor restores everything.
     headline_pins: { values: d.headlines, pins: [] as (number | null)[] },
     description_pins: { values: d.descriptions, pins: [] as (number | null)[] },
