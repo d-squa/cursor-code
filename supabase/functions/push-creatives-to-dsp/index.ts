@@ -2347,91 +2347,19 @@ const handler = async (req: Request): Promise<Response> => {
             console.log(`[push-creatives] ✅ Meta carousel pushed: ${childAttachments.length} cards, ad_id=${adData.id}`);
 
           } else if (platformKey === "google") {
-            const googleAdapter = getPlatformAdapter("google") as any;
-            const googleCustomerId = resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name)
-              || platform.ad_account_id;
-
-            if (!googleCustomerId) {
+            const carouselAssignmentIds = carouselCards.map((card: any) => card.id).filter(Boolean);
+            if (carouselAssignmentIds.length > 0) {
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: "Missing Google Ads customer ID" })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
+                .update({
+                  status: "error",
+                  error_message: "Google Ads carousel groups are not supported in creative push. Use standalone Google assignments instead.",
+                })
+                .in("id", carouselAssignmentIds);
+              localFailed += carouselAssignmentIds.length;
             }
-
-            const cleanCustomerId = String(googleCustomerId).replace(/-/g, "");
-
-            let effectiveManagerId = Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID")?.replace(/\D/g, "") || cleanCustomerId;
-            try {
-              const { data: googleAccount } = await supabase
-                .from("google_ad_accounts")
-                .select("manager_customer_id")
-                .or(`customer_id.eq.${cleanCustomerId},customer_id.eq.${googleCustomerId}`)
-                .maybeSingle();
-
-              if (googleAccount?.manager_customer_id) {
-                effectiveManagerId = String(googleAccount.manager_customer_id).replace(/\D/g, "") || effectiveManagerId;
-              }
-            } catch (managerLookupError) {
-              console.warn(`[push-creatives] Failed to resolve Google manager account:`, managerLookupError);
-            }
-
-            const developerToken = (Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "").replace(/\s+/g, "");
-            if (!developerToken) {
-              await supabase
-                .from("creative_assignments")
-                .update({ status: "error", error_message: "Google Ads developer token not configured" })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
-            }
-
-            const landingPageUrl = normalizeHttpUrl(
-              resolvedText.destinationUrl
-                || creative.destination_url
-                || (phase as any)?.googleLandingPageUrl
-                || (market as any)?.googleLandingPageUrl,
-            );
-
-            if (!landingPageUrl) {
-              await supabase
-                .from("creative_assignments")
-                .update({ status: "error", error_message: "Missing Google Ads landing page URL" })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
-            }
-
-            const adResult = await googleAdapter.createCreative({
-              accountId: cleanCustomerId,
-              accessToken: platform.access_token,
-              adGroupId: String(targetEntityId || "").replace(/-/g, ""),
-              creativeName: creative.name,
-              creativeType: "responsive_search_ad",
-              assets: {},
-              adText: resolvedText.description || resolvedText.primaryText || creative.name,
-              callToAction: resolvedText.headline || creative.name || "Learn More",
-              landingPageUrl,
-              developerToken,
-              loginCustomerId: effectiveManagerId,
-            } as any);
-
-            if (!adResult.success) {
-              await supabase
-                .from("creative_assignments")
-                .update({ status: "error", error_message: adResult.error || "Failed to create Google Ads ad" })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
-            }
-
-            await supabase
-              .from("creative_assignments")
-              .update({ status: "pushed", dsp_creative_id: adResult.creativeId, error_message: null })
-              .eq("id", assignment.id);
-
-            localPushed++;
+            console.warn(`[push-creatives] Google carousel group ${carouselGroupId} is not supported; marked ${carouselAssignmentIds.length} assignments as error`);
+            continue;
           } else if (platformKey === "tiktok") {
             // ========== TIKTOK CAROUSEL AD ==========
             const marketAny = market as any;
