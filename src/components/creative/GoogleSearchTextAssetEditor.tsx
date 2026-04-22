@@ -691,8 +691,22 @@ export function GoogleSearchTextAssetEditor({
   const allChecked = filteredDrafts.length > 0 && visibleSelectedCount === filteredDrafts.length;
   const someChecked = visibleSelectedCount > 0 && !allChecked;
 
+  const handleDialogOpenChange = useCallback(async (nextOpen: boolean) => {
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
+    }
+
+    if (onBeforeClose) {
+      const ok = await onBeforeClose();
+      if (!ok) return;
+    }
+
+    onOpenChange(false);
+  }, [onBeforeClose, onOpenChange]);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
