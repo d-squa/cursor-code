@@ -775,6 +775,30 @@ export function GoogleNonSearchTextAssetEditor({
           </div>
         </div>
       </DialogContent>
+
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && !deleting && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {confirmDelete?.assignmentIds.length ?? 0} ad
+              {(confirmDelete?.assignmentIds.length ?? 0) === 1 ? '' : 's'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the creative assignment{(confirmDelete?.assignmentIds.length ?? 0) === 1 ? '' : 's'} and any text assets attached to {(confirmDelete?.assignmentIds.length ?? 0) === 1 ? 'it' : 'them'}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); performDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
