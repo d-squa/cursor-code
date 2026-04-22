@@ -82,12 +82,12 @@ export interface AdSheetRow {
   finalUrl: string;
   path1: string;
   path2: string;
-  headlines: string[]; // length 15
-  headlinePins: (number | null)[]; // length 15
-  descriptions: string[]; // length 4
-  descriptionPins: (number | null)[]; // length 4
-  longHeadlines: string[]; // length 5 (PMax)
-  businessName: string; // PMax
+  headlines: string[]; // up to 15 (Search RSA), 5 (PMax/Demand Gen/Display), 2 (Video)
+  headlinePins: (number | null)[]; // matches headlines length
+  descriptions: string[]; // up to 5 (PMax/Demand Gen/Display), 4 (Search RSA/Video)
+  descriptionPins: (number | null)[]; // matches descriptions length
+  longHeadlines: string[]; // length 5 (PMax/Display); empty for Search RSA, Demand Gen, Video
+  businessName: string; // PMax/Demand Gen/Display
 }
 
 export interface GoogleAdsShellDiff {
@@ -128,6 +128,88 @@ const DESCRIPTION_LIMIT = 90;
 const PATH_LIMIT = 15;
 const LONG_HEADLINE_LIMIT = 90;
 const BUSINESS_NAME_LIMIT = 25;
+
+// ---------- Per-Google-type Ads sheet specs ----------
+//
+// Each Google campaign type has different text-asset slot counts and limits.
+// The Ads sheet is generated from this spec so the columns + LEN formulas
+// always match the platform requirements (Search RSA, PMax, Demand Gen,
+// Demand Gen Video / YouTube in-feed, Responsive Display).
+
+export type GoogleAdsSheetType = 'search' | 'pmax' | 'demand_gen' | 'video' | 'display' | 'other';
+
+export interface GoogleAdsSheetSpec {
+  type: GoogleAdsSheetType;
+  headlineCount: number;
+  headlineLimit: number;
+  descriptionCount: number;
+  descriptionLimit: number;
+  longHeadlineCount: number; // 0 disables the column block
+  longHeadlineLimit: number;
+  hasBusinessName: boolean;
+  businessNameLimit: number;
+}
+
+const SEARCH_SPEC: GoogleAdsSheetSpec = {
+  type: 'search',
+  headlineCount: 15, headlineLimit: HEADLINE_LIMIT,
+  descriptionCount: 4, descriptionLimit: DESCRIPTION_LIMIT,
+  longHeadlineCount: 0, longHeadlineLimit: LONG_HEADLINE_LIMIT,
+  hasBusinessName: true, businessNameLimit: BUSINESS_NAME_LIMIT,
+};
+
+const PMAX_SPEC: GoogleAdsSheetSpec = {
+  type: 'pmax',
+  headlineCount: 5, headlineLimit: 30,
+  descriptionCount: 5, descriptionLimit: 90,
+  longHeadlineCount: 5, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+const DEMAND_GEN_SPEC: GoogleAdsSheetSpec = {
+  type: 'demand_gen',
+  headlineCount: 5, headlineLimit: 40,
+  descriptionCount: 5, descriptionLimit: 90,
+  longHeadlineCount: 0, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+const VIDEO_SPEC: GoogleAdsSheetSpec = {
+  type: 'video',
+  headlineCount: 2, headlineLimit: 40,
+  descriptionCount: 4, descriptionLimit: 90,
+  longHeadlineCount: 0, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+const DISPLAY_SPEC: GoogleAdsSheetSpec = {
+  type: 'display',
+  headlineCount: 5, headlineLimit: 30,
+  descriptionCount: 5, descriptionLimit: 90,
+  longHeadlineCount: 5, longHeadlineLimit: 90,
+  hasBusinessName: true, businessNameLimit: 25,
+};
+
+export function getGoogleAdsSheetSpec(googleCampaignType?: string | null): GoogleAdsSheetSpec {
+  const t = String(googleCampaignType || '').toLowerCase();
+  if (!t) return SEARCH_SPEC;
+  if (t.includes('search')) return SEARCH_SPEC;
+  if (t.includes('performance') || t === 'pmax' || t.includes('pmax')) return PMAX_SPEC;
+  if (t.includes('demand') && (t.includes('video') || t.includes('youtube'))) return VIDEO_SPEC;
+  if (t.includes('video') || t.includes('youtube')) return VIDEO_SPEC;
+  if (t.includes('demand')) return DEMAND_GEN_SPEC;
+  if (t.includes('display')) return DISPLAY_SPEC;
+  return SEARCH_SPEC;
+}
+
+/** Pick a single spec for a workbook by inspecting all expansion rows.
+ * If they're mixed (full-shell export), default to Search RSA which is the
+ * historical layout (15H/4D + Business Name, no Long Headlines). */
+function pickSheetSpec(expansion: ExpandedCampaignRef[]): GoogleAdsSheetSpec {
+  const types = new Set(expansion.map((e) => String(e.googleCampaignType || '').toLowerCase()));
+  if (types.size === 1) return getGoogleAdsSheetSpec([...types][0]);
+  return SEARCH_SPEC;
+}
 
 // ---------- Expansion ----------
 
@@ -289,10 +371,9 @@ export function buildAdRowsFromAssignments(
         .slice(0, 15)
         .map((v) => String(v || '')),
       headlinePins: padPins(parsePins(a.headline_pins), 15),
-      descriptions: [a.description, a.description_2, a.description_3, a.description_4]
-        .map((v) => String(v || ''))
-        .slice(0, 4),
-      descriptionPins: padPins(parsePins(a.description_pins), 4),
+      descriptions: [a.description, a.description_2, a.description_3, a.description_4, a.description_5]
+        .map((v) => String(v || '')),
+      descriptionPins: padPins(parsePins(a.description_pins), 5),
       longHeadlines: [
         a.long_headline_1,
         a.long_headline_2,
@@ -373,7 +454,11 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     XLSX.utils.book_append_sheet(wb, keywordsWs, 'Keywords');
   }
 
-  // ---- Ads tab (RSA / PMax) ----
+  // ---- Ads tab (per Google campaign type) ----
+  // Column layout adapts to the workbook's Google campaign type so each
+  // export reflects the platform's real text-asset slots/limits.
+  const spec = pickSheetSpec(input.expansion);
+
   const adsHeader: string[] = [
     'Campaign',
     'Ad Group',
@@ -385,22 +470,24 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     'Path 2',
     `LEN P2 (max ${PATH_LIMIT})`,
   ];
-  for (let i = 1; i <= 15; i++) {
-    adsHeader.push(`Headline ${i}`, `LEN H${i} (max ${HEADLINE_LIMIT})`, `Pin H${i}`);
+  for (let i = 1; i <= spec.headlineCount; i++) {
+    adsHeader.push(`Headline ${i}`, `LEN H${i} (max ${spec.headlineLimit})`, `Pin H${i}`);
   }
-  for (let i = 1; i <= 4; i++) {
-    adsHeader.push(`Description ${i}`, `LEN D${i} (max ${DESCRIPTION_LIMIT})`, `Pin D${i}`);
+  for (let i = 1; i <= spec.descriptionCount; i++) {
+    adsHeader.push(`Description ${i}`, `LEN D${i} (max ${spec.descriptionLimit})`, `Pin D${i}`);
   }
-  // Note: Search RSA ads do NOT support Long Headlines — those are PMax/Display/Demand Gen-only.
-  adsHeader.push('Business Name', `LEN BN (max ${BUSINESS_NAME_LIMIT})`);
+  for (let i = 1; i <= spec.longHeadlineCount; i++) {
+    adsHeader.push(`Long Headline ${i}`, `LEN LH${i} (max ${spec.longHeadlineLimit})`);
+  }
+  if (spec.hasBusinessName) {
+    adsHeader.push('Business Name', `LEN BN (max ${spec.businessNameLimit})`);
+  }
 
   const adsAoa: (string | number)[][] = [adsHeader];
 
   // Always emit one row per (campaign, ad group) shell entry — even when there
   // are creative assignments — so every ad group remains visible and editable
-  // in the Ads tab. Existing assignments come first; ad groups with no
-  // assignment yet are appended as empty shell rows so users can fill them in
-  // directly in the spreadsheet.
+  // in the Ads tab.
   const emptyShellRow = (campaignName: string, adGroupName: string): AdSheetRow => ({
     campaignName,
     adGroupName,
@@ -411,8 +498,8 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
     path2: '',
     headlines: Array(15).fill(''),
     headlinePins: Array(15).fill(null),
-    descriptions: Array(4).fill(''),
-    descriptionPins: Array(4).fill(null),
+    descriptions: Array(5).fill(''),
+    descriptionPins: Array(5).fill(null),
     longHeadlines: Array(5).fill(''),
     businessName: '',
   });
@@ -438,43 +525,49 @@ export function downloadGoogleAdsShell(input: BuildWorkbookInput): void {
       r.assignmentId || '',
       r.finalUrl,
       r.path1,
-      '', // LEN placeholder, filled below as formula
+      '',
       r.path2,
       '',
     ];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < spec.headlineCount; i++) {
       row.push(r.headlines[i] || '', '', r.headlinePins[i] ?? '');
     }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < spec.descriptionCount; i++) {
       row.push(r.descriptions[i] || '', '', r.descriptionPins[i] ?? '');
     }
-    row.push(r.businessName, '');
+    for (let i = 0; i < spec.longHeadlineCount; i++) {
+      row.push(r.longHeadlines[i] || '', '');
+    }
+    if (spec.hasBusinessName) {
+      row.push(r.businessName, '');
+    }
     adsAoa.push(row);
   }
   const adsWs = XLSX.utils.aoa_to_sheet(adsAoa);
 
-  // Fill LEN formulas + conditional red font for over-limit cells
-  // Column letters helper:
   const colLetter = (idx: number) => XLSX.utils.encode_col(idx);
   for (let r = 1; r < adsAoa.length; r++) {
-    const rowNum = r + 1; // 1-indexed
-    // Path1 LEN at col index 6 -> source col 5 (Path 1 letter F)
+    const rowNum = r + 1;
     setLenFormula(adsWs, 6, rowNum, colLetter(5), PATH_LIMIT);
     setLenFormula(adsWs, 8, rowNum, colLetter(7), PATH_LIMIT);
     let cur = 9;
-    for (let i = 0; i < 15; i++) {
-      // Headline at cur, LEN at cur+1, Pin at cur+2
-      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), HEADLINE_LIMIT);
+    for (let i = 0; i < spec.headlineCount; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.headlineLimit);
       cur += 3;
     }
-    for (let i = 0; i < 4; i++) {
-      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), DESCRIPTION_LIMIT);
+    for (let i = 0; i < spec.descriptionCount; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.descriptionLimit);
       cur += 3;
     }
-    setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), BUSINESS_NAME_LIMIT);
+    for (let i = 0; i < spec.longHeadlineCount; i++) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.longHeadlineLimit);
+      cur += 2;
+    }
+    if (spec.hasBusinessName) {
+      setLenFormula(adsWs, cur + 1, rowNum, colLetter(cur), spec.businessNameLimit);
+    }
   }
 
-  // Auto column widths (best-effort)
   adsWs['!cols'] = adsHeader.map((h) => ({ wch: h.startsWith('LEN') || h.startsWith('Pin') ? 10 : Math.max(14, Math.min(40, h.length + 2)) }));
 
   XLSX.utils.book_append_sheet(wb, adsWs, 'Ads');
@@ -525,53 +618,86 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
   }
 
   // ---- Ads sheet ----
+  // Header-driven parsing so this works for every per-type layout
+  // (Search RSA, PMax, Demand Gen, Video, Display) which differ in
+  // headline / description / long-headline counts.
   const adsSheet = wb.Sheets['Ads'];
   const ads: AdSheetRow[] = [];
   if (adsSheet) {
     const aoa = XLSX.utils.sheet_to_json(adsSheet, { header: 1 }) as any[][];
-    // Cols (0-indexed): 0 Campaign | 1 AdGroup | 2 AdName | 3 __assignmentId__ |
-    //   4 Final URL | 5 Path1 | 6 LEN | 7 Path2 | 8 LEN
-    //   9.. headline triples (15) -> 9 + 15*3 = 54 end
-    //   54.. description triples (4) -> 54 + 4*3 = 66 end
-    //   66 Business Name | 67 LEN
+    const header = (aoa[0] || []).map((h) => String(h ?? '').trim());
+    const indexOfHeader = (label: string) => header.findIndex((h) => h === label);
+
+    const headlineCols: number[] = [];
+    const headlinePinCols: number[] = [];
+    for (let i = 1; i <= 15; i++) {
+      const idx = indexOfHeader(`Headline ${i}`);
+      if (idx === -1) break;
+      headlineCols.push(idx);
+      const pinIdx = indexOfHeader(`Pin H${i}`);
+      headlinePinCols.push(pinIdx);
+    }
+    const descriptionCols: number[] = [];
+    const descriptionPinCols: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const idx = indexOfHeader(`Description ${i}`);
+      if (idx === -1) break;
+      descriptionCols.push(idx);
+      const pinIdx = indexOfHeader(`Pin D${i}`);
+      descriptionPinCols.push(pinIdx);
+    }
+    const longHeadlineCols: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      const idx = indexOfHeader(`Long Headline ${i}`);
+      if (idx === -1) break;
+      longHeadlineCols.push(idx);
+    }
+    const businessNameCol = indexOfHeader('Business Name');
+    const finalUrlCol = indexOfHeader('Final URL');
+    const path1Col = indexOfHeader('Path 1');
+    const path2Col = indexOfHeader('Path 2');
+    const adNameCol = indexOfHeader('Ad Name');
+    const assignmentIdCol = indexOfHeader('__assignmentId__');
+
     for (let i = 1; i < aoa.length; i++) {
       const row = aoa[i];
       const campaignName = String(row?.[0] || '').trim();
       const adGroupName = String(row?.[1] || '').trim();
-      // Allow rows without an explicit Ad Name — we'll auto-generate it from the
-      // campaign/ad-group taxonomy. We still skip rows that have no campaign at
-      // all (they're truly empty).
       if (!campaignName) continue;
+
       const headlines: string[] = [];
       const headlinePins: (number | null)[] = [];
-      for (let h = 0; h < 15; h++) {
-        headlines.push(String(row[9 + h * 3] || ''));
-        headlinePins.push(toPin(row[9 + h * 3 + 2]));
+      for (let h = 0; h < headlineCols.length; h++) {
+        headlines.push(String(row[headlineCols[h]] || ''));
+        headlinePins.push(headlinePinCols[h] >= 0 ? toPin(row[headlinePinCols[h]]) : null);
       }
       const descriptions: string[] = [];
       const descriptionPins: (number | null)[] = [];
-      for (let d = 0; d < 4; d++) {
-        descriptions.push(String(row[54 + d * 3] || ''));
-        descriptionPins.push(toPin(row[54 + d * 3 + 2]));
+      for (let d = 0; d < descriptionCols.length; d++) {
+        descriptions.push(String(row[descriptionCols[d]] || ''));
+        descriptionPins.push(descriptionPinCols[d] >= 0 ? toPin(row[descriptionPinCols[d]]) : null);
       }
-      // Search RSA ads no longer have Long Headline columns in the shell.
       const longHeadlines: string[] = Array(5).fill('');
-      const businessName = String(row[66] || '').trim();
-      // A row is meaningful only if at least one creative field is filled.
+      for (let l = 0; l < longHeadlineCols.length; l++) {
+        longHeadlines[l] = String(row[longHeadlineCols[l]] || '');
+      }
+      const businessName = businessNameCol >= 0 ? String(row[businessNameCol] || '').trim() : '';
+
       const hasContent =
         headlines.some((h) => h.trim()) ||
         descriptions.some((d) => d.trim()) ||
+        longHeadlines.some((l) => l.trim()) ||
         !!businessName;
-      const explicitName = String(row?.[2] || '').trim();
+      const explicitName = adNameCol >= 0 ? String(row[adNameCol] || '').trim() : '';
       if (!explicitName && !hasContent) continue;
       ads.push({
         campaignName,
         adGroupName,
-        adName: explicitName, // may be empty — auto-filled in diffShell
-        assignmentId: String(row[3] || '').trim() || null,
-        finalUrl: String(row[4] || '').trim(),
-        path1: String(row[5] || '').trim(),
-        path2: String(row[7] || '').trim(),
+        adName: explicitName,
+        assignmentId: assignmentIdCol >= 0 ? (String(row[assignmentIdCol] || '').trim() || null) : null,
+        finalUrl: finalUrlCol >= 0 ? String(row[finalUrlCol] || '').trim() : '',
+        path1: path1Col >= 0 ? String(row[path1Col] || '').trim() : '',
+        path2: path2Col >= 0 ? String(row[path2Col] || '').trim() : '',
         headlines,
         headlinePins,
         descriptions,
@@ -818,6 +944,7 @@ export function adChangesToAssignmentUpdate(
     upd.description_2 = changes.descriptions[1] || null;
     upd.description_3 = changes.descriptions[2] || null;
     upd.description_4 = changes.descriptions[3] || null;
+    upd.description_5 = changes.descriptions[4] || null;
   }
   if (changes.descriptionPins) upd.description_pins = changes.descriptionPins;
   if (changes.longHeadlines) {
