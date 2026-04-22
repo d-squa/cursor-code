@@ -399,12 +399,16 @@ export function GoogleSearchTextAssetEditor({
     [googleRows],
   );
 
+  // Only (re)build drafts when the dialog opens. Rebuilding on every
+  // `visibleGoogleRows` change would wipe local edits and steal focus back to
+  // the first ad on each keystroke (parent re-renders rows on every onRowChange).
   useEffect(() => {
     if (!open) return;
     setDrafts(visibleGoogleRows.map(rowToDraft));
     setFocusedId(visibleGoogleRows[0]?.id ?? null);
     setSelectedIds(new Set());
-  }, [open, visibleGoogleRows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Per-subtype validation. Mirrors Google Ads minimum requirements so that
   // "Invalid" filter surfaces ads the user still needs to finish.
