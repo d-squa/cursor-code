@@ -2034,9 +2034,15 @@ class GoogleAdsAdapter implements PlatformAdapter {
         await this.addAdGroupLanguageCriteria(customerId, adGroupId, params.targeting.adGroupLanguages, headers);
       }
 
-      // Add demographic targeting (gender, age) at ad group level
-      if (params.targeting?.genders || params.targeting?.ageMin || params.targeting?.ageMax) {
+      // Add demographic targeting (gender, age) at ad group level.
+      // Demand Gen, Video, and Performance Max ad groups have `use_audience_grouped` set,
+      // which forbids individual gender/age criteria (CANNOT_ADD_AUDIENCE_SEGMENT_CRITERION_WHEN_AUDIENCE_GROUPED_IS_SET).
+      const adGroupChannel = String(params.targeting?.advertisingChannelType || "").toUpperCase();
+      const supportsDemographics = !["DEMAND_GEN", "VIDEO", "PERFORMANCE_MAX"].includes(adGroupChannel);
+      if (supportsDemographics && (params.targeting?.genders || params.targeting?.ageMin || params.targeting?.ageMax)) {
         await this.addDemographicCriteria(customerId, adGroupId, params.targeting, headers);
+      } else if (!supportsDemographics) {
+        console.log(`ℹ️ Skipping demographic criteria for ${adGroupChannel} ad group (uses audience grouping)`);
       }
 
       return {
