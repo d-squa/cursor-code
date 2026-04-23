@@ -2790,16 +2790,21 @@ class GoogleAdsAdapter implements PlatformAdapter {
       }
     }
 
-    // Retry once exempting policy topics if any were exemptible
+    // Retry once exempting policy topics if any were exemptible.
+    // NOTE: For adGroupCriteria:mutate, policyValidationParameter is per-operation,
+    // not at the request root (unlike ads:mutate).
     if (ignorableTopics.length > 0) {
-      console.log(`⚠️ Exemptible policy violations: ${ignorableTopics.join(", ")}. Retrying with ignorablePolicyTopics.`);
+      console.log(`⚠️ Exemptible policy violations: ${ignorableTopics.join(", ")}. Retrying with per-operation ignorablePolicyTopics.`);
+      const operationsWithExemption = operations.map((op: any) => ({
+        ...op,
+        policyValidationParameter: { ignorablePolicyTopics: ignorableTopics },
+      }));
       resp = await fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          operations,
+          operations: operationsWithExemption,
           partialFailure: true,
-          policyValidationParameter: { ignorablePolicyTopics: ignorableTopics },
         }),
       });
       if (!resp.ok) {
