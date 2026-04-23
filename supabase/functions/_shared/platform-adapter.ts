@@ -2193,17 +2193,37 @@ class GoogleAdsAdapter implements PlatformAdapter {
             );
 
             let logoAssetResource: string | null = null;
-            if (logoUrl) {
+            // Video Demand Gen REQUIRES ≥1 logo_images. Fall back to the main
+            // image asset (and finally to the YouTube thumbnail) when no
+            // explicit logo URL is configured. Always crop to 1:1 to satisfy
+            // Google's logo aspect ratio requirement.
+            const logoSourceForVideo = logoUrl || imageUrl ||
+              (youtubeVideoId ? `https://i.ytimg.com/vi/${youtubeVideoId}/hqdefault.jpg` : "");
+            if (logoSourceForVideo) {
               try {
                 logoAssetResource = await this.uploadImageAsset(
                   customerId,
                   headers,
-                  logoUrl,
-                  `${params.creativeName} logo`,
+                  logoSourceForVideo,
+                  `${params.creativeName} logo ${Date.now()}`,
+                  true,
+                  1, // crop to 1:1
                 );
               } catch (e) {
                 console.warn("[google.createCreative] Failed to upload logo asset:", e);
               }
+            }
+
+            if (!logoAssetResource) {
+              return {
+                success: false,
+                creativeId: "",
+                platform: "google",
+                error:
+                  "Demand Gen video ads require at least 1 logo image (1:1, ≥128x128). " +
+                  "No logo, image, or YouTube thumbnail could be uploaded as a logo asset. " +
+                  "Configure a brand logo on the client/account or attach an image to this creative.",
+              };
             }
 
             const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction) || "LEARN_MORE";
@@ -2234,8 +2254,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
-                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                ...(ctaAssetResource ? { callToActions: [{ asset: ctaAssetResource }] } : {}),
+                logoImages: [{ asset: logoAssetResource }],
+                callToActions: [{ asset: ctaAssetResource }],
               },
               finalUrls: [params.landingPageUrl],
             };
@@ -2263,6 +2283,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               imageUrl,
               `${params.creativeName} marketing ${uniqueSuffix}`,
               true,
+              1.91, // crop to 1.91:1 landscape
             );
             const squareImageResource = await this.uploadImageAsset(
               customerId,
@@ -2270,6 +2291,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               imageUrl,
               `${params.creativeName} square ${uniqueSuffix}`,
               true,
+              1, // crop to 1:1 square
             );
 
             // Logo: prefer explicit logoUrl; otherwise upload another copy of the source image
@@ -2283,6 +2305,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 logoSource,
                 `${params.creativeName} logo ${uniqueSuffix}`,
                 true,
+                1, // crop to 1:1 (logo)
               );
             } catch (e) {
               console.warn("[google.createCreative] Failed to upload logo asset:", e);
