@@ -2150,38 +2150,52 @@ class GoogleAdsAdapter implements PlatformAdapter {
             };
           } else if (imageUrl) {
             // ---- Demand Gen: image ad (DemandGenMultiAssetAd) ----
-            // Google REQUIRES: ≥1 marketingImage (1.91:1), ≥1 squareMarketingImage (1:1),
-            // ≥1 logoImage, ≥2 headlines, ≥2 descriptions, businessName, callToActionText.
-            // We upload the same source image for all three image slots if only one is provided —
-            // Google validates dimensions server-side and will surface a clearer error if the
-            // aspect ratio is wrong, instead of the cryptic "required field was not present".
-            const imageAssetResource = await this.uploadImageAsset(
+            // Google REQUIRES minimum slot counts:
+            //   • ≥1 marketingImage (1.91:1 landscape)
+            //   • ≥1 squareMarketingImage (1:1)
+            //   • ≥1 logoImage (1:1, ≥128x128)
+            //   • ≥2 headlines, ≥2 descriptions, businessName, callToActionText
+            //
+            // Two failure modes we guard against:
+            //   1. "Too few" — happens when we route the image to ONE slot only and
+            //      omit the other required slots. Google needs *all* required slots filled.
+            //   2. "Assets are duplicated across operations" — happens when the SAME
+            //      asset resource name appears in multiple slots (or across multiple
+            //      ads in the same mutate batch).
+            //
+            // Strategy: upload the same source bytes multiple times with UNIQUE asset
+            // names. Google treats each upload as a distinct asset resource even if
+            // the pixels are identical, so no slot collides with another.
+            const uniqueSuffix = Date.now();
+            const marketingImageResource = await this.uploadImageAsset(
               customerId,
               headers,
               imageUrl,
-              params.creativeName,
+              `${params.creativeName} marketing ${uniqueSuffix}`,
+            );
+            const squareImageResource = await this.uploadImageAsset(
+              customerId,
+              headers,
+              imageUrl,
+              `${params.creativeName} square ${uniqueSuffix}`,
             );
 
+            // Logo: prefer explicit logoUrl; otherwise upload another copy of the source image
+            // as the logo (Google requires ≥1 logoImage and rejects asset reuse).
             let logoAssetResource: string | null = null;
-            if (logoUrl) {
-              try {
-                logoAssetResource = await this.uploadImageAsset(
-                  customerId,
-                  headers,
-                  logoUrl,
-                  `${params.creativeName} logo`,
-                );
-              } catch (e) {
-                console.warn("[google.createCreative] Failed to upload logo asset:", e);
-              }
+            const logoSource = logoUrl || imageUrl;
+            try {
+              logoAssetResource = await this.uploadImageAsset(
+                customerId,
+                headers,
+                logoSource,
+                `${params.creativeName} logo ${uniqueSuffix}`,
+              );
+            } catch (e) {
+              console.warn("[google.createCreative] Failed to upload logo asset:", e);
             }
-            // Logo is required by Google. If none provided, we OMIT logoImages
-            // rather than reusing the marketing image — Google rejects the same
-            // asset resource appearing in multiple slots ("Assets are duplicated
-            // across operations").
 
-            // Ensure minimum text counts (≥2 each). Pad by repeating the first item
-            // if the user only supplied one — better than a hard failure.
+            // Ensure minimum text counts (≥2 each).
             const headlinesMa = dgHeadlines.length >= 2
               ? dgHeadlines.slice(0, 5)
               : [dgHeadlines[0], dgHeadlines[0]];
@@ -2191,30 +2205,14 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
-            const aspectRatio = imageWidth > 0 && imageHeight > 0 ? imageWidth / imageHeight : 0;
-            const isLandscapeImage = Math.abs(aspectRatio - 1.91) <= 0.08;
-            const isPortraitImage = Math.abs(aspectRatio - 0.8) <= 0.05;
-            const isTallPortraitImage = Math.abs(aspectRatio - 0.5625) <= 0.05;
-
-            // Route the image to a SINGLE slot only — never duplicate the same
-            // asset resource across multiple slots in the same operation.
-            const demandGenImageSlots = isLandscapeImage
-              ? { marketingImages: [{ asset: imageAssetResource }] }
-              : isPortraitImage
-                ? { portraitMarketingImages: [{ asset: imageAssetResource }] }
-                : isTallPortraitImage
-                  ? { tallPortraitMarketingImages: [{ asset: imageAssetResource }] }
-                  : { squareMarketingImages: [{ asset: imageAssetResource }] };
-
             ad = {
               demandGenMultiAssetAd: {
                 headlines: headlinesMa.map((text) => ({ text })),
                 descriptions: descriptionsMa.map((text) => ({ text })),
                 businessName: businessNameDg,
-                ...demandGenImageSlots,
-                ...(logoAssetResource && logoAssetResource !== imageAssetResource
-                  ? { logoImages: [{ asset: logoAssetResource }] }
-                  : {}),
+                marketingImages: [{ asset: marketingImageResource }],
+                squareMarketingImages: [{ asset: squareImageResource }],
+                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
                 callToActionText: ctaDisplayMa,
               },
               finalUrls: [params.landingPageUrl],
