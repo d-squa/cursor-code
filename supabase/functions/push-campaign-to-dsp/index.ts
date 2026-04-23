@@ -808,7 +808,7 @@ async function updateLaunchStatuses(
       } = successItem;
 
       console.log(
-        `📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}`,
+        `📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}, campaignEntityName="${campaignEntityName || "(none)"}", adSetEntityName="${adSetEntityName || "(none)"}"`,
       );
 
       // Update campaign entry - try each platform variant until one works
