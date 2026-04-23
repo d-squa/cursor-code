@@ -1467,6 +1467,52 @@ class GoogleAdsAdapter implements PlatformAdapter {
    * Upload an image (downloaded from a URL) to the Google Ads asset library
    * as an imageAsset. Returns the asset resource name (customers/X/assets/Y).
    */
+  /**
+   * Center-crop image bytes to a target aspect ratio (default 1:1) and re-encode as PNG.
+   * Used to satisfy Google Ads logo aspect ratio requirements (logo_images = 1:1).
+   * Returns the original bytes unchanged if cropping fails (caller will surface the upload error).
+   */
+  private async cropImageToAspectRatio(
+    bytes: Uint8Array,
+    targetRatio: number = 1,
+  ): Promise<Uint8Array> {
+    try {
+      const { Image } = await import("https://deno.land/x/imagescript@1.2.17/mod.ts");
+      const img = await Image.decode(bytes);
+      const w = img.width;
+      const h = img.height;
+      const currentRatio = w / h;
+      // Already within tolerance — skip work
+      if (Math.abs(currentRatio - targetRatio) / targetRatio < 0.02) {
+        return bytes;
+      }
+      let cropW: number, cropH: number;
+      if (currentRatio > targetRatio) {
+        // too wide — crop width
+        cropH = h;
+        cropW = Math.round(h * targetRatio);
+      } else {
+        // too tall — crop height
+        cropW = w;
+        cropH = Math.round(w / targetRatio);
+      }
+      const x = Math.max(0, Math.floor((w - cropW) / 2));
+      const y = Math.max(0, Math.floor((h - cropH) / 2));
+      const cropped = img.crop(x, y, cropW, cropH);
+      // Logos must be at least 128x128 for Google Ads
+      const minSize = 128;
+      if (cropped.width < minSize || cropped.height < minSize) {
+        const scale = Math.max(minSize / cropped.width, minSize / cropped.height);
+        cropped.resize(Math.round(cropped.width * scale), Math.round(cropped.height * scale));
+      }
+      const png = await cropped.encode();
+      return new Uint8Array(png);
+    } catch (e) {
+      console.warn("[google.cropImageToAspectRatio] failed, using original bytes:", e);
+      return bytes;
+    }
+  }
+
   private async uploadImageAsset(
     customerId: string,
     headers: Record<string, string>,
@@ -1484,13 +1530,24 @@ class GoogleAdsAdapter implements PlatformAdapter {
      * slot while keeping the visual asset identical.
      */
     forceUnique: boolean = false,
+    /**
+     * Optional target aspect ratio (width / height). When set, the image is
+     * center-cropped to this ratio before upload. Used to satisfy Google's
+     * strict per-slot aspect ratio requirements (e.g. logo_images = 1:1,
+     * marketing_images = 1.91:1, square_marketing_images = 1:1).
+     */
+    cropAspectRatio: number | null = null,
   ): Promise<string> {
     const imgResp = await fetch(imageUrl);
     if (!imgResp.ok) {
       throw new Error(`Failed to download image (${imgResp.status})`);
     }
     const arrayBuffer = await imgResp.arrayBuffer();
-    const originalBytes = new Uint8Array(arrayBuffer);
+    let originalBytes = new Uint8Array(arrayBuffer);
+
+    if (cropAspectRatio && cropAspectRatio > 0) {
+      originalBytes = await this.cropImageToAspectRatio(originalBytes, cropAspectRatio);
+    }
 
     let bytes: Uint8Array = originalBytes;
     if (forceUnique) {
@@ -2136,17 +2193,37 @@ class GoogleAdsAdapter implements PlatformAdapter {
             );
 
             let logoAssetResource: string | null = null;
-            if (logoUrl) {
+            // Video Demand Gen REQUIRES ≥1 logo_images. Fall back to the main
+            // image asset (and finally to the YouTube thumbnail) when no
+            // explicit logo URL is configured. Always crop to 1:1 to satisfy
+            // Google's logo aspect ratio requirement.
+            const logoSourceForVideo = logoUrl || imageUrl ||
+              (youtubeVideoId ? `https://i.ytimg.com/vi/${youtubeVideoId}/hqdefault.jpg` : "");
+            if (logoSourceForVideo) {
               try {
                 logoAssetResource = await this.uploadImageAsset(
                   customerId,
                   headers,
-                  logoUrl,
-                  `${params.creativeName} logo`,
+                  logoSourceForVideo,
+                  `${params.creativeName} logo ${Date.now()}`,
+                  true,
+                  1, // crop to 1:1
                 );
               } catch (e) {
                 console.warn("[google.createCreative] Failed to upload logo asset:", e);
               }
+            }
+
+            if (!logoAssetResource) {
+              return {
+                success: false,
+                creativeId: "",
+                platform: "google",
+                error:
+                  "Demand Gen video ads require at least 1 logo image (1:1, ≥128x128). " +
+                  "No logo, image, or YouTube thumbnail could be uploaded as a logo asset. " +
+                  "Configure a brand logo on the client/account or attach an image to this creative.",
+              };
             }
 
             const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction) || "LEARN_MORE";
@@ -2177,8 +2254,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
-                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
-                ...(ctaAssetResource ? { callToActions: [{ asset: ctaAssetResource }] } : {}),
+                logoImages: [{ asset: logoAssetResource }],
+                callToActions: [{ asset: ctaAssetResource }],
               },
               finalUrls: [params.landingPageUrl],
             };
@@ -2206,6 +2283,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               imageUrl,
               `${params.creativeName} marketing ${uniqueSuffix}`,
               true,
+              1.91, // crop to 1.91:1 landscape
             );
             const squareImageResource = await this.uploadImageAsset(
               customerId,
@@ -2213,6 +2291,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               imageUrl,
               `${params.creativeName} square ${uniqueSuffix}`,
               true,
+              1, // crop to 1:1 square
             );
 
             // Logo: prefer explicit logoUrl; otherwise upload another copy of the source image
@@ -2226,6 +2305,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 logoSource,
                 `${params.creativeName} logo ${uniqueSuffix}`,
                 true,
+                1, // crop to 1:1 (logo)
               );
             } catch (e) {
               console.warn("[google.createCreative] Failed to upload logo asset:", e);
@@ -2266,6 +2346,17 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
+            if (!logoAssetResource) {
+              return {
+                success: false,
+                creativeId: "",
+                platform: "google",
+                error:
+                  "Demand Gen image ads require at least 1 logo image (1:1, ≥128x128). " +
+                  "Logo upload failed — verify the source image is accessible and decodable.",
+              };
+            }
+
             ad = {
               demandGenMultiAssetAd: {
                 headlines: headlinesMa.map((text) => ({ text })),
@@ -2273,7 +2364,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 businessName: businessNameDg,
                 marketingImages: [{ asset: marketingImageResource }],
                 squareMarketingImages: [{ asset: squareImageResource }],
-                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                logoImages: [{ asset: logoAssetResource }],
                 callToActionText: ctaDisplayMa,
               },
               finalUrls: [params.landingPageUrl],
@@ -2313,7 +2404,16 @@ class GoogleAdsAdapter implements PlatformAdapter {
         };
       }
 
-      const adOp = { create: { adGroup: adGroupResourceName, status: "ENABLED", ad } };
+      // Google Ads requires `ad.name` for Demand Gen ads (validation: REQUIRED at ad.name).
+      // Build a unique, sanitized name within Google's 255-char limit.
+      const safeAdName = `${(params.creativeName || "Demand Gen Ad")
+        .toString()
+        .replace(/[^\w\s\-]/g, "")
+        .trim()
+        .substring(0, 200)} ${Date.now()}`.substring(0, 255);
+      const adWithName = { ...ad, name: safeAdName };
+
+      const adOp = { create: { adGroup: adGroupResourceName, status: "ENABLED", ad: adWithName } };
 
       const url = `${this.API_BASE}/customers/${customerId}/adGroupAds:mutate`;
       const resp = await fetch(url, {
