@@ -26,6 +26,7 @@ const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 200; // Reduced delay between batches for faster processing
 const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before auto-continuing (25s safety margin)
 const AUTO_RETRY_DELAY_MS = 2000; // Delay before auto-retry to prevent rate limiting
+const MAX_GOOGLE_ASSIGNMENTS_PER_INVOCATION = 2; // Keep Google pushes below Edge CPU limits and resume via auto-retry
 const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled", "error"];
 
 const VALID_META_CTAS = new Set([
@@ -1509,6 +1510,7 @@ const handler = async (req: Request): Promise<Response> => {
     const results: any[] = [];
     let timedOut = false;
     let hasMoreWork = false;
+    let googleAssignmentsProcessedThisRun = 0;
 
     for (const entry of adsetStatuses || []) {
       const platformKey = toPlatformKey(entry.platform);
@@ -3289,6 +3291,15 @@ const handler = async (req: Request): Promise<Response> => {
           const creative = (assignment as any).creative;
           if (!creative) continue;
 
+          if (platformKey === "google" && googleAssignmentsProcessedThisRun >= MAX_GOOGLE_ASSIGNMENTS_PER_INVOCATION) {
+            console.log(
+              `[push-creatives] Reached Google per-invocation limit (${MAX_GOOGLE_ASSIGNMENTS_PER_INVOCATION}); scheduling continuation for remaining assignments`,
+            );
+            timedOut = true;
+            hasMoreWork = true;
+            break;
+          }
+
           // Update individual status to 'pushing' for real-time progress tracking
           await supabase
             .from("creative_assignments")
@@ -4099,6 +4110,7 @@ const handler = async (req: Request): Promise<Response> => {
               || (campaign as any)?.brand_name
               || undefined;
 
+            googleAssignmentsProcessedThisRun++;
             const adResult = await googleAdapter.createCreative({
               accountId: cleanCustomerId,
               accessToken: platform.access_token,
@@ -5461,6 +5473,10 @@ const handler = async (req: Request): Promise<Response> => {
             localPushed++;
 
           }
+        }
+
+        if (timedOut) {
+          break;
         }
 
         // Add delay between batches to prevent resource exhaustion
