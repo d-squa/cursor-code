@@ -2404,7 +2404,16 @@ class GoogleAdsAdapter implements PlatformAdapter {
         };
       }
 
-      const adOp = { create: { adGroup: adGroupResourceName, status: "ENABLED", ad } };
+      // Google Ads requires `ad.name` for Demand Gen ads (validation: REQUIRED at ad.name).
+      // Build a unique, sanitized name within Google's 255-char limit.
+      const safeAdName = `${(params.creativeName || "Demand Gen Ad")
+        .toString()
+        .replace(/[^\w\s\-]/g, "")
+        .trim()
+        .substring(0, 200)} ${Date.now()}`.substring(0, 255);
+      const adWithName = { ...ad, name: safeAdName };
+
+      const adOp = { create: { adGroup: adGroupResourceName, status: "ENABLED", ad: adWithName } };
 
       const url = `${this.API_BASE}/customers/${customerId}/adGroupAds:mutate`;
       const resp = await fetch(url, {
