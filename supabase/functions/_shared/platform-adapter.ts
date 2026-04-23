@@ -1475,10 +1475,25 @@ class GoogleAdsAdapter implements PlatformAdapter {
       const parsed = JSON.parse(errorText);
       const firstError = parsed?.error?.details?.[0]?.errors?.[0];
       const contextError = firstError?.errorCode?.contextError;
+      const resourceCountLimitExceededError = firstError?.errorCode?.resourceCountLimitExceededError;
       const trigger = firstError?.trigger?.stringValue;
+      const limitType = firstError?.details?.resourceCountDetails?.limitType;
+      const existingCount = firstError?.details?.resourceCountDetails?.existingCount;
+      const limit = firstError?.details?.resourceCountDetails?.limit;
 
       if (contextError === "OPERATION_NOT_PERMITTED_FOR_CONTEXT" && trigger === "OWNED_AND_OPERATED") {
         return "This Google ad group does not accept Responsive Search Ads. The current phase is using a Video or Demand Gen context, so this creative type is not supported there.";
+      }
+
+      if (
+        resourceCountLimitExceededError === "RESOURCE_LIMIT" &&
+        (trigger === "ENABLED_RESPONSIVE_SEARCH_CREATIVES_PER_AD_GROUP" ||
+          limitType === "RESPONSIVE_SEARCH_ADS_PER_AD_GROUP")
+      ) {
+        const countLabel = Number.isFinite(existingCount) && Number.isFinite(limit)
+          ? `This ad group already has ${existingCount} of ${limit} allowed Responsive Search Ads.`
+          : "This ad group has reached Google's Responsive Search Ad limit.";
+        return `${countLabel} Limit reached — skip this assignment or use a different ad group.`;
       }
 
       return firstError?.message || parsed?.error?.message || errorText;
