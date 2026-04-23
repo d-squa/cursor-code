@@ -1491,9 +1491,9 @@ class GoogleAdsAdapter implements PlatformAdapter {
           limitType === "RESPONSIVE_SEARCH_ADS_PER_AD_GROUP")
       ) {
         const countLabel = Number.isFinite(existingCount) && Number.isFinite(limit)
-          ? `This ad group already has ${existingCount} of ${limit} allowed Responsive Search Ads.`
-          : "This ad group has reached Google's Responsive Search Ad limit.";
-        return `${countLabel} Limit reached — skip this assignment or use a different ad group.`;
+          ? `Google Ads reports ${existingCount} of ${limit} enabled Responsive Search Ads in this ad group.`
+          : "This ad group has reached Google's Responsive Search Ad limit (max 3 enabled RSAs).";
+        return `${countLabel} The count may include ads created earlier in this push or recently removed ads still propagating. Pause/remove an RSA in Google Ads UI and retry, or assign this creative to a different ad group.`;
       }
 
       return firstError?.message || parsed?.error?.message || errorText;
@@ -2079,6 +2079,32 @@ class GoogleAdsAdapter implements PlatformAdapter {
         }
       } catch (lookupErr) {
         console.warn("[google.createCreative] Failed to resolve channel type, defaulting to SEARCH:", lookupErr);
+      }
+
+      // Pre-flight RSA cap check for SEARCH ad groups. Google enforces max 3 ENABLED
+      // RSAs per ad group, but counts ads created earlier in the same push job that
+      // aren't yet visible in our app UI. Query the live count so we can surface a
+      // clear message instead of a generic INVALID_ARGUMENT response.
+      if (channelType === "SEARCH") {
+        try {
+          const rsaQuery = `SELECT ad_group_ad.ad.id FROM ad_group_ad WHERE ad_group.id = ${params.adGroupId} AND ad_group_ad.status = 'ENABLED' AND ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD'`;
+          const rsaResp = await fetch(`${this.API_BASE}/customers/${customerId}/googleAds:search`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ query: rsaQuery }),
+          });
+          if (rsaResp.ok) {
+            const rsaData = await rsaResp.json();
+            const enabledCount = Array.isArray(rsaData?.results) ? rsaData.results.length : 0;
+            if (enabledCount >= 3) {
+              const message = `This ad group already has ${enabledCount} of 3 enabled Responsive Search Ads in Google Ads (count includes ads created earlier in this push that may not yet appear in ActiPlan). Pause or remove an existing RSA in Google Ads, or assign this creative to a different ad group.`;
+              console.warn(`[google.createCreative] RSA cap pre-flight blocked adGroup=${params.adGroupId} count=${enabledCount}`);
+              return { success: false, creativeId: "", error: message };
+            }
+          }
+        } catch (rsaCheckErr) {
+          console.warn("[google.createCreative] RSA pre-flight check failed (proceeding):", rsaCheckErr);
+        }
       }
 
       // Collect headlines/descriptions provided by the caller (text-asset overrides),
