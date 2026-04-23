@@ -1636,7 +1636,7 @@ const handler = async (req: Request): Promise<Response> => {
           sitelink_display_label,
           sitelink_thumbnail,
           creative:creatives(
-            id, name, media_type, creative_type, media_urls,
+            id, name, media_type, creative_type, media_urls, width, height,
             platform_video_id, platform_image_hash, platform_thumbnail_id, thumbnail_url,
             primary_text, headline, description, call_to_action,
             destination_url, url_parameters,
