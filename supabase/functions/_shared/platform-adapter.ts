@@ -3114,42 +3114,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
     headers: Record<string, string>
   ): Promise<void> {
     if (!countryCodes || countryCodes.length === 0) return;
-
-    const geoTargetMap: Record<string, string> = {
-      US: "2840", GB: "2826", DE: "2276", FR: "2250", AE: "2784",
-      SA: "2682", EG: "2818", IN: "2356", BR: "2076", AU: "2036",
-      CA: "2124", JP: "2392", KR: "2410", MX: "2484", IT: "2380",
-      ES: "2724", NL: "2528", SE: "2752", NO: "2578", DK: "2208",
-      TR: "2792", PL: "2616", ZA: "2710", NG: "2566", KE: "2404",
-      BE: "2056", CH: "2756", AT: "2040", IE: "2372", PT: "2620",
-    };
-
-    const operations = countryCodes
-      .map(cc => geoTargetMap[cc.toUpperCase()])
-      .filter(Boolean)
-      .map(geoTargetId => ({
-        create: {
-          adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
-          geoTargetConstant: `geoTargetConstants/${geoTargetId}`,
-          negative: false,
-        },
-      }));
-
-    if (operations.length === 0) return;
-
-    const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ operations }),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error(`❌ Failed to add geo targeting to ad group ${adGroupId}:`, errText);
-    } else {
-      console.log(`✅ Added geo targets to ad group ${adGroupId}`);
-    }
+    // Geo targeting in Google Ads is applied at the CAMPAIGN level only (campaignCriteria),
+    // not at the ad-group level. AdGroupCriterion does not accept geoTargetConstant/location.
+    // Campaign-level geo targets are added separately via addCampaignGeoCriteria().
+    console.log(`ℹ️ Skipping ad-group geo targeting for ${adGroupId} (Google Ads applies geo at campaign level)`);
+    return;
   }
 
   // Add language targeting at ad group level
