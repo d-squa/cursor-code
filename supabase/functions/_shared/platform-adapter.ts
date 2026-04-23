@@ -2346,6 +2346,17 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
+            if (!logoAssetResource) {
+              return {
+                success: false,
+                creativeId: "",
+                platform: "google",
+                error:
+                  "Demand Gen image ads require at least 1 logo image (1:1, ≥128x128). " +
+                  "Logo upload failed — verify the source image is accessible and decodable.",
+              };
+            }
+
             ad = {
               demandGenMultiAssetAd: {
                 headlines: headlinesMa.map((text) => ({ text })),
@@ -2353,7 +2364,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 businessName: businessNameDg,
                 marketingImages: [{ asset: marketingImageResource }],
                 squareMarketingImages: [{ asset: squareImageResource }],
-                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                logoImages: [{ asset: logoAssetResource }],
                 callToActionText: ctaDisplayMa,
               },
               finalUrls: [params.landingPageUrl],
