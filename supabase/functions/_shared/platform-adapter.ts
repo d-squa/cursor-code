@@ -2855,9 +2855,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
       return;
     }
 
-    // geo_target_type_setting is only supported by SEARCH, DISPLAY, SHOPPING, and VIDEO campaigns.
-    // PERFORMANCE_MAX and DEMAND_GEN (channel type 16) reject this setting.
-    const supportsGeoTargetTypeSetting = ["SEARCH", "DISPLAY", "SHOPPING", "VIDEO"].includes(String(channelType || "").toUpperCase());
+    // geo_target_type_setting is only fully supported by SEARCH and DISPLAY campaigns.
+    // VIDEO, SHOPPING, PERFORMANCE_MAX, and DEMAND_GEN reject the negative_geo_target_type field
+    // (the int64Value "16" trigger refers to that field's tag number).
+    const supportsGeoTargetTypeSetting = ["SEARCH", "DISPLAY"].includes(String(channelType || "").toUpperCase());
     if (supportsGeoTargetTypeSetting) {
       const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
       const campaignUpdateOp = {
@@ -2884,7 +2885,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.log(`✅ Campaign geo target type set to: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
       }
     } else {
-      console.log(`ℹ️ Skipping geo_target_type_setting for ${channelType} campaign (not supported)`);
+      console.log(`ℹ️ Skipping geo_target_type_setting for ${channelType} campaign (only SEARCH/DISPLAY supported)`);
     }
 
     // Add geo target criteria
