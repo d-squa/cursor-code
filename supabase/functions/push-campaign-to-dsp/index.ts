@@ -4328,6 +4328,16 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
           const finalCampaignName = googleCampaignTaxonomyName || defaultCampaignName;
 
+          // Planning-format name used by validate-campaign-launch when pre-registering
+          // campaign_launch_status rows. We MUST report this back as campaignEntityName
+          // so updateLaunchStatuses can match the correct sibling row (Brand/Generic/
+          // Competition). The DSP-side name (finalCampaignName) is taxonomy-driven and
+          // does NOT match the pre-registered entity_name.
+          const strategyCampaignUnitName = isSearchCampaign && strategyName
+            ? `${phase.name} - ${strategyName}`
+            : phase.name;
+          const launchStatusCampaignName = `${campaign.name} - ${market.name} - ${strategyCampaignUnitName}`;
+
           // Adjust budget for strategy split using search-volume-weighted allocation
           const strategyCount = Math.max(1, Object.keys(keywordStrategies).length);
           let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
