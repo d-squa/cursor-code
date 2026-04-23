@@ -2767,6 +2767,20 @@ class GoogleAdsAdapter implements PlatformAdapter {
       return Array.from(topics);
     };
 
+    const collectPolicyViolationIndexes = (payload: any): number[] => {
+      const indexes = new Set<number>();
+      const failureDetails = payload?.error?.details || payload?.partialFailureError?.details || [];
+      for (const detail of failureDetails) {
+        for (const err of (detail?.errors || [])) {
+          const opIndex = (err?.location?.fieldPathElements || []).find((el: any) => el?.fieldName === "operations")?.index;
+          if (typeof opIndex === "number" && Number.isInteger(opIndex)) {
+            indexes.add(opIndex);
+          }
+        }
+      }
+      return Array.from(indexes).sort((a, b) => a - b);
+    };
+
     // First attempt with partialFailure so non-policy errors don't block the batch
     let resp = await fetch(url, {
       method: "POST",
@@ -2776,6 +2790,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
     let data: any = null;
     let ignorableTopics: string[] = [];
+    let policyViolationIndexes: number[] = [];
     if (resp.ok) {
       data = await resp.json();
       if (data?.partialFailureError) ignorableTopics = collectIgnorableTopics(data);
@@ -2784,30 +2799,41 @@ class GoogleAdsAdapter implements PlatformAdapter {
       let errJson: any = null;
       try { errJson = JSON.parse(errText); } catch { /* noop */ }
       ignorableTopics = errJson ? collectIgnorableTopics(errJson) : [];
-      if (ignorableTopics.length === 0) {
+      policyViolationIndexes = errJson ? collectPolicyViolationIndexes(errJson) : [];
+      if (policyViolationIndexes.length > 0) {
+        const retryOperations = operations.filter((_, index) => !policyViolationIndexes.includes(index));
+        const skippedKeywords = policyViolationIndexes
+          .map((index) => keywords[index]?.text)
+          .filter(Boolean);
+
+        if (retryOperations.length === 0) {
+          console.warn(
+            `⚠️ All ${keywords.length} keyword(s) were blocked by Google Ads policy${ignorableTopics.length > 0 ? `: ${ignorableTopics.join(", ")}` : ""}. Skipping keyword attachment.${skippedKeywords.length > 0 ? ` Keywords: ${skippedKeywords.join(", ")}` : ""}`,
+          );
+          return;
+        }
+
+        console.warn(
+          `⚠️ Skipping ${policyViolationIndexes.length} keyword(s) blocked by Google Ads policy${ignorableTopics.length > 0 ? `: ${ignorableTopics.join(", ")}` : ""}. Retrying remaining ${retryOperations.length}.${skippedKeywords.length > 0 ? ` Keywords: ${skippedKeywords.join(", ")}` : ""}`,
+        );
+
+        resp = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ operations: retryOperations, partialFailure: true }),
+        });
+
+        if (!resp.ok) {
+          const retryErrText = await resp.text();
+          console.error(`❌ Keyword retry failed for ad group ${adGroupId}:`, retryErrText);
+          return;
+        }
+
+        data = await resp.json();
+      } else if (ignorableTopics.length === 0) {
         console.error(`❌ Failed to add keyword criteria to ad group ${adGroupId}:`, errText);
         return;
       }
-    }
-
-    // Retry once exempting policy topics if any were exemptible
-    if (ignorableTopics.length > 0) {
-      console.log(`⚠️ Exemptible policy violations: ${ignorableTopics.join(", ")}. Retrying with ignorablePolicyTopics.`);
-      resp = await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          operations,
-          partialFailure: true,
-          policyValidationParameter: { ignorablePolicyTopics: ignorableTopics },
-        }),
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        console.error(`❌ Keyword retry failed for ad group ${adGroupId}:`, errText);
-        return;
-      }
-      data = await resp.json();
     }
 
     const successCount = (data?.results || []).filter((r: any) => r?.resourceName).length;
@@ -2861,15 +2887,36 @@ class GoogleAdsAdapter implements PlatformAdapter {
       return;
     }
 
+    let effectiveChannelType = String(channelType || "").toUpperCase();
+    try {
+      const lookupResp = await fetch(`${this.API_BASE}/customers/${customerId}/googleAds:search`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          query: `SELECT campaign.advertising_channel_type FROM campaign WHERE campaign.id = ${campaignId} LIMIT 1`,
+        }),
+      });
+
+      if (lookupResp.ok) {
+        const lookupData = await lookupResp.json();
+        effectiveChannelType = String(
+          lookupData?.results?.[0]?.campaign?.advertisingChannelType || effectiveChannelType,
+        ).toUpperCase();
+      }
+    } catch (lookupError) {
+      console.warn(`⚠️ Failed to resolve live campaign channel type for ${campaignId}, using hint ${effectiveChannelType || "UNKNOWN"}:`, lookupError);
+    }
+
     // geo_target_type_setting is only fully supported by SEARCH and DISPLAY campaigns.
     // VIDEO, SHOPPING, PERFORMANCE_MAX, and DEMAND_GEN reject the negative_geo_target_type field
     // (the int64Value "16" trigger refers to that field's tag number).
-    const supportsGeoTargetTypeSetting = ["SEARCH", "DISPLAY"].includes(String(channelType || "").toUpperCase());
+    const supportsGeoTargetTypeSetting = ["SEARCH", "DISPLAY"].includes(effectiveChannelType);
     if (supportsGeoTargetTypeSetting) {
       const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
+      const resourceName = `customers/${customerId}/campaigns/${campaignId}`;
       const campaignUpdateOp = {
         update: {
-          resourceName: `customers/${customerId}/campaigns/${campaignId}`,
+          resourceName,
           geoTargetTypeSetting: {
             positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
             negativeGeoTargetType: "PRESENCE_OR_INTEREST",
@@ -2886,12 +2933,42 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       if (!campaignUpdateResp.ok) {
         const errText = await campaignUpdateResp.text();
-        console.error(`❌ Failed to set geo target type setting:`, errText);
+        if (
+          errText.includes("SETTING_VALUE_NOT_COMPATIBLE_WITH_CAMPAIGN") &&
+          errText.includes("negative_geo_target_type")
+        ) {
+          console.warn(`⚠️ negative_geo_target_type not supported for ${effectiveChannelType} campaign ${campaignId}; retrying with positive target type only.`);
+
+          const positiveOnlyResp = await fetch(campaignUpdateUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              operations: [{
+                update: {
+                  resourceName,
+                  geoTargetTypeSetting: {
+                    positiveGeoTargetType: locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST",
+                  },
+                },
+                updateMask: "geoTargetTypeSetting.positiveGeoTargetType",
+              }],
+            }),
+          });
+
+          if (!positiveOnlyResp.ok) {
+            const positiveOnlyErrText = await positiveOnlyResp.text();
+            console.error(`❌ Failed to set geo target type setting:`, positiveOnlyErrText);
+          } else {
+            console.log(`✅ Campaign geo target type set with positive-only mode: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
+          }
+        } else {
+          console.error(`❌ Failed to set geo target type setting:`, errText);
+        }
       } else {
         console.log(`✅ Campaign geo target type set to: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
       }
     } else {
-      console.log(`ℹ️ Skipping geo_target_type_setting for ${channelType} campaign (only SEARCH/DISPLAY supported)`);
+      console.log(`ℹ️ Skipping geo_target_type_setting for ${effectiveChannelType || channelType || "UNKNOWN"} campaign (only SEARCH/DISPLAY supported)`);
     }
 
     // Add geo target criteria
