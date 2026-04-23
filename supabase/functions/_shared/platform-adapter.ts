@@ -2210,7 +2210,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               demandGenMultiAssetAd: {
                 headlines: headlinesMa.map((text) => ({ text })),
                 descriptions: descriptionsMa.map((text) => ({ text })),
-                businessName: { text: businessNameDg },
+                businessName: businessNameDg,
                 ...demandGenImageSlots,
                 ...(logoAssetResource && logoAssetResource !== imageAssetResource
                   ? { logoImages: [{ asset: logoAssetResource }] }
