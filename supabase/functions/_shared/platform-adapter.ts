@@ -2175,12 +2175,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 console.warn("[google.createCreative] Failed to upload logo asset:", e);
               }
             }
-            // Logo is required by Google. Fall back to the marketing image if no
-            // dedicated logo was provided (advertiser will see a validation warning
-            // about aspect ratio rather than a hard "required field" error).
-            if (!logoAssetResource) {
-              logoAssetResource = imageAssetResource;
-            }
+            // Logo is required by Google. If none provided, we OMIT logoImages
+            // rather than reusing the marketing image — Google rejects the same
+            // asset resource appearing in multiple slots ("Assets are duplicated
+            // across operations").
 
             // Ensure minimum text counts (≥2 each). Pad by repeating the first item
             // if the user only supplied one — better than a hard failure.
@@ -2194,34 +2192,29 @@ class GoogleAdsAdapter implements PlatformAdapter {
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
             const aspectRatio = imageWidth > 0 && imageHeight > 0 ? imageWidth / imageHeight : 0;
-            const isSquareImage = Math.abs(aspectRatio - 1) <= 0.05;
             const isLandscapeImage = Math.abs(aspectRatio - 1.91) <= 0.08;
             const isPortraitImage = Math.abs(aspectRatio - 0.8) <= 0.05;
             const isTallPortraitImage = Math.abs(aspectRatio - 0.5625) <= 0.05;
 
-            const demandGenImageSlots = isSquareImage
-              ? { squareMarketingImages: [{ asset: imageAssetResource }] }
-              : isLandscapeImage
-                ? { marketingImages: [{ asset: imageAssetResource }] }
-                : isPortraitImage
-                  ? {
-                      squareMarketingImages: [{ asset: imageAssetResource }],
-                      portraitMarketingImages: [{ asset: imageAssetResource }],
-                    }
-                  : isTallPortraitImage
-                    ? {
-                        squareMarketingImages: [{ asset: imageAssetResource }],
-                        tallPortraitMarketingImages: [{ asset: imageAssetResource }],
-                      }
-                    : { squareMarketingImages: [{ asset: imageAssetResource }] };
+            // Route the image to a SINGLE slot only — never duplicate the same
+            // asset resource across multiple slots in the same operation.
+            const demandGenImageSlots = isLandscapeImage
+              ? { marketingImages: [{ asset: imageAssetResource }] }
+              : isPortraitImage
+                ? { portraitMarketingImages: [{ asset: imageAssetResource }] }
+                : isTallPortraitImage
+                  ? { tallPortraitMarketingImages: [{ asset: imageAssetResource }] }
+                  : { squareMarketingImages: [{ asset: imageAssetResource }] };
 
             ad = {
               demandGenMultiAssetAd: {
                 headlines: headlinesMa.map((text) => ({ text })),
                 descriptions: descriptionsMa.map((text) => ({ text })),
-                businessName: businessNameDg,
+                businessName: { text: businessNameDg },
                 ...demandGenImageSlots,
-                logoImages: [{ asset: logoAssetResource }],
+                ...(logoAssetResource && logoAssetResource !== imageAssetResource
+                  ? { logoImages: [{ asset: logoAssetResource }] }
+                  : {}),
                 callToActionText: ctaDisplayMa,
               },
               finalUrls: [params.landingPageUrl],
