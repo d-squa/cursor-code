@@ -2806,8 +2806,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
       return;
     }
 
-    // Performance Max does not support geo_target_type_setting updates
-    if (channelType !== "PERFORMANCE_MAX") {
+    // geo_target_type_setting is only supported by SEARCH, DISPLAY, SHOPPING, and VIDEO campaigns.
+    // PERFORMANCE_MAX and DEMAND_GEN (channel type 16) reject this setting.
+    const supportsGeoTargetTypeSetting = ["SEARCH", "DISPLAY", "SHOPPING", "VIDEO"].includes(String(channelType || "").toUpperCase());
+    if (supportsGeoTargetTypeSetting) {
       const campaignUpdateUrl = `${this.API_BASE}/customers/${customerId}/campaigns:mutate`;
       const campaignUpdateOp = {
         update: {
@@ -2833,7 +2835,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.log(`✅ Campaign geo target type set to: ${locationTargetingType === "PRESENCE" ? "PRESENCE" : "PRESENCE_OR_INTEREST"}`);
       }
     } else {
-      console.log(`ℹ️ Skipping geo_target_type_setting for Performance Max campaign`);
+      console.log(`ℹ️ Skipping geo_target_type_setting for ${channelType} campaign (not supported)`);
     }
 
     // Add geo target criteria
