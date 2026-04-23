@@ -4551,6 +4551,13 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             const strategySuffix2 = strategyName ? ` [${strategyName}]` : "";
             const defaultAdGroupName = `${phase.name}${adGroupSuffix}${strategySuffix2} - Ad Group_${generateTimestampSuffix()}`;
 
+            // Planning-format name used by validate-campaign-launch when pre-registering
+            // ad set rows. Mirrors the format `${campaign.name} - ${market} - ${unit.name} - ${adSetName | "Ad Set"}`.
+            const launchStatusAdSetSuffix = adSetConfig.id !== "default"
+              ? (adSetConfig.name || `Ad Set ${String(adSetConfig.id || "").substring(0, 6) || "Unknown"}`)
+              : "Ad Set";
+            const launchStatusAdSetName = `${campaign.name} - ${market.name} - ${strategyCampaignUnitName} - ${launchStatusAdSetSuffix}`;
+
             // Try to use client taxonomy template for ad group naming
             const googleAdGroupTaxonomyContext: TaxonomyContext = {
               platform: "google",
