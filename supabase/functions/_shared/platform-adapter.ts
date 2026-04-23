@@ -2181,28 +2181,29 @@ class GoogleAdsAdapter implements PlatformAdapter {
             //   • ≥1 logoImage (1:1, ≥128x128)
             //   • ≥2 headlines, ≥2 descriptions, businessName, callToActionText
             //
-            // Two failure modes we guard against:
-            //   1. "Too few" — happens when we route the image to ONE slot only and
-            //      omit the other required slots. Google needs *all* required slots filled.
-            //   2. "Assets are duplicated across operations" — happens when the SAME
-            //      asset resource name appears in multiple slots (or across multiple
-            //      ads in the same mutate batch).
-            //
-            // Strategy: upload the same source bytes multiple times with UNIQUE asset
-            // names. Google treats each upload as a distinct asset resource even if
-            // the pixels are identical, so no slot collides with another.
+            // Strategy: upload the same source bytes multiple times as DISTINCT asset
+            // resources. Google dedupes uploaded image assets by content hash and
+            // returns the same `customers/X/assets/Y` for byte-identical uploads even
+            // when the `name` field differs — that surfaces as
+            // "Assets are duplicated across operations" when the same resource lands
+            // in multiple slots of a Demand Gen multi-asset ad. Passing
+            // `forceUnique: true` appends a tiny random byte tail past the image's
+            // end-of-stream marker (decoders ignore it) so each slot gets a distinct
+            // asset resource while the rendered image is unchanged.
             const uniqueSuffix = Date.now();
             const marketingImageResource = await this.uploadImageAsset(
               customerId,
               headers,
               imageUrl,
               `${params.creativeName} marketing ${uniqueSuffix}`,
+              true,
             );
             const squareImageResource = await this.uploadImageAsset(
               customerId,
               headers,
               imageUrl,
               `${params.creativeName} square ${uniqueSuffix}`,
+              true,
             );
 
             // Logo: prefer explicit logoUrl; otherwise upload another copy of the source image
@@ -2215,6 +2216,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 headers,
                 logoSource,
                 `${params.creativeName} logo ${uniqueSuffix}`,
+                true,
               );
             } catch (e) {
               console.warn("[google.createCreative] Failed to upload logo asset:", e);
