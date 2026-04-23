@@ -1609,7 +1609,7 @@ const handler = async (req: Request): Promise<Response> => {
           .eq("market", entry.market);
 
         const hasMatchingMarketAssignments = (marketAssignments || []).some((assignment: any) =>
-          matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
+          matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, entry.entity_name, platformKey)
         );
 
         if (!hasMatchingMarketAssignments) {
@@ -1751,7 +1751,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       const phaseMatchedAssignments = (assignments || []).filter((assignment: any) =>
-        matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
+        matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, entry.entity_name, platformKey)
       );
 
       let scopedAssignments = platformKey === "meta" && resolvedLaunchAdSetConfig
