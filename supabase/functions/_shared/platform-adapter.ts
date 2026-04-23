@@ -2748,19 +2748,68 @@ class GoogleAdsAdapter implements PlatformAdapter {
     console.log(`📝 Keyword operations sample:`, JSON.stringify(operations.slice(0, 3), null, 2));
 
     const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
-    const resp = await fetch(url, {
+
+    const collectIgnorableTopics = (payload: any): string[] => {
+      const topics = new Set<string>();
+      const failureDetails = payload?.error?.details || payload?.partialFailureError?.details || [];
+      for (const detail of failureDetails) {
+        for (const err of (detail?.errors || [])) {
+          const pvd = err?.details?.policyViolationDetails;
+          if (pvd?.isExemptible && pvd?.key?.policyName) topics.add(pvd.key.policyName);
+        }
+      }
+      return Array.from(topics);
+    };
+
+    // First attempt with partialFailure so non-policy errors don't block the batch
+    let resp = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ operations }),
+      body: JSON.stringify({ operations, partialFailure: true }),
     });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      console.error(`❌ Failed to add keyword criteria to ad group ${adGroupId}:`, errText);
+    let data: any = null;
+    let ignorableTopics: string[] = [];
+    if (resp.ok) {
+      data = await resp.json();
+      if (data?.partialFailureError) ignorableTopics = collectIgnorableTopics(data);
     } else {
-      const data = await resp.json();
-      console.log(`✅ Added ${keywords.length} keywords to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
+      const errText = await resp.text();
+      let errJson: any = null;
+      try { errJson = JSON.parse(errText); } catch { /* noop */ }
+      ignorableTopics = errJson ? collectIgnorableTopics(errJson) : [];
+      if (ignorableTopics.length === 0) {
+        console.error(`❌ Failed to add keyword criteria to ad group ${adGroupId}:`, errText);
+        return;
+      }
     }
+
+    // Retry once exempting policy topics if any were exemptible
+    if (ignorableTopics.length > 0) {
+      console.log(`⚠️ Exemptible policy violations: ${ignorableTopics.join(", ")}. Retrying with ignorablePolicyTopics.`);
+      resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          operations,
+          partialFailure: true,
+          policyValidationParameter: { ignorablePolicyTopics: ignorableTopics },
+        }),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.error(`❌ Keyword retry failed for ad group ${adGroupId}:`, errText);
+        return;
+      }
+      data = await resp.json();
+    }
+
+    const successCount = (data?.results || []).filter((r: any) => r?.resourceName).length;
+    const skipped = keywords.length - successCount;
+    if (data?.partialFailureError) {
+      console.warn(`⚠️ Partial failure for ${adGroupId}: ${skipped} keyword(s) skipped. ${JSON.stringify(data.partialFailureError).slice(0, 500)}`);
+    }
+    console.log(`✅ Added ${successCount}/${keywords.length} keywords to ad group ${adGroupId}${skipped > 0 ? ` (${skipped} skipped)` : ""}`);
   }
 
   // Add campaign-level geo targeting criteria
