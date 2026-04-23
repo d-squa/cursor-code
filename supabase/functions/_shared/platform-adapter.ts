@@ -2247,11 +2247,46 @@ class GoogleAdsAdapter implements PlatformAdapter {
               };
             }
 
+            const dedupePreserveOrder = (values: string[]) => {
+              const seen = new Set<string>();
+              return values.filter((value) => {
+                const key = String(value || "").trim();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+            };
+
+            const ensureMinUniqueText = (values: string[], fallbackBase: string, min: number, maxLen: number) => {
+              const unique = dedupePreserveOrder(values.map((value) => String(value || "").trim()).filter(Boolean));
+              const base = (fallbackBase || "Learn more").trim() || "Learn more";
+              let counter = 2;
+              while (unique.length < min) {
+                unique.push(`${base} ${counter}`.substring(0, maxLen));
+                counter += 1;
+              }
+              return unique.map((value) => value.substring(0, maxLen));
+            };
+
+            const headlinesVideoDg = ensureMinUniqueText(
+              dgHeadlines,
+              dgHeadlines[0] || params.creativeName || "Learn more",
+              1,
+              40,
+            ).slice(0, 5);
+
+            const descriptionsVideoDg = ensureMinUniqueText(
+              dgDescriptions,
+              dgDescriptions[0] || params.adText || params.creativeName || "Learn more",
+              2,
+              90,
+            ).slice(0, 2);
+
             ad = {
               demandGenVideoResponsiveAd: {
-                headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
+                headlines: headlinesVideoDg.map((text) => ({ text })),
                 longHeadlines: [{ text: dgLongHeadline }],
-                descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
+                descriptions: descriptionsVideoDg.map((text) => ({ text })),
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
                 logoImages: [{ asset: logoAssetResource }],
