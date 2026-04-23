@@ -902,6 +902,31 @@ export function GoogleNonSearchTextAssetEditor({
           </div>
         </div>
 
+        {/* Bulk apply bar — adapts parameters to the active campaign type filter */}
+        <GoogleBulkApplyBar
+          parameters={bulkParameters}
+          selectOptions={[
+            { value: 'all', label: 'All Visible' },
+            { value: 'none', label: 'None' },
+            { value: 'invalid', label: 'Invalid Creatives' },
+            { value: 'pmax', label: 'All Performance Max' },
+            { value: 'demand_gen', label: 'All Demand Gen' },
+            { value: 'video', label: 'All Video' },
+            { value: 'display', label: 'All Display' },
+          ]}
+          selectedCount={selectedIds.size}
+          visibleCount={filteredDrafts.length}
+          onSelectScope={(v) => {
+            if (v === 'all') setSelectedIds(new Set(filteredDrafts.map((d) => d.rowId)));
+            else if (v === 'none') setSelectedIds(new Set());
+            else if (v === 'invalid') handleSelectInvalid();
+            else if (v === 'pmax' || v === 'demand_gen' || v === 'video' || v === 'display' || v === 'other') {
+              setSelectedIds(new Set(drafts.filter((d) => d.type === v).map((d) => d.rowId)));
+            }
+          }}
+          onApply={handleBulkApply}
+        />
+
         {/* Body: two-pane layout — table on the left, focused detail on the right */}
         <div className="flex-1 overflow-hidden flex">
           <div className="flex-1 overflow-hidden border-r">
