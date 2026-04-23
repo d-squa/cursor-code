@@ -34,8 +34,10 @@ function isRetryableAssignmentError(message: unknown): boolean {
   if (!text) return true;
 
   const nonRetryableFragments = [
-    "responsive search ads.",
     "limit reached — skip this assignment or use a different ad group.",
+    "the request would cause a limit on the number of allowed resources of this type to be exceeded",
+    "already has",
+    "allowed responsive search ads",
     "does not accept responsive search ads",
     "missing google ads landing page url",
     "missing tiktok advertiser id",
