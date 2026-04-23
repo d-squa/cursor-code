@@ -1722,9 +1722,48 @@ const handler = async (req: Request): Promise<Response> => {
         matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
       );
 
-      const scopedAssignments = platformKey === "meta" && resolvedLaunchAdSetConfig
+      let scopedAssignments = platformKey === "meta" && resolvedLaunchAdSetConfig
         ? phaseMatchedAssignments.filter((assignment: any) => assignmentMatchesAdSetConfig(assignment, resolvedLaunchAdSetConfig))
         : phaseMatchedAssignments;
+
+      // For Google (and any platform with multiple ad groups under one phase/market — e.g., Search
+      // language splits like Default_LANG_ENG / Default_LANG_GER), scope assignments by matching
+      // the ad_set_name token embedded in the launch entry's entity_name. Without this, every
+      // entry would push ALL phase assignments to its own ad group, causing duplicates and
+      // exceeding Google's 3-RSAs-per-ad-group limit.
+      if (platformKey === "google" && entry.entity_name) {
+        const distinctAdSetNames = Array.from(new Set(
+          phaseMatchedAssignments
+            .map((a: any) => normalizeComparableLabel(a?.ad_set_name))
+            .filter(Boolean)
+        ));
+
+        if (distinctAdSetNames.length > 1) {
+          const normalizedEntryName = normalizeComparableLabel(entry.entity_name);
+          // Find which ad_set_name token appears in this entry's entity_name
+          const matchedAdSetName = distinctAdSetNames.find((name) =>
+            normalizedEntryName === name
+            || normalizedEntryName.endsWith(` - ${name}`)
+            || normalizedEntryName.endsWith(`-${name}`)
+            || normalizedEntryName.includes(name)
+          );
+
+          if (matchedAdSetName) {
+            const beforeCount = scopedAssignments.length;
+            scopedAssignments = scopedAssignments.filter((assignment: any) => {
+              const assignmentAdSetName = normalizeComparableLabel(assignment?.ad_set_name);
+              return assignmentAdSetName === matchedAdSetName;
+            });
+            console.log(
+              `[push-creatives] Google ad-group scoping: entry="${entry.entity_name}" matched ad_set_name="${matchedAdSetName}" — filtered ${beforeCount} → ${scopedAssignments.length} assignments (${distinctAdSetNames.length} distinct ad groups in phase)`
+            );
+          } else {
+            console.warn(
+              `[push-creatives] Google ad-group scoping: entry="${entry.entity_name}" did not match any ad_set_name in [${distinctAdSetNames.join(", ")}] — leaving assignments unscoped, expect potential cross-ad-group push`
+            );
+          }
+        }
+      }
 
       let localPushed = 0;
       let localFailed = 0;
