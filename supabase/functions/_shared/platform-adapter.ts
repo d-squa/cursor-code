@@ -2324,6 +2324,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       if (!resp.ok) {
         const errText = await resp.text();
+        console.error("[google.createCreative] adGroupAds:mutate failed:", errText);
         return {
           success: false,
           creativeId: "",
