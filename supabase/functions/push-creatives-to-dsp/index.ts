@@ -341,9 +341,18 @@ function extractSearchStrategySuffix(value: unknown): string | null {
   return match?.[1]?.toLowerCase() || null;
 }
 
+function extractSearchStrategyLabel(value: unknown): string | null {
+  const label = String(value ?? "").trim();
+  if (!label) return null;
+
+  const inlineMatch = label.match(/(?:^|\s[•-]\s|\s-\s)(brand|generic|competition)(?:\s-\s|\s[•-]\s|$)/i);
+  return inlineMatch?.[1]?.toLowerCase() || extractSearchStrategySuffix(label);
+}
+
 function matchesAssignmentPhaseName(
   assignmentPhaseName: unknown,
   targetPhaseName: unknown,
+  targetEntityName: unknown,
   platformKey: PlatformKey,
 ): boolean {
   const assignmentLabel = normalizeComparableLabel(assignmentPhaseName);
@@ -354,13 +363,18 @@ function matchesAssignmentPhaseName(
 
   if (platformKey !== "google" && platformKey !== "tiktok") return false;
 
-  const assignmentStrategy = extractSearchStrategySuffix(assignmentPhaseName);
-  const targetStrategy = extractSearchStrategySuffix(targetPhaseName);
+  const assignmentStrategy = extractSearchStrategyLabel(assignmentPhaseName);
+  const targetStrategy = extractSearchStrategyLabel(targetPhaseName)
+    || extractSearchStrategyLabel(targetEntityName);
 
   // If both sides explicitly declare a search strategy, they must match exactly.
   // Falling back to base-phase matching here causes Brand/Generic/Competition
   // assignments to bleed into each other and push into the wrong Google campaign/ad group.
-  if (assignmentStrategy && targetStrategy) {
+  if (assignmentStrategy || targetStrategy) {
+    if (!assignmentStrategy || !targetStrategy) {
+      return false;
+    }
+
     return assignmentStrategy === targetStrategy
       && normalizeComparableLabel(stripSearchStrategySuffix(assignmentPhaseName)) ===
         normalizeComparableLabel(stripSearchStrategySuffix(targetPhaseName));
