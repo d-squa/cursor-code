@@ -2161,6 +2161,15 @@ class GoogleAdsAdapter implements PlatformAdapter {
               console.warn("[google.createCreative] CTA asset creation failed:", e);
             }
 
+            if (!ctaAssetResource) {
+              return {
+                success: false,
+                creativeId: "",
+                platform: "google",
+                error: "Demand Gen video ads require a valid Google call-to-action asset, but CTA asset creation failed.",
+              };
+            }
+
             ad = {
               demandGenVideoResponsiveAd: {
                 headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
@@ -2223,12 +2232,37 @@ class GoogleAdsAdapter implements PlatformAdapter {
             }
 
             // Ensure minimum text counts (≥2 each).
-            const headlinesMa = dgHeadlines.length >= 2
-              ? dgHeadlines.slice(0, 5)
-              : [dgHeadlines[0], dgHeadlines[0]];
-            const descriptionsMa = dgDescriptions.length >= 2
-              ? dgDescriptions.slice(0, 5)
-              : [dgDescriptions[0], dgDescriptions[0]];
+            const dedupePreserveOrder = (values: string[]) => {
+              const seen = new Set<string>();
+              return values.filter((value) => {
+                const key = String(value || "").trim();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+            };
+
+            const ensureMinUniqueText = (values: string[], fallbackBase: string, min: number) => {
+              const unique = dedupePreserveOrder(values);
+              const base = (fallbackBase || "Learn more").trim() || "Learn more";
+              let counter = 2;
+              while (unique.length < min) {
+                unique.push(`${base} ${counter}`.substring(0, 90));
+                counter += 1;
+              }
+              return unique.slice(0, 5);
+            };
+
+            const headlinesMa = ensureMinUniqueText(
+              dgHeadlines,
+              dgHeadlines[0] || params.creativeName || "Learn more",
+              2,
+            ).map((text, idx) => text.substring(0, idx === 0 ? 40 : 40));
+            const descriptionsMa = ensureMinUniqueText(
+              dgDescriptions,
+              dgDescriptions[0] || params.adText || params.creativeName || "Learn more",
+              2,
+            ).map((text) => text.substring(0, 90));
 
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
