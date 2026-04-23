@@ -2976,12 +2976,50 @@ class GoogleAdsAdapter implements PlatformAdapter {
     const resp = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ operations }),
+      body: JSON.stringify({ operations, partialFailure: true }),
     });
 
     if (!resp.ok) {
       const errText = await resp.text();
       console.error(`❌ Failed to add geo targeting to campaign ${campaignId}:`, errText);
+
+      // Known Google Ads quirk: Demand Gen / Video / PMax campaigns sometimes reject
+      // a batched campaignCriteria.mutate with a misleading
+      // requestError=UNKNOWN / trigger=OWNED_AND_OPERATED at operations[0].create.location
+      // even though each individual country geoTargetConstant is valid. Retrying each
+      // operation one-by-one usually succeeds. See google-ads-api forum thread on
+      // "Create criterion location: UNKNOWN error / trigger OWNED_AND_OPERATED".
+      const isOwnedAndOperatedQuirk =
+        errText.includes("OWNED_AND_OPERATED") ||
+        (errText.includes('"requestError"') && errText.includes('"UNKNOWN"'));
+
+      if (isOwnedAndOperatedQuirk && operations.length > 0) {
+        console.warn(
+          `↩️ Retrying ${operations.length} geo targets individually for campaign ${campaignId} (OWNED_AND_OPERATED quirk).`,
+        );
+        let perOpSuccess = 0;
+        for (const op of operations) {
+          try {
+            const singleResp = await fetch(url, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ operations: [op], partialFailure: true }),
+            });
+            if (singleResp.ok) {
+              perOpSuccess++;
+            } else {
+              const singleErr = await singleResp.text();
+              const geoConst = (op as any)?.create?.location?.geoTargetConstant || "(unknown)";
+              console.warn(`⚠️ Geo target ${geoConst} retry failed for campaign ${campaignId}: ${singleErr.slice(0, 200)}`);
+            }
+          } catch (singleEx: any) {
+            console.warn(`⚠️ Geo target retry exception for campaign ${campaignId}: ${singleEx?.message || singleEx}`);
+          }
+        }
+        console.log(
+          `↩️ Per-operation geo retry complete for campaign ${campaignId}: ${perOpSuccess}/${operations.length} succeeded.`,
+        );
+      }
     } else {
       const data = await resp.json();
       console.log(`✅ Added ${operations.length} geo targets to campaign ${campaignId}. Results: ${data.results?.length || 0}`);
