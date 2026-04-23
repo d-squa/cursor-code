@@ -1636,7 +1636,7 @@ const handler = async (req: Request): Promise<Response> => {
           sitelink_display_label,
           sitelink_thumbnail,
           creative:creatives(
-            id, name, media_type, creative_type,
+            id, name, media_type, creative_type, media_urls,
             platform_video_id, platform_image_hash, platform_thumbnail_id, thumbnail_url,
             primary_text, headline, description, call_to_action,
             destination_url, url_parameters,
@@ -4079,8 +4079,9 @@ const handler = async (req: Request): Promise<Response> => {
               .filter(Boolean)
               .map((description: string) => description.substring(0, 90));
 
-            // Resolve Demand Gen / Video media: prefer YouTube ID from platform_metadata,
-            // then try to extract one from media_urls, otherwise fall back to first image URL.
+            // Resolve Demand Gen / Video media.
+            // Important: image creatives can carry stale YouTube metadata from prior edits/imports,
+            // so prefer the actual media_urls payload when it points to an image.
             const creativePlatformMeta = (creative.platform_metadata as Record<string, any> | null) || {};
             const mediaUrls: string[] = Array.isArray(creative.media_urls) ? creative.media_urls : [];
             const youtubeIdFromMeta: string | undefined =
@@ -4089,6 +4090,9 @@ const handler = async (req: Request): Promise<Response> => {
               || undefined;
             const firstMediaUrl: string | undefined = mediaUrls[0];
             const isImageUrl = !!firstMediaUrl && /\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/i.test(firstMediaUrl);
+            const isVideoFileUrl = !!firstMediaUrl && /\.(mp4|mov|avi|wmv|flv|webm|m4v)(\?|$)/i.test(firstMediaUrl);
+            const creativeMediaType = String(creative.media_type || creative.creative_type || "").toLowerCase();
+            const shouldUseVideoSource = !isImageUrl && (!!youtubeIdFromMeta || isVideoFileUrl || creativeMediaType === "video");
             const businessName: string | undefined =
               (creative as any).brand_name
               || (campaign as any)?.client_name
@@ -4102,8 +4106,8 @@ const handler = async (req: Request): Promise<Response> => {
               creativeName: creative.name,
               creativeType: "responsive_search_ad",
               assets: {
-                youtubeVideoId: youtubeIdFromMeta,
-                videoUrl: !youtubeIdFromMeta && firstMediaUrl && !isImageUrl ? firstMediaUrl : undefined,
+                youtubeVideoId: shouldUseVideoSource ? youtubeIdFromMeta : undefined,
+                videoUrl: shouldUseVideoSource && !youtubeIdFromMeta && firstMediaUrl && !isImageUrl ? firstMediaUrl : undefined,
                 imageUrl: isImageUrl ? firstMediaUrl : undefined,
               },
               adText: descriptions[0] || creative.name,
