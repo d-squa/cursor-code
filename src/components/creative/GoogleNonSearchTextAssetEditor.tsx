@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/utils/googleCtaOptions';
+import { GoogleBulkApplyBar, type BulkParameterDef, type BulkApplyScope } from './GoogleBulkApplyBar';
 
 // ---------- Type detection ----------
 
@@ -632,6 +633,190 @@ export function GoogleNonSearchTextAssetEditor({
 
   const focusedDraft = drafts.find((d) => d.rowId === focusedId) || drafts[0];
   const focusedSchema = focusedDraft ? SCHEMAS[focusedDraft.type] : null;
+
+  // ---------- Bulk apply bar ----------
+  // Build a parameter list scoped to the campaign types currently visible in
+  // the editor. If the user has filtered to a single type (PMax/Demand Gen/
+  // Video/Display) the parameter list shrinks to just that schema's fields,
+  // so e.g. Demand Gen never shows "Long Headline" slots.
+  const activeTypes = useMemo<GoogleNonSearchType[]>(() => {
+    if (typeFilter !== 'all') return [typeFilter];
+    const set = new Set<GoogleNonSearchType>();
+    drafts.forEach((d) => set.add(d.type));
+    return set.size > 0 ? Array.from(set) : ['pmax', 'demand_gen', 'video', 'display'];
+  }, [drafts, typeFilter]);
+
+  const bulkParameters = useMemo<BulkParameterDef[]>(() => {
+    const maxHeadlines = Math.max(...activeTypes.map((t) => SCHEMAS[t].headlineCount));
+    const maxLongHeadlines = Math.max(...activeTypes.map((t) => SCHEMAS[t].longHeadlineCount));
+    const maxDescriptions = Math.max(...activeTypes.map((t) => SCHEMAS[t].descriptionCount));
+    const headlineMax = Math.max(...activeTypes.map((t) => SCHEMAS[t].headlineMax));
+    const longHeadlineMax = Math.max(...activeTypes.map((t) => SCHEMAS[t].longHeadlineMax));
+    const descriptionMax = Math.max(...activeTypes.map((t) => SCHEMAS[t].descriptionMax));
+    const businessNameMax = Math.max(...activeTypes.map((t) => SCHEMAS[t].businessNameMax));
+    const hasBusinessName = activeTypes.some((t) => SCHEMAS[t].hasBusinessName);
+    const hasYoutube = activeTypes.some((t) => SCHEMAS[t].requiresYoutubeVideo);
+    const hasCta = activeTypes.some((t) => SCHEMAS[t].requiresCallToAction);
+
+    const params: BulkParameterDef[] = [];
+    for (let i = 1; i <= maxHeadlines; i++) {
+      params.push({
+        key: `headline_${i}`,
+        label: `Headline ${i}`,
+        group: 'Headlines',
+        type: 'text',
+        maxLength: headlineMax,
+        placeholder: `Headline ${i} (max ${headlineMax} chars)`,
+      });
+    }
+    for (let i = 1; i <= maxLongHeadlines; i++) {
+      params.push({
+        key: `long_headline_${i}`,
+        label: `Long headline ${i}`,
+        group: 'Long Headlines',
+        type: 'text',
+        maxLength: longHeadlineMax,
+        placeholder: `Long headline ${i} (max ${longHeadlineMax} chars)`,
+      });
+    }
+    for (let i = 1; i <= maxDescriptions; i++) {
+      params.push({
+        key: `description_${i}`,
+        label: `Description ${i}`,
+        group: 'Descriptions',
+        type: 'textarea',
+        maxLength: descriptionMax,
+        placeholder: `Description ${i} (max ${descriptionMax} chars)`,
+      });
+    }
+    if (hasBusinessName) {
+      params.push({
+        key: 'businessName',
+        label: 'Business name',
+        group: 'Brand',
+        type: 'text',
+        maxLength: businessNameMax,
+        placeholder: `Business name (max ${businessNameMax} chars)`,
+      });
+    }
+    params.push({
+      key: 'finalUrl',
+      label: 'Final URL',
+      group: 'URL',
+      type: 'url',
+      placeholder: 'https://example.com/landing',
+    });
+    if (hasYoutube) {
+      params.push({
+        key: 'youtubeVideoUrl',
+        label: 'YouTube video URL',
+        group: 'Media',
+        type: 'url',
+        placeholder: 'https://www.youtube.com/watch?v=…',
+      });
+    }
+    if (hasCta) {
+      params.push({
+        key: 'callToAction',
+        label: 'Call to action',
+        group: 'Action',
+        type: 'select',
+        options: GOOGLE_CTA_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+      });
+    }
+    return params;
+  }, [activeTypes]);
+
+  const bulkSelectOptions = useMemo(() => {
+    const opts = [
+      { value: 'all', label: `All visible (${filteredDrafts.length})` },
+      { value: 'none', label: 'None' },
+      { value: 'invalid', label: 'Invalid creatives' },
+    ];
+    if (activeTypes.includes('pmax')) opts.push({ value: 'pmax', label: 'All Performance Max' });
+    if (activeTypes.includes('demand_gen')) opts.push({ value: 'demand_gen', label: 'All Demand Gen' });
+    if (activeTypes.includes('video')) opts.push({ value: 'video', label: 'All Video' });
+    if (activeTypes.includes('display')) opts.push({ value: 'display', label: 'All Display' });
+    return opts;
+  }, [filteredDrafts.length, activeTypes]);
+
+  const handleBulkSelectScope = useCallback((value: string) => {
+    if (value === 'all') setSelectedIds(new Set(filteredDrafts.map((d) => d.rowId)));
+    else if (value === 'none') setSelectedIds(new Set());
+    else if (value === 'invalid') handleSelectInvalid();
+    else if (value === 'pmax' || value === 'demand_gen' || value === 'video' || value === 'display' || value === 'other') {
+      setSelectedIds(new Set(drafts.filter((d) => d.type === value).map((d) => d.rowId)));
+    }
+  }, [drafts, filteredDrafts, handleSelectInvalid]);
+
+  const handleBulkApply = useCallback((parameterKey: string, value: string, scope: BulkApplyScope): number => {
+    const targets =
+      scope === 'selection' ? drafts.filter((d) => selectedIds.has(d.rowId))
+      : scope === 'visible' ? filteredDrafts
+      : drafts;
+    if (targets.length === 0) return 0;
+    const targetIds = new Set(targets.map((t) => t.rowId));
+
+    const headlineMatch = parameterKey.match(/^headline_(\d+)$/);
+    const longHeadlineMatch = parameterKey.match(/^long_headline_(\d+)$/);
+    const descriptionMatch = parameterKey.match(/^description_(\d+)$/);
+
+    let appliedRowIds: string[] = [];
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (!targetIds.has(d.rowId)) return d;
+        const sch = SCHEMAS[d.type];
+        // Skip rows whose schema does not include this slot (e.g. Long
+        // Headline 5 on Video which has only 1 long headline).
+        if (headlineMatch) {
+          const idx = Number(headlineMatch[1]) - 1;
+          if (idx >= sch.headlineCount) return d;
+          const headlines = d.headlines.slice();
+          headlines[idx] = value.slice(0, sch.headlineMax);
+          return { ...d, headlines };
+        }
+        if (longHeadlineMatch) {
+          const idx = Number(longHeadlineMatch[1]) - 1;
+          if (idx >= sch.longHeadlineCount) return d;
+          const longHeadlines = d.longHeadlines.slice();
+          longHeadlines[idx] = value.slice(0, sch.longHeadlineMax);
+          return { ...d, longHeadlines };
+        }
+        if (descriptionMatch) {
+          const idx = Number(descriptionMatch[1]) - 1;
+          if (idx >= sch.descriptionCount) return d;
+          const descriptions = d.descriptions.slice();
+          descriptions[idx] = value.slice(0, sch.descriptionMax);
+          return { ...d, descriptions };
+        }
+        switch (parameterKey) {
+          case 'businessName':
+            if (!sch.hasBusinessName) return d;
+            return { ...d, businessName: value.slice(0, sch.businessNameMax) };
+          case 'finalUrl':
+            return { ...d, finalUrl: value };
+          case 'youtubeVideoUrl':
+            if (!sch.requiresYoutubeVideo) return d;
+            return { ...d, youtubeVideoUrl: value };
+          case 'callToAction':
+            if (!sch.requiresCallToAction) return d;
+            return { ...d, callToAction: normalizeGoogleCta(value) || value };
+          default:
+            return d;
+        }
+      });
+      // Persist only the rows that actually changed.
+      next.forEach((d, i) => {
+        if (targetIds.has(d.rowId) && d !== prev[i]) {
+          appliedRowIds.push(d.rowId);
+          onRowChange(d.rowId, draftToRowUpdates(d));
+        }
+      });
+      return next;
+    });
+
+    return appliedRowIds.length;
+  }, [drafts, filteredDrafts, selectedIds, onRowChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
