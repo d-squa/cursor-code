@@ -977,6 +977,16 @@ export function GoogleSearchTextAssetEditor({
           </div>
         </div>
 
+        {/* Bulk apply bar — Select / Parameter / Value / Apply */}
+        <GoogleBulkApplyBar
+          parameters={bulkParameters}
+          selectOptions={bulkSelectOptions}
+          selectedCount={selectedIds.size}
+          visibleCount={filteredDrafts.length}
+          onSelectScope={handleBulkSelectScope}
+          onApply={handleBulkApply}
+        />
+
         {/* Body: table on left, preview on right */}
         <div className="flex-1 overflow-hidden flex">
           {/* Table — overflow-auto on the wrapper guarantees both axes scroll
