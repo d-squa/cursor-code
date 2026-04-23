@@ -1433,6 +1433,42 @@ class TikTokAdapter implements PlatformAdapter {
 // =====================================================================
 class GoogleAdsAdapter implements PlatformAdapter {
   private readonly API_BASE = `https://googleads.googleapis.com/v23`;
+  private readonly imageAssetBytesCache = new Map<string, Promise<Uint8Array>>();
+
+  private async getPreparedImageBytes(
+    imageUrl: string,
+    cropAspectRatio: number | null = null,
+    minimumSquareSize: number = 0,
+  ): Promise<Uint8Array> {
+    const cacheKey = `${imageUrl}::${cropAspectRatio ?? "original"}::${minimumSquareSize}`;
+    const cached = this.imageAssetBytesCache.get(cacheKey);
+    if (cached) {
+      return new Uint8Array(await cached);
+    }
+
+    const pendingBytes = (async () => {
+      const imgResp = await fetch(imageUrl);
+      if (!imgResp.ok) {
+        throw new Error(`Failed to download image (${imgResp.status})`);
+      }
+
+      let preparedBytes = new Uint8Array(await imgResp.arrayBuffer());
+      if (cropAspectRatio && cropAspectRatio > 0) {
+        preparedBytes = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
+      }
+
+      return preparedBytes;
+    })();
+
+    this.imageAssetBytesCache.set(cacheKey, pendingBytes);
+
+    try {
+      return new Uint8Array(await pendingBytes);
+    } catch (error) {
+      this.imageAssetBytesCache.delete(cacheKey);
+      throw error;
+    }
+  }
 
   private summarizeGoogleAdsError(errorText: string): string {
     try {
@@ -1475,6 +1511,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
   private async cropImageToAspectRatio(
     bytes: Uint8Array,
     targetRatio: number = 1,
+    minimumSquareSize: number = 128,
   ): Promise<Uint8Array> {
     try {
       const { Image } = await import("https://deno.land/x/imagescript@1.2.17/mod.ts");
@@ -1500,8 +1537,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
       const y = Math.max(0, Math.floor((h - cropH) / 2));
       const cropped = img.crop(x, y, cropW, cropH);
       // Logos must be at least 128x128 for Google Ads
-      const minSize = 128;
-      if (cropped.width < minSize || cropped.height < minSize) {
+      const minSize = minimumSquareSize;
+      if (minSize > 0 && (cropped.width < minSize || cropped.height < minSize)) {
         const scale = Math.max(minSize / cropped.width, minSize / cropped.height);
         cropped.resize(Math.round(cropped.width * scale), Math.round(cropped.height * scale));
       }
@@ -1538,16 +1575,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
      */
     cropAspectRatio: number | null = null,
   ): Promise<string> {
-    const imgResp = await fetch(imageUrl);
-    if (!imgResp.ok) {
-      throw new Error(`Failed to download image (${imgResp.status})`);
-    }
-    const arrayBuffer = await imgResp.arrayBuffer();
-    let originalBytes = new Uint8Array(arrayBuffer);
-
-    if (cropAspectRatio && cropAspectRatio > 0) {
-      originalBytes = await this.cropImageToAspectRatio(originalBytes, cropAspectRatio);
-    }
+    const originalBytes = await this.getPreparedImageBytes(
+      imageUrl,
+      cropAspectRatio,
+      cropAspectRatio && Math.abs(cropAspectRatio - 1) < 0.001 ? 128 : 0,
+    );
 
     let bytes: Uint8Array = originalBytes;
     if (forceUnique) {
