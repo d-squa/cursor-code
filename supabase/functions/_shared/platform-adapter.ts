@@ -210,6 +210,8 @@ export interface CreateCreativeParams {
     youtubeVideoId?: string; // Pre-uploaded YouTube video ID (preferred for Demand Gen video ads)
     imageUrl?: string;       // Source image URL — will be uploaded as a Google Ads imageAsset
     logoUrl?: string;        // Optional brand/logo URL
+    imageWidth?: number;     // Optional original image width for Demand Gen slot routing
+    imageHeight?: number;    // Optional original image height for Demand Gen slot routing
   };
   adText: string;
   callToAction: string;
@@ -2013,6 +2015,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
         const imageUrl: string | undefined = assets.imageUrl
           || assets.imageUrls?.[0];
         const logoUrl: string | undefined = assets.logoUrl;
+        const imageWidth = Number(assets.imageWidth || 0);
+        const imageHeight = Number(assets.imageHeight || 0);
 
         // Demand Gen / Video field limits (Google Ads API):
         //   headline: 40 chars, description: 90, longHeadline: 90, businessName: 25
@@ -2189,13 +2193,34 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
             const ctaDisplayMa = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
 
+            const aspectRatio = imageWidth > 0 && imageHeight > 0 ? imageWidth / imageHeight : 0;
+            const isSquareImage = Math.abs(aspectRatio - 1) <= 0.05;
+            const isLandscapeImage = Math.abs(aspectRatio - 1.91) <= 0.08;
+            const isPortraitImage = Math.abs(aspectRatio - 0.8) <= 0.05;
+            const isTallPortraitImage = Math.abs(aspectRatio - 0.5625) <= 0.05;
+
+            const demandGenImageSlots = isSquareImage
+              ? { squareMarketingImages: [{ asset: imageAssetResource }] }
+              : isLandscapeImage
+                ? { marketingImages: [{ asset: imageAssetResource }] }
+                : isPortraitImage
+                  ? {
+                      squareMarketingImages: [{ asset: imageAssetResource }],
+                      portraitMarketingImages: [{ asset: imageAssetResource }],
+                    }
+                  : isTallPortraitImage
+                    ? {
+                        squareMarketingImages: [{ asset: imageAssetResource }],
+                        tallPortraitMarketingImages: [{ asset: imageAssetResource }],
+                      }
+                    : { squareMarketingImages: [{ asset: imageAssetResource }] };
+
             ad = {
               demandGenMultiAssetAd: {
                 headlines: headlinesMa.map((text) => ({ text })),
                 descriptions: descriptionsMa.map((text) => ({ text })),
                 businessName: businessNameDg,
-                marketingImages: [{ asset: imageAssetResource }],
-                squareMarketingImages: [{ asset: imageAssetResource }],
+                ...demandGenImageSlots,
                 logoImages: [{ asset: logoAssetResource }],
                 callToActionText: ctaDisplayMa,
               },
