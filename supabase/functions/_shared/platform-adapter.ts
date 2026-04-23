@@ -1472,13 +1472,38 @@ class GoogleAdsAdapter implements PlatformAdapter {
     headers: Record<string, string>,
     imageUrl: string,
     name: string,
+    /**
+     * When true, append a small, unique random byte payload AFTER the image's
+     * end-of-stream marker. Image decoders ignore trailing bytes (JPEG ignores
+     * data past EOI; PNG ignores data past IEND), but Google Ads dedupes
+     * uploaded image assets by content hash and will return the SAME asset
+     * resource for byte-identical uploads even with different `name` fields.
+     * That manifests as "Assets are duplicated across operations" when the
+     * same resource lands in multiple slots of a Demand Gen multi-asset ad.
+     * Forcing unique trailing bytes guarantees a distinct asset resource per
+     * slot while keeping the visual asset identical.
+     */
+    forceUnique: boolean = false,
   ): Promise<string> {
     const imgResp = await fetch(imageUrl);
     if (!imgResp.ok) {
       throw new Error(`Failed to download image (${imgResp.status})`);
     }
     const arrayBuffer = await imgResp.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    const originalBytes = new Uint8Array(arrayBuffer);
+
+    let bytes: Uint8Array = originalBytes;
+    if (forceUnique) {
+      // Append 16 random bytes + a high-precision timestamp suffix.
+      const padding = new Uint8Array(24);
+      crypto.getRandomValues(padding.subarray(0, 16));
+      const ts = BigInt(Date.now()) * 1000n + BigInt(Math.floor(performance.now() * 1000) % 1000);
+      const view = new DataView(padding.buffer);
+      view.setBigUint64(16, ts, false);
+      bytes = new Uint8Array(originalBytes.length + padding.length);
+      bytes.set(originalBytes, 0);
+      bytes.set(padding, originalBytes.length);
+    }
 
     let binary = "";
     const chunkSize = 0x8000;
