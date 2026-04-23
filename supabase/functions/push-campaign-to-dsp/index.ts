@@ -1761,24 +1761,46 @@ const handler = async (req: Request): Promise<Response> => {
     // Convert any lingering "pushing" rows into explicit failures so UI never hangs indefinitely
     const { data: lingeringPushing } = await supabase
       .from("campaign_launch_status")
-      .select("id")
+      .select("id, platform, market, phase_name, entity_type, entity_name")
       .eq("campaign_id", campaignId)
       .eq("status", "pushing");
 
     if (lingeringPushing && lingeringPushing.length > 0) {
-      const lingeringIds = lingeringPushing.map((row: any) => row.id);
-      console.warn(`⚠️ Found ${lingeringIds.length} lingering pushing entities, marking as push_failed`);
+      // 🔍 DETAILED DIAGNOSTIC LOGGING — surface exactly what was skipped
+      console.warn(`⚠️ Found ${lingeringPushing.length} lingering pushing entities, marking as push_failed`);
+      console.warn(`📋 Lingering entity details:`);
+      for (const row of lingeringPushing) {
+        console.warn(
+          `   • ${row.platform} | ${row.market} | ${row.phase_name || "(no phase)"} | ${row.entity_type} | name="${row.entity_name || "(unnamed)"}"`,
+        );
+      }
 
-      const fallbackMessage = "Entity was not processed in this push attempt. Please retry this phase.";
-      await supabase
-        .from("campaign_launch_status")
-        .update({
-          status: "push_failed",
-          error_message: fallbackMessage,
-          error_details: [{ message: fallbackMessage, type: "incomplete_push" }],
-          updated_at: new Date().toISOString(),
-        })
-        .in("id", lingeringIds);
+      // Cross-reference against successful results to identify the gap
+      const successfulKeys = new Set<string>();
+      for (const r of results) {
+        for (const s of r.results || []) {
+          successfulKeys.add(`${s.market}|${s.phase}|${s.campaignEntityName || ""}|${s.adSetEntityName || ""}`);
+        }
+      }
+      console.warn(`📊 Push summary: ${successfulKeys.size} successful entity keys reported across ${results.length} platform run(s)`);
+
+      // Write a specific error per row so the UI tells the user what actually went wrong
+      for (const row of lingeringPushing) {
+        const reason =
+          row.entity_type === "adset"
+            ? `Ad set "${row.entity_name || "(unnamed)"}" in phase "${row.phase_name || "(no phase)"}" / market ${row.market} was planned but the push adapter never reported a result. This usually means its parent campaign failed to create, the phase was filtered out, or the adapter skipped it. Check the push logs for errors related to this phase/market.`
+            : `Campaign "${row.entity_name || "(unnamed)"}" in phase "${row.phase_name || "(no phase)"}" / market ${row.market} was planned but the push adapter never reported a result. Check the push logs for errors related to this phase/market.`;
+
+        await supabase
+          .from("campaign_launch_status")
+          .update({
+            status: "push_failed",
+            error_message: reason,
+            error_details: [{ message: reason, type: "incomplete_push" }],
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+      }
     }
 
     // Fetch final launch statuses to determine campaign status
