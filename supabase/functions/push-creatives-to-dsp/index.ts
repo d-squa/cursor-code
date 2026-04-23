@@ -29,6 +29,23 @@ const AUTO_RETRY_DELAY_MS = 2000; // Delay before auto-retry to prevent rate lim
 const MAX_GOOGLE_ASSIGNMENTS_PER_INVOCATION = 2; // Keep Google pushes below Edge CPU limits and resume via auto-retry
 const PUSHABLE_ASSET_CUSTOMIZATION_STATUSES = ["draft", "compiled", "error"];
 
+function isRetryableAssignmentError(message: unknown): boolean {
+  const text = String(message ?? "").trim().toLowerCase();
+  if (!text) return true;
+
+  const nonRetryableFragments = [
+    "limit reached — skip this assignment or use a different ad group.",
+    "the request would cause a limit on the number of allowed resources of this type to be exceeded",
+    "already has",
+    "allowed responsive search ads",
+    "does not accept responsive search ads",
+    "missing google ads landing page url",
+    "missing tiktok advertiser id",
+  ];
+
+  return !nonRetryableFragments.some((fragment) => text.includes(fragment));
+}
+
 const VALID_META_CTAS = new Set([
   "OPEN_LINK","LIKE_PAGE","SHOP_NOW","PLAY_GAME","INSTALL_APP","USE_APP","CALL","CALL_ME",
   "VIDEO_CALL","INSTALL_MOBILE_APP","USE_MOBILE_APP","MOBILE_DOWNLOAD","BOOK_TRAVEL",
@@ -1465,17 +1482,28 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Reset all errored assignments (without DSP creative ID) back to pending
-    // so stale error messages are cleared and they're cleanly re-queued
-    const { count: resetCount } = await supabase
+    // Only re-queue retryable failures; keep hard-stop errors as error so they do not loop forever.
+    const { data: erroredAssignments, error: erroredAssignmentsError } = await supabase
       .from("creative_assignments")
-      .update({ status: "pending", error_message: null })
+      .select("id, error_message")
       .eq("campaign_id", campaignId)
       .eq("status", "error")
-      .is("dsp_creative_id", null)
-      .select("id", { count: "exact", head: true });
-    if (resetCount) {
-      console.log(`[push-creatives] Reset ${resetCount} errored assignments to pending`);
+      .is("dsp_creative_id", null);
+    if (erroredAssignmentsError) throw erroredAssignmentsError;
+
+    const retryableErroredAssignmentIds = (erroredAssignments || [])
+      .filter((assignment: any) => isRetryableAssignmentError(assignment.error_message))
+      .map((assignment: any) => assignment.id);
+
+    if (retryableErroredAssignmentIds.length > 0) {
+      const { count: resetCount } = await supabase
+        .from("creative_assignments")
+        .update({ status: "pending", error_message: null })
+        .in("id", retryableErroredAssignmentIds)
+        .select("id", { count: "exact", head: true });
+      if (resetCount) {
+        console.log(`[push-creatives] Reset ${resetCount} retryable errored assignments to pending`);
+      }
     }
 
     // Get or create job record
