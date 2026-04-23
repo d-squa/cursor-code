@@ -1491,9 +1491,9 @@ class GoogleAdsAdapter implements PlatformAdapter {
           limitType === "RESPONSIVE_SEARCH_ADS_PER_AD_GROUP")
       ) {
         const countLabel = Number.isFinite(existingCount) && Number.isFinite(limit)
-          ? `This ad group already has ${existingCount} of ${limit} allowed Responsive Search Ads.`
-          : "This ad group has reached Google's Responsive Search Ad limit.";
-        return `${countLabel} Limit reached — skip this assignment or use a different ad group.`;
+          ? `Google Ads reports ${existingCount} of ${limit} enabled Responsive Search Ads in this ad group.`
+          : "This ad group has reached Google's Responsive Search Ad limit (max 3 enabled RSAs).";
+        return `${countLabel} The count may include ads created earlier in this push or recently removed ads still propagating. Pause/remove an RSA in Google Ads UI and retry, or assign this creative to a different ad group.`;
       }
 
       return firstError?.message || parsed?.error?.message || errorText;
