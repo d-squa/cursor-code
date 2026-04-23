@@ -40,6 +40,7 @@ import { Copy, Clipboard, Trash2, Search, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { GoogleBulkApplyBar, type BulkParameterDef, type BulkApplyScope } from './GoogleBulkApplyBar';
 
 // ---------- Types ----------
 
