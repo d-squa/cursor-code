@@ -361,7 +361,9 @@ function matchesAssignmentPhaseName(
   // Falling back to base-phase matching here causes Brand/Generic/Competition
   // assignments to bleed into each other and push into the wrong Google campaign/ad group.
   if (assignmentStrategy && targetStrategy) {
-    return false;
+    return assignmentStrategy === targetStrategy
+      && normalizeComparableLabel(stripSearchStrategySuffix(assignmentPhaseName)) ===
+        normalizeComparableLabel(stripSearchStrategySuffix(targetPhaseName));
   }
 
   return normalizeComparableLabel(stripSearchStrategySuffix(assignmentPhaseName)) ===
