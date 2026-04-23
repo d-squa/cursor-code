@@ -4599,17 +4599,27 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               }
             }
 
-            const adGroupResult = await googleAdapter.createAdGroup({
-              accountId: cleanCustomerId,
-              accessToken: effectivePlatform.access_token,
-              campaignId: campaignResult.campaignId,
-              adGroupName: finalAdGroupName,
-              targeting: adGroupTargetingPayload,
-              placements: [],
-              optimizationGoal: mappedBidStrategy,
-              status: "PAUSED",
-              bidAmount: adGroupBidAmount,
-            });
+            // Sibling-safe ad-group reuse: if a previous run already created an
+            // ad group with this exact entity_name (per-strategy + per-LANG split),
+            // reuse it rather than creating a duplicate.
+            const reusedAdGroupId = pushedByName[`adset::${String(finalAdGroupName || "").trim().toLowerCase()}`];
+            let adGroupResult: any;
+            if (reusedAdGroupId) {
+              console.log(`♻️ Reusing existing Google Ads ad group for ${market.name}/${phase.name}/${adSetConfig.name}${strategyName ? ` [${strategyName}]` : ""}: ${reusedAdGroupId}`);
+              adGroupResult = { success: true, adGroupId: reusedAdGroupId, metadata: { reused: true, byName: true } };
+            } else {
+              adGroupResult = await googleAdapter.createAdGroup({
+                accountId: cleanCustomerId,
+                accessToken: effectivePlatform.access_token,
+                campaignId: campaignResult.campaignId,
+                adGroupName: finalAdGroupName,
+                targeting: adGroupTargetingPayload,
+                placements: [],
+                optimizationGoal: mappedBidStrategy,
+                status: "PAUSED",
+                bidAmount: adGroupBidAmount,
+              });
+            }
 
             if (!adGroupResult.success) {
               console.error(`❌ Google Ads ad group creation failed:`, adGroupResult.error);
@@ -4624,7 +4634,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               continue;
             }
 
-            console.log(`✅ Google Ads ad group created: ${adGroupResult.adGroupId}${strategyName ? ` [${strategyName}]` : ""}`);
+            console.log(`✅ Google Ads ad group ${reusedAdGroupId ? "reused" : "created"}: ${adGroupResult.adGroupId}${strategyName ? ` [${strategyName}]` : ""}`);
 
             // Step 3: Create Ads from assigned creatives
             let adsCreated = 0;
