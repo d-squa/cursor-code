@@ -574,7 +574,10 @@ const handler = async (req: Request): Promise<Response> => {
             (marketAdSets && marketAdSets.length > 0 ? marketAdSets : undefined) ||
             (defaultPlatformAdSets && defaultPlatformAdSets.length > 0 ? defaultPlatformAdSets : undefined);
 
-          const hasAdSetSplits = !!effectiveAdSets && strategyCampaigns.length === 0;
+          // Search strategy campaigns can still create multiple ad groups/ad sets
+          // (for example per-language splits), so planning must mirror the real push
+          // structure instead of collapsing them into a single generic "Ad Set" row.
+          const hasAdSetSplits = !!effectiveAdSets;
 
           if (hasAdSetSplits) {
             // Create an entity for each ad set split
