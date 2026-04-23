@@ -2149,7 +2149,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               }
             }
 
-            const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction);
+            const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction) || "LEARN_MORE";
             let ctaAssetResource: string | null = null;
             try {
               ctaAssetResource = await this.ensureCallToActionAsset(
@@ -2158,7 +2158,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 ctaEnumDg,
               );
             } catch (e) {
-              console.warn("[google.createCreative] CTA asset creation failed, omitting:", e);
+              console.warn("[google.createCreative] CTA asset creation failed:", e);
             }
 
             ad = {
