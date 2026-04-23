@@ -4426,8 +4426,13 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             }
           }
 
-          // Apply language targeting at campaign level
-          if (marketLanguages.length > 0) {
+          // Apply language targeting at campaign level.
+          // Demand Gen, Performance Max, and Video campaigns do NOT support campaign-level
+          // language criteria (Google rejects with OWNED_AND_OPERATED context error).
+          const supportsLanguageCriteria = !["DEMAND_GEN", "PERFORMANCE_MAX", "VIDEO"].includes(
+            String(advertisingChannelType || "").toUpperCase()
+          );
+          if (marketLanguages.length > 0 && supportsLanguageCriteria) {
             console.log(`🗣️ Applying language targeting to campaign ${campaignResult.campaignId}: ${marketLanguages.join(", ")}`);
             try {
               await googleAdapter.addCampaignLanguageCriteria(
@@ -4439,6 +4444,8 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             } catch (langErr: any) {
               console.error(`⚠️ Language targeting error (non-fatal): ${langErr.message}`);
             }
+          } else if (marketLanguages.length > 0) {
+            console.log(`ℹ️ Skipping language targeting for ${advertisingChannelType} campaign (not supported)`);
           }
 
           // Apply network settings (Search Partners, Display Network) — not supported for Performance Max
