@@ -2044,8 +2044,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
         }
 
         try {
-          if (youtubeVideoId) {
-            // ---- Demand Gen / Video: video ad ----
+          if (youtubeVideoId && upperChannel === "VIDEO") {
+            // ---- Google Video campaign: VideoResponsiveAd ----
             const youtubeAssetResource = await this.ensureYouTubeVideoAsset(
               customerId,
               headers,
@@ -2053,7 +2053,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
               params.creativeName,
             );
 
-            // Upload optional logo image as imageAsset (square logos help Demand Gen)
+            // Upload optional logo image as imageAsset.
             let logoAssetResource: string | null = null;
             if (logoUrl) {
               try {
@@ -2068,10 +2068,58 @@ class GoogleAdsAdapter implements PlatformAdapter {
               }
             }
 
-            // DemandGenVideoResponsiveAdInfo.call_to_actions is a repeated
-            // AdCallToActionAsset whose only field is `asset` (a resource name
-            // pointing at a CALL_TO_ACTION asset). We must create/lookup the
-            // CTA asset first, then reference it.
+            let companionBannerResource: string | null = null;
+            if (imageUrl) {
+              try {
+                companionBannerResource = await this.uploadImageAsset(
+                  customerId,
+                  headers,
+                  imageUrl,
+                  `${params.creativeName} companion banner`,
+                );
+              } catch (e) {
+                console.warn("[google.createCreative] Failed to upload companion banner:", e);
+              }
+            }
+
+            const ctaDisplayVideo = mapGoogleCtaToDisplay(String(params.callToAction || "").trim()) || "Learn more";
+
+            ad = {
+              videoResponsiveAd: {
+                headlines: [{ text: dgHeadlines[0] || params.creativeName || "Learn more" }],
+                longHeadlines: [{ text: dgLongHeadline }],
+                descriptions: [{ text: dgDescriptions[0] || params.adText || params.creativeName || "Learn more" }],
+                businessName: { text: businessNameDg },
+                callToActions: [{ text: ctaDisplayVideo }],
+                videos: [{ asset: youtubeAssetResource }],
+                ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
+                ...(companionBannerResource ? { companionBanners: [{ asset: companionBannerResource }] } : {}),
+              },
+              finalUrls: [params.landingPageUrl],
+            };
+          } else if (youtubeVideoId) {
+            // ---- Demand Gen: video ad ----
+            const youtubeAssetResource = await this.ensureYouTubeVideoAsset(
+              customerId,
+              headers,
+              youtubeVideoId,
+              params.creativeName,
+            );
+
+            let logoAssetResource: string | null = null;
+            if (logoUrl) {
+              try {
+                logoAssetResource = await this.uploadImageAsset(
+                  customerId,
+                  headers,
+                  logoUrl,
+                  `${params.creativeName} logo`,
+                );
+              } catch (e) {
+                console.warn("[google.createCreative] Failed to upload logo asset:", e);
+              }
+            }
+
             const ctaEnumDg = mapGoogleCtaToEnum(params.callToAction);
             let ctaAssetResource: string | null = null;
             try {
@@ -2089,9 +2137,6 @@ class GoogleAdsAdapter implements PlatformAdapter {
                 headlines: dgHeadlines.slice(0, 5).map((text) => ({ text })),
                 longHeadlines: [{ text: dgLongHeadline }],
                 descriptions: dgDescriptions.slice(0, 5).map((text) => ({ text })),
-                // businessName on DemandGenVideoResponsiveAdInfo is an AdTextAsset
-                // (v23). Multi-asset ad uses a plain string. Mismatch yields:
-                // "Invalid value at ... business_name (AdTextAsset)".
                 businessName: { text: businessNameDg },
                 videos: [{ asset: youtubeAssetResource }],
                 ...(logoAssetResource ? { logoImages: [{ asset: logoAssetResource }] } : {}),
