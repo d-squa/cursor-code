@@ -4286,10 +4286,15 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
         const needsAdGroupLevelTargeting = ["DEMAND_GEN", "DISPLAY", "VIDEO"].includes(advertisingChannelType);
 
         for (const [strategyName, strategyKeywords] of strategiesToProcess) {
+          const normalizedStrategyLabel = strategyName
+            ? ({ brand: "Brand", generic: "Generic", competition: "Competition" }[
+                String(strategyName).trim().toLowerCase()
+              ] || String(strategyName).trim())
+            : "";
           // Generate campaign name - include market>strategy for search campaigns
-          const strategySuffix = strategyName ? ` - ${strategyName}` : "";
-          const defaultCampaignName = isSearchCampaign && strategyName
-            ? `${campaign.name} - ${market.name} > ${strategyName}_${generateTimestampSuffix()}`
+          const strategySuffix = normalizedStrategyLabel ? ` - ${normalizedStrategyLabel}` : "";
+          const defaultCampaignName = isSearchCampaign && normalizedStrategyLabel
+            ? `${campaign.name} - ${market.name} > ${normalizedStrategyLabel}_${generateTimestampSuffix()}`
             : `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ""}${strategySuffix}_${generateTimestampSuffix()}`;
 
           // Try to use client taxonomy template for campaign naming
@@ -4322,7 +4327,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                 "google",
                 "campaign",
                 googleCampaignTaxonomyContext,
-                { ...(phase.campaignTaxonomyValues || {}), ...(strategyName ? { strategy: strategyName } : {}) },
+                { ...(phase.campaignTaxonomyValues || {}), ...(normalizedStrategyLabel ? { strategy: normalizedStrategyLabel } : {}) },
               )
             : null;
 
@@ -4333,8 +4338,8 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           // so updateLaunchStatuses can match the correct sibling row (Brand/Generic/
           // Competition). The DSP-side name (finalCampaignName) is taxonomy-driven and
           // does NOT match the pre-registered entity_name.
-          const strategyCampaignUnitName = isSearchCampaign && strategyName
-            ? `${phase.name} - ${strategyName}`
+          const strategyCampaignUnitName = isSearchCampaign && normalizedStrategyLabel
+            ? `${phase.name} - ${normalizedStrategyLabel}`
             : phase.name;
           const launchStatusCampaignName = `${campaign.name} - ${market.name} - ${strategyCampaignUnitName}`;
 
@@ -4351,7 +4356,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             let totalVolume = 0;
             for (const [sName] of Object.entries(keywordStrategies)) {
               const vol = allKeywords
-                .filter((k: any) => (k.strategy || k.category || "Generic") === sName)
+                .filter((k: any) => String(k.strategy || k.category || "Generic").trim().toLowerCase() === String(sName).trim().toLowerCase())
                 .reduce((sum: number, k: any) => sum + (k.avgMonthlySearches || 0), 0);
               strategyVolumes[sName] = vol;
               totalVolume += vol;
@@ -4360,14 +4365,14 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             if (totalVolume > 0) {
               const volumeRatio = (strategyVolumes[strategyName] || 0) / totalVolume;
               strategyDailyBudget = dailyBudget * volumeRatio;
-              console.log(`📊 Volume-weighted budget for "${strategyName}" in ${marketCode}: ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
+              console.log(`📊 Volume-weighted budget for "${normalizedStrategyLabel || strategyName}" in ${marketCode}: ${(volumeRatio * 100).toFixed(1)}% (vol: ${strategyVolumes[strategyName]}/${totalVolume})`);
             }
           }
 
           console.log(`📊 Google Ads campaign config:`, {
             campaignType, advertisingChannelType, bidStrategy: mappedBidStrategy,
             dailyBudget: strategyDailyBudget, phaseBudget: phaseBudget / strategyCount, durationDays,
-            strategy: strategyName || "none", keywordCount: strategyKeywords.length,
+            strategy: normalizedStrategyLabel || "none", keywordCount: strategyKeywords.length,
             locationTargeting: locationTargetingType,
             searchPartner: searchPartnerNetwork,
             displayNetwork: displayNetworkEnabled,
