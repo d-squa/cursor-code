@@ -313,6 +313,28 @@ function normalizeComparableLabel(value: unknown): string {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function stripSearchStrategySuffix(value: unknown): string {
+  const label = String(value ?? "").trim();
+  return label.replace(/\s[•-]\s(?:brand|generic|competition)$/i, "").trim();
+}
+
+function matchesAssignmentPhaseName(
+  assignmentPhaseName: unknown,
+  targetPhaseName: unknown,
+  platformKey: PlatformKey,
+): boolean {
+  const assignmentLabel = normalizeComparableLabel(assignmentPhaseName);
+  const targetLabel = normalizeComparableLabel(targetPhaseName);
+
+  if (!assignmentLabel || !targetLabel) return false;
+  if (assignmentLabel === targetLabel) return true;
+
+  if (platformKey !== "google" && platformKey !== "tiktok") return false;
+
+  return normalizeComparableLabel(stripSearchStrategySuffix(assignmentPhaseName)) ===
+    normalizeComparableLabel(stripSearchStrategySuffix(targetPhaseName));
+}
+
 const META_FACEBOOK_POSITION_MAP: Record<string, string> = {
   facebook_feed: "feed",
   feed: "feed",
@@ -1521,14 +1543,17 @@ const handler = async (req: Request): Promise<Response> => {
       if (platformKey === "google") {
         const { data: marketAssignments } = await supabase
           .from("creative_assignments")
-          .select("id")
+          .select("id, phase_name")
           .eq("campaign_id", campaign.id)
           .ilike("platform", "google")
           .eq("market", entry.market)
-          .eq("phase_name", entry.phase_name)
-          .limit(1);
+          .not("dsp_creative_id", "is", null);
 
-        if ((marketAssignments?.length || 0) === 0) {
+        const hasMatchingMarketAssignments = (marketAssignments || []).some((assignment: any) =>
+          matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
+        );
+
+        if (!hasMatchingMarketAssignments) {
           continue;
         }
 
@@ -1591,6 +1616,7 @@ const handler = async (req: Request): Promise<Response> => {
           `
           id,
           creative_id,
+          phase_name,
           ad_set_id,
           position,
           status,
@@ -1650,7 +1676,6 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("campaign_id", campaign.id)
         .ilike("platform", platformKey)
         .eq("market", entry.market)
-        .eq("phase_name", entry.phase_name)
         .order("position");
       
       console.log(`[push-creatives] Found ${assignments?.length || 0} assignments for ${platformKey}/${entry.market}/${entry.phase_name}, using adset_id: ${entry.dsp_entity_id}`);
@@ -1666,9 +1691,13 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
+      const phaseMatchedAssignments = (assignments || []).filter((assignment: any) =>
+        matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
+      );
+
       const scopedAssignments = platformKey === "meta" && resolvedLaunchAdSetConfig
-        ? (assignments || []).filter((assignment: any) => assignmentMatchesAdSetConfig(assignment, resolvedLaunchAdSetConfig))
-        : (assignments || []);
+        ? phaseMatchedAssignments.filter((assignment: any) => assignmentMatchesAdSetConfig(assignment, resolvedLaunchAdSetConfig))
+        : phaseMatchedAssignments;
 
       let localPushed = 0;
       let localFailed = 0;
