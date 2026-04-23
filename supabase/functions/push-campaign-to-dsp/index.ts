@@ -808,7 +808,7 @@ async function updateLaunchStatuses(
       } = successItem;
 
       console.log(
-        `📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}`,
+        `📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}, campaignEntityName="${campaignEntityName || "(none)"}", adSetEntityName="${adSetEntityName || "(none)"}"`,
       );
 
       // Update campaign entry - try each platform variant until one works
@@ -4328,6 +4328,16 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
           const finalCampaignName = googleCampaignTaxonomyName || defaultCampaignName;
 
+          // Planning-format name used by validate-campaign-launch when pre-registering
+          // campaign_launch_status rows. We MUST report this back as campaignEntityName
+          // so updateLaunchStatuses can match the correct sibling row (Brand/Generic/
+          // Competition). The DSP-side name (finalCampaignName) is taxonomy-driven and
+          // does NOT match the pre-registered entity_name.
+          const strategyCampaignUnitName = isSearchCampaign && strategyName
+            ? `${phase.name} - ${strategyName}`
+            : phase.name;
+          const launchStatusCampaignName = `${campaign.name} - ${market.name} - ${strategyCampaignUnitName}`;
+
           // Adjust budget for strategy split using search-volume-weighted allocation
           const strategyCount = Math.max(1, Object.keys(keywordStrategies).length);
           let strategyDailyBudget = dailyBudget / strategyCount; // fallback: equal split
@@ -4497,7 +4507,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               market: market.name,
               phase: phase.name,
               campaignId: campaignResult.campaignId,
-              campaignEntityName: finalCampaignName,
+              campaignEntityName: launchStatusCampaignName,
               adGroupId: null,
               budget: strategyDailyBudget,
               budgetType: "daily",
@@ -4540,6 +4550,13 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             const adGroupSuffix = adSetConfig.id !== "default" ? ` - ${adSetConfig.name}` : "";
             const strategySuffix2 = strategyName ? ` [${strategyName}]` : "";
             const defaultAdGroupName = `${phase.name}${adGroupSuffix}${strategySuffix2} - Ad Group_${generateTimestampSuffix()}`;
+
+            // Planning-format name used by validate-campaign-launch when pre-registering
+            // ad set rows. Mirrors the format `${campaign.name} - ${market} - ${unit.name} - ${adSetName | "Ad Set"}`.
+            const launchStatusAdSetSuffix = adSetConfig.id !== "default"
+              ? (adSetConfig.name || `Ad Set ${String(adSetConfig.id || "").substring(0, 6) || "Unknown"}`)
+              : "Ad Set";
+            const launchStatusAdSetName = `${campaign.name} - ${market.name} - ${strategyCampaignUnitName} - ${launchStatusAdSetSuffix}`;
 
             // Try to use client taxonomy template for ad group naming
             const googleAdGroupTaxonomyContext: TaxonomyContext = {
@@ -4775,9 +4792,9 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               phase: phase.name,
               adSet: adSetConfig.name,
               campaignId: campaignResult.campaignId,
-              campaignEntityName: finalCampaignName,
+              campaignEntityName: launchStatusCampaignName,
               adGroupId: adGroupResult.adGroupId,
-              adSetEntityName: finalAdGroupName,
+              adSetEntityName: launchStatusAdSetName,
               budget: strategyDailyBudget,
               budgetType: "daily",
               campaignType,
