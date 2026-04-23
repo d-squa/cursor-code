@@ -2075,14 +2075,55 @@ class GoogleAdsAdapter implements PlatformAdapter {
         ? (params as any).descriptions
         : [params.adText, params.creativeName].filter(Boolean);
 
-      const headlines = rawHeadlines
-        .map((h: string) => String(h || "").trim())
-        .filter(Boolean)
-        .map((h: string) => h.substring(0, 30));
-      const descriptions = rawDescriptions
-        .map((d: string) => String(d || "").trim())
-        .filter(Boolean)
-        .map((d: string) => d.substring(0, 90));
+      const normalizeGoogleTextAsset = (value: unknown, maxLen: number) => String(value || "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .substring(0, maxLen);
+
+      const dedupeGoogleTextAssets = (values: string[], maxLen: number) => {
+        const seen = new Set<string>();
+        const unique: string[] = [];
+
+        for (const value of values) {
+          const normalized = normalizeGoogleTextAsset(value, maxLen);
+          const key = normalized.toLowerCase();
+          if (!normalized || seen.has(key)) continue;
+          seen.add(key);
+          unique.push(normalized);
+        }
+
+        return unique;
+      };
+
+      const ensureMinUniqueGoogleTextAssets = (
+        values: string[],
+        fallbackBase: string,
+        min: number,
+        maxLen: number,
+      ) => {
+        const unique = dedupeGoogleTextAssets(values, maxLen);
+        const seen = new Set(unique.map((value) => value.toLowerCase()));
+        const base = normalizeGoogleTextAsset(fallbackBase || "Learn more", maxLen) || "Learn more";
+        let counter = 2;
+
+        while (unique.length < min) {
+          const suffix = ` ${counter}`;
+          const candidateBase = base.substring(0, Math.max(0, maxLen - suffix.length)).trimEnd() || "Learn more";
+          const candidate = `${candidateBase}${suffix}`.substring(0, maxLen).trim();
+          const key = candidate.toLowerCase();
+          if (candidate && !seen.has(key)) {
+            seen.add(key);
+            unique.push(candidate);
+          }
+          counter += 1;
+        }
+
+        return unique;
+      };
+
+      const headlines = dedupeGoogleTextAssets(rawHeadlines, 30);
+      const descriptions = dedupeGoogleTextAssets(rawDescriptions, 90);
       const longHeadline = (headlines[0] || params.creativeName || "Learn More").substring(0, 90);
       const businessName = (params as any).businessName || params.creativeName || "Brand";
 
@@ -2090,18 +2131,23 @@ class GoogleAdsAdapter implements PlatformAdapter {
       let ad: Record<string, any>;
 
       if (upperChannel === "SEARCH") {
-        if (headlines.length < 3 || descriptions.length < 2) {
-          return {
-            success: false,
-            creativeId: "",
-            platform: "google",
-            error: `Responsive Search Ad requires at least 3 headlines and 2 descriptions (got ${headlines.length} headlines, ${descriptions.length} descriptions).`,
-          };
-        }
+        const rsaHeadlines = ensureMinUniqueGoogleTextAssets(
+          rawHeadlines,
+          rawHeadlines[0] || params.creativeName || params.adText || params.callToAction || "Learn more",
+          3,
+          30,
+        ).slice(0, 15);
+        const rsaDescriptions = ensureMinUniqueGoogleTextAssets(
+          rawDescriptions,
+          rawDescriptions[0] || params.adText || params.creativeName || "Learn more",
+          2,
+          90,
+        ).slice(0, 4);
+
         ad = {
           responsiveSearchAd: {
-            headlines: headlines.slice(0, 15).map((text) => ({ text })),
-            descriptions: descriptions.slice(0, 4).map((text) => ({ text })),
+            headlines: rsaHeadlines.map((text) => ({ text })),
+            descriptions: rsaDescriptions.map((text) => ({ text })),
           },
           finalUrls: [params.landingPageUrl],
         };
