@@ -2952,39 +2952,91 @@ class GoogleAdsAdapter implements PlatformAdapter {
   ): Promise<void> {
     if (!audiences || audiences.length === 0) return;
 
-    const operations = audiences.map((aud) => {
-      // Determine the correct criterion type based on audience source/type
-      const isUserList = aud.type === "audience" || aud.source === "google" || aud.type === "user_list";
-      
-      if (isUserList) {
-        return {
-          create: {
-            adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
-            status: "ENABLED",
-            userList: {
-              userList: `customers/${customerId}/userLists/${aud.id}`,
-            },
-          },
-        };
-      } else {
-        // For interest/affinity/in-market audiences, use audience criterion
-        return {
-          create: {
-            adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
-            status: "ENABLED",
-            userInterest: {
-              userInterestCategory: `customers/${customerId}/userInterests/${aud.id}`,
-            },
-          },
-        };
+    // Split into user_list audiences vs interest audiences
+    const userListAuds = audiences.filter(
+      (aud) => aud.type === "audience" || aud.source === "google" || aud.type === "user_list"
+    );
+    const interestAuds = audiences.filter(
+      (aud) => !(aud.type === "audience" || aud.source === "google" || aud.type === "user_list")
+    );
+
+    // Pre-validate user_list IDs against the target customer account.
+    // RESOURCE_NOT_FOUND happens when audiences were captured from a different
+    // (manager / sibling) account than the one we're pushing into.
+    let validUserListIds = new Set<string>();
+    if (userListAuds.length > 0) {
+      try {
+        const requestedIds = userListAuds.map((a) => String(a.id)).filter(Boolean);
+        const idsLiteral = requestedIds.map((id) => `'${id.replace(/'/g, "")}'`).join(",");
+        const gaql = `SELECT user_list.id FROM user_list WHERE user_list.id IN (${idsLiteral})`;
+        const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:searchStream`;
+        const resp = await fetch(searchUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query: gaql }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const batches = Array.isArray(data) ? data : [];
+          for (const batch of batches) {
+            for (const r of batch?.results || []) {
+              const id = r?.userList?.id ?? r?.user_list?.id;
+              if (id != null) validUserListIds.add(String(id));
+            }
+          }
+        } else {
+          const errText = await resp.text();
+          console.warn(`⚠️ Could not pre-validate user_lists for customer ${customerId}: ${errText}. Sending all and relying on API errors.`);
+          // Fail open: assume all are valid; downstream call will report errors.
+          validUserListIds = new Set(requestedIds);
+        }
+      } catch (e) {
+        console.warn(`⚠️ user_list validation lookup failed:`, e);
+        validUserListIds = new Set(userListAuds.map((a) => String(a.id)));
       }
-    });
+    }
+
+    const skippedUserLists = userListAuds.filter((a) => !validUserListIds.has(String(a.id)));
+    const usableUserLists = userListAuds.filter((a) => validUserListIds.has(String(a.id)));
+    if (skippedUserLists.length > 0) {
+      console.warn(
+        `⚠️ Skipping ${skippedUserLists.length} user_list audience(s) not found in customer ${customerId}: ${skippedUserLists
+          .map((a) => `${a.name || "?"}(${a.id})`)
+          .join(", ")}. These were likely created in a different Google Ads account.`
+      );
+    }
+
+    const operations = [
+      ...usableUserLists.map((aud) => ({
+        create: {
+          adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+          status: "ENABLED",
+          userList: {
+            userList: `customers/${customerId}/userLists/${aud.id}`,
+          },
+        },
+      })),
+      ...interestAuds.map((aud) => ({
+        create: {
+          adGroup: `customers/${customerId}/adGroups/${adGroupId}`,
+          status: "ENABLED",
+          userInterest: {
+            userInterestCategory: `customers/${customerId}/userInterests/${aud.id}`,
+          },
+        },
+      })),
+    ];
+
+    if (operations.length === 0) {
+      console.log(`ℹ️ No usable audience criteria to add to ad group ${adGroupId} (all skipped).`);
+      return;
+    }
 
     const url = `${this.API_BASE}/customers/${customerId}/adGroupCriteria:mutate`;
     const resp = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ operations }),
+      body: JSON.stringify({ operations, partialFailure: true }),
     });
 
     if (!resp.ok) {
@@ -2992,7 +3044,14 @@ class GoogleAdsAdapter implements PlatformAdapter {
       console.error(`❌ Failed to add audience criteria to ad group ${adGroupId}:`, errText);
     } else {
       const data = await resp.json();
-      console.log(`✅ Added ${audiences.length} audience criteria to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
+      const successCount = (data.results || []).filter((r: any) => r && Object.keys(r).length > 0).length;
+      console.log(
+        `✅ Added ${successCount}/${operations.length} audience criteria to ad group ${adGroupId}` +
+          (skippedUserLists.length > 0 ? ` (${skippedUserLists.length} skipped as not found in account)` : "")
+      );
+      if (data.partialFailureError) {
+        console.warn(`⚠️ Partial failure on audience criteria:`, JSON.stringify(data.partialFailureError));
+      }
     }
   }
 
