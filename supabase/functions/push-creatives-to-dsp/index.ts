@@ -4098,25 +4098,33 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            const headlines: string[] = [
+            const dedupePreserveOrder = (arr: string[]): string[] => {
+              const seen = new Set<string>();
+              const out: string[] = [];
+              for (const v of arr) {
+                const key = v.trim().toLowerCase();
+                if (!key || seen.has(key)) continue;
+                seen.add(key);
+                out.push(v.trim());
+              }
+              return out;
+            };
+
+            const headlines: string[] = dedupePreserveOrder([
               resolvedText.headline || creative.headline || creative.name || "Learn More",
               assignment.headline_2 || "Visit Today",
               assignment.headline_3 || resolvedText.callToAction || "Get Started",
               assignment.headline_4 || "",
               assignment.headline_5 || "",
-            ]
-              .filter(Boolean)
-              .map((headline: string) => headline.substring(0, 30));
+            ].filter(Boolean).map((h: string) => h.substring(0, 30)));
 
-            const descriptions: string[] = [
+            const descriptions: string[] = dedupePreserveOrder([
               resolvedText.description || creative.description || resolvedText.primaryText || "",
               assignment.description_2 || creative.primary_text || "",
               assignment.description_3 || "",
               assignment.description_4 || "",
               assignment.description_5 || "",
-            ]
-              .filter(Boolean)
-              .map((description: string) => description.substring(0, 90));
+            ].filter(Boolean).map((d: string) => d.substring(0, 90)));
 
             // Resolve Demand Gen / Video media.
             // Important: image creatives can carry stale YouTube metadata from prior edits/imports,
