@@ -812,9 +812,14 @@ async function updateLaunchStatuses(
       );
 
       // Update campaign entry - try each platform variant until one works
+      // SIBLING-SAFE: When a phase produces multiple sibling campaigns (e.g. Search
+      // Brand/Generic/Competition), we MUST match by entity_name to avoid
+      // overwriting all sibling rows with the same dsp_entity_id. Only fall back
+      // to the broader (no entity_name) match when an existing row truly does NOT
+      // carry a name yet (legacy rows / single-entity phases).
       if (dspCampaignId) {
         for (const platformName of platformVariants) {
-          const buildCampaignQuery = (exactEntityName?: string | null) => {
+          const buildCampaignQuery = (exactEntityName?: string | null, requireNullName = false) => {
             let campaignQuery = supabase
             .from("campaign_launch_status")
             .update({
@@ -832,23 +837,31 @@ async function updateLaunchStatuses(
 
             campaignQuery = phase ? campaignQuery.eq("phase_name", phase) : campaignQuery.is("phase_name", null);
             if (exactEntityName) campaignQuery = campaignQuery.eq("entity_name", exactEntityName);
+            else if (requireNullName) campaignQuery = campaignQuery.is("entity_name", null);
             return campaignQuery;
           };
 
           let { data: campaignUpdateResult, error: campaignUpdateError } = await buildCampaignQuery(campaignEntityName).select();
 
+          // Fallback ONLY for nameless legacy rows — never blanket-update siblings.
           if ((!campaignUpdateResult || campaignUpdateResult.length === 0) && campaignEntityName) {
-            ({ data: campaignUpdateResult, error: campaignUpdateError } = await buildCampaignQuery().select());
+            ({ data: campaignUpdateResult, error: campaignUpdateError } = await buildCampaignQuery(null, true).select());
           }
 
           if (campaignUpdateResult && campaignUpdateResult.length > 0) {
             console.log(
-              `✅ Updated campaign status for ${market}/${phase} with platform=${platformName}: ${campaignUpdateResult.length} rows`,
+              `✅ Updated campaign status for ${market}/${phase}/${campaignEntityName || "(no name)"} with platform=${platformName}: ${campaignUpdateResult.length} rows`,
             );
             break; // Found matching rows, stop trying variants
           } else if (campaignUpdateError) {
             console.error(`❌ Error updating campaign status: ${campaignUpdateError.message}`);
           }
+        }
+
+        if (!campaignEntityName) {
+          console.warn(
+            `⚠️ No campaignEntityName provided for ${market}/${phase} — sibling rows could be ambiguous. Push adapter should pass campaignEntityName.`,
+          );
         }
       }
 
@@ -856,7 +869,7 @@ async function updateLaunchStatuses(
       const adEntityId = adSetId || adGroupId;
       if (adEntityId) {
         for (const platformName of platformVariants) {
-          const buildAdSetQuery = (exactEntityName?: string | null) => {
+          const buildAdSetQuery = (exactEntityName?: string | null, requireNullName = false) => {
             let adSetQuery = supabase
             .from("campaign_launch_status")
             .update({
@@ -874,23 +887,31 @@ async function updateLaunchStatuses(
 
             adSetQuery = phase ? adSetQuery.eq("phase_name", phase) : adSetQuery.is("phase_name", null);
             if (exactEntityName) adSetQuery = adSetQuery.eq("entity_name", exactEntityName);
+            else if (requireNullName) adSetQuery = adSetQuery.is("entity_name", null);
             return adSetQuery;
           };
 
           let { data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery(adSetEntityName).select();
 
+          // Fallback ONLY for nameless legacy rows — never blanket-update siblings.
           if ((!adsetUpdateResult || adsetUpdateResult.length === 0) && adSetEntityName) {
-            ({ data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery().select());
+            ({ data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery(null, true).select());
           }
 
           if (adsetUpdateResult && adsetUpdateResult.length > 0) {
             console.log(
-              `✅ Updated adset status for ${market}/${phase} with platform=${platformName}: ${adsetUpdateResult.length} rows`,
+              `✅ Updated adset status for ${market}/${phase}/${adSetEntityName || "(no name)"} with platform=${platformName}: ${adsetUpdateResult.length} rows`,
             );
             break;
           } else if (adsetUpdateError) {
             console.error(`❌ Error updating adset status: ${adsetUpdateError.message}`);
           }
+        }
+
+        if (!adSetEntityName) {
+          console.warn(
+            `⚠️ No adSetEntityName provided for ${market}/${phase} — sibling rows could be ambiguous. Push adapter should pass adSetEntityName.`,
+          );
         }
       }
     }
@@ -1373,6 +1394,20 @@ const handler = async (req: Request): Promise<Response> => {
     const pushedEntitySet = new Set<string>();
     const existingEntitySet = new Set<string>();
     const pushedEntityIdMap = new Map<string, string>();
+    // Per-row map keyed by (platform|market|phase|entityType|entityName) so siblings
+    // (e.g. Search Brand/Generic/Competition campaigns or DGEN/Video LANG ad groups)
+    // never collide when looking up an existing DSP id for reuse.
+    const pushedEntityIdByName = new Map<string, string>();
+
+    const buildEntityNameKey = (
+      platformName: string,
+      market: string,
+      phaseName: string | null | undefined,
+      entityType: string,
+      entityName: string | null | undefined,
+    ): string => {
+      return `${buildEntityKey(platformName, market, phaseName, entityType)}|${String(entityName || "").trim().toLowerCase()}`;
+    };
 
     for (const status of existingStatuses || []) {
       const key = buildEntityKey(status.platform || "", status.market || "", status.phase_name, status.entity_type || "");
@@ -1380,7 +1415,19 @@ const handler = async (req: Request): Promise<Response> => {
 
       if ((status.status === "pushed_to_dsp" || status.status === "live") && status.dsp_entity_id) {
         pushedEntitySet.add(key);
-        pushedEntityIdMap.set(key, status.dsp_entity_id);
+        // Phase-level fallback (legacy lookups)
+        if (!pushedEntityIdMap.has(key)) {
+          pushedEntityIdMap.set(key, status.dsp_entity_id);
+        }
+        // Per-name lookup (preferred for sibling-safe reuse)
+        const nameKey = buildEntityNameKey(
+          status.platform || "",
+          status.market || "",
+          status.phase_name,
+          status.entity_type || "",
+          (status as any).entity_name || "",
+        );
+        pushedEntityIdByName.set(nameKey, status.dsp_entity_id);
       }
     }
 
@@ -1406,6 +1453,24 @@ const handler = async (req: Request): Promise<Response> => {
     ): string | null => {
       for (const token of marketTokens) {
         const id = pushedEntityIdMap.get(buildEntityKey(platformName, token, phaseName, entityType));
+        if (id) return id;
+      }
+      return null;
+    };
+
+    // Sibling-safe lookup: returns the DSP id of a SPECIFIC entity_name (case-insensitive).
+    // Used for Search keyword strategies (Brand/Generic/Competition) and
+    // Demand Gen / Video LANG ad-group splits which all share a phase_name.
+    const findPushedEntityIdByName = (
+      platformName: string,
+      marketTokens: string[],
+      phaseName: string | null | undefined,
+      entityType: "campaign" | "adset",
+      entityName: string | null | undefined,
+    ): string | null => {
+      if (!entityName) return null;
+      for (const token of marketTokens) {
+        const id = pushedEntityIdByName.get(buildEntityNameKey(platformName, token, phaseName, entityType, entityName));
         if (id) return id;
       }
       return null;
@@ -1587,9 +1652,28 @@ const handler = async (req: Request): Promise<Response> => {
             skippedCount++;
           } else {
             const existingCampaignId = findPushedEntityId(platformKey, marketTokens, phaseName, "campaign");
+            // Build a per-(strategy/split) lookup index of pushed DSP ids so the
+            // platform-specific push can reuse the right campaign / ad group when
+            // a single phase produces multiple sibling entities.
+            const pushedByNameForPhase: Record<string, string> = {};
+            const platformKeyLower = platformKey;
+            const phaseLower = String(phaseName || "").trim().toLowerCase();
+            for (const token of marketTokens) {
+              const prefix = `${platformKeyLower}|${token}|${phaseLower}|`;
+              for (const [key, id] of pushedEntityIdByName.entries()) {
+                if (key.startsWith(prefix)) {
+                  // key = platform|market|phase|entityType|entityName
+                  const parts = key.split("|");
+                  const entityType = parts[3];
+                  const entityName = parts.slice(4).join("|");
+                  pushedByNameForPhase[`${entityType}::${entityName}`] = id;
+                }
+              }
+            }
             filteredPhases.push({
               ...phase,
               _existingDspCampaignId: existingCampaignId || undefined,
+              _pushedEntityIdsByName: pushedByNameForPhase,
             });
           }
         }
@@ -4258,16 +4342,24 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
           });
 
           // Step 1: Create campaign
-          const existingCampaignId = typeof phase._existingDspCampaignId === "string" ? phase._existingDspCampaignId : undefined;
+          // Sibling-safe reuse: if a previous run already created a campaign with the
+          // SAME final entity_name (per-strategy for Search), reuse it instead of
+          // creating a duplicate on the DSP. The legacy phase-level
+          // `_existingDspCampaignId` is only used as a fallback when the phase
+          // produces a single campaign (no strategy split).
+          const pushedByName: Record<string, string> = (phase as any)._pushedEntityIdsByName || {};
+          const reusedByName = pushedByName[`campaign::${String(finalCampaignName || "").trim().toLowerCase()}`];
+          const legacyExistingCampaignId = typeof phase._existingDspCampaignId === "string" ? phase._existingDspCampaignId : undefined;
+          const existingCampaignId = reusedByName || (!strategyName ? legacyExistingCampaignId : undefined);
 
           let campaignResult: any;
-          if (existingCampaignId && !strategyName) {
-            console.log(`♻️ Reusing existing Google Ads campaign for ${market.name}/${phase.name}: ${existingCampaignId}`);
+          if (existingCampaignId) {
+            console.log(`♻️ Reusing existing Google Ads campaign for ${market.name}/${phase.name}${strategyName ? ` [${strategyName}]` : ""}: ${existingCampaignId}`);
             campaignResult = {
               success: true,
               campaignId: existingCampaignId,
               platform: "google",
-              metadata: { reused: true },
+              metadata: { reused: true, byName: Boolean(reusedByName) },
             };
           } else {
             campaignResult = await googleAdapter.createCampaign({
