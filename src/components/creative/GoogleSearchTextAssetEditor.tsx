@@ -710,6 +710,101 @@ export function GoogleSearchTextAssetEditor({
     onOpenChange(false);
   }, [onBeforeClose, onOpenChange]);
 
+  // ---------- Bulk apply bar ----------
+
+  const bulkParameters = useMemo<BulkParameterDef[]>(() => {
+    const headlineParams: BulkParameterDef[] = Array.from({ length: HEADLINE_COUNT }, (_, i) => ({
+      key: `headline_${i + 1}`,
+      label: `Headline ${i + 1}`,
+      group: 'Headlines',
+      type: 'text',
+      placeholder: `Headline ${i + 1} (max ${HEADLINE_MAX} chars)`,
+      maxLength: HEADLINE_MAX,
+    }));
+    const descriptionParams: BulkParameterDef[] = Array.from({ length: DESCRIPTION_COUNT }, (_, i) => ({
+      key: `description_${i + 1}`,
+      label: `Description ${i + 1}`,
+      group: 'Descriptions',
+      type: 'textarea',
+      placeholder: `Description ${i + 1} (max ${DESCRIPTION_MAX} chars)`,
+      maxLength: DESCRIPTION_MAX,
+    }));
+    return [
+      ...headlineParams,
+      ...descriptionParams,
+      { key: 'path1', label: 'Path 1', group: 'Paths', type: 'text', maxLength: PATH_MAX, placeholder: `e.g. shoes (max ${PATH_MAX} chars)` },
+      { key: 'path2', label: 'Path 2', group: 'Paths', type: 'text', maxLength: PATH_MAX, placeholder: `e.g. running (max ${PATH_MAX} chars)` },
+      { key: 'finalUrl', label: 'Final URL', group: 'URL', type: 'url', placeholder: 'https://example.com/landing' },
+      { key: 'businessName', label: 'Business name', group: 'Brand', type: 'text', maxLength: BUSINESS_MAX, placeholder: `Business name (max ${BUSINESS_MAX} chars)` },
+    ];
+  }, []);
+
+  const bulkSelectOptions = useMemo(
+    () => [
+      { value: 'all', label: `All visible (${filteredDrafts.length})` },
+      { value: 'none', label: 'None' },
+      { value: 'invalid', label: 'Invalid creatives' },
+      { value: 'rsa', label: 'All Text Ads (RSA)' },
+      { value: 'sitelink', label: 'All Sitelinks' },
+      { value: 'callout', label: 'All Callouts' },
+    ],
+    [filteredDrafts.length],
+  );
+
+  const handleBulkSelectScope = useCallback((value: string) => {
+    if (value === 'all') setSelectedIds(new Set(filteredDrafts.map((d) => d.rowId)));
+    else if (value === 'none') setSelectedIds(new Set());
+    else if (value === 'invalid') setSelectedIds(new Set(drafts.filter(isDraftInvalid).map((d) => d.rowId)));
+    else if (value === 'rsa' || value === 'sitelink' || value === 'callout') {
+      setSelectedIds(new Set(drafts.filter((d) => d.subtype === value).map((d) => d.rowId)));
+    }
+  }, [drafts, filteredDrafts, isDraftInvalid]);
+
+  const handleBulkApply = useCallback((parameterKey: string, value: string, scope: BulkApplyScope): number => {
+    const targets =
+      scope === 'selection' ? drafts.filter((d) => selectedIds.has(d.rowId))
+      : scope === 'visible' ? filteredDrafts
+      : drafts;
+    if (targets.length === 0) return 0;
+    const targetIds = new Set(targets.map((t) => t.rowId));
+
+    const headlineMatch = parameterKey.match(/^headline_(\d+)$/);
+    const descriptionMatch = parameterKey.match(/^description_(\d+)$/);
+
+    setDrafts((prev) => {
+      const next = prev.map((d) => {
+        if (!targetIds.has(d.rowId)) return d;
+        if (headlineMatch) {
+          const idx = Number(headlineMatch[1]) - 1;
+          const headlines = d.headlines.slice();
+          headlines[idx] = value.slice(0, HEADLINE_MAX);
+          return { ...d, headlines };
+        }
+        if (descriptionMatch) {
+          const idx = Number(descriptionMatch[1]) - 1;
+          const descriptions = d.descriptions.slice();
+          descriptions[idx] = value.slice(0, DESCRIPTION_MAX);
+          return { ...d, descriptions };
+        }
+        switch (parameterKey) {
+          case 'path1': return { ...d, path1: value.slice(0, PATH_MAX) };
+          case 'path2': return { ...d, path2: value.slice(0, PATH_MAX) };
+          case 'finalUrl': return { ...d, finalUrl: value };
+          case 'businessName': return { ...d, businessName: value.slice(0, BUSINESS_MAX) };
+          default: return d;
+        }
+      });
+      // Persist updated drafts upstream (one row at a time so each row gets
+      // the correct field-level patch from its own draftToRowUpdates output).
+      next.forEach((d) => {
+        if (targetIds.has(d.rowId)) onRowChange(d.rowId, draftToRowUpdates(d));
+      });
+      return next;
+    });
+
+    return targets.length;
+  }, [drafts, filteredDrafts, selectedIds, onRowChange]);
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
