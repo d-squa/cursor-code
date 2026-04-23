@@ -335,9 +335,24 @@ function stripSearchStrategySuffix(value: unknown): string {
   return label.replace(/\s[•-]\s(?:brand|generic|competition)$/i, "").trim();
 }
 
+function extractSearchStrategySuffix(value: unknown): string | null {
+  const label = String(value ?? "").trim();
+  const match = label.match(/\s[•-]\s(brand|generic|competition)$/i);
+  return match?.[1]?.toLowerCase() || null;
+}
+
+function extractSearchStrategyLabel(value: unknown): string | null {
+  const label = String(value ?? "").trim();
+  if (!label) return null;
+
+  const inlineMatch = label.match(/(?:^|\s[•-]\s|\s-\s)(brand|generic|competition)(?:\s-\s|\s[•-]\s|$)/i);
+  return inlineMatch?.[1]?.toLowerCase() || extractSearchStrategySuffix(label);
+}
+
 function matchesAssignmentPhaseName(
   assignmentPhaseName: unknown,
   targetPhaseName: unknown,
+  targetEntityName: unknown,
   platformKey: PlatformKey,
 ): boolean {
   const assignmentLabel = normalizeComparableLabel(assignmentPhaseName);
@@ -347,6 +362,23 @@ function matchesAssignmentPhaseName(
   if (assignmentLabel === targetLabel) return true;
 
   if (platformKey !== "google" && platformKey !== "tiktok") return false;
+
+  const assignmentStrategy = extractSearchStrategyLabel(assignmentPhaseName);
+  const targetStrategy = extractSearchStrategyLabel(targetPhaseName)
+    || extractSearchStrategyLabel(targetEntityName);
+
+  // If both sides explicitly declare a search strategy, they must match exactly.
+  // Falling back to base-phase matching here causes Brand/Generic/Competition
+  // assignments to bleed into each other and push into the wrong Google campaign/ad group.
+  if (assignmentStrategy || targetStrategy) {
+    if (!assignmentStrategy || !targetStrategy) {
+      return false;
+    }
+
+    return assignmentStrategy === targetStrategy
+      && normalizeComparableLabel(stripSearchStrategySuffix(assignmentPhaseName)) ===
+        normalizeComparableLabel(stripSearchStrategySuffix(targetPhaseName));
+  }
 
   return normalizeComparableLabel(stripSearchStrategySuffix(assignmentPhaseName)) ===
     normalizeComparableLabel(stripSearchStrategySuffix(targetPhaseName));
@@ -1577,7 +1609,7 @@ const handler = async (req: Request): Promise<Response> => {
           .eq("market", entry.market);
 
         const hasMatchingMarketAssignments = (marketAssignments || []).some((assignment: any) =>
-          matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
+          matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, entry.entity_name, platformKey)
         );
 
         if (!hasMatchingMarketAssignments) {
@@ -1719,7 +1751,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       const phaseMatchedAssignments = (assignments || []).filter((assignment: any) =>
-        matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
+        matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, entry.entity_name, platformKey)
       );
 
       let scopedAssignments = platformKey === "meta" && resolvedLaunchAdSetConfig
