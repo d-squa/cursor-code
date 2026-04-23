@@ -2081,6 +2081,32 @@ class GoogleAdsAdapter implements PlatformAdapter {
         console.warn("[google.createCreative] Failed to resolve channel type, defaulting to SEARCH:", lookupErr);
       }
 
+      // Pre-flight RSA cap check for SEARCH ad groups. Google enforces max 3 ENABLED
+      // RSAs per ad group, but counts ads created earlier in the same push job that
+      // aren't yet visible in our app UI. Query the live count so we can surface a
+      // clear message instead of a generic INVALID_ARGUMENT response.
+      if (channelType === "SEARCH") {
+        try {
+          const rsaQuery = `SELECT ad_group_ad.ad.id FROM ad_group_ad WHERE ad_group.id = ${params.adGroupId} AND ad_group_ad.status = 'ENABLED' AND ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD'`;
+          const rsaResp = await fetch(`${this.API_BASE}/customers/${customerId}/googleAds:search`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ query: rsaQuery }),
+          });
+          if (rsaResp.ok) {
+            const rsaData = await rsaResp.json();
+            const enabledCount = Array.isArray(rsaData?.results) ? rsaData.results.length : 0;
+            if (enabledCount >= 3) {
+              const message = `This ad group already has ${enabledCount} of 3 enabled Responsive Search Ads in Google Ads (count includes ads created earlier in this push that may not yet appear in ActiPlan). Pause or remove an existing RSA in Google Ads, or assign this creative to a different ad group.`;
+              console.warn(`[google.createCreative] RSA cap pre-flight blocked adGroup=${params.adGroupId} count=${enabledCount}`);
+              return { success: false, creativeId: "", error: message };
+            }
+          }
+        } catch (rsaCheckErr) {
+          console.warn("[google.createCreative] RSA pre-flight check failed (proceeding):", rsaCheckErr);
+        }
+      }
+
       // Collect headlines/descriptions provided by the caller (text-asset overrides),
       // falling back to legacy single-string fields for backwards compatibility.
       const rawHeadlines: string[] = Array.isArray((params as any).headlines) && (params as any).headlines.length > 0
