@@ -1467,6 +1467,52 @@ class GoogleAdsAdapter implements PlatformAdapter {
    * Upload an image (downloaded from a URL) to the Google Ads asset library
    * as an imageAsset. Returns the asset resource name (customers/X/assets/Y).
    */
+  /**
+   * Center-crop image bytes to a target aspect ratio (default 1:1) and re-encode as PNG.
+   * Used to satisfy Google Ads logo aspect ratio requirements (logo_images = 1:1).
+   * Returns the original bytes unchanged if cropping fails (caller will surface the upload error).
+   */
+  private async cropImageToAspectRatio(
+    bytes: Uint8Array,
+    targetRatio: number = 1,
+  ): Promise<Uint8Array> {
+    try {
+      const { Image } = await import("https://deno.land/x/imagescript@1.2.17/mod.ts");
+      const img = await Image.decode(bytes);
+      const w = img.width;
+      const h = img.height;
+      const currentRatio = w / h;
+      // Already within tolerance — skip work
+      if (Math.abs(currentRatio - targetRatio) / targetRatio < 0.02) {
+        return bytes;
+      }
+      let cropW: number, cropH: number;
+      if (currentRatio > targetRatio) {
+        // too wide — crop width
+        cropH = h;
+        cropW = Math.round(h * targetRatio);
+      } else {
+        // too tall — crop height
+        cropW = w;
+        cropH = Math.round(w / targetRatio);
+      }
+      const x = Math.max(0, Math.floor((w - cropW) / 2));
+      const y = Math.max(0, Math.floor((h - cropH) / 2));
+      const cropped = img.crop(x, y, cropW, cropH);
+      // Logos must be at least 128x128 for Google Ads
+      const minSize = 128;
+      if (cropped.width < minSize || cropped.height < minSize) {
+        const scale = Math.max(minSize / cropped.width, minSize / cropped.height);
+        cropped.resize(Math.round(cropped.width * scale), Math.round(cropped.height * scale));
+      }
+      const png = await cropped.encode();
+      return new Uint8Array(png);
+    } catch (e) {
+      console.warn("[google.cropImageToAspectRatio] failed, using original bytes:", e);
+      return bytes;
+    }
+  }
+
   private async uploadImageAsset(
     customerId: string,
     headers: Record<string, string>,
@@ -1484,13 +1530,24 @@ class GoogleAdsAdapter implements PlatformAdapter {
      * slot while keeping the visual asset identical.
      */
     forceUnique: boolean = false,
+    /**
+     * Optional target aspect ratio (width / height). When set, the image is
+     * center-cropped to this ratio before upload. Used to satisfy Google's
+     * strict per-slot aspect ratio requirements (e.g. logo_images = 1:1,
+     * marketing_images = 1.91:1, square_marketing_images = 1:1).
+     */
+    cropAspectRatio: number | null = null,
   ): Promise<string> {
     const imgResp = await fetch(imageUrl);
     if (!imgResp.ok) {
       throw new Error(`Failed to download image (${imgResp.status})`);
     }
     const arrayBuffer = await imgResp.arrayBuffer();
-    const originalBytes = new Uint8Array(arrayBuffer);
+    let originalBytes = new Uint8Array(arrayBuffer);
+
+    if (cropAspectRatio && cropAspectRatio > 0) {
+      originalBytes = await this.cropImageToAspectRatio(originalBytes, cropAspectRatio);
+    }
 
     let bytes: Uint8Array = originalBytes;
     if (forceUnique) {
