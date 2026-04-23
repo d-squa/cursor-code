@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/utils/googleCtaOptions';
+import { GoogleBulkApplyBar, type BulkParameterDef, type BulkApplyScope } from './GoogleBulkApplyBar';
 
 // ---------- Type detection ----------
 
