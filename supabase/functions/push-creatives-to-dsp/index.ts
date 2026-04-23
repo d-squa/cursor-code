@@ -1546,8 +1546,7 @@ const handler = async (req: Request): Promise<Response> => {
           .select("id, phase_name")
           .eq("campaign_id", campaign.id)
           .ilike("platform", "google")
-          .eq("market", entry.market)
-          .not("dsp_creative_id", "is", null);
+          .eq("market", entry.market);
 
         const hasMatchingMarketAssignments = (marketAssignments || []).some((assignment: any) =>
           matchesAssignmentPhaseName(assignment.phase_name, entry.phase_name, platformKey)
