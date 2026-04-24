@@ -1399,9 +1399,24 @@ export function TextAssetsStep({
   }, [persistTextAssets, rows, googlePlaceholderRows]);
 
   const handleSaveAndProceed = useCallback(async () => {
+    // PMax hard-block: every PMax asset group must satisfy the minimums
+    // (3H/1LH/2D w/ short ≤60, business name, 1.91:1 image, 1:1 image, logo).
+    const { arePmaxGroupsValid } = await import('@/utils/pmaxAssetGroupValidation');
+    const { valid, failingGroups } = arePmaxGroupsValid(rows);
+    if (!valid) {
+      const summary = failingGroups
+        .slice(0, 3)
+        .map((g) => `• ${g.market} · ${g.phase} · ${g.adGroup}: ${g.errors[0]?.message || 'incomplete'}`)
+        .join('\n');
+      const more = failingGroups.length > 3 ? `\n…and ${failingGroups.length - 3} more` : '';
+      toast.error('Performance Max requirements not met', {
+        description: `${failingGroups.length} asset group${failingGroups.length === 1 ? '' : 's'} cannot be saved:\n${summary}${more}`,
+      });
+      return;
+    }
     const ok = await saveTextAssets();
     if (ok) onComplete();
-  }, [saveTextAssets, onComplete]);
+  }, [saveTextAssets, onComplete, rows]);
 
   // TextAssetExcelEditor expects onSave to return Promise<void>
   const handleSaveOnly = useCallback(async (): Promise<void> => {

@@ -41,6 +41,12 @@ import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/utils/googleCtaOptions';
 import { GoogleBulkApplyBar, type BulkParameterDef, type BulkApplyScope } from './GoogleBulkApplyBar';
+import {
+  validatePmaxAssetGroups,
+  PMAX_LIMITS,
+  type PmaxAssetGroupValidation,
+} from '@/utils/pmaxAssetGroupValidation';
+import { AlertTriangle, CheckCircle2, Images } from 'lucide-react';
 
 // ---------- Type detection ----------
 
@@ -343,6 +349,16 @@ function isDraftInvalid(d: NonSearchAdDraft): boolean {
   if (schema.requiresFinalUrl && !d.finalUrl.trim()) return true;
   if (schema.requiresYoutubeVideo && !extractYouTubeId(d.youtubeVideoUrl)) return true;
   if (schema.requiresCallToAction && !normalizeGoogleCta(d.callToAction)) return true;
+  // PMax-only: at least one description must be ≤60 chars (Google "short
+  // description" requirement). The other PMax minimums (3H/1LH/2D/BizName)
+  // are already covered above.
+  if (d.type === 'pmax') {
+    const filledDescriptions = d.descriptions.map((x) => (x || '').trim()).filter(Boolean);
+    if (filledDescriptions.length >= PMAX_LIMITS.MIN_DESCRIPTIONS) {
+      const hasShort = filledDescriptions.some((s) => s.length <= PMAX_LIMITS.DESCRIPTION_SHORT_MAX);
+      if (!hasShort) return true;
+    }
+  }
   return false;
 }
 
@@ -396,10 +412,16 @@ interface Props {
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
   /** Delete one or more creative assignments (by assignmentId). */
   onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
+  /** Copy the image creatives from one PMax asset group (sourceGroupKey =
+   *  "market||phase||adGroup") to all other PMax asset groups in scope.
+   *  Implementation lives in the parent (TextAssetsStep) — it duplicates the
+   *  underlying creative_assignments rows. */
+  onApplyImagesToAllPmaxGroups?: (sourceGroupKey: string) => void | Promise<void>;
 }
 
 export function GoogleNonSearchTextAssetEditor({
   open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate, onDeleteAssignments,
+  onApplyImagesToAllPmaxGroups,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -818,6 +840,13 @@ export function GoogleNonSearchTextAssetEditor({
     return appliedRowIds.length;
   }, [drafts, filteredDrafts, selectedIds, onRowChange]);
 
+  // PMax asset-group validation — recomputed on every row change.
+  const pmaxGroups = useMemo<PmaxAssetGroupValidation[]>(
+    () => validatePmaxAssetGroups(scopedRows),
+    [scopedRows],
+  );
+  const pmaxFailingCount = pmaxGroups.filter((g) => !g.isValid).length;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
@@ -926,6 +955,59 @@ export function GoogleNonSearchTextAssetEditor({
           }}
           onApply={handleBulkApply}
         />
+
+        {/* PMax asset-group validation panel */}
+        {pmaxGroups.length > 0 && (
+          <div className="px-4 py-2 border-b bg-muted/30 shrink-0 max-h-[180px] overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              {pmaxFailingCount === 0 ? (
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+              )}
+              <span className="text-xs font-semibold">
+                Performance Max asset groups: {pmaxGroups.length - pmaxFailingCount}/{pmaxGroups.length} ready to push
+              </span>
+            </div>
+            <div className="grid gap-1.5">
+              {pmaxGroups.map((g) => (
+                <div key={g.groupKey} className={cn(
+                  'flex items-start gap-2 text-[11px] rounded border px-2 py-1.5',
+                  g.isValid ? 'border-primary/30 bg-primary/5' : 'border-destructive/40 bg-destructive/5'
+                )}>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{g.market} · {g.phase} · {g.adGroup}</div>
+                    <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span>H: {g.text.headlines.length}/3</span>
+                      <span>LH: {g.text.longHeadlines.length}/1</span>
+                      <span>D: {g.text.descriptions.length}/2</span>
+                      <span>1.91:1: {g.buckets.marketingImages.length}</span>
+                      <span>1:1: {g.buckets.squareImages.length}</span>
+                      <span>Logo: {g.buckets.logos.length}</span>
+                      <span>Video: {g.buckets.videos.length}</span>
+                    </div>
+                    {g.errors.length > 0 && (
+                      <ul className="mt-1 list-disc list-inside text-destructive space-y-0.5">
+                        {g.errors.map((e, i) => <li key={i}>{e.message}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                  {onApplyImagesToAllPmaxGroups && (g.buckets.marketingImages.length > 0 || g.buckets.squareImages.length > 0 || g.buckets.logos.length > 0) && pmaxGroups.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] shrink-0"
+                      onClick={() => onApplyImagesToAllPmaxGroups(g.groupKey)}
+                    >
+                      <Images className="h-3 w-3 mr-1" />
+                      Apply images to all groups
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Body: two-pane layout — table on the left, focused detail on the right */}
         <div className="flex-1 overflow-hidden flex">
