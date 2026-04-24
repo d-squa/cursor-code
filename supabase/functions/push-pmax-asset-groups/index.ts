@@ -80,7 +80,7 @@ serve(async (req) => {
     // ----- Load campaign -----
     const { data: campaign, error: campaignErr } = await supabase
       .from("campaigns")
-      .select("id, user_id, name, platforms")
+      .select("id, user_id, name, platforms, market_splits")
       .eq("id", campaignId)
       .maybeSingle();
 
@@ -169,18 +169,23 @@ serve(async (req) => {
     }
 
     for (const [marketName, marketRows] of rowsByMarket) {
-      // Find the per-market customer ID from campaign config.
-      // `marketName` may be either the market code (e.g. "AE") used in
-      // campaign_launch_status, or the display name. Match against both,
-      // and also fall back to the marketsObj key (which is the code).
-      const marketsObj = googlePlatformConfig?.markets || {};
-      const marketEntry = Object.entries(marketsObj).find(
+      // Find the per-market customer ID using the same source as the shell push.
+      // Campaign `platforms` may only contain `{ id, name }`, while the real
+      // Google market/account config is stored under `market_splits.google`.
+      const platformMarketsObj = googlePlatformConfig?.markets || {};
+      const splitMarkets = Array.isArray((campaign as any).market_splits?.google)
+        ? (campaign as any).market_splits.google
+        : [];
+      const marketEntry = Object.entries(platformMarketsObj).find(
         ([code, m]: [string, any]) =>
           code === marketName ||
           m?.code === marketName ||
           m?.name === marketName,
       ) as [string, any] | undefined;
-      const marketCfg = marketEntry?.[1];
+      const splitMarketCfg = splitMarkets.find(
+        (m: any) => m?.name === marketName || m?.code === marketName || m?.market === marketName,
+      );
+      const marketCfg = marketEntry?.[1] || splitMarketCfg;
       const googleCustomerId =
         marketCfg?.googleCustomerId || marketCfg?.adAccountId || marketCfg?.ad_account_id ||
         googlePlatformConfig?.ad_account_id;
