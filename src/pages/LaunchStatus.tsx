@@ -1567,6 +1567,8 @@ export default function LaunchStatus() {
             currentStep={currentStep}
             filters={launchFilters}
             onDeleteCreativeAssignment={handleDeleteCreativeAssignment}
+            onPushPmaxAssetGroups={handlePushPmaxAssetGroups}
+            pushingPmaxKey={pushingPmaxKey}
           />
         </div>
       )}
