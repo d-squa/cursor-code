@@ -170,10 +170,17 @@ serve(async (req) => {
 
     for (const [marketName, marketRows] of rowsByMarket) {
       // Find the per-market customer ID from campaign config.
+      // `marketName` may be either the market code (e.g. "AE") used in
+      // campaign_launch_status, or the display name. Match against both,
+      // and also fall back to the marketsObj key (which is the code).
       const marketsObj = googlePlatformConfig?.markets || {};
-      const marketCfg = Object.values(marketsObj).find(
-        (m: any) => m?.name === marketName,
-      ) as any;
+      const marketEntry = Object.entries(marketsObj).find(
+        ([code, m]: [string, any]) =>
+          code === marketName ||
+          m?.code === marketName ||
+          m?.name === marketName,
+      ) as [string, any] | undefined;
+      const marketCfg = marketEntry?.[1];
       const googleCustomerId =
         marketCfg?.googleCustomerId || marketCfg?.adAccountId || marketCfg?.ad_account_id ||
         googlePlatformConfig?.ad_account_id;
