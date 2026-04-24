@@ -4524,30 +4524,40 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             // traditional ad groups, so the planner-pre-registered language/asset-group rows would
             // otherwise linger as "pushing" and be marked failed at the end of the run.
             try {
+              console.log(`🔍 PMax adset resolution: searching for planned adset rows for campaign=${campaignId}, market=${market.name}, phase=${phase.name}`);
               const { data: plannedPmaxAdsetRows, error: plannedPmaxAdsetErr } = await supabase
                 .from("campaign_launch_status")
-                .select("id, entity_name")
+                .select("id, entity_name, status")
                 .eq("campaign_id", campaignId)
                 .eq("platform", "Google Ads")
                 .eq("market", market.name)
                 .eq("phase_name", phase.name)
                 .eq("entity_type", "adset")
-                .in("status", ["pushing", "pending"]);
+                .neq("status", "pushed")
+                .neq("status", "pushed_to_dsp")
+                .neq("status", "live");
 
               if (plannedPmaxAdsetErr) {
                 console.warn(`⚠️ Could not fetch planned PMax adset rows: ${plannedPmaxAdsetErr.message}`);
               } else if (plannedPmaxAdsetRows && plannedPmaxAdsetRows.length > 0) {
-                console.log(`ℹ️ Resolving ${plannedPmaxAdsetRows.length} planned PMax adset row(s) as pushed (PMax has no ad groups)`);
-                await supabase
+                console.log(`ℹ️ Resolving ${plannedPmaxAdsetRows.length} planned PMax adset row(s) as pushed_to_dsp (PMax has no ad groups). Statuses found: ${plannedPmaxAdsetRows.map((r:any)=>r.status).join(",")}`);
+                const { error: updateErr } = await supabase
                   .from("campaign_launch_status")
                   .update({
-                    status: "pushed",
+                    status: "pushed_to_dsp",
                     dsp_entity_id: campaignResult.campaignId,
                     error_message: null,
                     error_details: null,
                     updated_at: new Date().toISOString(),
                   })
                   .in("id", plannedPmaxAdsetRows.map((r: any) => r.id));
+                if (updateErr) {
+                  console.error(`❌ Failed to update PMax adset rows: ${updateErr.message}`);
+                } else {
+                  console.log(`✅ Successfully resolved ${plannedPmaxAdsetRows.length} PMax adset row(s)`);
+                }
+              } else {
+                console.log(`ℹ️ No planned PMax adset rows found to resolve (none in non-pushed state)`);
               }
             } catch (pmaxResolveErr: any) {
               console.warn(`⚠️ Failed to resolve PMax planned adset rows: ${pmaxResolveErr?.message || pmaxResolveErr}`);
