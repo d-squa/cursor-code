@@ -97,6 +97,16 @@ function ItemStatusIndicator({ status, error }: { status: string; error?: string
       label: "Ready",
       className: "text-primary",
     },
+    awaiting_assets: {
+      icon: <Clock className="h-3 w-3" />,
+      label: "Awaiting Assets",
+      className: "text-amber-500",
+    },
+    assets_incomplete: {
+      icon: <AlertCircle className="h-3 w-3" />,
+      label: "Assets Incomplete",
+      className: "text-destructive",
+    },
     pushing: {
       icon: <Loader2 className="h-3 w-3 animate-spin" />,
       label: "Pushing...",
