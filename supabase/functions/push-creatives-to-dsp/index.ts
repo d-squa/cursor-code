@@ -4161,7 +4161,25 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             const cleanCustomerId = String(googleCustomerId).replace(/-/g, "");
-            const adGroupId = String(targetEntityId || "").replace(/-/g, "");
+            const rawTargetEntityId = String(targetEntityId || "");
+
+            // PMax uses AssetGroup resources, not AdGroup resources. If an
+            // assetGroups/... id reaches this path, do not call adGroupAds:mutate
+            // because it creates malformed adGroups/customers/.../assetGroups/...
+            // resource names and can trigger endless auto-retries.
+            if (rawTargetEntityId.includes("assetGroups/")) {
+              console.log(
+                `[push-creatives] Skipping Google creative assignment ${assignment.id}: target ${rawTargetEntityId} is a PMax asset group handled by push-pmax-asset-groups`,
+              );
+              await supabase
+                .from("creative_assignments")
+                .update({ status: "pushed", dsp_creative_id: rawTargetEntityId, error_message: null })
+                .eq("id", assignment.id);
+              localPushed++;
+              continue;
+            }
+
+            const adGroupId = rawTargetEntityId.replace(/-/g, "");
 
             if (!adGroupId) {
               await supabase
