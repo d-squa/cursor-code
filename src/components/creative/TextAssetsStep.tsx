@@ -1427,6 +1427,109 @@ export function TextAssetsStep({
     rows.filter(r => validateTextAssetRow(r).length === 0).length
   , [rows]);
 
+  // Apply the source PMax asset group's images (Marketing 1.91:1, Square 1:1,
+  // Logo) to every other PMax (market, phase, adGroup) group in this campaign.
+  // Creates new creative_assignments rows referencing the same creative_id, so
+  // each asset group independently satisfies Google's image minimums.
+  const handleApplyImagesToAllPmaxGroups = useCallback(async (sourceGroupKey: string) => {
+    try {
+      const { validatePmaxAssetGroups, pmaxGroupKey } = await import('@/utils/pmaxAssetGroupValidation');
+      const groups = validatePmaxAssetGroups(rows);
+      const source = groups.find((g) => g.groupKey === sourceGroupKey);
+      if (!source) {
+        toast.error('Source asset group not found');
+        return;
+      }
+      const targets = groups.filter((g) => g.groupKey !== sourceGroupKey);
+      if (targets.length === 0) {
+        toast.info('No other PMax asset groups to apply to');
+        return;
+      }
+      // Source images = marketing + square + logo rows, dedup by creativeId.
+      const sourceImageRows = [
+        ...source.buckets.marketingImages,
+        ...source.buckets.squareImages,
+        ...source.buckets.logos,
+      ];
+      const seen = new Set<string>();
+      const dedupedSource = sourceImageRows.filter((r) => {
+        if (!r.creativeId || seen.has(r.creativeId)) return false;
+        seen.add(r.creativeId);
+        return true;
+      });
+      if (dedupedSource.length === 0) {
+        toast.info('Source group has no qualifying images to apply');
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || null;
+
+      let inserted = 0;
+      let skipped = 0;
+      const newAssignments: any[] = [];
+
+      for (const target of targets) {
+        const targetCreativeIds = new Set(target.rows.map((r) => r.creativeId).filter(Boolean));
+        for (const srcRow of dedupedSource) {
+          if (targetCreativeIds.has(srcRow.creativeId)) {
+            skipped++;
+            continue;
+          }
+          const { data: created, error } = await supabase
+            .from('creative_assignments')
+            .insert({
+              campaign_id: campaignId,
+              creative_id: srcRow.creativeId,
+              platform: 'google',
+              market: target.market,
+              phase_name: target.phase || 'Default',
+              ad_set_name: target.adGroup || 'Default',
+              ad_group_name: target.adGroup || 'Default',
+              ad_strategy: (srcRow as any).googleStrategy || 'pmax',
+              display_name: srcRow.creativeName || null,
+              assigned_by: userId,
+              status: 'pending',
+            } as any)
+            .select('id')
+            .single();
+          if (error) {
+            console.error('[applyImagesToAllPmax] insert failed', error);
+            continue;
+          }
+          newAssignments.push({ assignmentId: created.id, target, srcRow });
+          inserted++;
+        }
+      }
+
+      if (inserted === 0) {
+        toast.info(`No new assignments created (${skipped} already present).`);
+        return;
+      }
+
+      // Optimistically add new rows so the validation panel reflects them
+      // immediately — they'll be re-fetched on next reload.
+      setRows((prev) => {
+        const additions: CreativeTextAssetRow[] = newAssignments.map(({ assignmentId, target, srcRow }) => ({
+          ...srcRow,
+          id: `pmax-applied-${assignmentId}`,
+          assignmentId,
+          market: target.market,
+          phase: target.phase,
+          adSet: target.adGroup,
+        } as CreativeTextAssetRow));
+        return [...prev, ...additions];
+      });
+
+      toast.success(
+        `Applied ${dedupedSource.length} image${dedupedSource.length === 1 ? '' : 's'} to ${targets.length} other PMax asset group${targets.length === 1 ? '' : 's'} (${inserted} new, ${skipped} already present).`,
+      );
+    } catch (err) {
+      console.error('[applyImagesToAllPmax] failed', err);
+      toast.error('Failed to apply images to other PMax asset groups');
+    }
+  }, [rows, campaignId]);
+
   const handleDeleteAssignments = useCallback(async (assignmentIds: string[]) => {
     const uniqueIds = Array.from(new Set(assignmentIds.filter(Boolean)));
     if (uniqueIds.length === 0) return;
