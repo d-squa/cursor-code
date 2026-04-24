@@ -961,7 +961,7 @@ export function GoogleNonSearchTextAssetEditor({
           <div className="px-4 py-2 border-b bg-muted/30 shrink-0 max-h-[180px] overflow-y-auto">
             <div className="flex items-center gap-2 mb-2">
               {pmaxFailingCount === 0 ? (
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4 text-primary" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-destructive" />
               )}
