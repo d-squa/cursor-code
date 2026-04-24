@@ -198,7 +198,7 @@ export function PlatformMarketBudgetSelector({
     fetchMetaResources();
     fetchTiktokResources();
     fetchGoogleResources();
-  }, [selectedClientId]); // Re-fetch when client changes
+  }, [selectedClientId, isSampleMode]); // Re-fetch when client or sample mode changes
 
   const fetchGoogleResources = async () => {
     setLoadingGoogleAdAccounts(true);
@@ -210,6 +210,11 @@ export function PlatformMarketBudgetSelector({
 
       if (selectedClientId) {
         query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
+      }
+
+      // Hide sample/demo accounts when sample mode is off
+      if (!isSampleMode) {
+        query = query.eq("is_sample", false);
       }
 
       const { data, error } = await query;
@@ -251,6 +256,11 @@ export function PlatformMarketBudgetSelector({
       // If a client is selected, show accounts assigned to that client OR accounts with no client assigned
       if (selectedClientId) {
         query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
+      }
+
+      // Hide sample/demo accounts when sample mode is off
+      if (!isSampleMode) {
+        query = (query as any).eq("is_sample", false);
       }
 
       const { data: adAccountsData, error: adAccountsError } = await query;
@@ -596,6 +606,11 @@ export function PlatformMarketBudgetSelector({
       
       if (selectedClientId) {
         query = query.eq("client_id", selectedClientId);
+      }
+
+      // Hide sample/demo accounts when sample mode is off
+      if (!isSampleMode) {
+        query = (query as any).eq("is_sample", false);
       }
       
       const { data: adAccountsData, error: adAccountsError } = await query;
