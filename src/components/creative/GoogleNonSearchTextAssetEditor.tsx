@@ -349,6 +349,16 @@ function isDraftInvalid(d: NonSearchAdDraft): boolean {
   if (schema.requiresFinalUrl && !d.finalUrl.trim()) return true;
   if (schema.requiresYoutubeVideo && !extractYouTubeId(d.youtubeVideoUrl)) return true;
   if (schema.requiresCallToAction && !normalizeGoogleCta(d.callToAction)) return true;
+  // PMax-only: at least one description must be ≤60 chars (Google "short
+  // description" requirement). The other PMax minimums (3H/1LH/2D/BizName)
+  // are already covered above.
+  if (d.type === 'pmax') {
+    const filledDescriptions = d.descriptions.map((x) => (x || '').trim()).filter(Boolean);
+    if (filledDescriptions.length >= PMAX_LIMITS.MIN_DESCRIPTIONS) {
+      const hasShort = filledDescriptions.some((s) => s.length <= PMAX_LIMITS.DESCRIPTION_SHORT_MAX);
+      if (!hasShort) return true;
+    }
+  }
   return false;
 }
 
