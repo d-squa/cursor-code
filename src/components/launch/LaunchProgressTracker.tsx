@@ -473,7 +473,26 @@ function CampaignsShellTree({
                         // Get campaign entities for this phase
                         const campaignEntity = adSets.find(s => s.entityType === 'campaign');
                         const adSetEntities = adSets.filter(s => s.entityType === 'adset');
-                        
+
+                        // PMax: show "Push Asset Groups" when shell is pushed but
+                        // asset groups are still awaiting / failed / incomplete.
+                        const isPmax =
+                          platform === 'Google Ads' &&
+                          (campaignEntity?.entityName?.toUpperCase().startsWith('PMAX') ||
+                            adSetEntities.some(a =>
+                              ['awaiting_assets', 'assets_incomplete'].includes(a.status),
+                            ));
+                        const shellReady =
+                          campaignEntity &&
+                          ['pushed', 'pushed_to_dsp', 'live'].includes(campaignEntity.status);
+                        const hasPushable = adSetEntities.some(a =>
+                          ['awaiting_assets', 'push_failed', 'assets_incomplete'].includes(a.status),
+                        );
+                        const showPmaxButton =
+                          isPmax && shellReady && hasPushable && Boolean(onPushPmaxAssetGroups);
+                        const pmaxKey = `${market}|${phase}`;
+                        const isPushingThis = pushingPmaxKey === pmaxKey;
+
                         return (
                           <div key={phase}>
                             <div
@@ -491,6 +510,25 @@ function CampaignsShellTree({
                               </span>
                               {campaignEntity && (
                                 <ItemStatusIndicator status={campaignEntity.status} error={campaignEntity.errorMessage} />
+                              )}
+                              {showPmaxButton && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[10px] ml-1"
+                                  disabled={isPushingThis}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onPushPmaxAssetGroups?.(market, phase);
+                                  }}
+                                >
+                                  {isPushingThis ? (
+                                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                  ) : (
+                                    <Rocket className="h-3 w-3 mr-1" />
+                                  )}
+                                  Push Asset Groups
+                                </Button>
                               )}
                               <Badge variant="secondary" className="ml-auto text-xs h-4 px-1">
                                 {adSetEntities.length}
