@@ -4735,13 +4735,19 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               }
             }
 
-            // Sibling-safe ad-group reuse: if a previous run already created an
-            // ad group with this exact entity_name (per-strategy + per-LANG split),
-            // reuse it rather than creating a duplicate.
-            const reusedAdGroupId = pushedByName[`adset::${String(finalAdGroupName || "").trim().toLowerCase()}`];
+            // Sibling-safe ad-group reuse: a prior push attempt records the
+            // ad group under its planning-format `entity_name`
+            // (`launchStatusAdSetName`), NOT the taxonomy-generated DSP name
+            // (`finalAdGroupName`). Look up both keys so retries don't
+            // collide with the previously created ad group and trigger
+            // Google's DUPLICATE_ADGROUP_NAME error.
+            const planningKey = `adset::${String(launchStatusAdSetName || "").trim().toLowerCase()}`;
+            const dspNameKey = `adset::${String(finalAdGroupName || "").trim().toLowerCase()}`;
+            const reusedAdGroupId =
+              pushedByName[planningKey] || pushedByName[dspNameKey];
             let adGroupResult: any;
             if (reusedAdGroupId) {
-              console.log(`♻️ Reusing existing Google Ads ad group for ${market.name}/${phase.name}/${adSetConfig.name}${strategyName ? ` [${strategyName}]` : ""}: ${reusedAdGroupId}`);
+              console.log(`♻️ Reusing existing Google Ads ad group for ${market.name}/${phase.name}/${adSetConfig.name}${strategyName ? ` [${strategyName}]` : ""}: ${reusedAdGroupId} (matched key: ${pushedByName[planningKey] ? "planning" : "dsp-name"})`);
               adGroupResult = { success: true, adGroupId: reusedAdGroupId, metadata: { reused: true, byName: true } };
             } else {
               adGroupResult = await googleAdapter.createAdGroup({
