@@ -412,10 +412,16 @@ interface Props {
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
   /** Delete one or more creative assignments (by assignmentId). */
   onDeleteAssignments?: (assignmentIds: string[]) => void | Promise<void>;
+  /** Copy the image creatives from one PMax asset group (sourceGroupKey =
+   *  "market||phase||adGroup") to all other PMax asset groups in scope.
+   *  Implementation lives in the parent (TextAssetsStep) — it duplicates the
+   *  underlying creative_assignments rows. */
+  onApplyImagesToAllPmaxGroups?: (sourceGroupKey: string) => void | Promise<void>;
 }
 
 export function GoogleNonSearchTextAssetEditor({
   open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate, onDeleteAssignments,
+  onApplyImagesToAllPmaxGroups,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
