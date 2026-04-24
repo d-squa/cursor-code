@@ -4570,7 +4570,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               const { data: plannedPmaxAdsetRows, error: plannedPmaxAdsetErr } = await supabase
                 .from("campaign_launch_status")
                 .select("id, entity_name, status")
-                .eq("campaign_id", campaignId)
+                .eq("campaign_id", campaign.id)
                 .eq("platform", "Google Ads")
                 .eq("market", market.name)
                 .eq("phase_name", phase.name)
@@ -4581,6 +4581,8 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
               if (plannedPmaxAdsetErr) {
                 console.warn(`⚠️ Could not fetch planned PMax adset rows: ${plannedPmaxAdsetErr.message}`);
+              } else {
+                console.log(`🧩 Found ${(plannedPmaxAdsetRows || []).length} planned PMax asset group target rows for campaign ${campaign.id}`);
               }
 
               // Default to a single asset group when no planned rows exist
