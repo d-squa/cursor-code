@@ -840,6 +840,13 @@ export function GoogleNonSearchTextAssetEditor({
     return appliedRowIds.length;
   }, [drafts, filteredDrafts, selectedIds, onRowChange]);
 
+  // PMax asset-group validation — recomputed on every row change.
+  const pmaxGroups = useMemo<PmaxAssetGroupValidation[]>(
+    () => validatePmaxAssetGroups(scopedRows),
+    [scopedRows],
+  );
+  const pmaxFailingCount = pmaxGroups.filter((g) => !g.isValid).length;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
