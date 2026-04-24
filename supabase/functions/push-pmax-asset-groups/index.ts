@@ -188,14 +188,14 @@ serve(async (req) => {
     const { getPlatformAdapter } = await import("../_shared/platform-adapter.ts");
     const googleAdapter = getPlatformAdapter("google") as any;
 
-    // Heavy work — Google Ads API calls per asset group — runs in the background
-    // to avoid the 2s CPU/wall budget when many groups are queued at once.
+    // Heavy work — Google Ads API calls per asset group — is processed in a
+    // small bounded batch so every row either succeeds or receives an error.
     const processAll = async () => {
       const results: AssetGroupResult[] = [];
 
     // Group pending rows by market so we resolve customer/credentials once per market.
-    const rowsByMarket = new Map<string, typeof pendingRows>();
-    for (const row of pendingRows) {
+	    const rowsByMarket = new Map<string, typeof rowsToProcess>();
+	    for (const row of rowsToProcess) {
       const arr = rowsByMarket.get(row.market) || [];
       arr.push(row);
       rowsByMarket.set(row.market, arr);
@@ -430,15 +430,15 @@ serve(async (req) => {
               name: groupName,
               finalUrl,
               status: "PAUSED",
-              headlines: Array.from(new Set(headlines)),
-              longHeadlines: Array.from(new Set(longHeadlines)),
-              descriptions: Array.from(new Set(descriptions)),
+              headlines: uniqueLimited(headlines, 5),
+              longHeadlines: uniqueLimited(longHeadlines, 2),
+              descriptions: uniqueLimited(descriptions, 3),
               businessName: String(businessName).substring(0, 25),
               callToAction: ctaEnum,
-              marketingImages: Array.from(new Set(marketingImgs)).slice(0, 20),
-              squareMarketingImages: Array.from(new Set(squareImgs)).slice(0, 20),
-              logoImages: Array.from(new Set(logoImgs)).slice(0, 5),
-              youtubeVideoIds: Array.from(new Set(ytVideoIds)).slice(0, 5),
+              marketingImages: uniqueLimited(marketingImgs, 2),
+              squareMarketingImages: uniqueLimited(squareImgs, 2),
+              logoImages: uniqueLimited(logoImgs, 1),
+              youtubeVideoIds: uniqueLimited(ytVideoIds, 1),
               hasMerchantCenter,
             },
           );
