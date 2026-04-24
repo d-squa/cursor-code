@@ -587,6 +587,8 @@ export function LaunchProgressTracker({
   currentStep,
   filters,
   onDeleteCreativeAssignment,
+  onPushPmaxAssetGroups,
+  pushingPmaxKey,
 }: LaunchProgressTrackerProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["shell", "creatives"]));
   const [creativesExpanded, setCreativesExpanded] = useState<Record<string, boolean>>({});
@@ -914,6 +916,8 @@ export function LaunchProgressTracker({
                   adSetStatuses={filteredAdSetStatuses}
                   expandedState={shellExpanded}
                   onToggle={toggleShellNode}
+                  onPushPmaxAssetGroups={onPushPmaxAssetGroups}
+                  pushingPmaxKey={pushingPmaxKey}
                 />
               </div>
             </CardContent>
