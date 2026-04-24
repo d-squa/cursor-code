@@ -4562,12 +4562,16 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             });
 
             // -------------------------------------------------------------
-            // PMAX ASSET GROUP CREATION
-            // One AssetGroup per planned "adset" row (typically one per
-            // language split, e.g. Default_LANG_ENG / Default_LANG_ARA).
+            // PMAX ASSET GROUPS — DEFERRED
+            // Phase 2 split: campaign shell is pushed here; asset groups are
+            // created later by `push-pmax-asset-groups` once text + image
+            // requirements are validated. We mark the planned adset rows as
+            // 'awaiting_assets' (or 'assets_incomplete' if validation fails)
+            // so the /status UI can show the right state and allow the user
+            // (or auto-trigger) to push asset groups separately.
             // -------------------------------------------------------------
             try {
-              const { data: plannedPmaxAdsetRows, error: plannedPmaxAdsetErr } = await supabase
+              const { data: plannedPmaxAdsetRows } = await supabase
                 .from("campaign_launch_status")
                 .select("id, entity_name, status")
                 .eq("campaign_id", campaign.id)
@@ -4579,241 +4583,23 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                 .neq("status", "pushed_to_dsp")
                 .neq("status", "live");
 
-              if (plannedPmaxAdsetErr) {
-                console.warn(`⚠️ Could not fetch planned PMax adset rows: ${plannedPmaxAdsetErr.message}`);
-              } else {
-                console.log(`🧩 Found ${(plannedPmaxAdsetRows || []).length} planned PMax asset group target rows for campaign ${campaign.id}`);
+              const plannedRows = plannedPmaxAdsetRows || [];
+              console.log(`🧩 PMax shell pushed — deferring ${plannedRows.length} asset group(s) for campaign ${campaign.id}`);
+
+              for (const target of plannedRows) {
+                if (!target.id) continue;
+                await supabase
+                  .from("campaign_launch_status")
+                  .update({
+                    status: "awaiting_assets",
+                    error_message: null,
+                    error_details: null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", target.id);
               }
-
-              // Default to a single asset group when no planned rows exist
-              const assetGroupTargets = (plannedPmaxAdsetRows && plannedPmaxAdsetRows.length > 0)
-                ? plannedPmaxAdsetRows
-                : [{ id: null, entity_name: `${campaign.name} - ${market.name} - ${phase.name} - Asset Group`, status: "planning" } as any];
-
-              // Pull creative assignments for this PMax phase/market once
-              const { data: pmaxAssignments } = await supabase
-                .from("creative_assignments")
-                .select(`
-                  id, creative_id, ad_set_name, position,
-                  headline, headline_2, headline_3, headline_4, headline_5,
-                  long_headline_1, long_headline_2, long_headline_3, long_headline_4, long_headline_5,
-                  description, description_2, description_3, description_4, description_5,
-                  primary_text, business_name, brand_name, destination_url, call_to_action,
-                  creative:creatives(
-                    id, name, media_type, media_urls, thumbnail_url,
-                    platform_image_hash, platform_video_id, destination_url
-                  )
-                `)
-                .eq("campaign_id", campaign.id)
-                .eq("platform", "google")
-                .eq("market", market.name)
-                .eq("phase_name", phase.name);
-
-              const allAssignments: any[] = pmaxAssignments || [];
-
-              // Pull Google library images for this account as a fallback (any approval status).
-              // PMax requires images, so we cast a wide net: account-specific first, then any
-              // Google image for this user/team.
-              let accountFallbackImages: string[] = [];
-              {
-                const { data: libImages } = await supabase
-                  .from("creative_library_assets")
-                  .select("preview_url, thumbnail_url, advertiser_id")
-                  .eq("platform", "google")
-                  .eq("advertiser_id", cleanCustomerId)
-                  .eq("asset_type", "image")
-                  .limit(40);
-                accountFallbackImages = (libImages || [])
-                  .map((a: any) => a.preview_url || a.thumbnail_url)
-                  .filter(Boolean);
-              }
-              if (accountFallbackImages.length === 0) {
-                // Broader fallback: any Google image asset belonging to this user
-                const { data: libImages2 } = await supabase
-                  .from("creative_library_assets")
-                  .select("preview_url, thumbnail_url")
-                  .eq("platform", "google")
-                  .eq("asset_type", "image")
-                  .eq("user_id", campaign.user_id)
-                  .limit(40);
-                accountFallbackImages = (libImages2 || [])
-                  .map((a: any) => a.preview_url || a.thumbnail_url)
-                  .filter(Boolean);
-              }
-              if (accountFallbackImages.length === 0) {
-                // Final fallback: any image creative in the user's library
-                const { data: imgCreatives } = await supabase
-                  .from("creatives")
-                  .select("media_urls, thumbnail_url")
-                  .eq("user_id", campaign.user_id)
-                  .eq("media_type", "image")
-                  .limit(20);
-                const urls: string[] = [];
-                for (const c of imgCreatives || []) {
-                  if (Array.isArray(c.media_urls)) urls.push(...c.media_urls.filter(Boolean));
-                  else if (c.thumbnail_url) urls.push(c.thumbnail_url);
-                }
-                accountFallbackImages = urls;
-              }
-
-              const hasMerchantCenter = Boolean(phase.googleMerchantCenterId || market.googleMerchantCenterId);
-              const finalUrl = phase.googleLandingPageUrl
-                || market.googleLandingPageUrl
-                || (allAssignments[0]?.destination_url)
-                || (allAssignments[0]?.creative?.destination_url)
-                || "https://example.com";
-              const businessName = phase.googleBusinessName
-                || market.googleBusinessName
-                || (allAssignments[0]?.business_name)
-                || (allAssignments[0]?.brand_name)
-                || campaign.name
-                || "Brand";
-
-              for (const target of assetGroupTargets) {
-                // Filter assignments matching this asset group (by ad_set_name); fallback to all
-                const matched = allAssignments.filter((a: any) =>
-                  a.ad_set_name && target.entity_name && a.ad_set_name === target.entity_name
-                );
-                const groupAssignments = matched.length > 0 ? matched : allAssignments;
-
-                // Aggregate text assets
-                const headlines: string[] = [];
-                const longHeadlines: string[] = [];
-                const descriptions: string[] = [];
-                const marketingImgs: string[] = [];
-                const squareImgs: string[] = [];
-                const logoImgs: string[] = [];
-                const ytVideoIds: string[] = [];
-
-                for (const a of groupAssignments) {
-                  for (const k of ["headline", "headline_2", "headline_3", "headline_4", "headline_5"] as const) {
-                    if (a[k]) headlines.push(a[k]);
-                  }
-                  for (const k of ["long_headline_1", "long_headline_2", "long_headline_3", "long_headline_4", "long_headline_5"] as const) {
-                    if (a[k]) longHeadlines.push(a[k]);
-                  }
-                  for (const k of ["description", "description_2", "description_3", "description_4", "description_5"] as const) {
-                    if (a[k]) descriptions.push(a[k]);
-                  }
-                  if (a.primary_text) descriptions.push(a.primary_text);
-
-                  const c = a.creative as any;
-                  if (c?.media_type === "image" && Array.isArray(c.media_urls)) {
-                    for (const u of c.media_urls) {
-                      // Bucket by aspect — fallback heuristics
-                      const url = String(u || "");
-                      if (!url) continue;
-                      // Without dimensions we can't classify; provide to all buckets as candidates
-                      marketingImgs.push(url);
-                      squareImgs.push(url);
-                      logoImgs.push(url);
-                    }
-                  }
-                  if (c?.platform_video_id) {
-                    ytVideoIds.push(c.platform_video_id);
-                  }
-                }
-
-                // Use library images as fallback if no creative images were attached
-                if (marketingImgs.length === 0 && accountFallbackImages.length > 0) {
-                  for (const url of accountFallbackImages.slice(0, 10)) {
-                    marketingImgs.push(url);
-                    squareImgs.push(url);
-                    logoImgs.push(url);
-                  }
-                  console.log(`🖼️ Using ${Math.min(10, accountFallbackImages.length)} fallback library images for PMax asset group "${target.entity_name}"`);
-                } else if (marketingImgs.length === 0) {
-                  console.warn(`⚠️ No images available for PMax asset group "${target.entity_name}" — push will fail. Add image creatives or library assets for customer ${cleanCustomerId}.`);
-                }
-
-                // Pad mandatory text assets with safe defaults to satisfy Google minimums
-                const padHeadlines = (arr: string[]) => {
-                  const defaults = ["Learn More", "Visit Today", "Discover Now", "Get Started", "Shop Now"];
-                  let i = 0;
-                  while (arr.length < 3 && i < defaults.length) {
-                    if (!arr.includes(defaults[i])) arr.push(defaults[i]);
-                    i++;
-                  }
-                  return arr;
-                };
-                const padLongHeadlines = (arr: string[]) => {
-                  const fallback = `${campaign.name || "Discover what we offer"} — ${phase.name || "Performance Max"}`.substring(0, 90);
-                  while (arr.length < 1) arr.push(fallback);
-                  return arr;
-                };
-                const padDescriptions = (arr: string[]) => {
-                  const defaults = [
-                    `Discover ${campaign.name || "our products"}.`.substring(0, 90),
-                    "Explore our latest offers and find what you need today.".substring(0, 90),
-                  ];
-                  let i = 0;
-                  while (arr.length < 2 && i < defaults.length) {
-                    if (!arr.includes(defaults[i])) arr.push(defaults[i]);
-                    i++;
-                  }
-                  return arr;
-                };
-
-                const finalHeadlines = padHeadlines(Array.from(new Set(headlines)));
-                const finalLongHeadlines = padLongHeadlines(Array.from(new Set(longHeadlines)));
-                const finalDescriptions = padDescriptions(Array.from(new Set(descriptions)));
-
-                const groupName = target.entity_name || `${campaign.name} - ${market.name} - ${phase.name}`;
-                const ctaEnum = (groupAssignments[0]?.call_to_action || "LEARN_MORE").toUpperCase();
-
-                console.log(`🧩 Building PMax AssetGroup "${groupName}" — ${finalHeadlines.length} headlines, ${finalDescriptions.length} descriptions, ${marketingImgs.length} candidate images`);
-
-                try {
-                  const assetGroupResource = await googleAdapter.createPmaxAssetGroup(
-                    cleanCustomerId,
-                    campaignHeaders,
-                    {
-                      campaignId: campaignResult.campaignId,
-                      name: groupName,
-                      finalUrl,
-                      status: "PAUSED",
-                      headlines: finalHeadlines,
-                      longHeadlines: finalLongHeadlines,
-                      descriptions: finalDescriptions,
-                      businessName: businessName.substring(0, 25),
-                      callToAction: ctaEnum,
-                      marketingImages: Array.from(new Set(marketingImgs)).slice(0, 20),
-                      squareMarketingImages: Array.from(new Set(squareImgs)).slice(0, 20),
-                      logoImages: Array.from(new Set(logoImgs)).slice(0, 5),
-                      youtubeVideoIds: Array.from(new Set(ytVideoIds)).slice(0, 5),
-                      hasMerchantCenter,
-                    },
-                  );
-
-                  if (assetGroupResource && target.id) {
-                    await supabase
-                      .from("campaign_launch_status")
-                      .update({
-                        status: "pushed_to_dsp",
-                        dsp_entity_id: assetGroupResource,
-                        error_message: null,
-                        error_details: null,
-                        updated_at: new Date().toISOString(),
-                      })
-                      .eq("id", target.id);
-                    console.log(`✅ PMax AssetGroup row resolved: ${target.entity_name} → ${assetGroupResource}`);
-                  }
-                } catch (agErr: any) {
-                  console.error(`❌ Failed to create PMax asset group "${groupName}":`, agErr?.message || agErr);
-                  if (target.id) {
-                    await supabase
-                      .from("campaign_launch_status")
-                      .update({
-                        status: "push_failed",
-                        error_message: `Asset group creation failed: ${agErr?.message || agErr}`,
-                        updated_at: new Date().toISOString(),
-                      })
-                      .eq("id", target.id);
-                  }
-                }
-              }
-            } catch (pmaxAgErr: any) {
-              console.error(`❌ PMax asset group orchestration error: ${pmaxAgErr?.message || pmaxAgErr}`);
+            } catch (pmaxDeferErr: any) {
+              console.error(`❌ PMax asset group deferral error: ${pmaxDeferErr?.message || pmaxDeferErr}`);
             }
 
             continue;
