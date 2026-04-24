@@ -163,6 +163,9 @@ export default function LaunchStatus() {
   const [campaignPushAccounts, setCampaignPushAccounts] = useState<
     Array<{ platform: 'meta' | 'tiktok' | 'google'; accountId: string; accountName?: string; entityCount?: number }>
   >([]);
+  // Tracks the (market|phaseName) currently being pushed via push-pmax-asset-groups
+  // so the per-PMax-campaign button can show a spinner.
+  const [pushingPmaxKey, setPushingPmaxKey] = useState<string | null>(null);
 
   // Use the new real-time progress hook
   const {
