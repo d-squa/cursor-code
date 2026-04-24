@@ -46,7 +46,7 @@ interface AssetGroupResult {
   error?: string;
 }
 
-const MAX_ROWS_PER_INVOCATION = 3;
+const MAX_ROWS_PER_INVOCATION = 1;
 const STALE_PUSHING_MS = 2 * 60 * 1000;
 
 const uniqueLimited = (items: string[], max: number) =>
