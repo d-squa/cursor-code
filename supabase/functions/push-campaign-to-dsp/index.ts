@@ -4735,13 +4735,19 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               }
             }
 
-            // Sibling-safe ad-group reuse: if a previous run already created an
-            // ad group with this exact entity_name (per-strategy + per-LANG split),
-            // reuse it rather than creating a duplicate.
-            const reusedAdGroupId = pushedByName[`adset::${String(finalAdGroupName || "").trim().toLowerCase()}`];
+            // Sibling-safe ad-group reuse: a prior push attempt records the
+            // ad group under its planning-format `entity_name`
+            // (`launchStatusAdSetName`), NOT the taxonomy-generated DSP name
+            // (`finalAdGroupName`). Look up both keys so retries don't
+            // collide with the previously created ad group and trigger
+            // Google's DUPLICATE_ADGROUP_NAME error.
+            const planningKey = `adset::${String(launchStatusAdSetName || "").trim().toLowerCase()}`;
+            const dspNameKey = `adset::${String(finalAdGroupName || "").trim().toLowerCase()}`;
+            const reusedAdGroupId =
+              pushedByName[planningKey] || pushedByName[dspNameKey];
             let adGroupResult: any;
             if (reusedAdGroupId) {
-              console.log(`♻️ Reusing existing Google Ads ad group for ${market.name}/${phase.name}/${adSetConfig.name}${strategyName ? ` [${strategyName}]` : ""}: ${reusedAdGroupId}`);
+              console.log(`♻️ Reusing existing Google Ads ad group for ${market.name}/${phase.name}/${adSetConfig.name}${strategyName ? ` [${strategyName}]` : ""}: ${reusedAdGroupId} (matched key: ${pushedByName[planningKey] ? "planning" : "dsp-name"})`);
               adGroupResult = { success: true, adGroupId: reusedAdGroupId, metadata: { reused: true, byName: true } };
             } else {
               adGroupResult = await googleAdapter.createAdGroup({
@@ -4755,6 +4761,42 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
                 status: "PAUSED",
                 bidAmount: adGroupBidAmount,
               });
+            }
+
+            if (!adGroupResult.success) {
+              // Recovery: if Google rejects with DUPLICATE_ADGROUP_NAME the ad
+              // group already exists in the campaign (likely from a prior
+              // attempt that failed AFTER ad group creation). Look it up by
+              // name and reuse, instead of failing the whole phase.
+              if (
+                adGroupResult.error &&
+                /DUPLICATE_ADGROUP_NAME/i.test(String(adGroupResult.error))
+              ) {
+                try {
+                  const lookupGaql = `SELECT ad_group.id, ad_group.name FROM ad_group WHERE ad_group.name = '${String(finalAdGroupName).replace(/'/g, "\\'")}' AND campaign.id = ${campaignResult.campaignId} LIMIT 1`;
+                  const lookupUrl = `${(googleAdapter as any).API_BASE || "https://googleads.googleapis.com/v23"}/customers/${cleanCustomerId}/googleAds:search`;
+                  const lookupRes = await fetch(lookupUrl, {
+                    method: "POST",
+                    headers: campaignHeaders,
+                    body: JSON.stringify({ query: lookupGaql }),
+                  });
+                  if (lookupRes.ok) {
+                    const lookupData = await lookupRes.json();
+                    const existingAgId = lookupData?.results?.[0]?.adGroup?.id;
+                    if (existingAgId) {
+                      console.log(`♻️ Recovered duplicate ad group "${finalAdGroupName}" → reusing id ${existingAgId}`);
+                      adGroupResult = {
+                        success: true,
+                        adGroupId: String(existingAgId),
+                        platform: "google",
+                        metadata: { reused: true, recoveredFromDuplicate: true },
+                      } as any;
+                    }
+                  }
+                } catch (recErr: any) {
+                  console.warn(`⚠️ DUPLICATE_ADGROUP_NAME recovery lookup failed:`, recErr?.message || recErr);
+                }
+              }
             }
 
             if (!adGroupResult.success) {
