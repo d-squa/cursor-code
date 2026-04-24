@@ -2310,6 +2310,7 @@ export function TextAssetsStep({
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
         onDeleteAssignments={handleDeleteAssignments}
+        onApplyImagesToAllPmaxGroups={handleApplyImagesToAllPmaxGroups}
       />
 
       <GoogleAdsShellReviewDialog
