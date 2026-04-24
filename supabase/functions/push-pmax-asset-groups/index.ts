@@ -80,7 +80,7 @@ serve(async (req) => {
     // ----- Load campaign -----
     const { data: campaign, error: campaignErr } = await supabase
       .from("campaigns")
-      .select("id, user_id, name, platforms")
+      .select("id, user_id, name, platforms, market_splits")
       .eq("id", campaignId)
       .maybeSingle();
 
