@@ -46,6 +46,12 @@ interface AssetGroupResult {
   error?: string;
 }
 
+const MAX_ROWS_PER_INVOCATION = 1;
+const STALE_PUSHING_MS = 2 * 60 * 1000;
+
+const uniqueLimited = (items: string[], max: number) =>
+  Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean))).slice(0, max);
+
 // Heuristic filename-based image bucketing — mirrors
 // `pmaxAssetGroupValidation.ts` on the client. We can't read remote dimensions
 // here, so we trust the filename: anything containing "logo" → logo,
@@ -91,6 +97,25 @@ serve(async (req) => {
       );
     }
 
+    // Clear rows left in `pushing` by a previous runtime timeout so the UI never
+    // shows an infinite in-progress state. Retried requests include push_failed.
+    let stalePushingQuery = supabase
+      .from("campaign_launch_status")
+      .update({
+        status: "push_failed",
+        error_message: "Previous PMax asset group push timed out before completing. Please retry.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("campaign_id", campaignId)
+      .eq("platform", "Google Ads")
+      .eq("entity_type", "adset")
+      .eq("status", "pushing")
+      .lt("updated_at", new Date(Date.now() - STALE_PUSHING_MS).toISOString());
+
+    if (marketFilter) stalePushingQuery = stalePushingQuery.eq("market", marketFilter);
+    if (phaseFilter) stalePushingQuery = stalePushingQuery.eq("phase_name", phaseFilter);
+    await stalePushingQuery;
+
     // ----- Load awaiting_assets (and optionally push_failed) PMax rows -----
     const eligibleStatuses = retryFailed
       ? ["awaiting_assets", "push_failed", "assets_incomplete"]
@@ -122,12 +147,10 @@ serve(async (req) => {
       );
     }
 
-    // Immediately mark all pending rows as `pushing` so the UI reflects work in progress
-    // before we return. Background work continues via EdgeRuntime.waitUntil.
-    await supabase
-      .from("campaign_launch_status")
-      .update({ status: "pushing", updated_at: new Date().toISOString() })
-      .in("id", pendingRows.map((r) => r.id));
+    // Keep each invocation bounded. Large PMax pushes can otherwise exceed the
+    // edge runtime CPU limit and leave every row stuck in `pushing`.
+    const rowsToProcess = pendingRows.slice(0, MAX_ROWS_PER_INVOCATION);
+    const deferredCount = Math.max(0, pendingRows.length - rowsToProcess.length);
 
     // ----- Resolve parent PMax campaign DSP IDs (per market+phase) -----
     const { data: campaignShellRows } = await supabase
@@ -165,14 +188,14 @@ serve(async (req) => {
     const { getPlatformAdapter } = await import("../_shared/platform-adapter.ts");
     const googleAdapter = getPlatformAdapter("google") as any;
 
-    // Heavy work — Google Ads API calls per asset group — runs in the background
-    // to avoid the 2s CPU/wall budget when many groups are queued at once.
+    // Heavy work — Google Ads API calls per asset group — is processed in a
+    // small bounded batch so every row either succeeds or receives an error.
     const processAll = async () => {
       const results: AssetGroupResult[] = [];
 
     // Group pending rows by market so we resolve customer/credentials once per market.
-    const rowsByMarket = new Map<string, typeof pendingRows>();
-    for (const row of pendingRows) {
+	    const rowsByMarket = new Map<string, typeof rowsToProcess>();
+	    for (const row of rowsToProcess) {
       const arr = rowsByMarket.get(row.market) || [];
       arr.push(row);
       rowsByMarket.set(row.market, arr);
@@ -407,15 +430,15 @@ serve(async (req) => {
               name: groupName,
               finalUrl,
               status: "PAUSED",
-              headlines: Array.from(new Set(headlines)),
-              longHeadlines: Array.from(new Set(longHeadlines)),
-              descriptions: Array.from(new Set(descriptions)),
+              headlines: uniqueLimited(headlines, 5),
+              longHeadlines: uniqueLimited(longHeadlines, 2),
+              descriptions: uniqueLimited(descriptions, 3),
               businessName: String(businessName).substring(0, 25),
               callToAction: ctaEnum,
-              marketingImages: Array.from(new Set(marketingImgs)).slice(0, 20),
-              squareMarketingImages: Array.from(new Set(squareImgs)).slice(0, 20),
-              logoImages: Array.from(new Set(logoImgs)).slice(0, 5),
-              youtubeVideoIds: Array.from(new Set(ytVideoIds)).slice(0, 5),
+              marketingImages: uniqueLimited(marketingImgs, 2),
+              squareMarketingImages: uniqueLimited(squareImgs, 2),
+              logoImages: uniqueLimited(logoImgs, 1),
+              youtubeVideoIds: uniqueLimited(ytVideoIds, 1),
               hasMerchantCenter,
             },
           );
@@ -467,31 +490,35 @@ serve(async (req) => {
       return results;
     };
 
-    // Kick off background processing and respond immediately so we don't hit the
-    // edge function CPU/wall-time limits when many asset groups are queued.
-    // The UI tracks progress via campaign_launch_status updates (already realtime-subscribed).
-    // @ts-ignore — EdgeRuntime is provided by the Supabase Edge runtime.
-    EdgeRuntime.waitUntil(
-      processAll().catch(async (err: any) => {
-        console.error("push-pmax-asset-groups background error:", err);
-        await supabase
-          .from("campaign_launch_status")
-          .update({
-            status: "push_failed",
-            error_message: `Background push error: ${err?.message || String(err)}`,
-            updated_at: new Date().toISOString(),
-          })
-          .in("id", pendingRows.map((r) => r.id));
-      }),
-    );
+    let results: AssetGroupResult[] = [];
+    try {
+      results = await processAll();
+    } catch (err: any) {
+      console.error("push-pmax-asset-groups batch error:", err);
+      await supabase
+        .from("campaign_launch_status")
+        .update({
+          status: "push_failed",
+          error_message: `PMax asset group push error: ${err?.message || String(err)}`,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", rowsToProcess.map((r) => r.id));
+      throw err;
+    }
 
     return new Response(
       JSON.stringify({
         ok: true,
-        queued: pendingRows.length,
-        message: "PMax asset group push started in background",
+        pushed: results.filter((r) => r.status === "pushed_to_dsp").length,
+        failed: results.filter((r) => r.status === "push_failed").length,
+        processed: results.length,
+        deferred: deferredCount,
+        message: deferredCount > 0
+          ? `Processed ${results.length}; ${deferredCount} asset group(s) remain queued. Run again to continue.`
+          : "PMax asset group push finished",
+        results,
       }),
-      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err: any) {
     console.error("push-pmax-asset-groups fatal:", err);
