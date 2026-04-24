@@ -1787,12 +1787,16 @@ const handler = async (req: Request): Promise<Response> => {
       for (const row of lingeringPushing) {
         const pmaxCampaignId = pmaxCampaignByKey.get(`${row.market}|${row.phase_name}`);
         if (row.entity_type === "adset" && pmaxCampaignId) {
-          console.log(`🛟 PMax safety net: resolving lingering adset "${row.entity_name}" under PMax campaign ${pmaxCampaignId}`);
+          // Phase 2 split: PMax asset groups are deferred and pushed by
+          // `push-pmax-asset-groups` once text + image requirements are met.
+          // Mark the adset row as `awaiting_assets` instead of falsely
+          // resolving it to `pushed_to_dsp` with the campaign id.
+          console.log(`🧩 PMax deferral: marking lingering adset "${row.entity_name}" as awaiting_assets (parent PMax campaign ${pmaxCampaignId} already pushed)`);
           await supabase
             .from("campaign_launch_status")
             .update({
-              status: "pushed_to_dsp",
-              dsp_entity_id: pmaxCampaignId,
+              status: "awaiting_assets",
+              dsp_entity_id: null,
               error_message: null,
               error_details: null,
               updated_at: new Date().toISOString(),
