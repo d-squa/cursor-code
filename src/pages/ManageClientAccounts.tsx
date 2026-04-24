@@ -16,7 +16,7 @@ import { ClientQCChecklistEditor } from "@/components/settings/ClientQCChecklist
 import { ClientBrandingTab } from "@/components/ClientBrandingTab";
 import { FeatureGate } from "@/components/FeatureGate";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-
+import { useSampleMode } from "@/contexts/SampleModeContext";
 interface Client {
   id: string;
   name: string;
@@ -31,6 +31,7 @@ interface Client {
 export default function ManageClientAccounts() {
   const { user, loading: authLoading } = useAuth();
   const { hasAccess } = useFeatureAccess();
+  const { isSampleMode } = useSampleMode();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
@@ -51,7 +52,7 @@ export default function ManageClientAccounts() {
     if (user) {
       loadData();
     }
-  }, [user]);
+  }, [user, isSampleMode]);
 
   const loadData = async () => {
     try {
@@ -64,15 +65,21 @@ export default function ManageClientAccounts() {
 
       if (clientsError) throw clientsError;
       
-      const typedClients = (clientsData || []).map(client => ({
+      let typedClients = (clientsData || []).map(client => ({
         ...client,
         platforms: Array.isArray(client.platforms) ? client.platforms as string[] : [],
         markets: Array.isArray(client.markets) ? client.markets as string[] : [],
       }));
+
+      typedClients = isSampleMode
+        ? typedClients.filter((client) => client.name === "D-squad")
+        : typedClients.filter((client) => client.name !== "D-squad");
       
       setClients(typedClients);
 
-      if (typedClients && typedClients.length > 0 && !selectedClient) {
+      if (typedClients.length === 0) {
+        setSelectedClient(null);
+      } else if (!selectedClient || !typedClients.some((client) => client.id === selectedClient)) {
         setSelectedClient(typedClients[0].id);
       }
     } catch (error: any) {
