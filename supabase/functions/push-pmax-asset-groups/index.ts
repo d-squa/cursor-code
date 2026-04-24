@@ -464,15 +464,34 @@ serve(async (req) => {
         }
       }
     }
+      return results;
+    };
+
+    // Kick off background processing and respond immediately so we don't hit the
+    // edge function CPU/wall-time limits when many asset groups are queued.
+    // The UI tracks progress via campaign_launch_status updates (already realtime-subscribed).
+    // @ts-ignore — EdgeRuntime is provided by the Supabase Edge runtime.
+    EdgeRuntime.waitUntil(
+      processAll().catch(async (err: any) => {
+        console.error("push-pmax-asset-groups background error:", err);
+        await supabase
+          .from("campaign_launch_status")
+          .update({
+            status: "push_failed",
+            error_message: `Background push error: ${err?.message || String(err)}`,
+            updated_at: new Date().toISOString(),
+          })
+          .in("id", pendingRows.map((r) => r.id));
+      }),
+    );
 
     return new Response(
       JSON.stringify({
         ok: true,
-        pushed: results.filter((r) => r.status === "pushed_to_dsp").length,
-        failed: results.filter((r) => r.status === "push_failed").length,
-        results,
+        queued: pendingRows.length,
+        message: "PMax asset group push started in background",
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err: any) {
     console.error("push-pmax-asset-groups fatal:", err);
