@@ -312,6 +312,102 @@ serve(async (req: Request) => {
         }
       }
 
+      // Google Performance Max — enforce per-asset-group minimums.
+      // (3 headlines ≤30, 1 long headline ≤90, 2 descriptions ≤90 with ≥1 ≤60,
+      //  business name ≤25, final URL, ≥1 marketing image, ≥1 square, ≥1 logo).
+      if (config.platform === "google") {
+        const isPmax = String(config.ad_strategy || "").toLowerCase().includes("pmax") ||
+          String(config.ad_strategy || "").toLowerCase().includes("performance");
+        if (isPmax) {
+          // Group all sibling configs by (market, phase, ad_group) to validate
+          // the whole asset group, not just this row.
+          const { data: siblings } = await supabase
+            .from("creative_assignments")
+            .select("*, creatives:creative_id(width, height, name, original_filename, folder_path, creative_type)")
+            .eq("campaign_id", config.campaign_id)
+            .eq("platform", "google")
+            .eq("market", config.market)
+            .eq("phase_name", config.phase_name)
+            .eq("ad_group_name", config.ad_group_name || config.ad_set_name);
+
+          const group = siblings || [config];
+          const text = (() => {
+            const sample = group.reduce((best: any, cur: any) => {
+              const score = (r: any) => [r.headline, r.headline_2, r.headline_3, r.headline_4, r.headline_5,
+                r.description, r.description_2, r.description_3, r.description_4, r.description_5,
+                r.long_headline_1, r.business_name].filter(Boolean).length;
+              return score(cur) > score(best) ? cur : best;
+            }, group[0] || config);
+            return {
+              headlines: [sample.headline, sample.headline_2, sample.headline_3, sample.headline_4, sample.headline_5]
+                .map((v: any) => String(v || "").trim()).filter(Boolean),
+              longHeadlines: [sample.long_headline_1, sample.long_headline_2, sample.long_headline_3, sample.long_headline_4, sample.long_headline_5]
+                .map((v: any) => String(v || "").trim()).filter(Boolean),
+              descriptions: [sample.description, sample.description_2, sample.description_3, sample.description_4, sample.description_5]
+                .map((v: any) => String(v || "").trim()).filter(Boolean),
+              businessName: String(sample.business_name || sample.brand_name || "").trim(),
+              finalUrl: String(sample.destination_url || "").trim(),
+            };
+          })();
+
+          if (text.headlines.length < 3) {
+            errors.push({ field: "headlines", code: "PMAX_MIN_HEADLINES", message: `PMax requires 3 headlines (≤30 chars). Found ${text.headlines.length}.`, severity: "error" });
+          }
+          if (text.headlines.some((h) => h.length > 30)) {
+            errors.push({ field: "headlines", code: "PMAX_HEADLINE_TOO_LONG", message: "Headline exceeds 30 chars.", severity: "error" });
+          }
+          if (text.longHeadlines.length < 1) {
+            errors.push({ field: "long_headline_1", code: "PMAX_MIN_LONG_HEADLINES", message: "PMax requires 1 long headline (≤90 chars).", severity: "error" });
+          }
+          if (text.longHeadlines.some((h) => h.length > 90)) {
+            errors.push({ field: "long_headline_1", code: "PMAX_LONG_HEADLINE_TOO_LONG", message: "Long headline exceeds 90 chars.", severity: "error" });
+          }
+          if (text.descriptions.length < 2) {
+            errors.push({ field: "descriptions", code: "PMAX_MIN_DESCRIPTIONS", message: `PMax requires 2 descriptions (≤90; ≥1 ≤60). Found ${text.descriptions.length}.`, severity: "error" });
+          } else if (!text.descriptions.some((d) => d.length > 0 && d.length <= 60)) {
+            errors.push({ field: "descriptions", code: "PMAX_SHORT_DESCRIPTION_REQUIRED", message: "At least one description must be ≤60 chars.", severity: "error" });
+          }
+          if (text.descriptions.some((d) => d.length > 90)) {
+            errors.push({ field: "descriptions", code: "PMAX_DESCRIPTION_TOO_LONG", message: "Description exceeds 90 chars.", severity: "error" });
+          }
+          if (!text.businessName) {
+            errors.push({ field: "business_name", code: "PMAX_BUSINESS_NAME_REQUIRED", message: "Business name is required (≤25 chars).", severity: "error" });
+          } else if (text.businessName.length > 25) {
+            errors.push({ field: "business_name", code: "PMAX_BUSINESS_NAME_TOO_LONG", message: `Business name exceeds 25 chars (${text.businessName.length}).`, severity: "error" });
+          }
+          if (!text.finalUrl) {
+            errors.push({ field: "destination_url", code: "PMAX_FINAL_URL_REQUIRED", message: "Final URL is required.", severity: "error" });
+          }
+
+          // Image bucketing across the group
+          const TOL = 0.05;
+          let marketing = 0, square = 0, logo = 0;
+          for (const s of group) {
+            const c = (s as any).creatives;
+            if (!c || c.creative_type === "video") continue;
+            const w = Number(c.width || 0), h = Number(c.height || 0);
+            if (!w || !h) continue;
+            const ar = w / h;
+            const isSquare = Math.abs(ar - 1.0) <= TOL;
+            const is191 = Math.abs(ar - 1.91) <= TOL * 1.91;
+            const hay = `${c.name || ""} ${c.original_filename || ""} ${c.folder_path || ""}`.toLowerCase();
+            const isLogoTagged = /\blogo\b/.test(hay) || (isSquare && Math.max(w, h) <= 512);
+            if (isLogoTagged && isSquare && w >= 128 && h >= 128) { logo++; continue; }
+            if (is191 && w >= 600 && h >= 314) { marketing++; continue; }
+            if (isSquare && w >= 300 && h >= 300) { square++; continue; }
+          }
+          if (marketing < 1) {
+            errors.push({ field: "images", code: "PMAX_MISSING_MARKETING_IMAGE", message: "Need ≥1 Marketing Image (1.91:1, ≥600×314).", severity: "error" });
+          }
+          if (square < 1) {
+            errors.push({ field: "images", code: "PMAX_MISSING_SQUARE_IMAGE", message: "Need ≥1 Square Marketing Image (1:1, ≥300×300).", severity: "error" });
+          }
+          if (logo < 1) {
+            errors.push({ field: "images", code: "PMAX_MISSING_LOGO", message: "Need ≥1 Logo (1:1, ≥128×128). Tag with 'logo' in filename or folder.", severity: "error" });
+          }
+        }
+      }
+
       // Determine overall validity
       const isValid = errors.length === 0;
 
