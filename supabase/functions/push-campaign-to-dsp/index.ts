@@ -4716,11 +4716,14 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
                 // Use library images as fallback if no creative images were attached
                 if (marketingImgs.length === 0 && accountFallbackImages.length > 0) {
-                  for (const url of accountFallbackImages.slice(0, 5)) {
+                  for (const url of accountFallbackImages.slice(0, 10)) {
                     marketingImgs.push(url);
                     squareImgs.push(url);
                     logoImgs.push(url);
                   }
+                  console.log(`🖼️ Using ${Math.min(10, accountFallbackImages.length)} fallback library images for PMax asset group "${target.entity_name}"`);
+                } else if (marketingImgs.length === 0) {
+                  console.warn(`⚠️ No images available for PMax asset group "${target.entity_name}" — push will fail. Add image creatives or library assets for customer ${cleanCustomerId}.`);
                 }
 
                 // Pad mandatory text assets with safe defaults to satisfy Google minimums
