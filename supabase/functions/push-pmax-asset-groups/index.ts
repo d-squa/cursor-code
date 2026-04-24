@@ -165,7 +165,10 @@ serve(async (req) => {
     const { getPlatformAdapter } = await import("../_shared/platform-adapter.ts");
     const googleAdapter = getPlatformAdapter("google") as any;
 
-    const results: AssetGroupResult[] = [];
+    // Heavy work — Google Ads API calls per asset group — runs in the background
+    // to avoid the 2s CPU/wall budget when many groups are queued at once.
+    const processAll = async () => {
+      const results: AssetGroupResult[] = [];
 
     // Group pending rows by market so we resolve customer/credentials once per market.
     const rowsByMarket = new Map<string, typeof pendingRows>();
