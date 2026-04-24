@@ -490,31 +490,35 @@ serve(async (req) => {
       return results;
     };
 
-    // Kick off background processing and respond immediately so we don't hit the
-    // edge function CPU/wall-time limits when many asset groups are queued.
-    // The UI tracks progress via campaign_launch_status updates (already realtime-subscribed).
-    // @ts-ignore — EdgeRuntime is provided by the Supabase Edge runtime.
-    EdgeRuntime.waitUntil(
-      processAll().catch(async (err: any) => {
-        console.error("push-pmax-asset-groups background error:", err);
-        await supabase
-          .from("campaign_launch_status")
-          .update({
-            status: "push_failed",
-            error_message: `Background push error: ${err?.message || String(err)}`,
-            updated_at: new Date().toISOString(),
-          })
-          .in("id", pendingRows.map((r) => r.id));
-      }),
-    );
+    let results: AssetGroupResult[] = [];
+    try {
+      results = await processAll();
+    } catch (err: any) {
+      console.error("push-pmax-asset-groups batch error:", err);
+      await supabase
+        .from("campaign_launch_status")
+        .update({
+          status: "push_failed",
+          error_message: `PMax asset group push error: ${err?.message || String(err)}`,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", rowsToProcess.map((r) => r.id));
+      throw err;
+    }
 
     return new Response(
       JSON.stringify({
         ok: true,
-        queued: pendingRows.length,
-        message: "PMax asset group push started in background",
+        pushed: results.filter((r) => r.status === "pushed_to_dsp").length,
+        failed: results.filter((r) => r.status === "push_failed").length,
+        processed: results.length,
+        deferred: deferredCount,
+        message: deferredCount > 0
+          ? `Processed ${results.length}; ${deferredCount} asset group(s) remain queued. Run again to continue.`
+          : "PMax asset group push finished",
+        results,
       }),
-      { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err: any) {
     console.error("push-pmax-asset-groups fatal:", err);
