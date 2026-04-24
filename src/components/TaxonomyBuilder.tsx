@@ -57,12 +57,13 @@ const PARAM_TYPE_OPTIONS: { value: TaxonomyParamType; label: string }[] = [
 ];
 
 function mergeTemplateWithDefaults(params: TaxonomyParam[], defaults: TaxonomyParam[]): TaxonomyParam[] {
+  const defaultIds = new Set(defaults.map((param) => param.id));
   const paramMap = new Map(params.map((param) => [param.id, param]));
   const mergedDefaults = defaults.map((defaultParam) => ({
     ...defaultParam,
     ...(paramMap.get(defaultParam.id) || {}),
   }));
-  const customOnly = params.filter((param) => !defaults.some((defaultParam) => defaultParam.id === param.id));
+  const customOnly = params.filter((param) => !defaultIds.has(param.id) && param.id !== 'qcState' && param.key !== 'QC');
   return [...mergedDefaults, ...customOnly];
 }
 
@@ -197,8 +198,11 @@ export default function TaxonomyBuilder({
       if (error) throw error;
 
       if (data) {
+        const existingTemplate = ((data.template as unknown) as TaxonomyParam[]).filter(
+          (param) => param.id !== 'qcState' && param.key !== 'QC'
+        );
         const mergedTemplate = mergeTemplateWithDefaults(
-          (data.template as unknown) as TaxonomyParam[],
+          existingTemplate,
           getDefaultParams()
         );
 
