@@ -3589,7 +3589,23 @@ class GoogleAdsAdapter implements PlatformAdapter {
       }
     }
 
-    // 2) Validate Google Ads minimums BEFORE issuing the mutate (fail-fast w/ clear error)
+    // 2) Dedupe link specs by (asset resourceName, fieldType). Different source
+    // URLs can resolve to the same Google Ads asset ID after upload, which
+    // triggers `assetGroupAssetError: DUPLICATE_RESOURCE` in the atomic mutate.
+    {
+      const seenLink = new Set<string>();
+      const deduped: LinkSpec[] = [];
+      for (const spec of linkSpecs) {
+        const key = `${spec.asset}::${spec.fieldType}`;
+        if (seenLink.has(key)) continue;
+        seenLink.add(key);
+        deduped.push(spec);
+      }
+      linkSpecs.length = 0;
+      linkSpecs.push(...deduped);
+    }
+
+    // 3) Validate Google Ads minimums BEFORE issuing the mutate (fail-fast w/ clear error)
     const countOf = (ft: string) => linkSpecs.filter((l) => l.fieldType === ft).length;
     const missing: string[] = [];
     if (countOf("HEADLINE") < 3) missing.push(`HEADLINE (have ${countOf("HEADLINE")}, need 3)`);
