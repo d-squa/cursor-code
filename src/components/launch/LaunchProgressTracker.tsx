@@ -77,6 +77,11 @@ interface LaunchProgressTrackerProps {
   currentStep: 1 | 2;
   filters: LaunchFilters;
   onDeleteCreativeAssignment?: (assignmentId: string) => Promise<void>;
+  // Triggered by the per-PMax-campaign "Push Asset Groups" button.
+  // Scoped to (market, phaseName); the edge function pushes every
+  // awaiting_assets / push_failed asset group under that PMax campaign shell.
+  onPushPmaxAssetGroups?: (market: string, phaseName: string) => Promise<void>;
+  pushingPmaxKey?: string | null; // `${market}|${phaseName}` while in flight
 }
 
 // Status indicator for individual items
