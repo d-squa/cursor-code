@@ -482,35 +482,25 @@ export function GoogleNonSearchTextAssetEditor({
   useEffect(() => {
     if (!open) return;
 
-    // For PMax, text lives at the asset-group level (market||phase||adGroup).
-    // Image assignments create one creative_assignments row per image, so the
-    // sibling rows arrive with empty text fields and would render as duplicate
-    // "Invalid" placeholder cards. Collapse them to a single representative
-    // row per group — the one with the most populated text.
-    const scoreText = (r: any) => {
-      const count = (v: any) => (v && String(v).trim() ? 1 : 0);
-      return (
-        count(r.headline) + count(r.headline2) + count(r.headline3) + count(r.headline4) + count(r.headline5) +
-        count(r.long_headline_1) + count(r.long_headline_2) + count(r.long_headline_3) + count(r.long_headline_4) + count(r.long_headline_5) +
-        count(r.description) + count(r.description2) + count(r.description3) + count(r.description4) + count(r.description5) +
-        count(r.business_name) + count(r.brandName) + count(r.destinationUrl)
+    // For PMax, sibling image-assignment rows can arrive with completely empty
+    // text fields and render as "Invalid" placeholder cards. Hide only those
+    // truly-empty placeholders — keep every row that has any text content.
+    const hasAnyText = (r: any) => {
+      const v = (x: any) => x && String(x).trim();
+      return !!(
+        v(r.headline) || v(r.headline2) || v(r.headline3) || v(r.headline4) || v(r.headline5) ||
+        v(r.long_headline_1) || v(r.long_headline_2) || v(r.long_headline_3) || v(r.long_headline_4) || v(r.long_headline_5) ||
+        v(r.description) || v(r.description2) || v(r.description3) || v(r.description4) || v(r.description5) ||
+        v(r.business_name) || v(r.brandName) || v(r.destinationUrl) || v(r.primaryText)
       );
     };
-    const pmaxByGroup = new Map<string, CreativeTextAssetRow>();
-    const nonPmax: CreativeTextAssetRow[] = [];
-    for (const r of scopedRows) {
+    const filteredRows = scopedRows.filter((r) => {
       const t = detectGoogleNonSearchType(r);
-      if (t === 'pmax') {
-        const key = [r.market || '', r.phase || '', r.adSet || ''].map((s) => s.trim()).join('||');
-        const prev = pmaxByGroup.get(key);
-        if (!prev || scoreText(r) > scoreText(prev)) pmaxByGroup.set(key, r);
-      } else {
-        nonPmax.push(r);
-      }
-    }
-    const dedupedRows = [...pmaxByGroup.values(), ...nonPmax];
+      if (t !== 'pmax') return true;
+      return hasAnyText(r);
+    });
 
-    const built = dedupedRows
+    const built = filteredRows
       .map((r) => {
         const t = detectGoogleNonSearchType(r);
         return t ? rowToDraft(r, t) : null;
