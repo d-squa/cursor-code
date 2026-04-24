@@ -3401,4 +3401,284 @@ class GoogleAdsAdapter implements PlatformAdapter {
       console.log(`✅ Added ${operations.length} demographic criteria to ad group ${adGroupId}. Results: ${data.results?.length || 0}`);
     }
   }
+
+  // =====================================================================
+  // PERFORMANCE MAX — ASSET GROUP HELPERS
+  // =====================================================================
+
+  /**
+   * Ensure a TEXT asset exists in the account; create it if not.
+   * Returns the asset resource name (customers/X/assets/Y).
+   */
+  private async ensureTextAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    text: string,
+  ): Promise<string> {
+    const cleanText = String(text || "").trim();
+    if (!cleanText) throw new Error("ensureTextAsset: empty text");
+    const escaped = cleanText.replace(/'/g, "\\'");
+    try {
+      const gaql = `SELECT asset.resource_name, asset.text_asset.text FROM asset WHERE asset.type = 'TEXT' AND asset.text_asset.text = '${escaped}' LIMIT 1`;
+      const searchUrl = `${this.API_BASE}/customers/${customerId}/googleAds:search`;
+      const searchResp = await fetch(searchUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ query: gaql }),
+      });
+      if (searchResp.ok) {
+        const searchData = await searchResp.json();
+        const existing = searchData?.results?.[0]?.asset?.resourceName;
+        if (existing) return existing;
+      }
+    } catch (e) {
+      console.warn("[google.ensureTextAsset] lookup failed:", e);
+    }
+
+    const assetOp = {
+      create: {
+        type: "TEXT",
+        textAsset: { text: cleanText },
+      },
+    };
+    const url = `${this.API_BASE}/customers/${customerId}/assets:mutate`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operations: [assetOp] }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Text asset creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+    const data = await resp.json();
+    const resourceName = data?.results?.[0]?.resourceName;
+    if (!resourceName) throw new Error("Text asset creation returned no resourceName");
+    return resourceName;
+  }
+
+  /**
+   * Public wrapper for image asset upload (used by PMax orchestrator).
+   */
+  async pmaxUploadImage(
+    customerId: string,
+    headers: Record<string, string>,
+    imageUrl: string,
+    name: string,
+    cropAspectRatio: number | null = null,
+  ): Promise<string> {
+    return await this.uploadImageAsset(customerId, headers, imageUrl, name, false, cropAspectRatio);
+  }
+
+  /**
+   * Create a Performance Max asset group, attach all assets, and (when a
+   * Merchant Center is linked) create the required root listing group filter.
+   *
+   * @returns the AssetGroup resource name on success, or null on failure.
+   */
+  async createPmaxAssetGroup(
+    customerId: string,
+    headers: Record<string, string>,
+    params: {
+      campaignId: string;
+      name: string;
+      finalUrl: string;
+      finalMobileUrl?: string;
+      status?: "ENABLED" | "PAUSED";
+      headlines: string[];          // 30 char max, 3-15 items
+      longHeadlines: string[];      // 90 char max, 1-5 items
+      descriptions: string[];       // 90 char max, 2-5 items
+      businessName: string;         // 25 char max, required
+      callToAction?: string;        // CTA enum
+      marketingImages: string[];    // 1.91:1 URLs, 1-20 items
+      squareMarketingImages: string[]; // 1:1 URLs, 1-20 items
+      portraitMarketingImages?: string[]; // 4:5 URLs, optional, up to 20
+      logoImages: string[];         // 1:1 URLs, 1-5 items
+      landscapeLogoImages?: string[]; // 4:1 URLs, optional, up to 5
+      youtubeVideoIds?: string[];   // optional, up to 5
+      hasMerchantCenter: boolean;   // when true, create root listing group filter
+    },
+  ): Promise<string | null> {
+    const campaignResource = `customers/${customerId}/campaigns/${params.campaignId}`;
+    const safeName = `${(params.name || "Asset Group").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 120)} ${Date.now()}`;
+
+    // 1) Create the AssetGroup shell
+    const createUrl = `${this.API_BASE}/customers/${customerId}/assetGroups:mutate`;
+    const createBody = {
+      operations: [
+        {
+          create: {
+            name: safeName,
+            campaign: campaignResource,
+            finalUrls: [params.finalUrl],
+            ...(params.finalMobileUrl ? { finalMobileUrls: [params.finalMobileUrl] } : {}),
+            status: params.status || "PAUSED",
+          },
+        },
+      ],
+    };
+    const createResp = await fetch(createUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(createBody),
+    });
+    if (!createResp.ok) {
+      const errText = await createResp.text();
+      console.error(`❌ AssetGroup creation failed for "${safeName}":`, errText);
+      throw new Error(`AssetGroup creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+    const createData = await createResp.json();
+    const assetGroupResource: string | undefined = createData?.results?.[0]?.resourceName;
+    if (!assetGroupResource) {
+      console.error("AssetGroup creation returned no resourceName", createData);
+      return null;
+    }
+    console.log(`✅ AssetGroup created: ${assetGroupResource}`);
+
+    // 2) Build & link AssetGroupAsset rows for each field type
+    type LinkOp = {
+      create: {
+        assetGroup: string;
+        asset: string;
+        fieldType: string;
+      };
+    };
+    const linkOps: LinkOp[] = [];
+
+    const pushTexts = async (texts: string[], fieldType: string, max: number) => {
+      const seen = new Set<string>();
+      for (const raw of texts) {
+        const t = String(raw || "").trim();
+        if (!t || seen.has(t)) continue;
+        seen.add(t);
+        if (linkOpsCountForField(linkOps, fieldType) >= max) break;
+        try {
+          const assetRn = await this.ensureTextAsset(customerId, headers, t);
+          linkOps.push({ create: { assetGroup: assetGroupResource, asset: assetRn, fieldType } });
+        } catch (e: any) {
+          console.warn(`[pmax] failed to ensure ${fieldType} text asset "${t}":`, e?.message || e);
+        }
+      }
+    };
+
+    function linkOpsCountForField(ops: LinkOp[], fieldType: string): number {
+      return ops.filter((o) => o.create.fieldType === fieldType).length;
+    }
+
+    const pushImages = async (urls: string[], fieldType: string, max: number, aspect: number | null) => {
+      const seen = new Set<string>();
+      for (const u of urls) {
+        const url = String(u || "").trim();
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        if (linkOpsCountForField(linkOps, fieldType) >= max) break;
+        try {
+          const assetRn = await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${seen.size}`, false, aspect);
+          linkOps.push({ create: { assetGroup: assetGroupResource, asset: assetRn, fieldType } });
+        } catch (e: any) {
+          console.warn(`[pmax] failed to upload ${fieldType} image "${url}":`, e?.message || e);
+        }
+      }
+    };
+
+    // Text assets
+    await pushTexts(params.headlines.map((h) => h.substring(0, 30)), "HEADLINE", 15);
+    await pushTexts(params.longHeadlines.map((h) => h.substring(0, 90)), "LONG_HEADLINE", 5);
+    await pushTexts(params.descriptions.map((d) => d.substring(0, 90)), "DESCRIPTION", 5);
+    if (params.businessName) {
+      await pushTexts([params.businessName.substring(0, 25)], "BUSINESS_NAME", 1);
+    }
+
+    // Image assets
+    await pushImages(params.marketingImages, "MARKETING_IMAGE", 20, 1.91);
+    await pushImages(params.squareMarketingImages, "SQUARE_MARKETING_IMAGE", 20, 1);
+    if (params.portraitMarketingImages?.length) {
+      await pushImages(params.portraitMarketingImages, "PORTRAIT_MARKETING_IMAGE", 20, 0.8);
+    }
+    await pushImages(params.logoImages, "LOGO", 5, 1);
+    if (params.landscapeLogoImages?.length) {
+      await pushImages(params.landscapeLogoImages, "LANDSCAPE_LOGO", 5, 4);
+    }
+
+    // YouTube videos
+    if (params.youtubeVideoIds?.length) {
+      const seen = new Set<string>();
+      for (const vid of params.youtubeVideoIds) {
+        const cleanId = String(vid || "").trim();
+        if (!cleanId || seen.has(cleanId)) continue;
+        seen.add(cleanId);
+        if (linkOpsCountForField(linkOps, "YOUTUBE_VIDEO") >= 5) break;
+        try {
+          const assetRn = await this.ensureYouTubeVideoAsset(customerId, headers, cleanId, `pmax video ${seen.size}`);
+          linkOps.push({ create: { assetGroup: assetGroupResource, asset: assetRn, fieldType: "YOUTUBE_VIDEO" } });
+        } catch (e: any) {
+          console.warn(`[pmax] failed to ensure YouTube video "${cleanId}":`, e?.message || e);
+        }
+      }
+    }
+
+    // CTA
+    if (params.callToAction) {
+      try {
+        const ctaRn = await this.ensureCallToActionAsset(customerId, headers, params.callToAction);
+        linkOps.push({ create: { assetGroup: assetGroupResource, asset: ctaRn, fieldType: "CALL_TO_ACTION_SELECTION" } });
+      } catch (e: any) {
+        console.warn(`[pmax] failed to ensure CTA "${params.callToAction}":`, e?.message || e);
+      }
+    }
+
+    // 3) Bulk-link assets to the AssetGroup (chunk to keep payloads small)
+    if (linkOps.length > 0) {
+      const linkUrl = `${this.API_BASE}/customers/${customerId}/assetGroupAssets:mutate`;
+      const chunkSize = 25;
+      for (let i = 0; i < linkOps.length; i += chunkSize) {
+        const chunk = linkOps.slice(i, i + chunkSize);
+        const linkResp = await fetch(linkUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ operations: chunk, partialFailure: true }),
+        });
+        if (!linkResp.ok) {
+          const errText = await linkResp.text();
+          console.error(`⚠️ AssetGroupAsset link batch failed (non-fatal):`, errText);
+        } else {
+          const linkData = await linkResp.json();
+          const linked = linkData?.results?.length || 0;
+          const partialErr = linkData?.partialFailureError?.message;
+          console.log(`🔗 Linked ${linked}/${chunk.length} assets to ${assetGroupResource}${partialErr ? ` (partial errors: ${partialErr})` : ""}`);
+        }
+      }
+    } else {
+      console.warn(`⚠️ No assets to link to ${assetGroupResource} — asset group may be empty in Google Ads`);
+    }
+
+    // 4) Root listing group filter — required when a Merchant Center is linked
+    if (params.hasMerchantCenter) {
+      const lgUrl = `${this.API_BASE}/customers/${customerId}/assetGroupListingGroupFilters:mutate`;
+      const lgBody = {
+        operations: [
+          {
+            create: {
+              assetGroup: assetGroupResource,
+              type: "UNIT_INCLUDED",
+              listingSource: "SHOPPING",
+            },
+          },
+        ],
+      };
+      const lgResp = await fetch(lgUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(lgBody),
+      });
+      if (!lgResp.ok) {
+        const errText = await lgResp.text();
+        console.warn(`⚠️ AssetGroupListingGroupFilter creation failed (non-fatal):`, errText);
+      } else {
+        console.log(`✅ Root listing group filter created for ${assetGroupResource}`);
+      }
+    }
+
+    return assetGroupResource;
+  }
 }
