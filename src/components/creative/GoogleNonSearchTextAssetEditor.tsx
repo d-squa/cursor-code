@@ -973,7 +973,7 @@ export function GoogleNonSearchTextAssetEditor({
               {pmaxGroups.map((g) => (
                 <div key={g.groupKey} className={cn(
                   'flex items-start gap-2 text-[11px] rounded border px-2 py-1.5',
-                  g.isValid ? 'border-green-600/30 bg-green-600/5' : 'border-destructive/40 bg-destructive/5'
+                  g.isValid ? 'border-primary/30 bg-primary/5' : 'border-destructive/40 bg-destructive/5'
                 )}>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{g.market} · {g.phase} · {g.adGroup}</div>
