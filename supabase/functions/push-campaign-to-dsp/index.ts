@@ -4519,6 +4519,40 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
               campaignType,
               strategy: strategyName || undefined,
             });
+
+            // Resolve any pre-registered "adset" rows for this PMax campaign — Performance Max has no
+            // traditional ad groups, so the planner-pre-registered language/asset-group rows would
+            // otherwise linger as "pushing" and be marked failed at the end of the run.
+            try {
+              const { data: plannedPmaxAdsetRows, error: plannedPmaxAdsetErr } = await supabase
+                .from("campaign_launch_status")
+                .select("id, entity_name")
+                .eq("campaign_id", campaignId)
+                .eq("platform", "Google Ads")
+                .eq("market", market.name)
+                .eq("phase_name", phase.name)
+                .eq("entity_type", "adset")
+                .in("status", ["pushing", "pending"]);
+
+              if (plannedPmaxAdsetErr) {
+                console.warn(`⚠️ Could not fetch planned PMax adset rows: ${plannedPmaxAdsetErr.message}`);
+              } else if (plannedPmaxAdsetRows && plannedPmaxAdsetRows.length > 0) {
+                console.log(`ℹ️ Resolving ${plannedPmaxAdsetRows.length} planned PMax adset row(s) as pushed (PMax has no ad groups)`);
+                await supabase
+                  .from("campaign_launch_status")
+                  .update({
+                    status: "pushed",
+                    dsp_entity_id: campaignResult.campaignId,
+                    error_message: null,
+                    error_details: null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .in("id", plannedPmaxAdsetRows.map((r: any) => r.id));
+              }
+            } catch (pmaxResolveErr: any) {
+              console.warn(`⚠️ Failed to resolve PMax planned adset rows: ${pmaxResolveErr?.message || pmaxResolveErr}`);
+            }
+
             continue;
           }
 
