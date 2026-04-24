@@ -4764,6 +4764,42 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             }
 
             if (!adGroupResult.success) {
+              // Recovery: if Google rejects with DUPLICATE_ADGROUP_NAME the ad
+              // group already exists in the campaign (likely from a prior
+              // attempt that failed AFTER ad group creation). Look it up by
+              // name and reuse, instead of failing the whole phase.
+              if (
+                adGroupResult.error &&
+                /DUPLICATE_ADGROUP_NAME/i.test(String(adGroupResult.error))
+              ) {
+                try {
+                  const lookupGaql = `SELECT ad_group.id, ad_group.name FROM ad_group WHERE ad_group.name = '${String(finalAdGroupName).replace(/'/g, "\\'")}' AND campaign.id = ${campaignResult.campaignId} LIMIT 1`;
+                  const lookupUrl = `${(googleAdapter as any).API_BASE || "https://googleads.googleapis.com/v23"}/customers/${cleanCustomerId}/googleAds:search`;
+                  const lookupRes = await fetch(lookupUrl, {
+                    method: "POST",
+                    headers: campaignHeaders,
+                    body: JSON.stringify({ query: lookupGaql }),
+                  });
+                  if (lookupRes.ok) {
+                    const lookupData = await lookupRes.json();
+                    const existingAgId = lookupData?.results?.[0]?.adGroup?.id;
+                    if (existingAgId) {
+                      console.log(`♻️ Recovered duplicate ad group "${finalAdGroupName}" → reusing id ${existingAgId}`);
+                      adGroupResult = {
+                        success: true,
+                        adGroupId: String(existingAgId),
+                        platform: "google",
+                        metadata: { reused: true, recoveredFromDuplicate: true },
+                      } as any;
+                    }
+                  }
+                } catch (recErr: any) {
+                  console.warn(`⚠️ DUPLICATE_ADGROUP_NAME recovery lookup failed:`, recErr?.message || recErr);
+                }
+              }
+            }
+
+            if (!adGroupResult.success) {
               console.error(`❌ Google Ads ad group creation failed:`, adGroupResult.error);
               errors.push({
                 market: market.name,
