@@ -2711,6 +2711,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
       return "MAXIMIZE_CONVERSIONS";
     }
 
+    // TARGET_ROAS cannot be set on a brand-new campaign — Google requires conversion-value history
+    // (OPERATION_NOT_PERMITTED_FOR_CONTEXT on target_roas at campaign create). Fall back to
+    // MAXIMIZE_CONVERSION_VALUE which optimizes for the same goal and is permitted at creation.
+    // The user can manually convert to Target ROAS in Google Ads UI once the campaign accumulates
+    // conversion-value data.
+    if (normalizedStrategy === "TARGET_ROAS") {
+      console.warn(
+        `⚠️ TARGET_ROAS not permitted at campaign creation (requires conversion-value history); falling back to MAXIMIZE_CONVERSION_VALUE for ${normalizedChannelType}`,
+      );
+      return "MAXIMIZE_CONVERSION_VALUE";
+    }
+
     return normalizedStrategy;
   }
 
