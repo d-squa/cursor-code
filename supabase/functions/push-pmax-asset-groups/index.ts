@@ -122,6 +122,13 @@ serve(async (req) => {
       );
     }
 
+    // Immediately mark all pending rows as `pushing` so the UI reflects work in progress
+    // before we return. Background work continues via EdgeRuntime.waitUntil.
+    await supabase
+      .from("campaign_launch_status")
+      .update({ status: "pushing", updated_at: new Date().toISOString() })
+      .in("id", pendingRows.map((r) => r.id));
+
     // ----- Resolve parent PMax campaign DSP IDs (per market+phase) -----
     const { data: campaignShellRows } = await supabase
       .from("campaign_launch_status")
