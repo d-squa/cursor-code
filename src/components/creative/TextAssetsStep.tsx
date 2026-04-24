@@ -1401,7 +1401,9 @@ export function TextAssetsStep({
   const handleSaveAndProceed = useCallback(async () => {
     // PMax hard-block: every PMax asset group must satisfy the minimums
     // (3H/1LH/2D w/ short ≤60, business name, 1.91:1 image, 1:1 image, logo).
-    const { arePmaxGroupsValid } = await import('@/utils/pmaxAssetGroupValidation');
+    const { arePmaxGroupsValid, validatePmaxAssetGroups } = await import(
+      '@/utils/pmaxAssetGroupValidation'
+    );
     const { valid, failingGroups } = arePmaxGroupsValid(rows);
     if (!valid) {
       const summary = failingGroups
@@ -1415,8 +1417,40 @@ export function TextAssetsStep({
       return;
     }
     const ok = await saveTextAssets();
-    if (ok) onComplete();
-  }, [saveTextAssets, onComplete, rows]);
+    if (!ok) return;
+
+    // Auto-trigger PMax asset-group push for any (market, phase) that has
+    // validated PMax groups. Fire-and-forget — the user will see results on
+    // /status (real-time), and they can also retry via the per-PMax button.
+    try {
+      const validGroups = validatePmaxAssetGroups(rows).filter((g) => g.errors.length === 0);
+      const pairs = new Set<string>();
+      for (const g of validGroups) {
+        pairs.add(`${g.market}||${g.phase}`);
+      }
+      if (pairs.size > 0) {
+        toast.info(`Pushing ${pairs.size} PMax asset group target${pairs.size === 1 ? '' : 's'} to DSP…`);
+        // Fire all in parallel, don't await — onComplete navigates away.
+        Promise.allSettled(
+          Array.from(pairs).map((pair) => {
+            const [market, phaseName] = pair.split('||');
+            return supabase.functions.invoke('push-pmax-asset-groups', {
+              body: { campaignId, market, phaseName, retryFailed: true },
+            });
+          }),
+        ).then((results) => {
+          const failed = results.filter((r) => r.status === 'rejected').length;
+          if (failed > 0) {
+            console.warn(`[auto-push-pmax] ${failed} invocation(s) rejected`);
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('[auto-push-pmax] failed to schedule:', err);
+    }
+
+    onComplete();
+  }, [saveTextAssets, onComplete, rows, campaignId]);
 
   // TextAssetExcelEditor expects onSave to return Promise<void>
   const handleSaveOnly = useCallback(async (): Promise<void> => {
