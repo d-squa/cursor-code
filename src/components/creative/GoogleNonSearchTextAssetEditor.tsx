@@ -956,6 +956,59 @@ export function GoogleNonSearchTextAssetEditor({
           onApply={handleBulkApply}
         />
 
+        {/* PMax asset-group validation panel */}
+        {pmaxGroups.length > 0 && (
+          <div className="px-4 py-2 border-b bg-muted/30 shrink-0 max-h-[180px] overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              {pmaxFailingCount === 0 ? (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+              )}
+              <span className="text-xs font-semibold">
+                Performance Max asset groups: {pmaxGroups.length - pmaxFailingCount}/{pmaxGroups.length} ready to push
+              </span>
+            </div>
+            <div className="grid gap-1.5">
+              {pmaxGroups.map((g) => (
+                <div key={g.groupKey} className={cn(
+                  'flex items-start gap-2 text-[11px] rounded border px-2 py-1.5',
+                  g.isValid ? 'border-green-600/30 bg-green-600/5' : 'border-destructive/40 bg-destructive/5'
+                )}>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{g.market} · {g.phase} · {g.adGroup}</div>
+                    <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span>H: {g.text.headlines.length}/3</span>
+                      <span>LH: {g.text.longHeadlines.length}/1</span>
+                      <span>D: {g.text.descriptions.length}/2</span>
+                      <span>1.91:1: {g.buckets.marketingImages.length}</span>
+                      <span>1:1: {g.buckets.squareImages.length}</span>
+                      <span>Logo: {g.buckets.logos.length}</span>
+                      <span>Video: {g.buckets.videos.length}</span>
+                    </div>
+                    {g.errors.length > 0 && (
+                      <ul className="mt-1 list-disc list-inside text-destructive space-y-0.5">
+                        {g.errors.map((e, i) => <li key={i}>{e.message}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                  {onApplyImagesToAllPmaxGroups && (g.buckets.marketingImages.length > 0 || g.buckets.squareImages.length > 0 || g.buckets.logos.length > 0) && pmaxGroups.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] shrink-0"
+                      onClick={() => onApplyImagesToAllPmaxGroups(g.groupKey)}
+                    >
+                      <Images className="h-3 w-3 mr-1" />
+                      Apply images to all groups
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Body: two-pane layout — table on the left, focused detail on the right */}
         <div className="flex-1 overflow-hidden flex">
           <div className="flex-1 overflow-hidden border-r">
