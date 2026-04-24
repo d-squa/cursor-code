@@ -163,6 +163,9 @@ export default function LaunchStatus() {
   const [campaignPushAccounts, setCampaignPushAccounts] = useState<
     Array<{ platform: 'meta' | 'tiktok' | 'google'; accountId: string; accountName?: string; entityCount?: number }>
   >([]);
+  // Tracks the (market|phaseName) currently being pushed via push-pmax-asset-groups
+  // so the per-PMax-campaign button can show a spinner.
+  const [pushingPmaxKey, setPushingPmaxKey] = useState<string | null>(null);
 
   // Use the new real-time progress hook
   const {
@@ -1062,6 +1065,38 @@ export default function LaunchStatus() {
     }
   };
 
+  // Triggers the new push-pmax-asset-groups edge function for a single
+  // PMax campaign (scoped to market+phaseName). Used both as the manual
+  // /status fallback button and the auto-trigger from TextAssetsStep.
+  const handlePushPmaxAssetGroups = async (market: string, phaseName: string) => {
+    if (!campaignId) return;
+    const key = `${market}|${phaseName}`;
+    setPushingPmaxKey(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("push-pmax-asset-groups", {
+        body: { campaignId, market, phaseName, retryFailed: true },
+      });
+      if (error) throw error;
+      const pushed = data?.pushed ?? 0;
+      const failed = data?.failed ?? 0;
+      if (failed > 0) {
+        toast.error(`${failed} asset group${failed === 1 ? '' : 's'} failed`, {
+          description: pushed > 0 ? `${pushed} succeeded.` : undefined,
+        });
+      } else if (pushed > 0) {
+        toast.success(`Pushed ${pushed} PMax asset group${pushed === 1 ? '' : 's'}`);
+      } else {
+        toast.info("No asset groups awaiting push");
+      }
+      refreshProgress();
+    } catch (err: any) {
+      console.error("push-pmax-asset-groups error:", err);
+      toast.error("Failed to push asset groups: " + (err?.message || String(err)));
+    } finally {
+      setPushingPmaxKey(null);
+    }
+  };
+
   const handleFixIssue = (fieldPath?: string) => {
     if (!campaignId) return;
 
@@ -1532,6 +1567,8 @@ export default function LaunchStatus() {
             currentStep={currentStep}
             filters={launchFilters}
             onDeleteCreativeAssignment={handleDeleteCreativeAssignment}
+            onPushPmaxAssetGroups={handlePushPmaxAssetGroups}
+            pushingPmaxKey={pushingPmaxKey}
           />
         </div>
       )}
