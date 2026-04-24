@@ -481,7 +481,35 @@ export function GoogleNonSearchTextAssetEditor({
   // keystroke (because the parent re-renders rows on every onRowChange).
   useEffect(() => {
     if (!open) return;
-    const built = scopedRows
+    // For PMax, the editing unit is the asset group = (market, phase, ad_group).
+    // Multiple creative_assignments rows in the same asset group share a single
+    // text payload, so collapse them to one draft per group — preferring the
+    // row with the most-populated text values. Other non-Search types keep
+    // one draft per row (each ad is independently authored).
+    const pmaxByGroup = new Map<string, CreativeTextAssetRow>();
+    const passthrough: CreativeTextAssetRow[] = [];
+    const score = (r: any) => {
+      let s = 0;
+      ['headline','headline2','headline3','headline4','headline5',
+       'long_headline_1','long_headline_2','long_headline_3','long_headline_4','long_headline_5',
+       'description','description2','description3','description4','description5',
+       'business_name'].forEach((k) => { if (r?.[k] && String(r[k]).trim()) s++; });
+      if (r?.brandName && String(r.brandName).trim()) s++;
+      if (r?.destinationUrl && String(r.destinationUrl).trim()) s++;
+      return s;
+    };
+    for (const r of scopedRows) {
+      const t = detectGoogleNonSearchType(r);
+      if (!t) continue;
+      if (t === 'pmax') {
+        const key = [r.market || '', r.phase || '', r.adSet || ''].map((x) => x.trim()).join('||');
+        const existing = pmaxByGroup.get(key);
+        if (!existing || score(r) > score(existing)) pmaxByGroup.set(key, r);
+      } else {
+        passthrough.push(r);
+      }
+    }
+    const built = [...pmaxByGroup.values(), ...passthrough]
       .map((r) => {
         const t = detectGoogleNonSearchType(r);
         return t ? rowToDraft(r, t) : null;
