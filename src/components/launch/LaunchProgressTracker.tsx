@@ -400,14 +400,18 @@ function MeshedCreativesTree({
 }
 
 // Hierarchical tree view for campaign shell - Platform > Market > Campaign > Ad Set
-function CampaignsShellTree({ 
-  adSetStatuses, 
-  expandedState, 
-  onToggle 
-}: { 
+function CampaignsShellTree({
+  adSetStatuses,
+  expandedState,
+  onToggle,
+  onPushPmaxAssetGroups,
+  pushingPmaxKey,
+}: {
   adSetStatuses: AdSetStatus[];
   expandedState: Record<string, boolean>;
   onToggle: (key: string) => void;
+  onPushPmaxAssetGroups?: (market: string, phaseName: string) => Promise<void>;
+  pushingPmaxKey?: string | null;
 }) {
   // Group by platform -> market -> phase (campaign) -> adsets
   const grouped = useMemo(() => {
