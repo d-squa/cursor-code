@@ -1598,6 +1598,22 @@ const handler = async (req: Request): Promise<Response> => {
       const platformKey = toPlatformKey(entry.platform);
       if (!platformKey) continue;
 
+      // Skip PMax entries — their assets are created via `push-pmax-asset-groups`,
+      // not via `adGroupAds:mutate`. The dsp_entity_id for PMax is an
+      // `assetGroups/...` resource and would otherwise be wrongly treated as
+      // an ad group, producing the malformed
+      // `customers/.../adGroups/customers/.../assetGroups/...` resource name.
+      if (
+        platformKey === "google" &&
+        typeof entry.dsp_entity_id === "string" &&
+        entry.dsp_entity_id.includes("assetGroups/")
+      ) {
+        console.log(
+          `[push-creatives] Skipping PMax asset group entry "${entry.entity_name}" (${entry.dsp_entity_id}) — handled by push-pmax-asset-groups`,
+        );
+        continue;
+      }
+
       let platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
 
       if (platformKey === "google") {
