@@ -481,7 +481,36 @@ export function GoogleNonSearchTextAssetEditor({
   // keystroke (because the parent re-renders rows on every onRowChange).
   useEffect(() => {
     if (!open) return;
-    const built = scopedRows
+
+    // For PMax, text lives at the asset-group level (market||phase||adGroup).
+    // Image assignments create one creative_assignments row per image, so the
+    // sibling rows arrive with empty text fields and would render as duplicate
+    // "Invalid" placeholder cards. Collapse them to a single representative
+    // row per group — the one with the most populated text.
+    const scoreText = (r: any) => {
+      const count = (v: any) => (v && String(v).trim() ? 1 : 0);
+      return (
+        count(r.headline) + count(r.headline2) + count(r.headline3) + count(r.headline4) + count(r.headline5) +
+        count(r.long_headline_1) + count(r.long_headline_2) + count(r.long_headline_3) + count(r.long_headline_4) + count(r.long_headline_5) +
+        count(r.description) + count(r.description2) + count(r.description3) + count(r.description4) + count(r.description5) +
+        count(r.business_name) + count(r.brandName) + count(r.destinationUrl)
+      );
+    };
+    const pmaxByGroup = new Map<string, CreativeTextAssetRow>();
+    const nonPmax: CreativeTextAssetRow[] = [];
+    for (const r of scopedRows) {
+      const t = detectGoogleNonSearchType(r);
+      if (t === 'pmax') {
+        const key = [r.market || '', r.phase || '', r.adSet || ''].map((s) => s.trim()).join('||');
+        const prev = pmaxByGroup.get(key);
+        if (!prev || scoreText(r) > scoreText(prev)) pmaxByGroup.set(key, r);
+      } else {
+        nonPmax.push(r);
+      }
+    }
+    const dedupedRows = [...pmaxByGroup.values(), ...nonPmax];
+
+    const built = dedupedRows
       .map((r) => {
         const t = detectGoogleNonSearchType(r);
         return t ? rowToDraft(r, t) : null;
