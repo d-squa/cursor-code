@@ -406,7 +406,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       );
 
       // Load Google Ads accounts for this client
-      const { data: googleAccountsData, error: googleAccountsError } = await supabase
       let googleQuery = supabase
         .from("google_ad_accounts")
         .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements, default_campaign_objective, default_campaign_type, default_campaign_subtype, default_location_targeting, default_search_partner, default_display_network, default_customer_acquisition, default_optimized_targeting, default_inventory_type, default_ai_max, default_ai_max_options, default_brand_guidelines, default_business_name")
