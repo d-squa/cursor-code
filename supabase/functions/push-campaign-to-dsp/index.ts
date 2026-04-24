@@ -4611,19 +4611,50 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 
               const allAssignments: any[] = pmaxAssignments || [];
 
-              // Pull approved Google library images for this account as a fallback
-              const { data: libImages } = await supabase
-                .from("creative_library_assets")
-                .select("preview_url, thumbnail_url, asset_type, aspect_ratio, width, height")
-                .eq("platform", "google")
-                .eq("advertiser_id", cleanCustomerId)
-                .eq("asset_type", "image")
-                .eq("approval_status", "approved")
-                .limit(40);
-
-              const accountFallbackImages = (libImages || [])
-                .map((a: any) => a.preview_url || a.thumbnail_url)
-                .filter(Boolean);
+              // Pull Google library images for this account as a fallback (any approval status).
+              // PMax requires images, so we cast a wide net: account-specific first, then any
+              // Google image for this user/team.
+              let accountFallbackImages: string[] = [];
+              {
+                const { data: libImages } = await supabase
+                  .from("creative_library_assets")
+                  .select("preview_url, thumbnail_url, advertiser_id")
+                  .eq("platform", "google")
+                  .eq("advertiser_id", cleanCustomerId)
+                  .eq("asset_type", "image")
+                  .limit(40);
+                accountFallbackImages = (libImages || [])
+                  .map((a: any) => a.preview_url || a.thumbnail_url)
+                  .filter(Boolean);
+              }
+              if (accountFallbackImages.length === 0) {
+                // Broader fallback: any Google image asset belonging to this user
+                const { data: libImages2 } = await supabase
+                  .from("creative_library_assets")
+                  .select("preview_url, thumbnail_url")
+                  .eq("platform", "google")
+                  .eq("asset_type", "image")
+                  .eq("user_id", campaign.user_id)
+                  .limit(40);
+                accountFallbackImages = (libImages2 || [])
+                  .map((a: any) => a.preview_url || a.thumbnail_url)
+                  .filter(Boolean);
+              }
+              if (accountFallbackImages.length === 0) {
+                // Final fallback: any image creative in the user's library
+                const { data: imgCreatives } = await supabase
+                  .from("creatives")
+                  .select("media_urls, thumbnail_url")
+                  .eq("user_id", campaign.user_id)
+                  .eq("media_type", "image")
+                  .limit(20);
+                const urls: string[] = [];
+                for (const c of imgCreatives || []) {
+                  if (Array.isArray(c.media_urls)) urls.push(...c.media_urls.filter(Boolean));
+                  else if (c.thumbnail_url) urls.push(c.thumbnail_url);
+                }
+                accountFallbackImages = urls;
+              }
 
               const hasMerchantCenter = Boolean(phase.googleMerchantCenterId || market.googleMerchantCenterId);
               const finalUrl = phase.googleLandingPageUrl
