@@ -3502,79 +3502,41 @@ class GoogleAdsAdapter implements PlatformAdapter {
     const campaignResource = `customers/${customerId}/campaigns/${params.campaignId}`;
     const safeName = `${(params.name || "Asset Group").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 120)} ${Date.now()}`;
 
-    // 1) Create the AssetGroup shell
-    const createUrl = `${this.API_BASE}/customers/${customerId}/assetGroups:mutate`;
-    const createBody = {
-      operations: [
-        {
-          create: {
-            name: safeName,
-            campaign: campaignResource,
-            finalUrls: [params.finalUrl],
-            ...(params.finalMobileUrl ? { finalMobileUrls: [params.finalMobileUrl] } : {}),
-            status: params.status || "PAUSED",
-          },
-        },
-      ],
-    };
-    const createResp = await fetch(createUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(createBody),
-    });
-    if (!createResp.ok) {
-      const errText = await createResp.text();
-      console.error(`❌ AssetGroup creation failed for "${safeName}":`, errText);
-      throw new Error(`AssetGroup creation failed: ${this.summarizeGoogleAdsError(errText)}`);
-    }
-    const createData = await createResp.json();
-    const assetGroupResource: string | undefined = createData?.results?.[0]?.resourceName;
-    if (!assetGroupResource) {
-      console.error("AssetGroup creation returned no resourceName", createData);
-      return null;
-    }
-    console.log(`✅ AssetGroup created: ${assetGroupResource}`);
+    // Google Ads requires AssetGroup + minimum HEADLINE/DESCRIPTION/IMAGE assets
+    // to exist atomically. We pre-resolve all asset resource names first, then
+    // create the AssetGroup AND its AssetGroupAsset links in a single
+    // googleAds:mutate call using a temp resource name.
 
-    // 2) Build & link AssetGroupAsset rows for each field type
-    type LinkOp = {
-      create: {
-        assetGroup: string;
-        asset: string;
-        fieldType: string;
-      };
-    };
-    const linkOps: LinkOp[] = [];
+    // 1) Pre-resolve all assets (text + images + videos + cta) to resource names
+    type LinkSpec = { asset: string; fieldType: string };
+    const linkSpecs: LinkSpec[] = [];
 
-    const pushTexts = async (texts: string[], fieldType: string, max: number) => {
+    const collectTexts = async (texts: string[], fieldType: string, max: number) => {
       const seen = new Set<string>();
       for (const raw of texts) {
         const t = String(raw || "").trim();
         if (!t || seen.has(t)) continue;
         seen.add(t);
-        if (linkOpsCountForField(linkOps, fieldType) >= max) break;
+        if (linkSpecs.filter((l) => l.fieldType === fieldType).length >= max) break;
         try {
           const assetRn = await this.ensureTextAsset(customerId, headers, t);
-          linkOps.push({ create: { assetGroup: assetGroupResource, asset: assetRn, fieldType } });
+          linkSpecs.push({ asset: assetRn, fieldType });
         } catch (e: any) {
           console.warn(`[pmax] failed to ensure ${fieldType} text asset "${t}":`, e?.message || e);
         }
       }
     };
 
-    function linkOpsCountForField(ops: LinkOp[], fieldType: string): number {
-      return ops.filter((o) => o.create.fieldType === fieldType).length;
-    }
-
-    const pushImages = async (urls: string[], fieldType: string, max: number, aspect: number | null) => {
+    const collectImages = async (urls: string[], fieldType: string, max: number, aspect: number | null) => {
       const seen = new Set<string>();
       for (const u of urls) {
         const url = String(u || "").trim();
         if (!url || seen.has(url)) continue;
         seen.add(url);
-        if (linkOpsCountForField(linkOps, fieldType) >= max) break;
+        if (linkSpecs.filter((l) => l.fieldType === fieldType).length >= max) break;
         try {
           const assetRn = await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${seen.size}`, false, aspect);
-          linkOps.push({ create: { assetGroup: assetGroupResource, asset: assetRn, fieldType } });
+          linkSpecs.push({ asset: assetRn, fieldType });
         } catch (e: any) {
           console.warn(`[pmax] failed to upload ${fieldType} image "${url}":`, e?.message || e);
         }
@@ -3582,22 +3544,22 @@ class GoogleAdsAdapter implements PlatformAdapter {
     };
 
     // Text assets
-    await pushTexts(params.headlines.map((h) => h.substring(0, 30)), "HEADLINE", 15);
-    await pushTexts(params.longHeadlines.map((h) => h.substring(0, 90)), "LONG_HEADLINE", 5);
-    await pushTexts(params.descriptions.map((d) => d.substring(0, 90)), "DESCRIPTION", 5);
+    await collectTexts(params.headlines.map((h) => h.substring(0, 30)), "HEADLINE", 15);
+    await collectTexts(params.longHeadlines.map((h) => h.substring(0, 90)), "LONG_HEADLINE", 5);
+    await collectTexts(params.descriptions.map((d) => d.substring(0, 90)), "DESCRIPTION", 5);
     if (params.businessName) {
-      await pushTexts([params.businessName.substring(0, 25)], "BUSINESS_NAME", 1);
+      await collectTexts([params.businessName.substring(0, 25)], "BUSINESS_NAME", 1);
     }
 
     // Image assets
-    await pushImages(params.marketingImages, "MARKETING_IMAGE", 20, 1.91);
-    await pushImages(params.squareMarketingImages, "SQUARE_MARKETING_IMAGE", 20, 1);
+    await collectImages(params.marketingImages, "MARKETING_IMAGE", 20, 1.91);
+    await collectImages(params.squareMarketingImages, "SQUARE_MARKETING_IMAGE", 20, 1);
     if (params.portraitMarketingImages?.length) {
-      await pushImages(params.portraitMarketingImages, "PORTRAIT_MARKETING_IMAGE", 20, 0.8);
+      await collectImages(params.portraitMarketingImages, "PORTRAIT_MARKETING_IMAGE", 20, 0.8);
     }
-    await pushImages(params.logoImages, "LOGO", 5, 1);
+    await collectImages(params.logoImages, "LOGO", 5, 1);
     if (params.landscapeLogoImages?.length) {
-      await pushImages(params.landscapeLogoImages, "LANDSCAPE_LOGO", 5, 4);
+      await collectImages(params.landscapeLogoImages, "LANDSCAPE_LOGO", 5, 4);
     }
 
     // YouTube videos
@@ -3607,10 +3569,10 @@ class GoogleAdsAdapter implements PlatformAdapter {
         const cleanId = String(vid || "").trim();
         if (!cleanId || seen.has(cleanId)) continue;
         seen.add(cleanId);
-        if (linkOpsCountForField(linkOps, "YOUTUBE_VIDEO") >= 5) break;
+        if (linkSpecs.filter((l) => l.fieldType === "YOUTUBE_VIDEO").length >= 5) break;
         try {
           const assetRn = await this.ensureYouTubeVideoAsset(customerId, headers, cleanId, `pmax video ${seen.size}`);
-          linkOps.push({ create: { assetGroup: assetGroupResource, asset: assetRn, fieldType: "YOUTUBE_VIDEO" } });
+          linkSpecs.push({ asset: assetRn, fieldType: "YOUTUBE_VIDEO" });
         } catch (e: any) {
           console.warn(`[pmax] failed to ensure YouTube video "${cleanId}":`, e?.message || e);
         }
@@ -3621,64 +3583,91 @@ class GoogleAdsAdapter implements PlatformAdapter {
     if (params.callToAction) {
       try {
         const ctaRn = await this.ensureCallToActionAsset(customerId, headers, params.callToAction);
-        linkOps.push({ create: { assetGroup: assetGroupResource, asset: ctaRn, fieldType: "CALL_TO_ACTION_SELECTION" } });
+        linkSpecs.push({ asset: ctaRn, fieldType: "CALL_TO_ACTION_SELECTION" });
       } catch (e: any) {
         console.warn(`[pmax] failed to ensure CTA "${params.callToAction}":`, e?.message || e);
       }
     }
 
-    // 3) Bulk-link assets to the AssetGroup (chunk to keep payloads small)
-    if (linkOps.length > 0) {
-      const linkUrl = `${this.API_BASE}/customers/${customerId}/assetGroupAssets:mutate`;
-      const chunkSize = 25;
-      for (let i = 0; i < linkOps.length; i += chunkSize) {
-        const chunk = linkOps.slice(i, i + chunkSize);
-        const linkResp = await fetch(linkUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ operations: chunk, partialFailure: true }),
-        });
-        if (!linkResp.ok) {
-          const errText = await linkResp.text();
-          console.error(`⚠️ AssetGroupAsset link batch failed (non-fatal):`, errText);
-        } else {
-          const linkData = await linkResp.json();
-          const linked = linkData?.results?.length || 0;
-          const partialErr = linkData?.partialFailureError?.message;
-          console.log(`🔗 Linked ${linked}/${chunk.length} assets to ${assetGroupResource}${partialErr ? ` (partial errors: ${partialErr})` : ""}`);
-        }
-      }
-    } else {
-      console.warn(`⚠️ No assets to link to ${assetGroupResource} — asset group may be empty in Google Ads`);
+    // 2) Validate Google Ads minimums BEFORE issuing the mutate (fail-fast w/ clear error)
+    const countOf = (ft: string) => linkSpecs.filter((l) => l.fieldType === ft).length;
+    const missing: string[] = [];
+    if (countOf("HEADLINE") < 3) missing.push(`HEADLINE (have ${countOf("HEADLINE")}, need 3)`);
+    if (countOf("LONG_HEADLINE") < 1) missing.push(`LONG_HEADLINE (have ${countOf("LONG_HEADLINE")}, need 1)`);
+    if (countOf("DESCRIPTION") < 2) missing.push(`DESCRIPTION (have ${countOf("DESCRIPTION")}, need 2)`);
+    if (countOf("BUSINESS_NAME") < 1) missing.push(`BUSINESS_NAME (have 0, need 1)`);
+    if (countOf("MARKETING_IMAGE") < 1) missing.push(`MARKETING_IMAGE 1.91:1 (have 0, need 1)`);
+    if (countOf("SQUARE_MARKETING_IMAGE") < 1) missing.push(`SQUARE_MARKETING_IMAGE 1:1 (have 0, need 1)`);
+    if (countOf("LOGO") < 1) missing.push(`LOGO 1:1 (have 0, need 1)`);
+    if (missing.length > 0) {
+      throw new Error(`AssetGroup minimums not met: ${missing.join("; ")}`);
     }
 
-    // 4) Root listing group filter — required when a Merchant Center is linked
-    if (params.hasMerchantCenter) {
-      const lgUrl = `${this.API_BASE}/customers/${customerId}/assetGroupListingGroupFilters:mutate`;
-      const lgBody = {
-        operations: [
-          {
-            create: {
-              assetGroup: assetGroupResource,
-              type: "UNIT_INCLUDED",
-              listingSource: "SHOPPING",
-            },
+    // 3) Atomic googleAds:mutate — AssetGroup + AssetGroupAssets in ONE call.
+    // Use a negative temp resource name to reference the not-yet-created AssetGroup.
+    const tempAgRn = `customers/${customerId}/assetGroups/-1`;
+    const operations: any[] = [
+      {
+        assetGroupOperation: {
+          create: {
+            resourceName: tempAgRn,
+            name: safeName,
+            campaign: campaignResource,
+            finalUrls: [params.finalUrl],
+            ...(params.finalMobileUrl ? { finalMobileUrls: [params.finalMobileUrl] } : {}),
+            status: params.status || "PAUSED",
           },
-        ],
-      };
-      const lgResp = await fetch(lgUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(lgBody),
+        },
+      },
+      ...linkSpecs.map((spec) => ({
+        assetGroupAssetOperation: {
+          create: {
+            assetGroup: tempAgRn,
+            asset: spec.asset,
+            fieldType: spec.fieldType,
+          },
+        },
+      })),
+    ];
+
+    // Root listing group filter — required when a Merchant Center is linked.
+    if (params.hasMerchantCenter) {
+      operations.push({
+        assetGroupListingGroupFilterOperation: {
+          create: {
+            assetGroup: tempAgRn,
+            type: "UNIT_INCLUDED",
+            listingSource: "SHOPPING",
+          },
+        },
       });
-      if (!lgResp.ok) {
-        const errText = await lgResp.text();
-        console.warn(`⚠️ AssetGroupListingGroupFilter creation failed (non-fatal):`, errText);
-      } else {
-        console.log(`✅ Root listing group filter created for ${assetGroupResource}`);
-      }
     }
 
+    const mutateUrl = `${this.API_BASE}/customers/${customerId}/googleAds:mutate`;
+    const mutateResp = await fetch(mutateUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ mutateOperations: operations }),
+    });
+
+    if (!mutateResp.ok) {
+      const errText = await mutateResp.text();
+      console.error(`❌ Atomic AssetGroup mutate failed for "${safeName}":`, errText);
+      throw new Error(`AssetGroup creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const mutateData = await mutateResp.json();
+    const results: any[] = mutateData?.mutateOperationResponses || [];
+    const agResult = results.find((r) => r?.assetGroupResult?.resourceName);
+    const assetGroupResource: string | undefined = agResult?.assetGroupResult?.resourceName;
+
+    if (!assetGroupResource) {
+      console.error("Atomic mutate returned no AssetGroup resource name", JSON.stringify(mutateData).substring(0, 500));
+      return null;
+    }
+
+    const linkedCount = results.filter((r) => r?.assetGroupAssetResult).length;
+    console.log(`✅ AssetGroup created atomically: ${assetGroupResource} with ${linkedCount} linked assets`);
     return assetGroupResource;
   }
 }
