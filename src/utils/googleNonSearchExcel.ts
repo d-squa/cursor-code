@@ -177,6 +177,7 @@ export function validateGoogleNonSearchRow(
   const errors: string[] = [];
   const updates: Record<string, unknown> = {};
   const headlineValues: string[] = [];
+  const longHeadlineValues: string[] = [];
   const descriptionValues: string[] = [];
 
   for (const col of spec.textColumns) {
@@ -203,11 +204,13 @@ export function validateGoogleNonSearchRow(
     }
     if (value !== '') (updates as any)[col.key] = value;
 
-    if (String(col.key).startsWith('headline')) {
-      headlineValues.push(value);
-    }
-    if (String(col.key).startsWith('description')) {
-      descriptionValues.push(value);
+    const keyStr = String(col.key);
+    if (keyStr.startsWith('long_headline')) {
+      if (value.trim() !== '') longHeadlineValues.push(value);
+    } else if (keyStr.startsWith('headline')) {
+      if (value.trim() !== '') headlineValues.push(value);
+    } else if (keyStr.startsWith('description')) {
+      if (value.trim() !== '') descriptionValues.push(value);
     }
   }
 
@@ -230,6 +233,45 @@ export function validateGoogleNonSearchRow(
     }
     if (value !== '') (updates as any)[col.key] = value;
   }
+
+  // PMax-specific minimums: enforce at import time so users can't bypass the
+  // editor's hard-block by editing in Excel. Mirrors validatePmaxText().
+  if (type === 'pmax') {
+    const businessName = String(
+      (updates as any).brandName ??
+        rowByHeader[spec.structuralColumns.find((c) => c.key === 'brandName')?.label || ''] ??
+        '',
+    ).trim();
+    const finalUrl = String(
+      (updates as any).destinationUrl ??
+        rowByHeader[spec.structuralColumns.find((c) => c.key === 'destinationUrl')?.label || ''] ??
+        '',
+    ).trim();
+
+    if (headlineValues.length < 3) {
+      errors.push(`Performance Max requires 3 headlines (≤30 chars). Found ${headlineValues.length}.`);
+    }
+    if (longHeadlineValues.length < 1) {
+      errors.push('Performance Max requires 1 long headline (≤90 chars).');
+    }
+    if (descriptionValues.length < 2) {
+      errors.push(`Performance Max requires 2 descriptions (≤90 chars; at least one ≤60). Found ${descriptionValues.length}.`);
+    } else {
+      const hasShort = descriptionValues.some((d) => d.length > 0 && d.length <= 60);
+      if (!hasShort) {
+        errors.push('Performance Max requires at least one description ≤60 characters.');
+      }
+    }
+    if (!businessName) {
+      errors.push('Performance Max requires a Business Name (≤25 chars).');
+    } else if (businessName.length > 25) {
+      errors.push(`Business Name exceeds 25 chars (${businessName.length}).`);
+    }
+    if (!finalUrl) {
+      errors.push('Performance Max requires a Final URL.');
+    }
+  }
+
   return { errors, updates: updates as Partial<CreativeTextAssetRow> };
 }
 
