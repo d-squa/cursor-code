@@ -1766,40 +1766,81 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("status", "pushing");
 
     if (lingeringPushing && lingeringPushing.length > 0) {
-      // 🔍 DETAILED DIAGNOSTIC LOGGING — surface exactly what was skipped
-      console.warn(`⚠️ Found ${lingeringPushing.length} lingering pushing entities, marking as push_failed`);
-      console.warn(`📋 Lingering entity details:`);
-      for (const row of lingeringPushing) {
-        console.warn(
-          `   • ${row.platform} | ${row.market} | ${row.phase_name || "(no phase)"} | ${row.entity_type} | name="${row.entity_name || "(unnamed)"}"`,
-        );
-      }
+      // 🛟 PMax safety net: if an adset row's parent PMax campaign already pushed successfully,
+      // resolve the adset as pushed_to_dsp instead of failing it (PMax has no ad groups).
+      const { data: pushedPmaxCampaigns } = await supabase
+        .from("campaign_launch_status")
+        .select("market, phase_name, dsp_entity_id, entity_name")
+        .eq("campaign_id", campaignId)
+        .eq("entity_type", "campaign")
+        .in("status", ["pushed_to_dsp", "live"])
+        .ilike("entity_name", "PMAX%");
 
-      // Cross-reference against successful results to identify the gap
-      const successfulKeys = new Set<string>();
-      for (const r of results) {
-        for (const s of r.results || []) {
-          successfulKeys.add(`${s.market}|${s.phase}|${s.campaignEntityName || ""}|${s.adSetEntityName || ""}`);
+      const pmaxCampaignByKey = new Map<string, string>();
+      for (const c of pushedPmaxCampaigns || []) {
+        if (c.dsp_entity_id) {
+          pmaxCampaignByKey.set(`${c.market}|${c.phase_name}`, c.dsp_entity_id);
         }
       }
-      console.warn(`📊 Push summary: ${successfulKeys.size} successful entity keys reported across ${results.length} platform run(s)`);
 
-      // Write a specific error per row so the UI tells the user what actually went wrong
+      const trulyLingering: typeof lingeringPushing = [];
       for (const row of lingeringPushing) {
-        const reason =
-          row.entity_type === "adset"
-            ? `Ad set "${row.entity_name || "(unnamed)"}" in phase "${row.phase_name || "(no phase)"}" / market ${row.market} was planned but the push adapter never reported a result. This usually means its parent campaign failed to create, the phase was filtered out, or the adapter skipped it. Check the push logs for errors related to this phase/market.`
-            : `Campaign "${row.entity_name || "(unnamed)"}" in phase "${row.phase_name || "(no phase)"}" / market ${row.market} was planned but the push adapter never reported a result. Check the push logs for errors related to this phase/market.`;
+        const pmaxCampaignId = pmaxCampaignByKey.get(`${row.market}|${row.phase_name}`);
+        if (row.entity_type === "adset" && pmaxCampaignId) {
+          console.log(`🛟 PMax safety net: resolving lingering adset "${row.entity_name}" under PMax campaign ${pmaxCampaignId}`);
+          await supabase
+            .from("campaign_launch_status")
+            .update({
+              status: "pushed_to_dsp",
+              dsp_entity_id: pmaxCampaignId,
+              error_message: null,
+              error_details: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", row.id);
+        } else {
+          trulyLingering.push(row);
+        }
+      }
 
-        await supabase
-          .from("campaign_launch_status")
-          .update({
-            status: "push_failed",
-            error_message: reason,
-            error_details: [{ message: reason, type: "incomplete_push" }],
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", row.id);
+      if (trulyLingering.length === 0) {
+        console.log(`✅ All lingering rows were resolved by PMax safety net`);
+      } else {
+        // 🔍 DETAILED DIAGNOSTIC LOGGING — surface exactly what was skipped
+        console.warn(`⚠️ Found ${trulyLingering.length} lingering pushing entities (after PMax safety net), marking as push_failed`);
+        console.warn(`📋 Lingering entity details:`);
+        for (const row of trulyLingering) {
+          console.warn(
+            `   • ${row.platform} | ${row.market} | ${row.phase_name || "(no phase)"} | ${row.entity_type} | name="${row.entity_name || "(unnamed)"}"`,
+          );
+        }
+
+        // Cross-reference against successful results to identify the gap
+        const successfulKeys = new Set<string>();
+        for (const r of results) {
+          for (const s of r.results || []) {
+            successfulKeys.add(`${s.market}|${s.phase}|${s.campaignEntityName || ""}|${s.adSetEntityName || ""}`);
+          }
+        }
+        console.warn(`📊 Push summary: ${successfulKeys.size} successful entity keys reported across ${results.length} platform run(s)`);
+
+        // Write a specific error per row so the UI tells the user what actually went wrong
+        for (const row of trulyLingering) {
+          const reason =
+            row.entity_type === "adset"
+              ? `Ad set "${row.entity_name || "(unnamed)"}" in phase "${row.phase_name || "(no phase)"}" / market ${row.market} was planned but the push adapter never reported a result. This usually means its parent campaign failed to create, the phase was filtered out, or the adapter skipped it. Check the push logs for errors related to this phase/market.`
+              : `Campaign "${row.entity_name || "(unnamed)"}" in phase "${row.phase_name || "(no phase)"}" / market ${row.market} was planned but the push adapter never reported a result. Check the push logs for errors related to this phase/market.`;
+
+          await supabase
+            .from("campaign_launch_status")
+            .update({
+              status: "push_failed",
+              error_message: reason,
+              error_details: [{ message: reason, type: "incomplete_push" }],
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", row.id);
+        }
       }
     }
 
@@ -4524,30 +4565,40 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
             // traditional ad groups, so the planner-pre-registered language/asset-group rows would
             // otherwise linger as "pushing" and be marked failed at the end of the run.
             try {
+              console.log(`🔍 PMax adset resolution: searching for planned adset rows for campaign=${campaignId}, market=${market.name}, phase=${phase.name}`);
               const { data: plannedPmaxAdsetRows, error: plannedPmaxAdsetErr } = await supabase
                 .from("campaign_launch_status")
-                .select("id, entity_name")
+                .select("id, entity_name, status")
                 .eq("campaign_id", campaignId)
                 .eq("platform", "Google Ads")
                 .eq("market", market.name)
                 .eq("phase_name", phase.name)
                 .eq("entity_type", "adset")
-                .in("status", ["pushing", "pending"]);
+                .neq("status", "pushed")
+                .neq("status", "pushed_to_dsp")
+                .neq("status", "live");
 
               if (plannedPmaxAdsetErr) {
                 console.warn(`⚠️ Could not fetch planned PMax adset rows: ${plannedPmaxAdsetErr.message}`);
               } else if (plannedPmaxAdsetRows && plannedPmaxAdsetRows.length > 0) {
-                console.log(`ℹ️ Resolving ${plannedPmaxAdsetRows.length} planned PMax adset row(s) as pushed (PMax has no ad groups)`);
-                await supabase
+                console.log(`ℹ️ Resolving ${plannedPmaxAdsetRows.length} planned PMax adset row(s) as pushed_to_dsp (PMax has no ad groups). Statuses found: ${plannedPmaxAdsetRows.map((r:any)=>r.status).join(",")}`);
+                const { error: updateErr } = await supabase
                   .from("campaign_launch_status")
                   .update({
-                    status: "pushed",
+                    status: "pushed_to_dsp",
                     dsp_entity_id: campaignResult.campaignId,
                     error_message: null,
                     error_details: null,
                     updated_at: new Date().toISOString(),
                   })
                   .in("id", plannedPmaxAdsetRows.map((r: any) => r.id));
+                if (updateErr) {
+                  console.error(`❌ Failed to update PMax adset rows: ${updateErr.message}`);
+                } else {
+                  console.log(`✅ Successfully resolved ${plannedPmaxAdsetRows.length} PMax adset row(s)`);
+                }
+              } else {
+                console.log(`ℹ️ No planned PMax adset rows found to resolve (none in non-pushed state)`);
               }
             } catch (pmaxResolveErr: any) {
               console.warn(`⚠️ Failed to resolve PMax planned adset rows: ${pmaxResolveErr?.message || pmaxResolveErr}`);
