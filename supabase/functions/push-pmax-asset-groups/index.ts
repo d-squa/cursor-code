@@ -46,6 +46,12 @@ interface AssetGroupResult {
   error?: string;
 }
 
+const MAX_ROWS_PER_INVOCATION = 3;
+const STALE_PUSHING_MS = 2 * 60 * 1000;
+
+const uniqueLimited = (items: string[], max: number) =>
+  Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean))).slice(0, max);
+
 // Heuristic filename-based image bucketing — mirrors
 // `pmaxAssetGroupValidation.ts` on the client. We can't read remote dimensions
 // here, so we trust the filename: anything containing "logo" → logo,
@@ -91,6 +97,25 @@ serve(async (req) => {
       );
     }
 
+    // Clear rows left in `pushing` by a previous runtime timeout so the UI never
+    // shows an infinite in-progress state. Retried requests include push_failed.
+    let stalePushingQuery = supabase
+      .from("campaign_launch_status")
+      .update({
+        status: "push_failed",
+        error_message: "Previous PMax asset group push timed out before completing. Please retry.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("campaign_id", campaignId)
+      .eq("platform", "Google Ads")
+      .eq("entity_type", "adset")
+      .eq("status", "pushing")
+      .lt("updated_at", new Date(Date.now() - STALE_PUSHING_MS).toISOString());
+
+    if (marketFilter) stalePushingQuery = stalePushingQuery.eq("market", marketFilter);
+    if (phaseFilter) stalePushingQuery = stalePushingQuery.eq("phase_name", phaseFilter);
+    await stalePushingQuery;
+
     // ----- Load awaiting_assets (and optionally push_failed) PMax rows -----
     const eligibleStatuses = retryFailed
       ? ["awaiting_assets", "push_failed", "assets_incomplete"]
@@ -122,12 +147,10 @@ serve(async (req) => {
       );
     }
 
-    // Immediately mark all pending rows as `pushing` so the UI reflects work in progress
-    // before we return. Background work continues via EdgeRuntime.waitUntil.
-    await supabase
-      .from("campaign_launch_status")
-      .update({ status: "pushing", updated_at: new Date().toISOString() })
-      .in("id", pendingRows.map((r) => r.id));
+    // Keep each invocation bounded. Large PMax pushes can otherwise exceed the
+    // edge runtime CPU limit and leave every row stuck in `pushing`.
+    const rowsToProcess = pendingRows.slice(0, MAX_ROWS_PER_INVOCATION);
+    const deferredCount = Math.max(0, pendingRows.length - rowsToProcess.length);
 
     // ----- Resolve parent PMax campaign DSP IDs (per market+phase) -----
     const { data: campaignShellRows } = await supabase
