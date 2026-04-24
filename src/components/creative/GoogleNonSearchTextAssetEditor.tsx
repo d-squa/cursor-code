@@ -41,6 +41,12 @@ import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/utils/googleCtaOptions';
 import { GoogleBulkApplyBar, type BulkParameterDef, type BulkApplyScope } from './GoogleBulkApplyBar';
+import {
+  validatePmaxAssetGroups,
+  PMAX_LIMITS,
+  type PmaxAssetGroupValidation,
+} from '@/utils/pmaxAssetGroupValidation';
+import { AlertTriangle, CheckCircle2, Images } from 'lucide-react';
 
 // ---------- Type detection ----------
 
