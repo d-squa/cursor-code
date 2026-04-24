@@ -40,6 +40,7 @@ import {
   getTiktokLocationClearFields,
   ConversionLocationData,
 } from "@/utils/conversionLocationUtils";
+import { useSampleMode } from "@/contexts/SampleModeContext";
 
 interface GoogleAdAccountDefaults {
   id: string;
@@ -221,6 +222,7 @@ interface ClientTargetingDefaults {
 }
 
 export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
+  const { isSampleMode } = useSampleMode();
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [googleAdAccounts, setGoogleAdAccounts] = useState<GoogleAdAccountDefaults[]>([]);
   const [googleLocalDefaults, setGoogleLocalDefaults] = useState<Record<string, Partial<GoogleAdAccountDefaults>>>({});
@@ -280,7 +282,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     if (clientId && userId) {
       loadData();
     }
-  }, [clientId, userId]);
+  }, [clientId, userId, isSampleMode]);
 
   const loadData = async () => {
     setLoading(true);
@@ -314,18 +316,22 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
       // Load Meta ad accounts for this client
       // RLS handles access control - users can see their own accounts or accounts linked to team clients
-      const { data: metaAccountsData, error: metaAccountsError } = await supabase
+      let metaQuery = supabase
         .from("meta_ad_accounts")
         .select("*")
         .eq("client_id", clientId);
+      if (!isSampleMode) metaQuery = metaQuery.eq("is_sample", false);
+      const { data: metaAccountsData, error: metaAccountsError } = await metaQuery;
 
       if (metaAccountsError) throw metaAccountsError;
 
       // Load TikTok ad accounts for this client
-      const { data: tiktokAccountsData, error: tiktokAccountsError } = await supabase
+      let tiktokQuery = supabase
         .from("tiktok_ad_accounts")
         .select("*")
         .eq("client_id", clientId);
+      if (!isSampleMode) tiktokQuery = tiktokQuery.eq("is_sample", false);
+      const { data: tiktokAccountsData, error: tiktokAccountsError } = await tiktokQuery;
 
       if (tiktokAccountsError) throw tiktokAccountsError;
 
@@ -400,10 +406,12 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       );
 
       // Load Google Ads accounts for this client
-      const { data: googleAccountsData, error: googleAccountsError } = await supabase
+      let googleQuery = supabase
         .from("google_ad_accounts")
         .select("id, account_id, account_name, customer_id, default_landing_page_url, default_bid_strategy, default_target_cpa, default_target_roas, default_max_cpc_bid, default_conversion_budget_type, default_non_conversion_budget_type, default_merchant_center_id, default_feed_label, main_markets, default_utm_mode, default_url_parameters, default_placements, default_campaign_objective, default_campaign_type, default_campaign_subtype, default_location_targeting, default_search_partner, default_display_network, default_customer_acquisition, default_optimized_targeting, default_inventory_type, default_ai_max, default_ai_max_options, default_brand_guidelines, default_business_name")
         .eq("client_id", clientId);
+      if (!isSampleMode) googleQuery = googleQuery.eq("is_sample", false);
+      const { data: googleAccountsData, error: googleAccountsError } = await googleQuery;
 
       if (googleAccountsError) throw googleAccountsError;
 
