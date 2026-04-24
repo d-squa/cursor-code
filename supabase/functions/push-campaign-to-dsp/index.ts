@@ -1768,17 +1768,25 @@ const handler = async (req: Request): Promise<Response> => {
     if (lingeringPushing && lingeringPushing.length > 0) {
       // 🛟 PMax safety net: if an adset row's parent PMax campaign already pushed successfully,
       // resolve the adset as pushed_to_dsp instead of failing it (PMax has no ad groups).
+      // Only treat as a real Performance Max campaign when the phase name
+      // signals PMax — Shopping campaigns are also pushed via this code path
+      // and their campaign names may also start with "PMAX" (copies, etc.),
+      // so we cannot rely on entity_name alone.
+      const isPmaxPhase = (phaseName: string | null | undefined) => {
+        const p = String(phaseName || "").toLowerCase();
+        return p.includes("performance") || p.includes("pmax") || p.includes("p-max") || p.includes("product discovery");
+      };
+
       const { data: pushedPmaxCampaigns } = await supabase
         .from("campaign_launch_status")
         .select("market, phase_name, dsp_entity_id, entity_name")
         .eq("campaign_id", campaignId)
         .eq("entity_type", "campaign")
-        .in("status", ["pushed_to_dsp", "live"])
-        .ilike("entity_name", "PMAX%");
+        .in("status", ["pushed_to_dsp", "live"]);
 
       const pmaxCampaignByKey = new Map<string, string>();
       for (const c of pushedPmaxCampaigns || []) {
-        if (c.dsp_entity_id) {
+        if (c.dsp_entity_id && isPmaxPhase(c.phase_name)) {
           pmaxCampaignByKey.set(`${c.market}|${c.phase_name}`, c.dsp_entity_id);
         }
       }
