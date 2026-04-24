@@ -3589,15 +3589,33 @@ class GoogleAdsAdapter implements PlatformAdapter {
       }
     }
 
-    // 2) Dedupe link specs by (asset resourceName, fieldType). Different source
-    // URLs can resolve to the same Google Ads asset ID after upload, which
-    // triggers `assetGroupAssetError: DUPLICATE_RESOURCE` in the atomic mutate.
+    // 2) Dedupe link specs. Two safeguards:
+    //   (a) Never link the same (asset, fieldType) twice.
+    //   (b) Never link the same image asset under multiple image fieldTypes
+    //       (e.g. MARKETING_IMAGE + SQUARE_MARKETING_IMAGE) — Google rejects
+    //       the operation as DUPLICATE_RESOURCE even though the field types
+    //       differ, because the underlying image asset id is identical.
     {
+      const IMAGE_FIELDS = new Set([
+        "MARKETING_IMAGE",
+        "SQUARE_MARKETING_IMAGE",
+        "PORTRAIT_MARKETING_IMAGE",
+        "LOGO",
+        "LANDSCAPE_LOGO",
+      ]);
       const seenLink = new Set<string>();
+      const seenImageAsset = new Set<string>();
       const deduped: LinkSpec[] = [];
       for (const spec of linkSpecs) {
         const key = `${spec.asset}::${spec.fieldType}`;
         if (seenLink.has(key)) continue;
+        if (IMAGE_FIELDS.has(spec.fieldType)) {
+          if (seenImageAsset.has(spec.asset)) {
+            console.warn(`[pmax] skipping image asset ${spec.asset} reused under ${spec.fieldType} — already linked under another image field`);
+            continue;
+          }
+          seenImageAsset.add(spec.asset);
+        }
         seenLink.add(key);
         deduped.push(spec);
       }
