@@ -1087,17 +1087,25 @@ export default function LaunchStatus() {
         });
       } else if (queued > 0) {
         toast.success(`Queued ${queued} PMax asset group${queued === 1 ? '' : 's'} for push`, {
-          description: deferred > 0 ? `${deferred} more remaining — click again after this finishes.` : undefined,
+          description: deferred > 0 ? `${deferred} more queued automatically once ready.` : undefined,
         });
       } else if (pushed > 0) {
         toast.success(`Pushed ${pushed} PMax asset group${pushed === 1 ? '' : 's'}`);
       } else {
         toast.info(data?.message || "No asset groups awaiting push");
       }
+      // If there are more groups still pending in this phase, allow the
+      // auto-push effect to fire again for the same (market, phase) so the
+      // user doesn't have to click manually for each remaining asset group.
+      if (deferred > 0 || queued > 0) {
+        autoPushedPmaxKeysRef.current.delete(key);
+      }
       refreshProgress();
     } catch (err: any) {
       console.error("push-pmax-asset-groups error:", err);
       toast.error("Failed to push asset groups: " + (err?.message || String(err)));
+      // Allow retry on failure
+      autoPushedPmaxKeysRef.current.delete(`${market}|${phaseName}`);
     } finally {
       setPushingPmaxKey(null);
     }
