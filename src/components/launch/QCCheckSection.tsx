@@ -237,8 +237,13 @@ export function QCCheckSection({
         toast.error("Cannot move to Pushed Live: this item has unresolved Setup Mistakes. Resolve them first.");
         return;
       }
-      // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
+      // Block if any ancestor scope (platform/market/phase) has an open mistake
       const item = items.find(i => i.id === trackingId);
+      if (item && isBlockedByAncestorScope(item)) {
+        toast.error("Cannot move to Pushed Live: an ancestor scope (Platform / Market / Phase) has unresolved Setup Mistakes.");
+        return;
+      }
+      // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
       const isForwardTransition = item && item.current_state === 'qc';
       if (isForwardTransition) {
         setPendingLiveAction(() => () => {
@@ -253,7 +258,7 @@ export function QCCheckSection({
     } else {
       onUpdateState(trackingId, newState);
     }
-  }, [onUpdateState, items, hasOpenMistakeForTracking]);
+  }, [onUpdateState, items, hasOpenMistakeForTracking, isBlockedByAncestorScope, sendLiveNotification]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
