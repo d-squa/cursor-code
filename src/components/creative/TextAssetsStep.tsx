@@ -1914,7 +1914,7 @@ export function TextAssetsStep({
         finalUrl: anchor.destinationUrl || '',
         callToAction: String(anchor.callToAction || ''),
         headlines: [anchor.headline, anchor.headline2, anchor.headline3, anchor.headline4, anchor.headline5].map((v) => String(v || '')),
-        longHeadlines: [anchor.primaryText, a.long_headline_2, a.long_headline_3, a.long_headline_4, a.long_headline_5].map((v) => String(v || '')),
+        longHeadlines: [a.long_headline_1, a.long_headline_2, a.long_headline_3, a.long_headline_4, a.long_headline_5].map((v) => String(v || '')),
         descriptions: [anchor.description, anchor.description2, anchor.description3, anchor.description4, anchor.description5].map((v) => String(v || '')),
         ...byKind,
       };
