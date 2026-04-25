@@ -183,6 +183,15 @@ export function LogActionDialog({
 
     setLoading(true);
     try {
+      // Build description with ad set / ad context
+      let fullDescription = description.trim();
+      const ctxLines: string[] = [];
+      if (adSetName.trim()) ctxLines.push(`Ad Set: ${adSetName.trim()}`);
+      if (adName.trim()) ctxLines.push(`Ad: ${adName.trim()}`);
+      if (ctxLines.length > 0) {
+        fullDescription = (fullDescription ? `${fullDescription}\n\n` : "") + ctxLines.join("\n");
+      }
+
       // Insert into activity_logs table
       const { error: logError } = await supabase
         .from("activity_logs")
@@ -191,11 +200,14 @@ export function LogActionDialog({
           user_id: user?.id,
           action_type: actionType,
           title: title.trim(),
-          description: description.trim() || null,
+          description: fullDescription || null,
           affected_platforms: selectedPlatforms,
           affected_markets: selectedMarkets,
           affected_phases: selectedPhases,
-          metadata: {},
+          metadata: {
+            ad_set_name: adSetName.trim() || null,
+            ad_name: adName.trim() || null,
+          },
         });
 
       if (logError) throw logError;
@@ -206,35 +218,8 @@ export function LogActionDialog({
         user_id: user?.id,
         action: `action_logged_${actionType}`,
         change_type: actionType,
-        description: `${title}${description ? `: ${description}` : ""}`,
+        description: `${title}${fullDescription ? `: ${fullDescription}` : ""}`,
       });
-
-      // For Setup Mistake, also create a tracked record (no qc_tracking_id from this generic dialog)
-      if (actionType === "setup_mistake" && user?.id) {
-        const { data: campaignRow } = await supabase
-          .from("campaigns")
-          .select("team_id")
-          .eq("id", campaignId)
-          .single();
-
-        await (supabase.from("setup_mistakes" as any) as any).insert({
-          campaign_id: campaignId,
-          team_id: campaignRow?.team_id ?? null,
-          platform: selectedPlatforms[0] ?? null,
-          market: selectedMarkets[0] ?? null,
-          phase_name: selectedPhases[0] ?? null,
-          title: title.trim(),
-          description: description.trim() || null,
-          status: "open",
-          created_by: user.id,
-          metadata: {
-            affected_platforms: selectedPlatforms,
-            affected_markets: selectedMarkets,
-            affected_phases: selectedPhases,
-            source: "log_action_dialog",
-          },
-        });
-      }
 
       toast.success("Action logged successfully");
       onSuccess();
