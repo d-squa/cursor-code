@@ -3135,6 +3135,158 @@ export type Database = {
         }
         Relationships: []
       }
+      pmax_asset_groups: {
+        Row: {
+          ad_group_name: string
+          business_name: string | null
+          call_to_action: string | null
+          campaign_id: string
+          created_at: string
+          dsp_entity_id: string | null
+          error_message: string | null
+          final_url: string | null
+          group_name: string | null
+          id: string
+          is_sample: boolean
+          market: string
+          phase_name: string
+          status: string
+          team_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ad_group_name: string
+          business_name?: string | null
+          call_to_action?: string | null
+          campaign_id: string
+          created_at?: string
+          dsp_entity_id?: string | null
+          error_message?: string | null
+          final_url?: string | null
+          group_name?: string | null
+          id?: string
+          is_sample?: boolean
+          market: string
+          phase_name: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ad_group_name?: string
+          business_name?: string | null
+          call_to_action?: string | null
+          campaign_id?: string
+          created_at?: string
+          dsp_entity_id?: string | null
+          error_message?: string | null
+          final_url?: string | null
+          group_name?: string | null
+          id?: string
+          is_sample?: boolean
+          market?: string
+          phase_name?: string
+          status?: string
+          team_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pmax_asset_groups_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pmax_asset_groups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pmax_creative_assets: {
+        Row: {
+          asset_group_id: string
+          bucket: string
+          created_at: string
+          creative_id: string
+          id: string
+          position: number
+        }
+        Insert: {
+          asset_group_id: string
+          bucket: string
+          created_at?: string
+          creative_id: string
+          id?: string
+          position?: number
+        }
+        Update: {
+          asset_group_id?: string
+          bucket?: string
+          created_at?: string
+          creative_id?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pmax_creative_assets_asset_group_id_fkey"
+            columns: ["asset_group_id"]
+            isOneToOne: false
+            referencedRelation: "pmax_asset_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pmax_creative_assets_creative_id_fkey"
+            columns: ["creative_id"]
+            isOneToOne: false
+            referencedRelation: "creative_library_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pmax_text_assets: {
+        Row: {
+          asset_group_id: string
+          asset_type: string
+          content: string
+          created_at: string
+          id: string
+          position: number
+        }
+        Insert: {
+          asset_group_id: string
+          asset_type: string
+          content: string
+          created_at?: string
+          id?: string
+          position?: number
+        }
+        Update: {
+          asset_group_id?: string
+          asset_type?: string
+          content?: string
+          created_at?: string
+          id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pmax_text_assets_asset_group_id_fkey"
+            columns: ["asset_group_id"]
+            isOneToOne: false
+            referencedRelation: "pmax_asset_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address_city: string | null
