@@ -1010,6 +1010,19 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
   return { keywords, ads, pmaxGroups };
 }
 
+/** Snapshot of an existing PMax asset group (current state) for diffing against an uploaded sheet. */
+export interface CurrentPmaxGroupSnapshot {
+  market: string;
+  phaseName: string;
+  assetGroupName: string;
+  businessName: string;
+  finalUrl: string;
+  callToAction: string;
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
+}
+
 export interface DiffInput {
   current: {
     keywords: KeywordSheetRow[];
@@ -1021,8 +1034,11 @@ export interface DiffInput {
      * auto-create instead of being flagged as unmatched.
      */
     shell?: Array<{ campaignName: string; adGroupName: string }>;
+    /** Current PMax asset groups (from pmax_asset_groups + pmax_text_assets). */
+    pmaxGroups?: CurrentPmaxGroupSnapshot[];
   };
   uploaded: ParsedShell;
+}
 }
 
 export function diffShell(input: DiffInput): GoogleAdsShellDiff {
