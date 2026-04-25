@@ -1895,10 +1895,14 @@ export function TextAssetsStep({
         else byKind.marketingImages.push(label);
       }
       const a = anchor as any;
+      const resolvedAssetGroupName = String(a.taxonomyAdSetName || anchor.adSet || '').trim();
       return {
         market: anchor.market,
         phaseName: anchor.phase,
-        assetGroupName: anchor.adSet,
+        // Use the fully-resolved taxonomy ad-group name so the Excel matches
+        // what's registered in campaign_launch_status.entity_name (which is
+        // what push-pmax-asset-groups looks up by).
+        assetGroupName: resolvedAssetGroupName,
         groupName: anchor.taxonomyAdSetName || anchor.adSet,
         businessName: anchor.brandName || a.business_name || '',
         finalUrl: anchor.destinationUrl || '',
@@ -2452,10 +2456,11 @@ export function TextAssetsStep({
             const d = padTo5(nextDesc);
             setRows((prev) =>
               prev.map((r) => {
+                const rowAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
                 if (
                   r.market !== u.market ||
                   r.phase !== u.phaseName ||
-                  r.adSet !== u.assetGroupName
+                  rowAdGroup !== u.assetGroupName
                 ) return r;
                 const patch: any = {
                   headline: h[0], headline2: h[1], headline3: h[2], headline4: h[3], headline5: h[4],

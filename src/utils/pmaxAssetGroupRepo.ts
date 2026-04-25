@@ -268,13 +268,19 @@ export async function syncPmaxGroupsFromRows(
 
     const a = anchor as any;
     try {
+      // The push function (push-pmax-asset-groups) looks groups up by
+      // `ad_group_name = campaign_launch_status.entity_name`, which is the
+      // fully-resolved taxonomy name (e.g. "PMAX Test - AE - PMax — Product
+      // Discovery - Default_LANG_ENG"). Persist that exact name so the lookup
+      // matches; fall back to `adSet` only if no taxonomy name is set.
+      const resolvedAdGroupName = String((anchor as any).taxonomyAdSetName || anchor.adSet || '').trim();
       const group = await upsertPmaxAssetGroup({
         campaignId,
         userId,
         market: anchor.market,
         phaseName: anchor.phase,
-        adGroupName: anchor.adSet,
-        groupName: anchor.taxonomyAdSetName || anchor.adSet || null,
+        adGroupName: resolvedAdGroupName,
+        groupName: (anchor as any).taxonomyAdSetName || anchor.adSet || null,
         businessName: String(a.business_name || a.brandName || '').trim() || null,
         finalUrl: String(a.destinationUrl || '').trim() || null,
         callToAction: String(a.callToAction || a.call_to_action || '').trim() || null,
