@@ -126,6 +126,38 @@ export interface GoogleAdsShellDiff {
     /** Rows that couldn't be matched to a known (campaign, ad group) — surfaced as warnings. */
     skippedNew: AdSheetRow[];
   };
+  /** PMax Asset Group sheet diffs (text + business name + CTA + final URL). */
+  pmaxGroups: {
+    updated: Array<{
+      market: string;
+      phaseName: string;
+      assetGroupName: string;
+      changes: Partial<{
+        businessName: string;
+        finalUrl: string;
+        callToAction: string;
+        headlines: string[];
+        longHeadlines: string[];
+        descriptions: string[];
+      }>;
+    }>;
+    /** Uploaded PMax rows that don't match any known (market, phase, ad group). */
+    skippedNew: ParsedPmaxGroupRow[];
+  };
+}
+
+/** Parsed row from the "PMax Asset Groups" sheet on re-upload. */
+export interface ParsedPmaxGroupRow {
+  market: string;
+  phaseName: string;
+  assetGroupName: string;
+  groupName: string;
+  businessName: string;
+  finalUrl: string;
+  callToAction: string;
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
 }
 
 // ---------- Limits ----------
