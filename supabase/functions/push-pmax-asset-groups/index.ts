@@ -7,7 +7,7 @@
 //   1) Loads the campaign + (optionally filtered) `awaiting_assets` rows
 //   2) Resolves the parent PMax campaign's DSP id (`pushed_to_dsp` campaign row)
 //   3) Pulls `creative_assignments` for the row's (market, phase, ad_set_name)
-//   4) Builds text + image buckets (1.91:1, 1:1, logo) using filename heuristics
+//   4) Builds text + image buckets (1.91:1, 1:1, 4:5, logo) using dimensions first
 //   5) Calls `googleAdapter.createPmaxAssetGroup` and updates the row status
 //
 // It can be invoked:
@@ -64,7 +64,7 @@ function isNear(value: number, target: number, tolerance = 0.05): boolean {
 // Dimension-first image bucketing. Filename hints are fallback only; relying on
 // names caused `_SQ_` assets to be uploaded as horizontal images and Google
 // rejected the final AssetGroup for aspect-ratio mismatch.
-function bucketImageAsset(creative: any, url: string): "logo" | "square" | "marketing" | "invalid" {
+function bucketImageAsset(creative: any, url: string): "logo" | "square" | "marketing" | "portrait" | "invalid" {
   const w = Number(creative?.width || 0);
   const h = Number(creative?.height || 0);
   const ratio = aspect(w, h);
@@ -78,6 +78,7 @@ function bucketImageAsset(creative: any, url: string): "logo" | "square" | "mark
       return "square";
     }
     if (isNear(ratio, 1.91, 0.06) || isNear(ratio, 16 / 9, 0.03)) return "marketing";
+    if (isNear(ratio, 0.8, 0.03)) return "portrait";
     return "invalid";
   }
 
