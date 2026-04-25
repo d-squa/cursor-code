@@ -1931,7 +1931,7 @@ export function TextAssetsStep({
       console.error('[GoogleAdsShell] download failed', err);
       toast.error('Failed to download Google Ads shell');
     }
-  }, [loadGoogleShellContext]);
+  }, [buildPmaxAssetGroupShellRows, loadGoogleShellContext, rows]);
 
   const handleUploadGoogleAdsShell = useCallback(async (file: File) => {
     try {
