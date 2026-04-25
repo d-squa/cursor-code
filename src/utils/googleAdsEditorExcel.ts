@@ -809,7 +809,10 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
       const valColLetter = XLSX.utils.encode_col(valColIdx);
       let limit = HEADLINE_LIMIT;
       if (s >= HEADLINE_SLOTS && s < HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) limit = LONG_HEADLINE_LIMIT;
-      else if (s >= HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) limit = DESCRIPTION_LIMIT;
+      else if (s >= HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) {
+        const descIdx = s - HEADLINE_SLOTS - LONG_HEADLINE_SLOTS;
+        limit = descriptionLimitForSlot(descIdx);
+      }
       setLenFormula(ws, lenColIdx, r + 1, valColLetter, limit);
     }
   }
