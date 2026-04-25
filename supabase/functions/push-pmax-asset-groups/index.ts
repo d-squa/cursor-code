@@ -435,12 +435,10 @@ serve(async (req) => {
               descriptions: uniqueLimited(descriptions, 5),
               businessName: String(businessName).substring(0, 25),
               callToAction: ctaEnum,
-              // Cap below Google's true maximums to stay within the edge function
-              // CPU budget. Each image upload base64-encodes the source bytes, which
-              // is CPU-bound; >~10 images per group reliably trips "CPU Time exceeded".
-              marketingImages: uniqueLimited(marketingImgs, 3),
-              squareMarketingImages: uniqueLimited(squareImgs, 3),
-              logoImages: uniqueLimited(logoImgs, 1),
+              // Google PMax true maximums per asset group.
+              marketingImages: uniqueLimited(marketingImgs, 20),
+              squareMarketingImages: uniqueLimited(squareImgs, 20),
+              logoImages: uniqueLimited(logoImgs, 5),
               youtubeVideoIds: uniqueLimited(ytVideoIds, 5),
               hasMerchantCenter,
             },
