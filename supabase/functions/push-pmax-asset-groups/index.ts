@@ -165,9 +165,13 @@ serve(async (req) => {
     if (phaseFilter) stalePushingQuery = stalePushingQuery.eq("phase_name", phaseFilter);
     await stalePushingQuery;
 
-    // ----- Load awaiting_assets (and optionally push_failed) PMax rows -----
+    // ----- Load pending PMax rows -----
+    // Do not include already pushed/live rows here. With bounded one-row
+    // processing, those rows can be selected first on every retry and starve
+    // the remaining awaiting asset groups, making the UI look like an infinite
+    // push loop.
     const eligibleStatuses = retryFailed
-      ? ["awaiting_assets", "push_failed", "assets_incomplete", "pushed_to_dsp", "live"]
+      ? ["awaiting_assets", "push_failed", "assets_incomplete"]
       : ["awaiting_assets"];
 
     let rowsQuery = supabase
