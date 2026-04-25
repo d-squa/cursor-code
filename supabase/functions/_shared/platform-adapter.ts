@@ -1453,6 +1453,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
       transformed.pathname = renderPath;
       transformed.searchParams.set("resize", "cover");
       transformed.searchParams.set("quality", "82");
+      transformed.searchParams.set("format", "origin");
 
       if (Math.abs(cropAspectRatio - 1.91) < 0.05) {
         transformed.searchParams.set("width", "1200");
