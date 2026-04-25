@@ -201,9 +201,14 @@ serve(async (req) => {
     }
 
     // Keep each invocation bounded. Large PMax pushes can otherwise exceed the
-    // edge runtime CPU limit and leave every row stuck in `pushing`.
-    const rowsToProcess = pendingRows.slice(0, MAX_ROWS_PER_INVOCATION);
-    const deferredCount = Math.max(0, pendingRows.length - rowsToProcess.length);
+    // edge runtime CPU limit and leave every row stuck in `pushing`. Prioritize
+    // rows that have not been pushed yet.
+    const pendingRowsSorted = [...pendingRows].sort((a: any, b: any) => {
+      const order = ["awaiting_assets", "assets_incomplete", "push_failed"];
+      return order.indexOf(a.status) - order.indexOf(b.status);
+    });
+    const rowsToProcess = pendingRowsSorted.slice(0, MAX_ROWS_PER_INVOCATION);
+    const deferredCount = Math.max(0, pendingRowsSorted.length - rowsToProcess.length);
 
     // ----- Resolve parent PMax campaign DSP IDs (per market+phase) -----
     const { data: campaignShellRows } = await supabase
