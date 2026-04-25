@@ -294,10 +294,13 @@ export async function parseTextAssetExcel(
                 if (Object.keys(updates).length === 0) continue;
                 let applied = 0;
                 updatedRows = updatedRows.map((r) => {
+                  const resolvedAdGroup = String(
+                    (r as any).taxonomyAdSetName || r.adSet || '',
+                  ).trim();
                   if (
                     String(r.market || '').trim() === market &&
                     String(r.phase || '').trim() === phase &&
-                    String(r.adSet || '').trim() === adGroup &&
+                    resolvedAdGroup === adGroup &&
                     detectGoogleNonSearchType(r) === 'pmax'
                   ) {
                     applied++;
