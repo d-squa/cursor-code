@@ -840,6 +840,7 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
 export interface ParsedShell {
   keywords: KeywordSheetRow[];
   ads: AdSheetRow[];
+  pmaxGroups: ParsedPmaxGroupRow[];
 }
 
 export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
