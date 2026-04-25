@@ -1171,7 +1171,18 @@ export function GoogleNonSearchTextAssetEditor({
                   const sch = SCHEMAS[d.type];
                   const filledH = d.headlines.filter((x) => x.trim()).length;
                   const filledD = d.descriptions.filter((x) => x.trim()).length;
-                  const invalid = isDraftInvalid(d);
+                  // For PMax anchors, use the group-level validation result so
+                  // the badge reflects the asset POOL — not whether this single
+                  // row's text is filled in.
+                  const groupValidation = d.type === 'pmax' ? pmaxGroupByRowId.get(d.rowId) : undefined;
+                  const invalid = groupValidation ? !groupValidation.isValid : isDraftInvalid(d);
+                  const groupSize = d.type === 'pmax'
+                    ? (pmaxGroupMembers.get(pmaxGroupKey(d.market, d.adGroupName, d.adGroupName))?.length || 1)
+                    : 1;
+                  // Count creatives in the group (= number of shadow + anchor rows).
+                  const creativeCount = d.type === 'pmax'
+                    ? Array.from(pmaxGroupMembers.values()).find((ids) => ids.includes(d.rowId))?.length || 1
+                    : 1;
                   return (
                     <div
                       key={d.rowId}
@@ -1188,7 +1199,12 @@ export function GoogleNonSearchTextAssetEditor({
                       <div className="px-2 py-2 min-w-0">
                         <div className="font-medium truncate">{d.campaignName || '—'}</div>
                         <div className="text-muted-foreground truncate">{d.adGroupName || '—'}</div>
-                        <div className="text-[10px] text-muted-foreground">{d.market}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {d.market}
+                          {d.type === 'pmax' && creativeCount > 1 && (
+                            <span className="ml-1">· {creativeCount} creatives in pool</span>
+                          )}
+                        </div>
                       </div>
                       <div className="px-2 py-2"><Badge variant="outline" className="text-[10px]">{sch.label}</Badge></div>
                       <div className="px-2 py-2"><GoogleNonSearchPreview draft={d} compact /></div>
