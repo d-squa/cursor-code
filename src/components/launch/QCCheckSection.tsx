@@ -636,6 +636,9 @@ function HierarchicalEntityContent({
   onUpdateState,
   onBulkCheckAndAdvance,
   qcEnforceIndividual = false,
+  onLogMistake,
+  onResolveMistake,
+  openMistakesByTracking,
 }: HierarchicalEntityContentProps) {
   const allAds = Object.values(adsByAdSet).flat();
   const adGroups = Object.entries(adsByAdSet).map(([groupName, groupAds]) => ({
