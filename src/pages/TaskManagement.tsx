@@ -226,9 +226,58 @@ export default function TaskManagement() {
         comments: [],
         task_type: "approval" as const,
       })) : [];
-      
+
+      // Fetch Setup Mistakes for these campaigns and surface them as tasks for
+      // the creator (always) and team admins (when viewing all tasks).
+      const { data: mistakeRows } = await (supabase.from("setup_mistakes" as any) as any)
+        .select("*")
+        .in("campaign_id", campaignIds)
+        .order("created_at", { ascending: false });
+      const filteredMistakes = (mistakeRows || []).filter((m: any) =>
+        isAdminOrOwner || m.created_by === user.id
+      );
+      // Make sure mistake creator emails are loaded
+      const mistakeUserIds = new Set<string>();
+      filteredMistakes.forEach((m: any) => {
+        mistakeUserIds.add(m.created_by);
+        if (m.resolved_by) mistakeUserIds.add(m.resolved_by);
+      });
+      const missingMistakeUserIds = Array.from(mistakeUserIds).filter(id => !profilesMap[id]);
+      if (missingMistakeUserIds.length > 0) {
+        const { data: extraProfiles } = await supabase
+          .from("profiles")
+          .select("id, email")
+          .in("id", missingMistakeUserIds);
+        (extraProfiles || []).forEach(p => { profilesMap[p.id] = p.email; });
+      }
+      const mistakeTasks: Task[] = filteredMistakes.map((m: any) => {
+        const scopeBits = [m.platform, m.market, m.phase_name, m.ad_set_name, m.ad_name].filter(Boolean);
+        const scope = scopeBits.length ? ` (${scopeBits.join(" › ")})` : "";
+        return {
+          id: `setup-mistake-${m.id}`,
+          campaign_id: m.campaign_id,
+          campaign_name: campaignsMap[m.campaign_id] || "Unknown Campaign",
+          requester_id: m.created_by,
+          requester_email: profilesMap[m.created_by] || "Unknown",
+          change_type: "setup_mistake",
+          description: `${m.title}${scope}${m.description ? `\n\n${m.description}` : ""}`,
+          status: m.status === "resolved" ? "completed" : "in_progress",
+          assigned_to: [m.created_by],
+          assigned_emails: [profilesMap[m.created_by] || "Unknown"],
+          notify_all_team: false,
+          created_at: m.created_at,
+          updated_at: m.updated_at,
+          estimated_hours: null,
+          actual_hours: null,
+          completed_by: m.resolved_by,
+          completed_at: m.resolved_at,
+          comments: [],
+          task_type: "modification" as const,
+        };
+      });
+
       // Combine all tasks and sort by created_at
-      const allTasks = [...modificationTasks, ...approvalTasks].sort(
+      const allTasks = [...modificationTasks, ...approvalTasks, ...mistakeTasks].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       
