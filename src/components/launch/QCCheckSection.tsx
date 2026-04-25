@@ -103,6 +103,16 @@ export function QCCheckSection({
   const [initAttempts, setInitAttempts] = useState(0);
   const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
   const [pendingLiveAction, setPendingLiveAction] = useState<(() => void) | null>(null);
+  const [setupMistakeDialogOpen, setSetupMistakeDialogOpen] = useState(false);
+  const [setupMistakeContext, setSetupMistakeContext] = useState<SetupMistakeContext | null>(null);
+
+  const {
+    mistakes: setupMistakes,
+    refresh: refreshMistakes,
+    resolveMistake,
+    hasOpenMistakeForTracking,
+    openMistakesForTracking,
+  } = useSetupMistakes({ campaignId, enabled: !!campaignId });
 
   // Send stakeholder notification when campaign goes live
   const sendLiveNotification = useCallback(async () => {
