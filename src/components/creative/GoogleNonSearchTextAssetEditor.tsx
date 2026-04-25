@@ -1202,10 +1202,21 @@ export function GoogleNonSearchTextAssetEditor({
                       <span>H: {g.text.headlines.length}/3</span>
                       <span>LH: {g.text.longHeadlines.length}/1</span>
                       <span>D: {g.text.descriptions.length}/2</span>
-                      <span>1.91:1: {g.buckets.marketingImages.length}</span>
-                      <span>1:1: {g.buckets.squareImages.length}</span>
-                      <span>Logo: {g.buckets.logos.length}</span>
-                      <span>Video: {g.buckets.videos.length}</span>
+                      <span className={cn(g.buckets.marketingImages.length > PMAX_LIMITS.MAX_MARKETING_IMAGES && 'text-destructive font-semibold')}>
+                        1.91:1: {g.buckets.marketingImages.length}/{PMAX_LIMITS.MAX_MARKETING_IMAGES}
+                      </span>
+                      <span className={cn(g.buckets.squareImages.length > PMAX_LIMITS.MAX_SQUARE_IMAGES && 'text-destructive font-semibold')}>
+                        1:1: {g.buckets.squareImages.length}/{PMAX_LIMITS.MAX_SQUARE_IMAGES}
+                      </span>
+                      <span className={cn(g.buckets.portraitImages.length > PMAX_LIMITS.MAX_PORTRAIT_IMAGES && 'text-destructive font-semibold')}>
+                        4:5: {g.buckets.portraitImages.length}/{PMAX_LIMITS.MAX_PORTRAIT_IMAGES}
+                      </span>
+                      <span className={cn(g.buckets.logos.length > PMAX_LIMITS.MAX_LOGOS && 'text-destructive font-semibold')}>
+                        Logo: {g.buckets.logos.length}/{PMAX_LIMITS.MAX_LOGOS}
+                      </span>
+                      <span className={cn(g.buckets.videos.length > PMAX_LIMITS.MAX_VIDEOS && 'text-destructive font-semibold')}>
+                        Video: {g.buckets.videos.length}/{PMAX_LIMITS.MAX_VIDEOS}
+                      </span>
                     </div>
                     {g.errors.length > 0 && (
                       <ul className="mt-1 list-disc list-inside text-destructive space-y-0.5">
@@ -1213,17 +1224,34 @@ export function GoogleNonSearchTextAssetEditor({
                       </ul>
                     )}
                   </div>
-                  {onApplyImagesToAllPmaxGroups && (g.buckets.marketingImages.length > 0 || g.buckets.squareImages.length > 0 || g.buckets.logos.length > 0) && pmaxGroups.length > 1 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-[10px] shrink-0"
-                      onClick={() => onApplyImagesToAllPmaxGroups(g.groupKey)}
-                    >
-                      <Images className="h-3 w-3 mr-1" />
-                      Apply images to all groups
-                    </Button>
-                  )}
+                  <div className="flex flex-col gap-1 shrink-0">
+                    {(g.buckets.marketingImages.length > PMAX_LIMITS.MAX_MARKETING_IMAGES ||
+                      g.buckets.squareImages.length > PMAX_LIMITS.MAX_SQUARE_IMAGES ||
+                      g.buckets.portraitImages.length > PMAX_LIMITS.MAX_PORTRAIT_IMAGES ||
+                      g.buckets.logos.length > PMAX_LIMITS.MAX_LOGOS ||
+                      g.buckets.videos.length > PMAX_LIMITS.MAX_VIDEOS) && onDeleteAssignments && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-[10px]"
+                        onClick={() => setTrimGroup(g)}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Pick which to keep
+                      </Button>
+                    )}
+                    {onApplyImagesToAllPmaxGroups && (g.buckets.marketingImages.length > 0 || g.buckets.squareImages.length > 0 || g.buckets.logos.length > 0) && pmaxGroups.length > 1 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px]"
+                        onClick={() => onApplyImagesToAllPmaxGroups(g.groupKey)}
+                      >
+                        <Images className="h-3 w-3 mr-1" />
+                        Apply images to all groups
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
