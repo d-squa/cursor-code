@@ -3,6 +3,11 @@
  * Provides unified interface for all advertising platforms (Meta, TikTok, etc.)
  * Ensures consistent behavior across platforms while isolating platform-specific implementation
  */
+// Static top-level import — using `await import(...)` from inside an instance
+// method was triggering a "Cannot access 'Image' before initialization" TDZ
+// error on the Supabase edge runtime, which silently disabled image cropping
+// and caused Google Ads to reject PMax asset groups for ASPECT_RATIO_NOT_ALLOWED.
+import { Image as ImagescriptImage } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 
 /**
  * Extract a YouTube video ID from a YouTube URL (watch, youtu.be, shorts, embed).
@@ -1480,8 +1485,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
     cropAspectRatio: number | null = null,
     minimumSquareSize: number = 0,
   ): Promise<Uint8Array> {
+    // Ask Supabase storage to pre-resize when possible — that gives us bytes that
+    // are already close to the target dimensions and dramatically reduces the
+    // CPU cost of the local crop step.
     const preparedUrl = this.getTransformedStorageImageUrl(imageUrl, cropAspectRatio);
-    const cacheKey = `${preparedUrl}::${minimumSquareSize}`;
+    const cacheKey = `${preparedUrl}::${cropAspectRatio ?? "original"}::${minimumSquareSize}`;
     const cached = this.imageAssetBytesCache.get(cacheKey);
     if (cached) {
       return new Uint8Array(await cached);
@@ -1493,7 +1501,12 @@ class GoogleAdsAdapter implements PlatformAdapter {
         throw new Error(`Failed to download image (${imgResp.status})`);
       }
 
-      return new Uint8Array(await imgResp.arrayBuffer());
+      let preparedBytes = new Uint8Array(await imgResp.arrayBuffer());
+      if (cropAspectRatio && cropAspectRatio > 0) {
+        const cropped = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
+        preparedBytes = new Uint8Array(cropped);
+      }
+      return preparedBytes;
     })();
 
     this.imageAssetBytesCache.set(cacheKey, pendingBytes);
@@ -1565,8 +1578,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
     minimumSquareSize: number = 128,
   ): Promise<Uint8Array> {
     try {
-      const { Image } = await import("https://deno.land/x/imagescript@1.2.17/mod.ts");
-      const img = await Image.decode(bytes);
+      const img = await ImagescriptImage.decode(bytes);
       const w = img.width;
       const h = img.height;
       const currentRatio = w / h;
