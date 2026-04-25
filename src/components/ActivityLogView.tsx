@@ -10,7 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, FileEdit, ClipboardList, ArrowRight } from "lucide-react";
+import { CalendarIcon, Loader2, FileEdit, ClipboardList, ArrowRight, AlertOctagon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +35,8 @@ interface UnifiedLogEntry {
   user_email: string;
   created_at: string;
   metadata?: any;
+  isSetupMistake?: boolean;
+  mistakeStatus?: "open" | "resolved" | null;
 }
 
 export function ActivityLogView({
@@ -46,7 +48,7 @@ export function ActivityLogView({
   const [logs, setLogs] = useState<UnifiedLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<UnifiedLogEntry | null>(null);
-  const [activeTab, setActiveTab] = useState<"all" | "requests" | "actions">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "requests" | "actions" | "setup_mistakes">("all");
   
   // Filters
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -81,6 +83,17 @@ export function ActivityLogView({
         .order("created_at", { ascending: false });
 
       if (actError) throw actError;
+
+      // Fetch setup_mistakes for status enrichment of mirrored activity log entries
+      const { data: mistakes } = await (supabase.from("setup_mistakes" as any) as any)
+        .select("id, title, status, created_at")
+        .eq("campaign_id", campaignId);
+      const mistakesByKey = new Map<string, "open" | "resolved">();
+      (mistakes || []).forEach((m: any) => {
+        // Match by id (preferred) and by title+timestamp (fallback for older logs)
+        if (m.id) mistakesByKey.set(`id:${m.id}`, m.status);
+        mistakesByKey.set(`title:${m.title}`, m.status);
+      });
 
       // Collect all user IDs
       const allUserIds = new Set<string>();
@@ -117,19 +130,33 @@ export function ActivityLogView({
       });
 
       // Transform actions to unified format
-      const actionLogs: UnifiedLogEntry[] = (actions || []).map((act) => ({
-        id: act.id,
-        type: "action_log",
-        title: act.title,
-        description: act.description,
-        category: act.action_type,
-        platforms: act.affected_platforms || [],
-        markets: act.affected_markets || [],
-        phases: act.affected_phases || [],
-        user_email: profilesMap[act.user_id] || "Unknown",
-        created_at: act.created_at,
-        metadata: act.metadata,
-      }));
+      const actionLogs: UnifiedLogEntry[] = (actions || []).map((act) => {
+        const isSetupMistake = act.action_type === "setup_mistake";
+        const linkedId = (act.metadata as any)?.setup_mistake_id;
+        let mistakeStatus: "open" | "resolved" | null = null;
+        if (isSetupMistake) {
+          mistakeStatus =
+            (linkedId && mistakesByKey.get(`id:${linkedId}`)) ||
+            mistakesByKey.get(`title:${act.title}`) ||
+            "open";
+        }
+        return {
+          id: act.id,
+          type: "action_log",
+          title: act.title,
+          description: act.description,
+          category: act.action_type,
+          platforms: act.affected_platforms || [],
+          markets: act.affected_markets || [],
+          phases: act.affected_phases || [],
+          user_email: profilesMap[act.user_id] || "Unknown",
+          created_at: act.created_at,
+          metadata: act.metadata,
+          isSetupMistake,
+          mistakeStatus,
+          status: isSetupMistake ? mistakeStatus ?? undefined : undefined,
+        };
+      });
 
       // Merge and sort by date
       const allLogs = [...requestLogs, ...actionLogs].sort(
@@ -145,12 +172,16 @@ export function ActivityLogView({
     }
   };
 
-  const getTypeIcon = (type: "change_request" | "action_log") => {
-    return type === "change_request" ? FileEdit : ClipboardList;
+  const getEntryIcon = (entry: UnifiedLogEntry) => {
+    if (entry.isSetupMistake) return AlertOctagon;
+    return entry.type === "change_request" ? FileEdit : ClipboardList;
   };
 
-  const getTypeColor = (type: "change_request" | "action_log") => {
-    return type === "change_request" ? "bg-blue-500" : "bg-emerald-500";
+  const getEntryColor = (entry: UnifiedLogEntry) => {
+    if (entry.isSetupMistake) {
+      return entry.mistakeStatus === "resolved" ? "bg-emerald-600" : "bg-destructive";
+    }
+    return entry.type === "change_request" ? "bg-blue-500" : "bg-emerald-500";
   };
 
   const getStatusBadge = (status?: string) => {
@@ -160,6 +191,8 @@ export function ActivityLogView({
       in_progress: "default",
       completed: "default",
       rejected: "destructive",
+      open: "destructive",
+      resolved: "default",
     };
     return (
       <Badge variant={variants[status] || "secondary"} className="text-xs">
@@ -205,6 +238,7 @@ export function ActivityLogView({
       placement_update: "Placement Update",
       conversion_setup: "Conversion Setup",
       reporting_delivery: "Reporting Delivery",
+      setup_mistake: "Setup Mistake",
       note: "Note/Comment",
       other: "Other",
       // Legacy types for backwards compatibility
@@ -224,6 +258,7 @@ export function ActivityLogView({
       // Tab filter
       if (activeTab === "requests" && log.type !== "change_request") return false;
       if (activeTab === "actions" && log.type !== "action_log") return false;
+      if (activeTab === "setup_mistakes" && !log.isSetupMistake) return false;
 
       // Date filter
       if (dateRange.from || dateRange.to) {
@@ -260,7 +295,7 @@ export function ActivityLogView({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="all">
               All Activity ({logs.length})
             </TabsTrigger>
@@ -269,6 +304,9 @@ export function ActivityLogView({
             </TabsTrigger>
             <TabsTrigger value="actions">
               Logged Actions ({logs.filter((l) => l.type === "action_log").length})
+            </TabsTrigger>
+            <TabsTrigger value="setup_mistakes">
+              Setup Mistakes ({logs.filter((l) => l.isSetupMistake).length})
             </TabsTrigger>
           </TabsList>
 
@@ -362,7 +400,7 @@ export function ActivityLogView({
                         ) : (
                           <div className="space-y-3">
                             {filteredLogs.map((log) => {
-                              const Icon = getTypeIcon(log.type);
+                              const Icon = getEntryIcon(log);
                               return (
                                 <div
                                   key={`${log.type}-${log.id}`}
@@ -377,7 +415,7 @@ export function ActivityLogView({
                                   <div
                                     className={cn(
                                       "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                                      getTypeColor(log.type)
+                                      getEntryColor(log)
                                     )}
                                   >
                                     <Icon className="w-4 h-4 text-white" />
