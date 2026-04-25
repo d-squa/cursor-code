@@ -2141,7 +2141,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
             if (enabledCount >= 3) {
               const message = `This ad group already has ${enabledCount} of 3 enabled Responsive Search Ads in Google Ads (count includes ads created earlier in this push that may not yet appear in ActiPlan). Pause or remove an existing RSA in Google Ads, or assign this creative to a different ad group.`;
               console.warn(`[google.createCreative] RSA cap pre-flight blocked adGroup=${params.adGroupId} count=${enabledCount}`);
-              return { success: false, creativeId: "", error: message };
+              return { success: false, creativeId: "", platform: "google", error: message };
             }
           }
         } catch (rsaCheckErr) {
