@@ -149,6 +149,11 @@ export function QCCheckSection({
   // Wraps onUpdateState to intercept FORWARD transitions to pushed_live with confirmation
   const handleUpdateStateWithLiveCheck = useCallback((trackingId: string, newState: QCState) => {
     if (newState === 'pushed_live') {
+      // Block if there are open Setup Mistakes for this item
+      if (hasOpenMistakeForTracking(trackingId)) {
+        toast.error("Cannot move to Pushed Live: this item has unresolved Setup Mistakes. Resolve them first.");
+        return;
+      }
       // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
       const item = items.find(i => i.id === trackingId);
       const isForwardTransition = item && item.current_state === 'qc';
@@ -165,7 +170,7 @@ export function QCCheckSection({
     } else {
       onUpdateState(trackingId, newState);
     }
-  }, [onUpdateState, items]);
+  }, [onUpdateState, items, hasOpenMistakeForTracking]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
