@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import type { PmaxAssetGroupFull } from './pmaxAssetGroupRepo';
 
 interface CreativeAssignment {
   id: string;
@@ -45,25 +46,47 @@ interface Campaign {
   end_date: string;
 }
 
+interface PmaxExportContext {
+  pmaxGroups: PmaxAssetGroupFull[];
+  /** Set of `${market}||${phase_name}||${ad_group_name}` keys that are PMax. */
+  pmaxKeys: Set<string>;
+  /** Map of public.creatives.id → display info for the PMax sheet. */
+  creativeMediaMap: Map<string, { name: string | null; url: string | null }>;
+}
+
+const BUCKET_LABELS: Record<string, string> = {
+  marketing_image: 'Marketing Images',
+  square_image: 'Square Images',
+  portrait_image: 'Portrait Images',
+  logo: 'Logos',
+  video: 'Videos',
+};
+
 export function downloadActiplanShell(
   campaign: Campaign,
-  creativeAssignments: CreativeAssignment[]
+  creativeAssignments: CreativeAssignment[],
+  pmaxContext?: PmaxExportContext
 ): void {
   const workbook = XLSX.utils.book_new();
 
-  // Create rows - one per ad (creative assignment)
-  const shellData: any[] = creativeAssignments.map(ad => {
-    // Generate Meta ad preview link
+  // ---------- Ads tab (per-ad rows, excludes PMax) ----------
+  // PMax campaigns use a shared asset pool at the asset-group level — per-ad
+  // text columns don't apply, so suppress those rows here. They appear in the
+  // dedicated "PMax Asset Groups" sheet instead.
+  const pmaxKeys = pmaxContext?.pmaxKeys ?? new Set<string>();
+  const isPmaxAd = (ad: CreativeAssignment) =>
+    pmaxKeys.has(`${ad.market}||${ad.phase_name}||${ad.ad_set_name || ''}`);
+
+  const nonPmaxAds = creativeAssignments.filter((ad) => !isPmaxAd(ad));
+
+  const shellData = nonPmaxAds.map((ad) => {
     let previewLink = '';
     if (ad.dsp_creative_id && ad.platform.toLowerCase() === 'meta') {
       previewLink = `https://fb.me/adspreview/facebook/${ad.dsp_creative_id}`;
     } else if (ad.dsp_creative_id) {
       previewLink = ad.dsp_creative_id;
     }
-
-    // Use display_name (DSP ad name) if available, otherwise fallback to creative name
     const adName = ad.display_name || ad.creative?.name || '';
-
     return {
       'Platform': ad.platform,
       'Market': ad.market,
@@ -93,40 +116,57 @@ export function downloadActiplanShell(
     };
   });
 
-  // Create worksheet from data
   const worksheet = XLSX.utils.json_to_sheet(shellData);
-
-  // Set column widths
-  const colWidths = [
-    { wch: 12 },  // Platform
-    { wch: 10 },  // Market
-    { wch: 35 },  // Campaign Name
-    { wch: 35 },  // Ad Set Name
-    { wch: 45 },  // Ad Name
-    { wch: 50 },  // Primary Text
-    { wch: 50 },  // Primary Text 2
-    { wch: 50 },  // Primary Text 3
-    { wch: 50 },  // Primary Text 4
-    { wch: 50 },  // Primary Text 5
-    { wch: 40 },  // Headline
-    { wch: 40 },  // Headline 2
-    { wch: 40 },  // Headline 3
-    { wch: 40 },  // Headline 4
-    { wch: 40 },  // Headline 5
-    { wch: 40 },  // Description
-    { wch: 40 },  // Description 2
-    { wch: 40 },  // Description 3
-    { wch: 40 },  // Description 4
-    { wch: 40 },  // Description 5
-    { wch: 20 },  // Call to Action
-    { wch: 20 },  // Brand Name
-    { wch: 60 },  // Destination URL
-    { wch: 50 },  // URL Parameters
-    { wch: 60 },  // Ad Preview Link
+  worksheet['!cols'] = [
+    { wch: 12 }, { wch: 10 }, { wch: 35 }, { wch: 35 }, { wch: 45 },
+    { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 },
+    { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 },
+    { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 }, { wch: 40 },
+    { wch: 20 }, { wch: 20 }, { wch: 60 }, { wch: 50 }, { wch: 60 },
   ];
-  worksheet['!cols'] = colWidths;
-
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Ads Export');
+
+  // ---------- PMax Asset Groups tab (shared asset pool) ----------
+  if (pmaxContext && pmaxContext.pmaxGroups.length > 0) {
+    const creativeMap = pmaxContext.creativeMediaMap;
+    const formatPool = (ids: string[]) =>
+      ids
+        .map((id) => {
+          const info = creativeMap.get(id);
+          if (!info) return id;
+          return info.url ? `${info.name || id} (${info.url})` : info.name || id;
+        })
+        .join('\n');
+
+    const pmaxRows = pmaxContext.pmaxGroups.map(({ group, headlines, longHeadlines, descriptions, creativesByBucket }) => ({
+      'Market': group.market,
+      'Phase': group.phase_name,
+      'Asset Group': group.ad_group_name,
+      'Group Name': group.group_name || '',
+      'Business Name': group.business_name || '',
+      'Final URL': group.final_url || '',
+      'Call to Action': group.call_to_action || '',
+      'Headlines': headlines.join('\n'),
+      'Long Headlines': longHeadlines.join('\n'),
+      'Descriptions': descriptions.join('\n'),
+      [BUCKET_LABELS.marketing_image]: formatPool(creativesByBucket.marketing_image || []),
+      [BUCKET_LABELS.square_image]: formatPool(creativesByBucket.square_image || []),
+      [BUCKET_LABELS.portrait_image]: formatPool(creativesByBucket.portrait_image || []),
+      [BUCKET_LABELS.logo]: formatPool(creativesByBucket.logo || []),
+      [BUCKET_LABELS.video]: formatPool(creativesByBucket.video || []),
+      'Status': group.status,
+      'DSP Asset Group ID': group.dsp_entity_id || '',
+    }));
+
+    const pmaxSheet = XLSX.utils.json_to_sheet(pmaxRows);
+    pmaxSheet['!cols'] = [
+      { wch: 10 }, { wch: 25 }, { wch: 35 }, { wch: 30 }, { wch: 25 },
+      { wch: 50 }, { wch: 20 }, { wch: 60 }, { wch: 60 }, { wch: 60 },
+      { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 },
+      { wch: 14 }, { wch: 30 },
+    ];
+    XLSX.utils.book_append_sheet(workbook, pmaxSheet, 'PMax Asset Groups');
+  }
 
   // Generate filename
   const date = new Date().toISOString().split('T')[0];

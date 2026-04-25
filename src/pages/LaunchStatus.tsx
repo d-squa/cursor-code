@@ -1188,6 +1188,30 @@ export default function LaunchStatus() {
 
       if (error) throw error;
 
+      // Fetch PMax asset groups (shared asset pool model) for this campaign.
+      // These power a dedicated sheet and let us suppress per-ad text rows for PMax ads.
+      const { fetchPmaxAssetGroups } = await import("@/utils/pmaxAssetGroupRepo");
+      const pmaxGroups = await fetchPmaxAssetGroups(campaignId);
+      const pmaxKeys = new Set(
+        pmaxGroups.map((g) => `${g.group.market}||${g.group.phase_name}||${g.group.ad_group_name}`)
+      );
+
+      // Resolve creative_id -> media URL/name for the PMax sheet.
+      const allPmaxCreativeIds = Array.from(new Set(
+        pmaxGroups.flatMap((g) => Object.values(g.creativesByBucket).flat())
+      ));
+      const creativeMediaMap = new Map<string, { name: string | null; url: string | null }>();
+      if (allPmaxCreativeIds.length > 0) {
+        const { data: cData } = await supabase
+          .from("creatives")
+          .select("id, name, media_urls, thumbnail_url")
+          .in("id", allPmaxCreativeIds);
+        for (const c of cData || []) {
+          const url = (c.media_urls && c.media_urls[0]) || c.thumbnail_url || null;
+          creativeMediaMap.set(c.id, { name: c.name, url });
+        }
+      }
+
       // Map the data for the export - fallback to creative data when assignment fields are empty
       const mappedAssignments = (assignmentData || []).map((a: any) => ({
         id: a.id,
@@ -1227,7 +1251,7 @@ export default function LaunchStatus() {
         } : undefined,
       }));
 
-      downloadActiplanShell(campaign, mappedAssignments);
+      downloadActiplanShell(campaign, mappedAssignments, { pmaxGroups, pmaxKeys, creativeMediaMap });
     } catch (error: any) {
       console.error("Download shell error:", error);
       toast.error("Failed to download shell: " + error.message);
