@@ -172,12 +172,16 @@ export function ActivityLogView({
     }
   };
 
-  const getTypeIcon = (type: "change_request" | "action_log") => {
-    return type === "change_request" ? FileEdit : ClipboardList;
+  const getEntryIcon = (entry: UnifiedLogEntry) => {
+    if (entry.isSetupMistake) return AlertOctagon;
+    return entry.type === "change_request" ? FileEdit : ClipboardList;
   };
 
-  const getTypeColor = (type: "change_request" | "action_log") => {
-    return type === "change_request" ? "bg-blue-500" : "bg-emerald-500";
+  const getEntryColor = (entry: UnifiedLogEntry) => {
+    if (entry.isSetupMistake) {
+      return entry.mistakeStatus === "resolved" ? "bg-emerald-600" : "bg-destructive";
+    }
+    return entry.type === "change_request" ? "bg-blue-500" : "bg-emerald-500";
   };
 
   const getStatusBadge = (status?: string) => {
@@ -187,6 +191,8 @@ export function ActivityLogView({
       in_progress: "default",
       completed: "default",
       rejected: "destructive",
+      open: "destructive",
+      resolved: "default",
     };
     return (
       <Badge variant={variants[status] || "secondary"} className="text-xs">
