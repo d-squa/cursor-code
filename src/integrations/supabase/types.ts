@@ -3629,6 +3629,97 @@ export type Database = {
           },
         ]
       }
+      setup_mistakes: {
+        Row: {
+          ad_name: string | null
+          ad_set_name: string | null
+          campaign_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          entity_type: string | null
+          id: string
+          market: string | null
+          metadata: Json | null
+          phase_name: string | null
+          platform: string | null
+          qc_tracking_id: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          team_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ad_name?: string | null
+          ad_set_name?: string | null
+          campaign_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          entity_type?: string | null
+          id?: string
+          market?: string | null
+          metadata?: Json | null
+          phase_name?: string | null
+          platform?: string | null
+          qc_tracking_id?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          team_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ad_name?: string | null
+          ad_set_name?: string | null
+          campaign_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          entity_type?: string | null
+          id?: string
+          market?: string | null
+          metadata?: Json | null
+          phase_name?: string | null
+          platform?: string | null
+          qc_tracking_id?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          team_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setup_mistakes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setup_mistakes_qc_tracking_id_fkey"
+            columns: ["qc_tracking_id"]
+            isOneToOne: false
+            referencedRelation: "qc_tracking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setup_mistakes_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       snapchat_ad_accounts: {
         Row: {
           account_id: string
