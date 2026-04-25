@@ -726,7 +726,9 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
   }
   const descriptionHeaders: string[] = [];
   for (let i = 1; i <= DESCRIPTION_SLOTS; i++) {
-    descriptionHeaders.push(`Description ${i} (max ${DESCRIPTION_LIMIT})`, `LEN D${i}`);
+    const lim = descriptionLimitForSlot(i - 1);
+    const label = i === 1 ? `Short Description 1 (max ${lim}, REQUIRED)` : `Description ${i} (max ${lim})`;
+    descriptionHeaders.push(label, `LEN D${i}`);
   }
 
   const headers = [
