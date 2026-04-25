@@ -295,7 +295,7 @@ export function ActivityLogView({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="all">
               All Activity ({logs.length})
             </TabsTrigger>
@@ -304,6 +304,9 @@ export function ActivityLogView({
             </TabsTrigger>
             <TabsTrigger value="actions">
               Logged Actions ({logs.filter((l) => l.type === "action_log").length})
+            </TabsTrigger>
+            <TabsTrigger value="setup_mistakes">
+              Setup Mistakes ({logs.filter((l) => l.isSetupMistake).length})
             </TabsTrigger>
           </TabsList>
 
