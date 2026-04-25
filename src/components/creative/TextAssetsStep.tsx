@@ -2431,7 +2431,7 @@ export function TextAssetsStep({
                 g.group.phase_name === u.phaseName &&
                 g.group.ad_group_name === u.assetGroupName,
             );
-            const baseGroupName = cur?.group.group_name || u.assetGroupName;
+            const baseGroupName = u.assetGroupName;
             const upserted = await upsertPmaxAssetGroup({
               campaignId,
               userId: user.id,
