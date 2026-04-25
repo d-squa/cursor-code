@@ -52,14 +52,37 @@ const STALE_PUSHING_MS = 2 * 60 * 1000;
 const uniqueLimited = (items: string[], max: number) =>
   Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean))).slice(0, max);
 
-// Heuristic filename-based image bucketing — mirrors
-// `pmaxAssetGroupValidation.ts` on the client. We can't read remote dimensions
-// here, so we trust the filename: anything containing "logo" → logo,
-// "square"/"1x1"/"1_1" → square, otherwise → marketing (1.91:1).
-function bucketImageUrl(url: string, filename?: string): "logo" | "square" | "marketing" {
-  const hay = `${filename || ""} ${url}`.toLowerCase();
-  if (/\blogo\b/.test(hay)) return "logo";
-  if (/(square|1x1|1_1|1-1)/.test(hay)) return "square";
+function aspect(width?: number | null, height?: number | null): number | null {
+  if (!width || !height || width <= 0 || height <= 0) return null;
+  return width / height;
+}
+
+function isNear(value: number, target: number, tolerance = 0.05): boolean {
+  return Math.abs(value - target) <= tolerance * target;
+}
+
+// Dimension-first image bucketing. Filename hints are fallback only; relying on
+// names caused `_SQ_` assets to be uploaded as horizontal images and Google
+// rejected the final AssetGroup for aspect-ratio mismatch.
+function bucketImageAsset(creative: any, url: string): "logo" | "square" | "marketing" | "invalid" {
+  const w = Number(creative?.width || 0);
+  const h = Number(creative?.height || 0);
+  const ratio = aspect(w, h);
+  const hay = `${creative?.original_filename || ""} ${creative?.name || ""} ${creative?.folder_path || ""} ${url}`.toLowerCase();
+  const logoHint = /\blogo\b/.test(hay);
+  const squareHint = /(?:^|[_\-\s])(sq|square|1x1|1_1|1-1)(?:[_\-\s.]|$)/.test(hay);
+
+  if (ratio != null) {
+    if (isNear(ratio, 1)) {
+      if (logoHint || Math.max(w, h) <= 512) return "logo";
+      return "square";
+    }
+    if (isNear(ratio, 1.91, 0.06) || isNear(ratio, 16 / 9, 0.03)) return "marketing";
+    return "invalid";
+  }
+
+  if (logoHint) return "logo";
+  if (squareHint) return "square";
   return "marketing";
 }
 
