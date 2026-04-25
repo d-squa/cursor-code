@@ -1159,9 +1159,71 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
     adsAdded.push({ ...after, adName: autoName });
   }
 
+  // ---- PMax Asset Groups diff ----
+  const pmaxKey = (m: string, p: string, g: string) =>
+    `${m.trim().toLowerCase()}::${p.trim().toLowerCase()}::${g.trim().toLowerCase()}`;
+  const curPmaxByKey = new Map<string, CurrentPmaxGroupSnapshot>();
+  for (const g of input.current.pmaxGroups || []) {
+    curPmaxByKey.set(pmaxKey(g.market, g.phaseName, g.assetGroupName), g);
+  }
+
+  const pmaxUpdated: GoogleAdsShellDiff['pmaxGroups']['updated'] = [];
+  const pmaxSkipped: ParsedPmaxGroupRow[] = [];
+
+  // Compare ordered, trimmed string arrays — empty trailing slots ignored.
+  const trimList = (arr: string[]): string[] => {
+    const out = arr.map((v) => String(v || '').trim());
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out;
+  };
+  const eqList = (a: string[], b: string[]): boolean => {
+    const ta = trimList(a);
+    const tb = trimList(b);
+    if (ta.length !== tb.length) return false;
+    for (let i = 0; i < ta.length; i++) if (ta[i] !== tb[i]) return false;
+    return true;
+  };
+
+  for (const after of input.uploaded.pmaxGroups) {
+    const key = pmaxKey(after.market, after.phaseName, after.assetGroupName);
+    const before = curPmaxByKey.get(key);
+    if (!before) {
+      pmaxSkipped.push(after);
+      continue;
+    }
+    const changes: GoogleAdsShellDiff['pmaxGroups']['updated'][number]['changes'] = {};
+    if (after.businessName.trim() !== (before.businessName || '').trim()) {
+      changes.businessName = after.businessName.trim();
+    }
+    if (after.finalUrl.trim() !== (before.finalUrl || '').trim()) {
+      changes.finalUrl = after.finalUrl.trim();
+    }
+    const beforeCta = normalizeGoogleCta(before.callToAction || '') || '';
+    const afterCta = normalizeGoogleCta(after.callToAction || '') || '';
+    if (afterCta && afterCta !== beforeCta) changes.callToAction = afterCta;
+    if (!eqList(after.headlines, before.headlines || [])) {
+      changes.headlines = trimList(after.headlines);
+    }
+    if (!eqList(after.longHeadlines, before.longHeadlines || [])) {
+      changes.longHeadlines = trimList(after.longHeadlines);
+    }
+    if (!eqList(after.descriptions, before.descriptions || [])) {
+      changes.descriptions = trimList(after.descriptions);
+    }
+    if (Object.keys(changes).length > 0) {
+      pmaxUpdated.push({
+        market: after.market,
+        phaseName: after.phaseName,
+        assetGroupName: after.assetGroupName,
+        changes,
+      });
+    }
+  }
+
   return {
     keywords: { added, updated, removed },
     ads: { updated: adsUpdated, added: adsAdded, skippedNew: adsSkippedNew },
+    pmaxGroups: { updated: pmaxUpdated, skippedNew: pmaxSkipped },
   };
 }
 
