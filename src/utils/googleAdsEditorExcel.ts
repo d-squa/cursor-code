@@ -963,7 +963,51 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
     }
   }
 
-  return { keywords, ads };
+  // ---- PMax Asset Groups sheet (shared-asset-pool model) ----
+  // Columns (must mirror downloadGooglePmaxAssetGroupShell):
+  // 0 Market | 1 Phase | 2 Asset Group | 3 Group Name | 4 Business Name |
+  // 5 LEN BN | 6 Final URL | 7 Call to Action |
+  // 8.. value/LEN pairs for 5 Headlines, 5 Long Headlines, 5 Descriptions
+  const pmaxGroups: ParsedPmaxGroupRow[] = [];
+  const pmaxSheet = wb.Sheets['PMax Asset Groups'];
+  if (pmaxSheet) {
+    const aoa = XLSX.utils.sheet_to_json(pmaxSheet, { header: 1 }) as any[][];
+    const META_COLS = 8;
+    const HEADLINE_SLOTS = 5;
+    const LONG_HEADLINE_SLOTS = 5;
+    const DESCRIPTION_SLOTS = 5;
+    const headlineStart = META_COLS;
+    const longHeadlineStart = headlineStart + HEADLINE_SLOTS * 2;
+    const descriptionStart = longHeadlineStart + LONG_HEADLINE_SLOTS * 2;
+    const readSlots = (row: any[], start: number, count: number): string[] => {
+      const out: string[] = [];
+      for (let i = 0; i < count; i++) {
+        out.push(String(row?.[start + i * 2] ?? '').trim());
+      }
+      return out;
+    };
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i];
+      const market = String(row?.[0] ?? '').trim();
+      const phaseName = String(row?.[1] ?? '').trim();
+      const assetGroupName = String(row?.[2] ?? '').trim();
+      if (!market || !phaseName || !assetGroupName) continue;
+      pmaxGroups.push({
+        market,
+        phaseName,
+        assetGroupName,
+        groupName: String(row?.[3] ?? '').trim(),
+        businessName: String(row?.[4] ?? '').trim(),
+        finalUrl: String(row?.[6] ?? '').trim(),
+        callToAction: normalizeGoogleCta(String(row?.[7] ?? '')) || '',
+        headlines: readSlots(row, headlineStart, HEADLINE_SLOTS),
+        longHeadlines: readSlots(row, longHeadlineStart, LONG_HEADLINE_SLOTS),
+        descriptions: readSlots(row, descriptionStart, DESCRIPTION_SLOTS),
+      });
+    }
+  }
+
+  return { keywords, ads, pmaxGroups };
 }
 
 export interface DiffInput {
