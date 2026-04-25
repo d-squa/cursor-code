@@ -3740,15 +3740,15 @@ class GoogleAdsAdapter implements PlatformAdapter {
         if (unique.length >= max) break;
       }
 
-      // Upload with bounded concurrency (3 in-flight). Pure sequential is too
-      // slow for the 20/20/5 PMax max and trips the edge function CPU/wall-clock
-      // budget; full parallel triggers Google's "modify the same resource at
-      // once" error. Three is a safe middle ground.
-      const CONCURRENCY = 3;
+      // Google Ads can reject parallel asset uploads with
+      // "Multiple requests were attempting to modify the same resource". Upload
+      // images serially so every accepted ActiPlan image has a chance to appear
+      // in Ads Manager instead of being silently skipped from the asset group.
+      const CONCURRENCY = 1;
       for (let i = 0; i < unique.length; i += CONCURRENCY) {
         const batch = unique.slice(i, i + CONCURRENCY);
         const settled = await Promise.allSettled(batch.map((url, j) =>
-          this.uploadImageAsset(customerId, headers, url, `${fieldType} ${i + j + 1}`, false, aspect),
+          this.uploadImageAssetWithRetry(customerId, headers, url, `${fieldType} ${i + j + 1}`, false, aspect),
         ));
         settled.forEach((s, j) => {
           if (s.status === "fulfilled" && s.value) {
