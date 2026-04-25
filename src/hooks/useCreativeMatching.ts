@@ -1435,11 +1435,16 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                   thumbnail_url: (asset as any).previewUrl,
                   language: asset.hardConstraints?.language,
                   tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
-                  // If this came from a TikTok platform asset, store the material ID directly (avoids re-upload)
+                  // If this came from a TikTok platform asset, store the material ID directly (avoids re-upload).
+                  // For Google YouTube videos (platformAssetId starts with "yt:"), store the bare video id.
                   platform_video_id:
                     match.structure.platform === 'tiktok' && asset.mediaType === 'video'
                       ? String((asset as any).platformAssetId)
-                      : null,
+                      : match.structure.platform === 'google' &&
+                          asset.mediaType === 'video' &&
+                          String((asset as any).platformAssetId || '').startsWith('yt:')
+                        ? String((asset as any).platformAssetId).slice(3)
+                        : null,
                   platform_image_hash:
                     match.structure.platform === 'tiktok' && asset.mediaType !== 'video'
                       ? String((asset as any).platformAssetId)
@@ -2628,6 +2633,23 @@ function matchAssetToStructure(
       requiredCampaignType === 'performancemax' ||
       /performance.?max|\bpmax\b/i.test(`${structure.googleCampaignType || ''} ${structure.adSetName || ''}`));
   if (isPmaxAdSet) {
+    // Detect YouTube id from any of the known fields. MeshSourceStep stores
+    // YouTube videos as platform_asset with platformAssetId = "yt:<videoId>".
+    const rawPlatformAssetId = String((asset as any).platformAssetId || '');
+    const ytPrefixed = rawPlatformAssetId.startsWith('yt:')
+      ? rawPlatformAssetId.slice(3)
+      : '';
+    const resolvedYoutubeId =
+      (asset as any).platformVideoId ||
+      (asset as any).platform_video_id ||
+      (asset as any).compatibilitySignals?.platformVideoId ||
+      ytPrefixed ||
+      // Fallback: any Google video coming from platform_asset/ad_account is
+      // already a YouTube-hosted asset in the Google Ads asset library.
+      (asset.mediaType === 'video' && (asset as any).sourceType === 'platform_asset'
+        ? rawPlatformAssetId || 'yt'
+        : '');
+
     const bucket = classifyPmaxAsset({
       width: asset.technicalAttributes.width,
       height: asset.technicalAttributes.height,
@@ -2635,10 +2657,7 @@ function matchAssetToStructure(
       filename: (asset as any).fileName,
       folderPath: (asset as any).filePath,
       name: (asset as any).fileName,
-      platformVideoId:
-        (asset as any).platformVideoId ||
-        (asset as any).platform_video_id ||
-        (asset as any).compatibilitySignals?.platformVideoId,
+      platformVideoId: resolvedYoutubeId || undefined,
     });
     if (!bucket) {
       blockingReasons.push(
