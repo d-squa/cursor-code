@@ -1503,7 +1503,8 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
       let preparedBytes = new Uint8Array(await imgResp.arrayBuffer());
       if (cropAspectRatio && cropAspectRatio > 0) {
-        preparedBytes = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
+        const cropped = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
+        preparedBytes = new Uint8Array(cropped);
       }
       return preparedBytes;
     })();
