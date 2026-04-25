@@ -964,63 +964,8 @@ export function GoogleNonSearchTextAssetEditor({
   );
   const pmaxFailingCount = pmaxGroups.filter((g) => !g.isValid).length;
 
-  // Build PMax pool model: ONE anchor draft per (market, phase, ad_group)
-  // group. All other PMax drafts in the same group are "shadow" rows that
-  // share the anchor's text but are hidden from the list/detail view.
-  // Editing the anchor's text fields propagates to every shadow row so the
-  // saved data and downstream push see consistent text across the group.
-  const pmaxGroupMembers = useMemo(() => {
-    // groupKey -> string[] of draft rowIds (in original order)
-    const map = new Map<string, string[]>();
-    for (const d of drafts) {
-      if (d.type !== 'pmax') continue;
-      const r = scopedRows.find((row) => row.id === d.rowId);
-      if (!r) continue;
-      const key = pmaxGroupKey(r.market, r.phase, r.adSet);
-      const arr = map.get(key) || [];
-      arr.push(d.rowId);
-      map.set(key, arr);
-    }
-    return map;
-  }, [drafts, scopedRows]);
-
-  // For each group, the "anchor" rowId is the draft with the most-populated
-  // text (matches validatePmaxAssetGroups' sample logic). All other rowIds
-  // are shadows.
-  const pmaxAnchorByGroup = useMemo(() => {
-    const out = new Map<string, string>();
-    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
-      let bestId = rowIds[0];
-      let bestScore = -1;
-      for (const id of rowIds) {
-        const d = drafts.find((x) => x.rowId === id);
-        if (!d) continue;
-        const score =
-          d.headlines.filter((x) => x?.trim()).length +
-          d.longHeadlines.filter((x) => x?.trim()).length +
-          d.descriptions.filter((x) => x?.trim()).length +
-          (d.businessName?.trim() ? 1 : 0) +
-          (d.finalUrl?.trim() ? 1 : 0);
-        if (score > bestScore) {
-          bestScore = score;
-          bestId = id;
-        }
-      }
-      out.set(key, bestId);
-    }
-    return out;
-  }, [pmaxGroupMembers, drafts]);
-
-  const pmaxShadowRowIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
-      const anchor = pmaxAnchorByGroup.get(key);
-      for (const id of rowIds) if (id !== anchor) set.add(id);
-    }
-    return set;
-  }, [pmaxGroupMembers, pmaxAnchorByGroup]);
-
-  // Group key for an anchor draft (used for group-level invalid badge).
+  // Group key -> validation mapping, keyed by anchor rowId, for the
+  // per-row "Invalid/OK" badge in the table.
   const pmaxGroupByRowId = useMemo(() => {
     const out = new Map<string, PmaxAssetGroupValidation>();
     for (const g of pmaxGroups) {
@@ -1029,17 +974,6 @@ export function GoogleNonSearchTextAssetEditor({
     }
     return out;
   }, [pmaxGroups, pmaxAnchorByGroup]);
-
-  // For an edit on a PMax anchor row, return the additional shadow rowIds
-  // that must receive the same text patch.
-  const getPmaxShadowsFor = useCallback((rowId: string): string[] => {
-    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
-      if (pmaxAnchorByGroup.get(key) !== rowId) continue;
-      return rowIds.filter((id) => id !== rowId);
-    }
-    return [];
-  }, [pmaxGroupMembers, pmaxAnchorByGroup]);
-
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
