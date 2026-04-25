@@ -286,7 +286,7 @@ export async function syncPmaxGroupsFromRows(
         market: anchor.market,
         phaseName: anchor.phase,
         adGroupName: resolvedAdGroupName,
-        groupName: (anchor as any).taxonomyAdSetName || anchor.adSet || null,
+        groupName: resolvedAdGroupName || null,
         businessName: String(a.business_name || a.brandName || '').trim() || null,
         finalUrl: String(a.destinationUrl || '').trim() || null,
         callToAction: String(a.callToAction || a.call_to_action || '').trim() || null,
