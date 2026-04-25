@@ -414,10 +414,11 @@ serve(async (req) => {
             for (const u of c.media_urls) {
               const url = String(u || "");
               if (!url) continue;
-              const bucket = bucketImageUrl(url, c.original_filename || c.name);
+              const bucket = bucketImageAsset(c, url);
               if (bucket === "logo") logoImgs.push(url);
               else if (bucket === "square") squareImgs.push(url);
-              else marketingImgs.push(url);
+              else if (bucket === "marketing") marketingImgs.push(url);
+              else console.warn(`[pmax] skipping image with unsupported aspect ratio: ${c?.name || c?.original_filename || url} (${c?.width || "?"}x${c?.height || "?"})`);
             }
           }
           if (c?.platform_video_id) {
