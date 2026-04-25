@@ -717,8 +717,8 @@ function HierarchicalEntityContent({
               onUpdateState={(state) => onUpdateState(item.id, state)}
               onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(item.id, getChecklist(item.platform, item.entity_type), item.current_state)}
               qcEnforceIndividual={qcEnforceIndividual}
-                                            onLogMistake={handleLogMistake}
-                                            onResolveMistake={handleResolveMistake}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
                                             openMistakesByTracking={openMistakesByTracking}
             />
           ))}
@@ -760,8 +760,8 @@ function HierarchicalEntityContent({
                   onUpdateState={(state) => onUpdateState(adsetItem.id, state)}
                   onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(adsetItem.id, getChecklist(adsetItem.platform, adsetItem.entity_type), adsetItem.current_state)}
                   qcEnforceIndividual={qcEnforceIndividual}
-                                            onLogMistake={handleLogMistake}
-                                            onResolveMistake={handleResolveMistake}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
                                             openMistakesByTracking={openMistakesByTracking}
                 />
                 {childAds.length > 0 && (
@@ -793,8 +793,8 @@ function HierarchicalEntityContent({
                         onUpdateState={(state) => onUpdateState(ad.id, state)}
                         onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
                         qcEnforceIndividual={qcEnforceIndividual}
-                                            onLogMistake={handleLogMistake}
-                                            onResolveMistake={handleResolveMistake}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
                                             openMistakesByTracking={openMistakesByTracking}
                       />
                     ))}
@@ -832,8 +832,8 @@ function HierarchicalEntityContent({
                   onUpdateState={(state) => onUpdateState(ad.id, state)}
                   onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
                   qcEnforceIndividual={qcEnforceIndividual}
-                                            onLogMistake={handleLogMistake}
-                                            onResolveMistake={handleResolveMistake}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
                                             openMistakesByTracking={openMistakesByTracking}
                 />
               ))}
@@ -863,8 +863,8 @@ function HierarchicalEntityContent({
               onUpdateState={(state) => onUpdateState(ad.id, state)}
               onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
               qcEnforceIndividual={qcEnforceIndividual}
-                                            onLogMistake={handleLogMistake}
-                                            onResolveMistake={handleResolveMistake}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
                                             openMistakesByTracking={openMistakesByTracking}
             />
           ))}
