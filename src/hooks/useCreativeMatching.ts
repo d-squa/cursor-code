@@ -2628,6 +2628,23 @@ function matchAssetToStructure(
       requiredCampaignType === 'performancemax' ||
       /performance.?max|\bpmax\b/i.test(`${structure.googleCampaignType || ''} ${structure.adSetName || ''}`));
   if (isPmaxAdSet) {
+    // Detect YouTube id from any of the known fields. MeshSourceStep stores
+    // YouTube videos as platform_asset with platformAssetId = "yt:<videoId>".
+    const rawPlatformAssetId = String((asset as any).platformAssetId || '');
+    const ytPrefixed = rawPlatformAssetId.startsWith('yt:')
+      ? rawPlatformAssetId.slice(3)
+      : '';
+    const resolvedYoutubeId =
+      (asset as any).platformVideoId ||
+      (asset as any).platform_video_id ||
+      (asset as any).compatibilitySignals?.platformVideoId ||
+      ytPrefixed ||
+      // Fallback: any Google video coming from platform_asset/ad_account is
+      // already a YouTube-hosted asset in the Google Ads asset library.
+      (asset.mediaType === 'video' && (asset as any).sourceType === 'platform_asset'
+        ? rawPlatformAssetId || 'yt'
+        : '');
+
     const bucket = classifyPmaxAsset({
       width: asset.technicalAttributes.width,
       height: asset.technicalAttributes.height,
@@ -2635,10 +2652,7 @@ function matchAssetToStructure(
       filename: (asset as any).fileName,
       folderPath: (asset as any).filePath,
       name: (asset as any).fileName,
-      platformVideoId:
-        (asset as any).platformVideoId ||
-        (asset as any).platform_video_id ||
-        (asset as any).compatibilitySignals?.platformVideoId,
+      platformVideoId: resolvedYoutubeId || undefined,
     });
     if (!bucket) {
       blockingReasons.push(
