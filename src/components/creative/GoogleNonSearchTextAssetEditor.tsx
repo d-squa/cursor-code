@@ -55,6 +55,7 @@ import {
 } from '@/utils/pmaxAssetGroupRepo';
 import { supabase } from '@/integrations/supabase/client';
 import { AlertTriangle, CheckCircle2, Images } from 'lucide-react';
+import { resolvePmaxAssetGroupName } from '@/utils/googlePmaxAssetGroupName';
 
 // ---------- Type detection ----------
 
@@ -269,10 +270,9 @@ function rowToDraft(row: CreativeTextAssetRow, type: GoogleNonSearchType): NonSe
     rowId: row.id,
     assignmentId: row.assignmentId || '',
     campaignName: buildTaxonomyCampaign(row),
-    adGroupName:
-      (row.taxonomyAdSetName && row.taxonomyAdSetName.trim()) ||
-      (row.adSet && row.adSet.trim()) ||
-      '',
+    adGroupName: type === 'pmax'
+      ? resolvePmaxAssetGroupName(row)
+      : ((row.taxonomyAdSetName && row.taxonomyAdSetName.trim()) || (row.adSet && row.adSet.trim()) || ''),
     market: row.market,
     type,
     headlines,
@@ -552,7 +552,7 @@ export function GoogleNonSearchTextAssetEditor({
       if (d.type !== 'pmax') continue;
       const r = scopedRows.find((row) => row.id === d.rowId);
       if (!r) continue;
-      const resolvedAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+      const resolvedAdGroup = resolvePmaxAssetGroupName(r);
       const key = pmaxGroupKey(r.market, r.phase, resolvedAdGroup);
       const arr = map.get(key) || [];
       arr.push(d.rowId);
