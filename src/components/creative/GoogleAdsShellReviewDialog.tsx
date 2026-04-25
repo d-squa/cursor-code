@@ -26,6 +26,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
   const [selectedRemovals, setSelectedRemovals] = useState<Set<number>>(new Set());
   const [selectedAdUpdates, setSelectedAdUpdates] = useState<Set<string>>(new Set());
   const [selectedNewAds, setSelectedNewAds] = useState<Set<number>>(new Set());
+  const [selectedPmaxUpdates, setSelectedPmaxUpdates] = useState<Set<number>>(new Set());
   const [isApplying, setIsApplying] = useState(false);
 
   // Initialise selections every time the dialog opens with a fresh diff.
@@ -36,23 +37,29 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
     setSelectedRemovals(new Set(diff.keywords.removed.map((_, i) => i)));
     setSelectedAdUpdates(new Set(diff.ads.updated.map((u) => u.assignmentId)));
     setSelectedNewAds(new Set(diff.ads.added.map((_, i) => i)));
+    setSelectedPmaxUpdates(new Set((diff.pmaxGroups?.updated || []).map((_, i) => i)));
   }, [diff]);
 
   if (!diff) return null;
+
+  const pmaxUpdated = diff.pmaxGroups?.updated || [];
+  const pmaxSkipped = diff.pmaxGroups?.skippedNew || [];
 
   const totalChanges =
     diff.keywords.added.length +
     diff.keywords.updated.length +
     diff.keywords.removed.length +
     diff.ads.updated.length +
-    diff.ads.added.length;
+    diff.ads.added.length +
+    pmaxUpdated.length;
 
   const selectedTotal =
     selectedAdds.size +
     selectedUpdates.size +
     selectedRemovals.size +
     selectedAdUpdates.size +
-    selectedNewAds.size;
+    selectedNewAds.size +
+    selectedPmaxUpdates.size;
 
   const toggle = <T,>(set: Set<T>, value: T, setter: (s: Set<T>) => void) => {
     const next = new Set(set);
@@ -74,6 +81,10 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           updated: diff.ads.updated.filter((u) => selectedAdUpdates.has(u.assignmentId)),
           added: diff.ads.added.filter((_, i) => selectedNewAds.has(i)),
           skippedNew: diff.ads.skippedNew,
+        },
+        pmaxGroups: {
+          updated: pmaxUpdated.filter((_, i) => selectedPmaxUpdates.has(i)),
+          skippedNew: pmaxSkipped,
         },
       };
       await onApply(filtered);
