@@ -1485,8 +1485,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
     cropAspectRatio: number | null = null,
     minimumSquareSize: number = 0,
   ): Promise<Uint8Array> {
+    // Ask Supabase storage to pre-resize when possible — that gives us bytes that
+    // are already close to the target dimensions and dramatically reduces the
+    // CPU cost of the local crop step.
     const preparedUrl = this.getTransformedStorageImageUrl(imageUrl, cropAspectRatio);
-    const cacheKey = `${preparedUrl}::${minimumSquareSize}`;
+    const cacheKey = `${preparedUrl}::${cropAspectRatio ?? "original"}::${minimumSquareSize}`;
     const cached = this.imageAssetBytesCache.get(cacheKey);
     if (cached) {
       return new Uint8Array(await cached);
@@ -1498,7 +1501,11 @@ class GoogleAdsAdapter implements PlatformAdapter {
         throw new Error(`Failed to download image (${imgResp.status})`);
       }
 
-      return new Uint8Array(await imgResp.arrayBuffer());
+      let preparedBytes = new Uint8Array(await imgResp.arrayBuffer());
+      if (cropAspectRatio && cropAspectRatio > 0) {
+        preparedBytes = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
+      }
+      return preparedBytes;
     })();
 
     this.imageAssetBytesCache.set(cacheKey, pendingBytes);
