@@ -1914,12 +1914,18 @@ export function TextAssetsStep({
   const handleDownloadGoogleAdsShell = useCallback(async () => {
     try {
       const ctx = await loadGoogleShellContext();
-      downloadGoogleAdsShell({
-        campaignName: ctx.campaignName,
-        expansion: ctx.expansion,
-        keywords: ctx.keywords,
-        adRows: ctx.adRows,
-      });
+      const allPmax = ctx.expansion.length > 0 && ctx.expansion.every((ref) => getGoogleAdsSheetSpec(ref.googleCampaignType).type === 'pmax');
+      if (allPmax) {
+        const groups = buildPmaxAssetGroupShellRows(rows);
+        await downloadGooglePmaxAssetGroupShell({ campaignName: ctx.campaignName, groups });
+      } else {
+        downloadGoogleAdsShell({
+          campaignName: ctx.campaignName,
+          expansion: ctx.expansion,
+          keywords: ctx.keywords,
+          adRows: ctx.adRows,
+        });
+      }
       toast.success('Google Ads shell downloaded');
     } catch (err) {
       console.error('[GoogleAdsShell] download failed', err);
