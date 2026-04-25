@@ -3513,33 +3513,52 @@ class GoogleAdsAdapter implements PlatformAdapter {
 
     const collectTexts = async (texts: string[], fieldType: string, max: number) => {
       const seen = new Set<string>();
+      const unique: string[] = [];
       for (const raw of texts) {
         const t = String(raw || "").trim();
         if (!t || seen.has(t)) continue;
         seen.add(t);
-        if (linkSpecs.filter((l) => l.fieldType === fieldType).length >= max) break;
+        unique.push(t);
+        if (unique.length >= max) break;
+      }
+      // Run text-asset ensures in parallel — each is a small Google Ads call,
+      // and serialising them was the dominant wall-clock cost in PMax pushes.
+      const results = await Promise.all(unique.map(async (t) => {
         try {
-          const assetRn = await this.ensureTextAsset(customerId, headers, t);
-          linkSpecs.push({ asset: assetRn, fieldType });
+          return await this.ensureTextAsset(customerId, headers, t);
         } catch (e: any) {
           console.warn(`[pmax] failed to ensure ${fieldType} text asset "${t}":`, e?.message || e);
+          return null;
         }
+      }));
+      for (const assetRn of results) {
+        if (assetRn) linkSpecs.push({ asset: assetRn, fieldType });
       }
     };
 
     const collectImages = async (urls: string[], fieldType: string, max: number, aspect: number | null) => {
       const seen = new Set<string>();
+      const unique: string[] = [];
       for (const u of urls) {
         const url = String(u || "").trim();
         if (!url || seen.has(url)) continue;
         seen.add(url);
-        if (linkSpecs.filter((l) => l.fieldType === fieldType).length >= max) break;
+        unique.push(url);
+        if (unique.length >= max) break;
+      }
+      // Parallelise image uploads. Each upload fetches the source bytes and
+      // base64-encodes them; doing them sequentially is what burned the CPU
+      // budget on PMax pushes with many creatives.
+      const results = await Promise.all(unique.map(async (url, idx) => {
         try {
-          const assetRn = await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${seen.size}`, false, aspect);
-          linkSpecs.push({ asset: assetRn, fieldType });
+          return await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${idx + 1}`, false, aspect);
         } catch (e: any) {
           console.warn(`[pmax] failed to upload ${fieldType} image "${url}":`, e?.message || e);
+          return null;
         }
+      }));
+      for (const assetRn of results) {
+        if (assetRn) linkSpecs.push({ asset: assetRn, fieldType });
       }
     };
 
