@@ -372,7 +372,7 @@ serve(async (req) => {
             long_headline_1, long_headline_2, long_headline_3, long_headline_4, long_headline_5,
             description, description_2, description_3, description_4, description_5,
             primary_text, business_name, brand_name, destination_url, call_to_action,
-            creative:creatives(id, name, media_type, media_urls, thumbnail_url, original_filename, platform_video_id, destination_url)
+            creative:creatives(id, name, media_type, media_urls, thumbnail_url, original_filename, folder_path, width, height, aspect_ratio, platform_video_id, destination_url)
           `)
           .eq("campaign_id", campaignId)
           .eq("platform", "google")
