@@ -233,7 +233,12 @@ export async function syncPmaxGroupsFromRows(
   const groups = new Map<string, CreativeTextAssetRow[]>();
   for (const r of rows) {
     if (!detectIsPmax(r)) continue;
-    const key = `${r.market}||${r.phase}||${r.adSet}`;
+    // Group by the RESOLVED taxonomy ad-group name (same value used as the
+    // upsert key below). Grouping by raw `adSet` would split rows that share
+    // a logical PMax asset group across multiple buckets and run extra upserts
+    // that overwrite each other.
+    const resolvedAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+    const key = `${r.market}||${r.phase}||${resolvedAdGroup}`;
     const arr = groups.get(key) || [];
     arr.push(r);
     groups.set(key, arr);
