@@ -3506,7 +3506,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
   }
 
   /**
-   * Public wrapper for image asset upload (used by PMax orchestrator).
+   * Public wrappers used by the resumable PMax orchestrator.
    */
   async pmaxUploadImage(
     customerId: string,
@@ -3516,6 +3516,150 @@ class GoogleAdsAdapter implements PlatformAdapter {
     cropAspectRatio: number | null = null,
   ): Promise<string> {
     return await this.uploadImageAsset(customerId, headers, imageUrl, name, false, cropAspectRatio);
+  }
+
+  async pmaxEnsureTextAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    text: string,
+  ): Promise<string> {
+    return await this.ensureTextAsset(customerId, headers, text);
+  }
+
+  async pmaxEnsureYouTubeVideoAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    videoId: string,
+    name: string,
+  ): Promise<string> {
+    return await this.ensureYouTubeVideoAsset(customerId, headers, videoId, name);
+  }
+
+  async pmaxEnsureCallToActionAsset(
+    customerId: string,
+    headers: Record<string, string>,
+    callToAction: string,
+  ): Promise<string> {
+    return await this.ensureCallToActionAsset(customerId, headers, callToAction);
+  }
+
+  async createPmaxAssetGroupFromAssets(
+    customerId: string,
+    headers: Record<string, string>,
+    params: {
+      campaignId: string;
+      name: string;
+      finalUrl: string;
+      finalMobileUrl?: string;
+      status?: "ENABLED" | "PAUSED";
+      linkSpecs: Array<{ asset: string; fieldType: string }>;
+      hasMerchantCenter: boolean;
+    },
+  ): Promise<string | null> {
+    const campaignResource = `customers/${customerId}/campaigns/${params.campaignId}`;
+    const safeName = `${(params.name || "Asset Group").replace(/[^a-zA-Z0-9_\- ]/g, "").substring(0, 120)} ${Date.now()}`;
+    const linkSpecs = [...params.linkSpecs];
+
+    const IMAGE_FIELDS = new Set([
+      "MARKETING_IMAGE",
+      "SQUARE_MARKETING_IMAGE",
+      "PORTRAIT_MARKETING_IMAGE",
+      "LOGO",
+      "LANDSCAPE_LOGO",
+    ]);
+    const seenLink = new Set<string>();
+    const seenImageAsset = new Set<string>();
+    const deduped: Array<{ asset: string; fieldType: string }> = [];
+    for (const spec of linkSpecs) {
+      const key = `${spec.asset}::${spec.fieldType}`;
+      if (seenLink.has(key)) continue;
+      if (IMAGE_FIELDS.has(spec.fieldType)) {
+        if (seenImageAsset.has(spec.asset)) {
+          console.warn(`[pmax] skipping image asset ${spec.asset} reused under ${spec.fieldType} — already linked under another image field`);
+          continue;
+        }
+        seenImageAsset.add(spec.asset);
+      }
+      seenLink.add(key);
+      deduped.push(spec);
+    }
+
+    const countOf = (ft: string) => deduped.filter((l) => l.fieldType === ft).length;
+    const missing: string[] = [];
+    if (countOf("HEADLINE") < 3) missing.push(`HEADLINE (have ${countOf("HEADLINE")}, need 3)`);
+    if (countOf("LONG_HEADLINE") < 1) missing.push(`LONG_HEADLINE (have ${countOf("LONG_HEADLINE")}, need 1)`);
+    if (countOf("DESCRIPTION") < 2) missing.push(`DESCRIPTION (have ${countOf("DESCRIPTION")}, need 2)`);
+    if (countOf("BUSINESS_NAME") < 1) missing.push(`BUSINESS_NAME (have 0, need 1)`);
+    if (countOf("MARKETING_IMAGE") < 1) missing.push(`MARKETING_IMAGE 1.91:1 (have 0, need 1)`);
+    if (countOf("SQUARE_MARKETING_IMAGE") < 1) missing.push(`SQUARE_MARKETING_IMAGE 1:1 (have 0, need 1)`);
+    if (countOf("LOGO") < 1) missing.push(`LOGO 1:1 (have 0, need 1)`);
+    if (missing.length > 0) {
+      throw new Error(`AssetGroup minimums not met: ${missing.join("; ")}`);
+    }
+
+    const tempAgRn = `customers/${customerId}/assetGroups/-1`;
+    const operations: any[] = [
+      {
+        assetGroupOperation: {
+          create: {
+            resourceName: tempAgRn,
+            name: safeName,
+            campaign: campaignResource,
+            finalUrls: [params.finalUrl],
+            ...(params.finalMobileUrl ? { finalMobileUrls: [params.finalMobileUrl] } : {}),
+            status: params.status || "PAUSED",
+          },
+        },
+      },
+      ...deduped.map((spec) => ({
+        assetGroupAssetOperation: {
+          create: {
+            assetGroup: tempAgRn,
+            asset: spec.asset,
+            fieldType: spec.fieldType,
+          },
+        },
+      })),
+    ];
+
+    if (params.hasMerchantCenter) {
+      operations.push({
+        assetGroupListingGroupFilterOperation: {
+          create: {
+            assetGroup: tempAgRn,
+            type: "UNIT_INCLUDED",
+            listingSource: "SHOPPING",
+          },
+        },
+      });
+    }
+
+    const mutateUrl = `${this.API_BASE}/customers/${customerId}/googleAds:mutate`;
+    const mutateResp = await fetch(mutateUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ mutateOperations: operations }),
+    });
+
+    if (!mutateResp.ok) {
+      const errText = await mutateResp.text();
+      console.error(`❌ Atomic AssetGroup mutate failed for "${safeName}":`, errText);
+      throw new Error(`AssetGroup creation failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const mutateData = await mutateResp.json();
+    const results: any[] = mutateData?.mutateOperationResponses || [];
+    const agResult = results.find((r) => r?.assetGroupResult?.resourceName);
+    const assetGroupResource: string | undefined = agResult?.assetGroupResult?.resourceName;
+
+    if (!assetGroupResource) {
+      console.error("Atomic mutate returned no AssetGroup resource name", JSON.stringify(mutateData).substring(0, 500));
+      return null;
+    }
+
+    const linkedCount = results.filter((r) => r?.assetGroupAssetResult).length;
+    console.log(`✅ AssetGroup created atomically: ${assetGroupResource} with ${linkedCount} linked assets`);
+    return assetGroupResource;
   }
 
   /**
