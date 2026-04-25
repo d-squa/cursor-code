@@ -1077,16 +1077,22 @@ export default function LaunchStatus() {
         body: { campaignId, market, phaseName, retryFailed: true },
       });
       if (error) throw error;
+      const queued = data?.queued ?? 0;
+      const deferred = data?.deferred ?? 0;
       const pushed = data?.pushed ?? 0;
       const failed = data?.failed ?? 0;
       if (failed > 0) {
         toast.error(`${failed} asset group${failed === 1 ? '' : 's'} failed`, {
           description: pushed > 0 ? `${pushed} succeeded.` : undefined,
         });
+      } else if (queued > 0) {
+        toast.success(`Queued ${queued} PMax asset group${queued === 1 ? '' : 's'} for push`, {
+          description: deferred > 0 ? `${deferred} more remaining — click again after this finishes.` : undefined,
+        });
       } else if (pushed > 0) {
         toast.success(`Pushed ${pushed} PMax asset group${pushed === 1 ? '' : 's'}`);
       } else {
-        toast.info("No asset groups awaiting push");
+        toast.info(data?.message || "No asset groups awaiting push");
       }
       refreshProgress();
     } catch (err: any) {

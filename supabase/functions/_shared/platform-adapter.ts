@@ -1435,29 +1435,65 @@ class GoogleAdsAdapter implements PlatformAdapter {
   private readonly API_BASE = `https://googleads.googleapis.com/v23`;
   private readonly imageAssetBytesCache = new Map<string, Promise<Uint8Array>>();
 
+  private getTransformedStorageImageUrl(
+    imageUrl: string,
+    cropAspectRatio: number | null,
+  ): string {
+    if (!cropAspectRatio || cropAspectRatio <= 0) return imageUrl;
+
+    try {
+      const url = new URL(imageUrl);
+      const marker = "/storage/v1/object/public/";
+      const markerIndex = url.pathname.indexOf(marker);
+      if (markerIndex === -1) return imageUrl;
+
+      const objectPath = url.pathname.slice(markerIndex + marker.length);
+      const renderPath = `/storage/v1/render/image/public/${objectPath}`;
+      const transformed = new URL(url.toString());
+      transformed.pathname = renderPath;
+      transformed.searchParams.set("resize", "cover");
+      transformed.searchParams.set("quality", "82");
+      transformed.searchParams.set("format", "origin");
+
+      if (Math.abs(cropAspectRatio - 1.91) < 0.05) {
+        transformed.searchParams.set("width", "1200");
+        transformed.searchParams.set("height", "628");
+      } else if (Math.abs(cropAspectRatio - 1) < 0.05) {
+        transformed.searchParams.set("width", "1024");
+        transformed.searchParams.set("height", "1024");
+      } else if (Math.abs(cropAspectRatio - 0.8) < 0.05) {
+        transformed.searchParams.set("width", "960");
+        transformed.searchParams.set("height", "1200");
+      } else if (Math.abs(cropAspectRatio - 4) < 0.1) {
+        transformed.searchParams.set("width", "1200");
+        transformed.searchParams.set("height", "300");
+      }
+
+      return transformed.toString();
+    } catch {
+      return imageUrl;
+    }
+  }
+
   private async getPreparedImageBytes(
     imageUrl: string,
     cropAspectRatio: number | null = null,
     minimumSquareSize: number = 0,
   ): Promise<Uint8Array> {
-    const cacheKey = `${imageUrl}::${cropAspectRatio ?? "original"}::${minimumSquareSize}`;
+    const preparedUrl = this.getTransformedStorageImageUrl(imageUrl, cropAspectRatio);
+    const cacheKey = `${preparedUrl}::${minimumSquareSize}`;
     const cached = this.imageAssetBytesCache.get(cacheKey);
     if (cached) {
       return new Uint8Array(await cached);
     }
 
     const pendingBytes = (async () => {
-      const imgResp = await fetch(imageUrl);
+      const imgResp = await fetch(preparedUrl);
       if (!imgResp.ok) {
         throw new Error(`Failed to download image (${imgResp.status})`);
       }
 
-      let preparedBytes = new Uint8Array(await imgResp.arrayBuffer());
-      if (cropAspectRatio && cropAspectRatio > 0) {
-        preparedBytes = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
-      }
-
-      return preparedBytes;
+      return new Uint8Array(await imgResp.arrayBuffer());
     })();
 
     this.imageAssetBytesCache.set(cacheKey, pendingBytes);
@@ -2105,7 +2141,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
             if (enabledCount >= 3) {
               const message = `This ad group already has ${enabledCount} of 3 enabled Responsive Search Ads in Google Ads (count includes ads created earlier in this push that may not yet appear in ActiPlan). Pause or remove an existing RSA in Google Ads, or assign this creative to a different ad group.`;
               console.warn(`[google.createCreative] RSA cap pre-flight blocked adGroup=${params.adGroupId} count=${enabledCount}`);
-              return { success: false, creativeId: "", error: message };
+              return { success: false, creativeId: "", platform: "google", error: message };
             }
           }
         } catch (rsaCheckErr) {
@@ -3546,19 +3582,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
         unique.push(url);
         if (unique.length >= max) break;
       }
-      // Parallelise image uploads. Each upload fetches the source bytes and
-      // base64-encodes them; doing them sequentially is what burned the CPU
-      // budget on PMax pushes with many creatives.
-      const results = await Promise.all(unique.map(async (url, idx) => {
+
+      // Upload images sequentially for one asset group. Google Ads rejects some
+      // concurrent asset mutations with "modify the same resource at once", and
+      // storage-side transforms above remove the CPU-heavy local crop step.
+      for (let idx = 0; idx < unique.length; idx += 1) {
+        const url = unique[idx];
         try {
-          return await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${idx + 1}`, false, aspect);
+          const assetRn = await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${idx + 1}`, false, aspect);
+          linkSpecs.push({ asset: assetRn, fieldType });
         } catch (e: any) {
           console.warn(`[pmax] failed to upload ${fieldType} image "${url}":`, e?.message || e);
-          return null;
         }
-      }));
-      for (const assetRn of results) {
-        if (assetRn) linkSpecs.push({ asset: assetRn, fieldType });
       }
     };
 
