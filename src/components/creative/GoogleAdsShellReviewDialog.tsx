@@ -44,6 +44,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
 
   const pmaxUpdated = diff.pmaxGroups?.updated || [];
   const pmaxSkipped = diff.pmaxGroups?.skippedNew || [];
+  const pmaxUnchanged = diff.pmaxGroups?.unchanged || [];
 
   const totalChanges =
     diff.keywords.added.length +
