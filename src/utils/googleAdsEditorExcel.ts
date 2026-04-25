@@ -1187,6 +1187,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
 
   const pmaxUpdated: GoogleAdsShellDiff['pmaxGroups']['updated'] = [];
   const pmaxSkipped: ParsedPmaxGroupRow[] = [];
+  const pmaxUnchanged: GoogleAdsShellDiff['pmaxGroups']['unchanged'] = [];
 
   // Compare ordered, trimmed string arrays — empty trailing slots ignored.
   const trimList = (arr: string[]): string[] => {
