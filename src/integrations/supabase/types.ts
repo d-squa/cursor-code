@@ -3247,7 +3247,7 @@ export type Database = {
             foreignKeyName: "pmax_creative_assets_creative_id_fkey"
             columns: ["creative_id"]
             isOneToOne: false
-            referencedRelation: "creative_library_assets"
+            referencedRelation: "creatives"
             referencedColumns: ["id"]
           },
         ]
