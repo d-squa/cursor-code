@@ -2341,6 +2341,7 @@ export function TextAssetsStep({
         rows={mergedRows}
         scopeMarket={googleNonSearchEditor.market}
         scopePhase={googleNonSearchEditor.phase}
+        campaignId={campaignId}
         onRowChange={handleRowChange}
         onBulkUpdate={handleBulkUpdate}
         onDeleteAssignments={handleDeleteAssignments}
