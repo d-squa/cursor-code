@@ -649,6 +649,102 @@ export async function downloadGoogleAdsShell(input: BuildWorkbookInput): Promise
   URL.revokeObjectURL(url);
 }
 
+export interface PmaxAssetGroupShellRow {
+  market: string;
+  phaseName: string;
+  assetGroupName: string;
+  groupName?: string;
+  businessName?: string;
+  finalUrl?: string;
+  callToAction?: string;
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
+  marketingImages?: string[];
+  squareImages?: string[];
+  portraitImages?: string[];
+  logos?: string[];
+  videos?: string[];
+}
+
+export async function downloadGooglePmaxAssetGroupShell(input: {
+  campaignName: string;
+  groups: PmaxAssetGroupShellRow[];
+}): Promise<void> {
+  const wb = XLSX.utils.book_new();
+  const headers = [
+    'Market',
+    'Phase',
+    'Asset Group',
+    'Group Name',
+    'Business Name',
+    `LEN BN (max ${BUSINESS_NAME_LIMIT})`,
+    'Final URL',
+    `Call to Action (${GOOGLE_CTA_LABEL_LIST})`,
+    'Headlines',
+    'Long Headlines',
+    'Descriptions',
+    'Marketing Images',
+    'Square Images',
+    'Portrait Images',
+    'Logos',
+    'Videos',
+  ];
+  const aoa: (string | number)[][] = [
+    headers,
+    ...input.groups.map((g) => [
+      g.market,
+      g.phaseName,
+      g.assetGroupName,
+      g.groupName || g.assetGroupName,
+      g.businessName || '',
+      '',
+      g.finalUrl || '',
+      GOOGLE_CTA_OPTIONS.find((o) => o.value === normalizeGoogleCta(g.callToAction || ''))?.label || '',
+      g.headlines.filter(Boolean).join('\n'),
+      g.longHeadlines.filter(Boolean).join('\n'),
+      g.descriptions.filter(Boolean).join('\n'),
+      (g.marketingImages || []).join('\n'),
+      (g.squareImages || []).join('\n'),
+      (g.portraitImages || []).join('\n'),
+      (g.logos || []).join('\n'),
+      (g.videos || []).join('\n'),
+    ]),
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [
+    { wch: 14 }, { wch: 28 }, { wch: 34 }, { wch: 34 }, { wch: 24 }, { wch: 10 },
+    { wch: 50 }, { wch: 26 }, { wch: 60 }, { wch: 60 }, { wch: 60 },
+    { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 },
+  ];
+  const bnCol = XLSX.utils.encode_col(4);
+  for (let r = 1; r < aoa.length; r++) {
+    setLenFormula(ws, 5, r + 1, bnCol, BUSINESS_NAME_LIMIT);
+  }
+  XLSX.utils.book_append_sheet(wb, ws, 'PMax Asset Groups');
+
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
+  const finalBuf = await injectDropdownsIntoXlsx(buf, [{
+    sheetName: 'PMax Asset Groups',
+    columnIndex: 7,
+    startRow: 2,
+    endRow: Math.max(1000, aoa.length),
+    options: GOOGLE_CTA_OPTIONS.map((o) => o.label),
+    prompt: 'Pick a Google-supported call to action.',
+  }]);
+  const blob = new Blob([finalBuf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const safe = input.campaignName.replace(/[^a-zA-Z0-9]/g, '_');
+  link.download = `${safe}_pmax_asset_groups_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 // ---------- Parsing & diffing ----------
 
 export interface ParsedShell {
