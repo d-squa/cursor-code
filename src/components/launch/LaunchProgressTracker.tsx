@@ -488,8 +488,11 @@ function CampaignsShellTree({
                         const hasPushable = adSetEntities.some(a =>
                           ['awaiting_assets', 'push_failed', 'assets_incomplete'].includes(a.status),
                         );
+                        const hasPushedPmaxAssetGroup = adSetEntities.some(a =>
+                          ['pushed_to_dsp', 'live'].includes(a.status),
+                        );
                         const showPmaxButton =
-                          isPmax && shellReady && hasPushable && Boolean(onPushPmaxAssetGroups);
+                          isPmax && shellReady && (hasPushable || hasPushedPmaxAssetGroup) && Boolean(onPushPmaxAssetGroups);
                         const pmaxKey = `${market}|${phase}`;
                         const isPushingThis = pushingPmaxKey === pmaxKey;
 
@@ -527,7 +530,7 @@ function CampaignsShellTree({
                                   ) : (
                                     <Rocket className="h-3 w-3 mr-1" />
                                   )}
-                                  Push Asset Groups
+                                  {hasPushable ? 'Push Asset Groups' : 'Sync Assets'}
                                 </Button>
                               )}
                               <Badge variant="secondary" className="ml-auto text-xs h-4 px-1">
