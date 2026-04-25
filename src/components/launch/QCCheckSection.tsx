@@ -596,6 +596,13 @@ export function QCCheckSection({
         </TooltipProvider>
       </CardContent>
     </Card>
+    <SetupMistakeDialog
+      open={setupMistakeDialogOpen}
+      onOpenChange={setSetupMistakeDialogOpen}
+      context={setupMistakeContext}
+      onSuccess={() => { void refreshMistakes(); }}
+    />
+    </>
   );
 }
 
