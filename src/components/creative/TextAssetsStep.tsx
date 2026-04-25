@@ -1909,7 +1909,7 @@ export function TextAssetsStep({
         // what's registered in campaign_launch_status.entity_name (which is
         // what push-pmax-asset-groups looks up by).
         assetGroupName: resolvedAssetGroupName,
-        groupName: anchor.taxonomyAdSetName || anchor.adSet,
+        groupName: resolvedAssetGroupName,
         businessName: anchor.brandName || a.business_name || '',
         finalUrl: anchor.destinationUrl || '',
         callToAction: String(anchor.callToAction || ''),
@@ -2462,7 +2462,7 @@ export function TextAssetsStep({
             const d = padTo5(nextDesc);
             setRows((prev) =>
               prev.map((r) => {
-                const rowAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+                const rowAdGroup = resolvePmaxAssetGroupName(r);
                 if (
                   r.market !== u.market ||
                   r.phase !== u.phaseName ||
