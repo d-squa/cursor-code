@@ -632,13 +632,14 @@ export function GoogleNonSearchTextAssetEditor({
             .map((id) => rows.find((r) => r.id === id))
             .filter(Boolean) as CreativeTextAssetRow[];
 
+          const resolvedAdGroupName = resolvePmaxAssetGroupName(anchorRow);
           const group = await upsertPmaxAssetGroup({
             campaignId,
             userId: user.id,
             market: anchorRow.market,
             phaseName: anchorRow.phase,
-            adGroupName: anchorRow.adSet,
-            groupName: anchor.adGroupName || null,
+            adGroupName: resolvedAdGroupName,
+            groupName: resolvedAdGroupName || anchor.adGroupName || null,
             businessName: anchor.businessName || null,
             finalUrl: anchor.finalUrl || null,
             callToAction: anchor.callToAction || null,
