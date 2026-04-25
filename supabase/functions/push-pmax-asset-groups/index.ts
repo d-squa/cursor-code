@@ -336,12 +336,10 @@ serve(async (req) => {
           continue;
         }
 
-        // Mark pushing so the UI can reflect progress.
-        await supabase
-          .from("campaign_launch_status")
-          .update({ status: "pushing", updated_at: new Date().toISOString() })
-          .eq("id", row.id);
-
+        // Do not persist a long-running "pushing" state here. If the edge
+        // runtime kills the invocation for CPU time, a persisted in-progress
+        // state becomes an infinite spinner. The UI already shows local button
+        // progress while this single asset group is being processed.
         // Pull creative_assignments for this asset group.
         const { data: assignments } = await supabase
           .from("creative_assignments")
