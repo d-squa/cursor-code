@@ -143,6 +143,8 @@ export interface GoogleAdsShellDiff {
     }>;
     /** Uploaded PMax rows that don't match any known (market, phase, ad group). */
     skippedNew: ParsedPmaxGroupRow[];
+    /** Uploaded PMax rows that matched an existing group but had no field differences. */
+    unchanged: Array<{ market: string; phaseName: string; assetGroupName: string }>;
   };
 }
 
