@@ -166,18 +166,13 @@ serve(async (req) => {
     await stalePushingQuery;
 
     // ----- Load pending PMax rows -----
-    // Do not include already pushed/live rows here. With bounded one-row
-    // processing, those rows can be selected first on every retry and starve
-    // the remaining awaiting asset groups, making the UI look like an infinite
-    // push loop.
-    // Include `pushed_to_dsp` rows so adding new creatives after the initial
-    // push triggers `syncPmaxAssetGroupAssets` against the existing asset group.
-    // Without this, the function returns "No PMax asset groups awaiting push"
-    // and the new creatives never reach Google Ads even though the local
-    // `creative_assignments` rows are marked pushed by the reconciler.
+    // Only include rows that still need an asset-group push. Do NOT include
+    // `pushed_to_dsp` here: with MAX_ROWS_PER_INVOCATION=1, already-pushed rows
+    // can be selected repeatedly and starve remaining `awaiting_assets` rows,
+    // causing an infinite "pushed 1 asset group" loop in the UI.
     const eligibleStatuses = retryFailed
-      ? ["awaiting_assets", "push_failed", "assets_incomplete", "pushed_to_dsp"]
-      : ["awaiting_assets", "pushed_to_dsp"];
+      ? ["awaiting_assets", "push_failed", "assets_incomplete"]
+      : ["awaiting_assets"];
 
     let rowsQuery = supabase
       .from("campaign_launch_status")
@@ -190,12 +185,7 @@ serve(async (req) => {
     if (marketFilter) rowsQuery = rowsQuery.eq("market", marketFilter);
     if (phaseFilter) rowsQuery = rowsQuery.eq("phase_name", phaseFilter);
 
-    const { data: rawRows, error: pendingErr } = await rowsQuery;
-    // For already-pushed rows, only resync when we have a real assetGroups
-    // resource on file (otherwise there's nothing to sync into).
-    const pendingRows = (rawRows || []).filter((r: any) =>
-      r.status !== "pushed_to_dsp" || String(r.dsp_entity_id || "").includes("/assetGroups/"),
-    );
+    const { data: pendingRows, error: pendingErr } = await rowsQuery;
     if (pendingErr) {
       return new Response(
         JSON.stringify({ error: pendingErr.message }),
