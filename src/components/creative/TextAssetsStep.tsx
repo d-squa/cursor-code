@@ -1936,25 +1936,49 @@ export function TextAssetsStep({
   // Snapshot current PMax asset groups so the diff can compare uploaded values
   // against what is already saved in pmax_asset_groups + pmax_text_assets.
   const loadCurrentPmaxSnapshots = useCallback(async () => {
+    // Always derive a baseline from the current editor `rows` so the diff has a
+    // key to match against even when a PMax group has not yet been persisted to
+    // pmax_asset_groups (first upload, before "Save & Proceed"). The DB
+    // snapshot then overrides per-key, so already-persisted groups still diff
+    // against their authoritative stored values.
+    const rowDerivedShell = buildPmaxAssetGroupShellRows(rows);
+    const rowDerived = rowDerivedShell.map((g) => ({
+      market: g.market,
+      phaseName: g.phaseName,
+      assetGroupName: g.assetGroupName,
+      businessName: g.businessName || '',
+      finalUrl: g.finalUrl || '',
+      callToAction: g.callToAction || '',
+      headlines: g.headlines || [],
+      longHeadlines: g.longHeadlines || [],
+      descriptions: g.descriptions || [],
+    }));
+    const byKey = new Map<string, typeof rowDerived[number]>();
+    for (const r of rowDerived) {
+      byKey.set(`${r.market}||${r.phaseName}||${r.assetGroupName}`, r);
+    }
     try {
       const { fetchPmaxAssetGroups } = await import('@/utils/pmaxAssetGroupRepo');
       const groups = await fetchPmaxAssetGroups(campaignId);
-      return groups.map((g) => ({
-        market: g.group.market,
-        phaseName: g.group.phase_name,
-        assetGroupName: g.group.ad_group_name,
-        businessName: g.group.business_name || '',
-        finalUrl: g.group.final_url || '',
-        callToAction: g.group.call_to_action || '',
-        headlines: g.headlines,
-        longHeadlines: g.longHeadlines,
-        descriptions: g.descriptions,
-      }));
+      for (const g of groups) {
+        const key = `${g.group.market}||${g.group.phase_name}||${g.group.ad_group_name}`;
+        byKey.set(key, {
+          market: g.group.market,
+          phaseName: g.group.phase_name,
+          assetGroupName: g.group.ad_group_name,
+          businessName: g.group.business_name || '',
+          finalUrl: g.group.final_url || '',
+          callToAction: g.group.call_to_action || '',
+          headlines: g.headlines,
+          longHeadlines: g.longHeadlines,
+          descriptions: g.descriptions,
+        });
+      }
     } catch (err) {
-      console.warn('[GoogleAdsShell] failed to load PMax snapshots', err);
-      return [];
+      console.warn('[GoogleAdsShell] failed to load PMax snapshots from DB; using row-derived baseline only', err);
     }
-  }, [campaignId]);
+    return Array.from(byKey.values());
+  }, [campaignId, buildPmaxAssetGroupShellRows, rows]);
 
   const handleUploadGoogleAdsShell = useCallback(async (file: File) => {
     try {
