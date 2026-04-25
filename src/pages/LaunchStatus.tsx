@@ -1152,6 +1152,7 @@ export default function LaunchStatus() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveAdSetStatuses, campaignId, user, pushingPmaxKey]);
 
+  const handleFixIssue = (fieldPath?: string) => {
     if (!campaignId) return;
 
     // Navigate to the appropriate step/page based on fieldPath
