@@ -54,6 +54,8 @@ export function ModificationRequestDialog({
   const { user } = useAuth();
   const [changeType, setChangeType] = useState("");
   const [description, setDescription] = useState("");
+  const [adSetName, setAdSetName] = useState("");
+  const [adName, setAdName] = useState("");
   const [loading, setLoading] = useState(false);
   const [notifyType, setNotifyType] = useState<"all" | "specific">("all");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
