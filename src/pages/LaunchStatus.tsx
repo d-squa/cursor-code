@@ -1068,43 +1068,57 @@ export default function LaunchStatus() {
   // Triggers the new push-pmax-asset-groups edge function for a single
   // PMax campaign (scoped to market+phaseName). Used both as the manual
   // /status fallback button and the auto-trigger from TextAssetsStep.
-  const handlePushPmaxAssetGroups = async (market: string, phaseName: string) => {
+  const handlePushPmaxAssetGroups = async (
+    market: string,
+    phaseName: string,
+    opts: { silent?: boolean; chainDepth?: number } = {},
+  ) => {
     if (!campaignId) return;
     const key = `${market}|${phaseName}`;
+    const chainDepth = opts.chainDepth ?? 0;
+    // Hard ceiling so a misbehaving response can never loop forever.
+    const MAX_CHAIN = 25;
     setPushingPmaxKey(key);
     try {
       const { data, error } = await supabase.functions.invoke("push-pmax-asset-groups", {
         body: { campaignId, market, phaseName, retryFailed: true },
       });
       if (error) throw error;
-      const queued = data?.queued ?? 0;
       const deferred = data?.deferred ?? 0;
       const pushed = data?.pushed ?? 0;
       const failed = data?.failed ?? 0;
-      if (failed > 0) {
-        toast.error(`${failed} asset group${failed === 1 ? '' : 's'} failed`, {
-          description: pushed > 0 ? `${pushed} succeeded.` : undefined,
-        });
-      } else if (queued > 0) {
-        toast.success(`Queued ${queued} PMax asset group${queued === 1 ? '' : 's'} for push`, {
-          description: deferred > 0 ? `${deferred} more queued automatically once ready.` : undefined,
-        });
-      } else if (pushed > 0) {
-        toast.success(`Pushed ${pushed} PMax asset group${pushed === 1 ? '' : 's'}`);
-      } else {
-        toast.info(data?.message || "No asset groups awaiting push");
+
+      if (!opts.silent) {
+        if (failed > 0) {
+          toast.error(`${failed} asset group${failed === 1 ? '' : 's'} failed`, {
+            description: pushed > 0 ? `${pushed} succeeded.` : undefined,
+          });
+        } else if (pushed > 0 && deferred === 0) {
+          toast.success(`Pushed ${pushed} PMax asset group${pushed === 1 ? '' : 's'}`);
+        } else if (pushed === 0 && deferred === 0) {
+          toast.info(data?.message || "No asset groups awaiting push");
+        }
       }
-      // If there are more groups still pending in this phase, allow the
-      // auto-push effect to fire again for the same (market, phase) so the
-      // user doesn't have to click manually for each remaining asset group.
-      if (deferred > 0 || queued > 0) {
-        autoPushedPmaxKeysRef.current.delete(key);
-      }
+
       refreshProgress();
+
+      // Chain the next push automatically while there are still deferred groups
+      // and we made forward progress on this iteration. This avoids relying on
+      // the realtime effect to retrigger (which caused infinite loops when
+      // status updates were briefly stale).
+      if (deferred > 0 && pushed > 0 && failed === 0 && chainDepth < MAX_CHAIN) {
+        // Keep the dedupe key marked so the auto-push effect does not also fire.
+        autoPushedPmaxKeysRef.current.add(key);
+        await handlePushPmaxAssetGroups(market, phaseName, {
+          silent: true,
+          chainDepth: chainDepth + 1,
+        });
+        return;
+      }
     } catch (err: any) {
       console.error("push-pmax-asset-groups error:", err);
       toast.error("Failed to push asset groups: " + (err?.message || String(err)));
-      // Allow retry on failure
+      // Allow manual retry on failure
       autoPushedPmaxKeysRef.current.delete(`${market}|${phaseName}`);
     } finally {
       setPushingPmaxKey(null);
