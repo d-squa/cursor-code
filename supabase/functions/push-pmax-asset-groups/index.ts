@@ -360,90 +360,106 @@ serve(async (req) => {
           continue;
         }
 
-        // Do not persist a long-running "pushing" state here. If the edge
-        // runtime kills the invocation for CPU time, a persisted in-progress
-        // state becomes an infinite spinner. The UI already shows local button
-        // progress while this single asset group is being processed.
-        // Pull creative_assignments for this asset group.
-        const { data: assignments } = await supabase
-          .from("creative_assignments")
-          .select(`
-            id, creative_id, ad_set_name, position, ad_group_name,
-            headline, headline_2, headline_3, headline_4, headline_5,
-            long_headline_1, long_headline_2, long_headline_3, long_headline_4, long_headline_5,
-            description, description_2, description_3, description_4, description_5,
-            primary_text, business_name, brand_name, destination_url, call_to_action,
-            creative:creatives(id, name, media_type, media_urls, thumbnail_url, original_filename, folder_path, width, height, aspect_ratio, platform_video_id, destination_url)
-          `)
+        // ---- NEW: read text + creative pool from pmax_asset_groups + children ----
+        // Hard cutover: legacy creative_assignments columns are NOT consulted.
+        const { data: groupRow } = await supabase
+          .from("pmax_asset_groups")
+          .select("id, business_name, final_url, call_to_action, group_name")
           .eq("campaign_id", campaignId)
-          .eq("platform", "google")
           .eq("market", row.market)
-          .eq("phase_name", row.phase_name);
+          .eq("phase_name", row.phase_name)
+          .eq("ad_group_name", row.entity_name || "")
+          .maybeSingle();
 
-        const all = assignments || [];
-        // Match by ad_set_name (or ad_group_name) → fallback to all phase rows.
-        const matched = all.filter(
-          (a: any) =>
-            (a.ad_set_name && row.entity_name && a.ad_set_name === row.entity_name) ||
-            (a.ad_group_name && row.entity_name && a.ad_group_name === row.entity_name),
-        );
-        const groupAssignments = matched.length > 0 ? matched : all;
+        if (!groupRow) {
+          await supabase
+            .from("campaign_launch_status")
+            .update({
+              status: "push_failed",
+              error_message: `No PMax asset group configured for ${row.market}/${row.phase_name}/${row.entity_name}. Open the editor and save text + creatives first.`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", row.id);
+          results.push({
+            rowId: row.id,
+            market: row.market,
+            phase: row.phase_name || "",
+            groupName: row.entity_name || "",
+            status: "push_failed",
+            error: "No asset group configured",
+          });
+          continue;
+        }
 
-        // Aggregate text assets.
-        const headlines: string[] = [];
-        const longHeadlines: string[] = [];
-        const descriptions: string[] = [];
+        const [{ data: textRows }, { data: linkRows }] = await Promise.all([
+          supabase
+            .from("pmax_text_assets")
+            .select("asset_type, content, position")
+            .eq("asset_group_id", groupRow.id)
+            .order("position"),
+          supabase
+            .from("pmax_creative_assets")
+            .select("creative_id, bucket, position, creatives:creatives(id, media_urls, thumbnail_url, original_filename, name, folder_path, width, height, aspect_ratio, platform_video_id, destination_url, media_type)")
+            .eq("asset_group_id", groupRow.id)
+            .order("position"),
+        ]);
+
+        const headlines: string[] = (textRows || [])
+          .filter((t: any) => t.asset_type === "headline")
+          .map((t: any) => t.content);
+        const longHeadlines: string[] = (textRows || [])
+          .filter((t: any) => t.asset_type === "long_headline")
+          .map((t: any) => t.content);
+        const descriptions: string[] = (textRows || [])
+          .filter((t: any) => t.asset_type === "description")
+          .map((t: any) => t.content);
+
         const marketingImgs: string[] = [];
         const squareImgs: string[] = [];
         const portraitImgs: string[] = [];
         const logoImgs: string[] = [];
         const ytVideoIds: string[] = [];
 
-        for (const a of groupAssignments) {
-          for (const k of ["headline", "headline_2", "headline_3", "headline_4", "headline_5"] as const) {
-            if (a[k]) headlines.push(a[k]);
-          }
-          for (const k of ["long_headline_1", "long_headline_2", "long_headline_3", "long_headline_4", "long_headline_5"] as const) {
-            if (a[k]) longHeadlines.push(a[k]);
-          }
-          for (const k of ["description", "description_2", "description_3", "description_4", "description_5"] as const) {
-            if (a[k]) descriptions.push(a[k]);
-          }
-          if (a.primary_text) descriptions.push(a.primary_text);
-
-          const c: any = a.creative;
-          if (c?.media_type === "image" && Array.isArray(c.media_urls)) {
-            for (const u of c.media_urls) {
-              const url = String(u || "");
-              if (!url) continue;
-              const bucket = bucketImageAsset(c, url);
-              if (bucket === "logo") logoImgs.push(url);
-              else if (bucket === "square") squareImgs.push(url);
-              else if (bucket === "marketing") marketingImgs.push(url);
-              else if (bucket === "portrait") portraitImgs.push(url);
-              else console.warn(`[pmax] skipping image with unsupported aspect ratio: ${c?.name || c?.original_filename || url} (${c?.width || "?"}x${c?.height || "?"})`);
-            }
-          }
-          if (c?.platform_video_id) {
+        for (const link of linkRows || []) {
+          const c: any = (link as any).creatives;
+          if (!c) continue;
+          // Buckets are explicit on the link row — trust them, but still
+          // validate the creative actually has usable media.
+          if (c.platform_video_id && link.bucket === "video") {
             ytVideoIds.push(c.platform_video_id);
+            continue;
+          }
+          const urls: string[] = Array.isArray(c.media_urls) ? c.media_urls : [];
+          const url = urls.find((u) => Boolean(u)) || c.thumbnail_url;
+          if (!url) continue;
+          switch (link.bucket) {
+            case "marketing_image": marketingImgs.push(url); break;
+            case "square_image": squareImgs.push(url); break;
+            case "portrait_image": portraitImgs.push(url); break;
+            case "logo": logoImgs.push(url); break;
+            default:
+              // Fallback: re-bucket via dimensions if the link bucket is unknown.
+              const auto = bucketImageAsset(c, url);
+              if (auto === "logo") logoImgs.push(url);
+              else if (auto === "square") squareImgs.push(url);
+              else if (auto === "portrait") portraitImgs.push(url);
+              else if (auto === "marketing") marketingImgs.push(url);
           }
         }
 
         const finalUrl =
-          (groupAssignments[0] as any)?.destination_url ||
-          (groupAssignments[0] as any)?.creative?.destination_url ||
+          groupRow.final_url ||
           marketCfg?.googleLandingPageUrl ||
           "https://example.com";
 
         const businessName =
-          (groupAssignments[0] as any)?.business_name ||
-          (groupAssignments[0] as any)?.brand_name ||
+          groupRow.business_name ||
           marketCfg?.googleBusinessName ||
           campaign.name ||
           "Brand";
 
-        const groupName = row.entity_name || `${campaign.name} - ${row.market} - ${row.phase_name}`;
-        const ctaEnum = String((groupAssignments[0] as any)?.call_to_action || "LEARN_MORE").toUpperCase();
+        const groupName = groupRow.group_name || row.entity_name || `${campaign.name} - ${row.market} - ${row.phase_name}`;
+        const ctaEnum = String(groupRow.call_to_action || "LEARN_MORE").toUpperCase();
         const hasMerchantCenter = Boolean(marketCfg?.googleMerchantCenterId);
 
         try {

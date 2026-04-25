@@ -54,7 +54,7 @@ export interface PmaxAssetGroupFull {
   headlines: string[];
   longHeadlines: string[];
   descriptions: string[];
-  creativesByBucket: Record<PmaxBucket, string[]>; // creative_library_assets.id[]
+  creativesByBucket: Record<PmaxBucket, string[]>; // public.creatives.id[]
 }
 
 const EMPTY_BUCKETS: Record<PmaxBucket, string[]> = {
@@ -158,7 +158,7 @@ export async function replacePmaxTextAssets(input: ReplaceTextInput): Promise<vo
 
 export interface ReplaceCreativesInput {
   groupId: string;
-  /** Map of bucket → ordered list of creative_library_assets.id values. */
+  /** Map of bucket → ordered list of `public.creatives.id` values. */
   byBucket: Partial<Record<PmaxBucket, string[]>>;
 }
 
@@ -184,4 +184,130 @@ export async function replacePmaxCreativeAssets(input: ReplaceCreativesInput): P
 export async function deletePmaxAssetGroup(groupId: string): Promise<void> {
   const { error } = await supabase.from('pmax_asset_groups').delete().eq('id', groupId);
   if (error) throw error;
+}
+
+// ---------- High-level sync from CreativeTextAssetRow[] ----------
+
+import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+
+interface CreativeBucketHints {
+  width?: number | null;
+  height?: number | null;
+  original_filename?: string | null;
+  name?: string | null;
+  folder_path?: string | null;
+  media_type?: string | null;
+  platform_video_id?: string | null;
+}
+
+function bucketCreative(c: CreativeBucketHints, id: string): { bucket: PmaxBucket | null } {
+  if (c.media_type === 'video' || c.platform_video_id) return { bucket: 'video' };
+  const w = Number(c.width || 0);
+  const h = Number(c.height || 0);
+  if (!w || !h) return { bucket: null };
+  const ratio = w / h;
+  const hay = `${c.original_filename || ''} ${c.name || ''} ${c.folder_path || ''}`.toLowerCase();
+  const logoHint = /\blogo\b/.test(hay);
+  if (Math.abs(ratio - 1) <= 0.05) {
+    if (logoHint || Math.max(w, h) <= 512) return { bucket: 'logo' };
+    return { bucket: 'square_image' };
+  }
+  if (Math.abs(ratio - 1.91) <= 0.06 || Math.abs(ratio - 16 / 9) <= 0.03) return { bucket: 'marketing_image' };
+  if (Math.abs(ratio - 0.8) <= 0.05) return { bucket: 'portrait_image' };
+  return { bucket: null };
+}
+
+/**
+ * Mirror PMax rows from the editor's `CreativeTextAssetRow[]` model into the
+ * `pmax_asset_groups` + children tables. One row per (market, phase, adSet)
+ * tuple becomes one asset group. Idempotent: replaces text + creative pool on
+ * every call. Safe to invoke after Excel import or "Save & Proceed".
+ */
+export async function syncPmaxGroupsFromRows(
+  campaignId: string,
+  userId: string,
+  rows: CreativeTextAssetRow[],
+  detectIsPmax: (row: CreativeTextAssetRow) => boolean,
+): Promise<{ groupsSynced: number; errors: string[] }> {
+  const errors: string[] = [];
+  const groups = new Map<string, CreativeTextAssetRow[]>();
+  for (const r of rows) {
+    if (!detectIsPmax(r)) continue;
+    const key = `${r.market}||${r.phase}||${r.adSet}`;
+    const arr = groups.get(key) || [];
+    arr.push(r);
+    groups.set(key, arr);
+  }
+  if (groups.size === 0) return { groupsSynced: 0, errors };
+
+  // Pull all creative records once.
+  const allCreativeIds = Array.from(new Set(
+    Array.from(groups.values()).flat().map((r) => r.creativeId).filter(Boolean),
+  ));
+  const creativesById = new Map<string, CreativeBucketHints>();
+  if (allCreativeIds.length > 0) {
+    const { data } = await supabase
+      .from('creatives')
+      .select('id, width, height, original_filename, name, folder_path, media_type, platform_video_id')
+      .in('id', allCreativeIds);
+    for (const c of data || []) creativesById.set(c.id, c as any);
+  }
+
+  let synced = 0;
+  for (const [, groupRows] of groups) {
+    // Pick the most-populated row as the anchor for text values.
+    const anchor = groupRows.reduce((best, cur) => {
+      const score = (r: any) =>
+        ['headline','headline2','headline3','headline4','headline5',
+         'long_headline_1','long_headline_2','long_headline_3','long_headline_4','long_headline_5',
+         'description','description2','description3','description4','description5',
+         'business_name','brandName','destinationUrl','callToAction']
+          .reduce((s, k) => s + (String((r as any)[k] || '').trim() ? 1 : 0), 0);
+      return score(cur) > score(best) ? cur : best;
+    }, groupRows[0]);
+
+    const a = anchor as any;
+    try {
+      const group = await upsertPmaxAssetGroup({
+        campaignId,
+        userId,
+        market: anchor.market,
+        phaseName: anchor.phase,
+        adGroupName: anchor.adSet,
+        groupName: anchor.taxonomyAdSetName || anchor.adSet || null,
+        businessName: String(a.business_name || a.brandName || '').trim() || null,
+        finalUrl: String(a.destinationUrl || '').trim() || null,
+        callToAction: String(a.callToAction || a.call_to_action || '').trim() || null,
+      });
+
+      const headlines = [a.headline, a.headline2, a.headline3, a.headline4, a.headline5]
+        .map((v) => String(v || '').trim()).filter(Boolean);
+      const longHeadlines = [a.long_headline_1, a.long_headline_2, a.long_headline_3, a.long_headline_4, a.long_headline_5]
+        .map((v) => String(v || '').trim()).filter(Boolean);
+      const descriptions = [a.description, a.description2, a.description3, a.description4, a.description5]
+        .map((v) => String(v || '').trim()).filter(Boolean);
+
+      await replacePmaxTextAssets({ groupId: group.id, headlines, longHeadlines, descriptions });
+
+      const byBucket: Record<PmaxBucket, string[]> = {
+        marketing_image: [], square_image: [], portrait_image: [], logo: [], video: [],
+      };
+      for (const r of groupRows) {
+        if (!r.creativeId) continue;
+        const c = creativesById.get(r.creativeId);
+        if (!c) continue;
+        const { bucket } = bucketCreative(c, r.creativeId);
+        if (bucket) byBucket[bucket].push(r.creativeId);
+      }
+      // Dedupe per bucket.
+      (Object.keys(byBucket) as PmaxBucket[]).forEach((b) => {
+        byBucket[b] = Array.from(new Set(byBucket[b]));
+      });
+      await replacePmaxCreativeAssets({ groupId: group.id, byBucket });
+      synced++;
+    } catch (err: any) {
+      errors.push(`${anchor.market}/${anchor.phase}/${anchor.adSet}: ${err?.message || err}`);
+    }
+  }
+  return { groupsSynced: synced, errors };
 }
