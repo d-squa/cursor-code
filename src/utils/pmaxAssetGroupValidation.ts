@@ -23,6 +23,7 @@
 //     • Video is OPTIONAL — Google auto-generates one from images if omitted.
 
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import { resolvePmaxAssetGroupName } from '@/utils/googlePmaxAssetGroupName';
 
 export const PMAX_LIMITS = {
   HEADLINE_MAX: 30,
@@ -384,7 +385,7 @@ export function validatePmaxAssetGroups(rows: CreativeTextAssetRow[]): PmaxAsset
     // a logical PMax asset group but differ in raw `adSet` (e.g. strategy/
     // language splits) collapse into a single group — matching the upsert key
     // used by syncPmaxGroupsFromRows and the shell export.
-    const resolvedAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+    const resolvedAdGroup = resolvePmaxAssetGroupName(r);
     const key = pmaxGroupKey(r.market, r.phase, resolvedAdGroup);
     const arr = groups.get(key) || [];
     arr.push(r);

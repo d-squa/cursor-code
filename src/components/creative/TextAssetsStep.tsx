@@ -55,6 +55,7 @@ import {
   toAssetCustomizationMemberBucket,
 } from '@/utils/assetCustomizationPersistence';
 import { isAssignmentPushedLive, normalizeAssignmentPushStatus } from '@/utils/creativeAssignmentStatus';
+import { resolvePmaxAssetGroupName } from '@/utils/googlePmaxAssetGroupName';
 import type { CampaignStructure } from '@/hooks/useCreativeMatching';
 
 interface SavedAssignment {
@@ -1872,7 +1873,7 @@ export function TextAssetsStep({
     // split, producing visually-identical duplicate rows in the shell.
     const grouped = new Map<string, CreativeTextAssetRow[]>();
     for (const row of pmaxRows) {
-      const resolvedName = String((row as any).taxonomyAdSetName || row.adSet || '').trim();
+      const resolvedName = resolvePmaxAssetGroupName(row);
       const key = `${row.market}||${row.phase}||${resolvedName}`;
       const bucket = grouped.get(key) || [];
       bucket.push(row);
@@ -1900,7 +1901,7 @@ export function TextAssetsStep({
         else byKind.marketingImages.push(label);
       }
       const a = anchor as any;
-      const resolvedAssetGroupName = String(a.taxonomyAdSetName || anchor.adSet || '').trim();
+      const resolvedAssetGroupName = resolvePmaxAssetGroupName(anchor);
       return {
         market: anchor.market,
         phaseName: anchor.phase,
@@ -1908,7 +1909,7 @@ export function TextAssetsStep({
         // what's registered in campaign_launch_status.entity_name (which is
         // what push-pmax-asset-groups looks up by).
         assetGroupName: resolvedAssetGroupName,
-        groupName: anchor.taxonomyAdSetName || anchor.adSet,
+        groupName: resolvedAssetGroupName,
         businessName: anchor.brandName || a.business_name || '',
         finalUrl: anchor.destinationUrl || '',
         callToAction: String(anchor.callToAction || ''),
@@ -2461,7 +2462,7 @@ export function TextAssetsStep({
             const d = padTo5(nextDesc);
             setRows((prev) =>
               prev.map((r) => {
-                const rowAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+                const rowAdGroup = resolvePmaxAssetGroupName(r);
                 if (
                   r.market !== u.market ||
                   r.phase !== u.phaseName ||

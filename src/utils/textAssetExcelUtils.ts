@@ -12,6 +12,7 @@ import {
 import { detectGoogleNonSearchType, type GoogleNonSearchType } from '@/components/creative/GoogleNonSearchTextAssetEditor';
 import { GOOGLE_CTA_OPTIONS } from '@/utils/googleCtaOptions';
 import { injectDropdownsIntoXlsx, type SheetDropdownSpec } from '@/utils/xlsxDataValidation';
+import { resolvePmaxAssetGroupName } from '@/utils/googlePmaxAssetGroupName';
 
 // Column definitions for the Excel export/import
 export const TEXT_ASSET_COLUMNS = [
@@ -294,9 +295,7 @@ export async function parseTextAssetExcel(
                 if (Object.keys(updates).length === 0) continue;
                 let applied = 0;
                 updatedRows = updatedRows.map((r) => {
-                  const resolvedAdGroup = String(
-                    (r as any).taxonomyAdSetName || r.adSet || '',
-                  ).trim();
+                  const resolvedAdGroup = resolvePmaxAssetGroupName(r);
                   if (
                     String(r.market || '').trim() === market &&
                     String(r.phase || '').trim() === phase &&

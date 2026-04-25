@@ -8,6 +8,7 @@
 // This module is the ONLY place app code touches those three tables.
 
 import { supabase } from '@/integrations/supabase/client';
+import { resolvePmaxAssetGroupName } from '@/utils/googlePmaxAssetGroupName';
 
 export type PmaxBucket =
   | 'marketing_image'
@@ -237,7 +238,7 @@ export async function syncPmaxGroupsFromRows(
     // upsert key below). Grouping by raw `adSet` would split rows that share
     // a logical PMax asset group across multiple buckets and run extra upserts
     // that overwrite each other.
-    const resolvedAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+    const resolvedAdGroup = resolvePmaxAssetGroupName(r);
     const key = `${r.market}||${r.phase}||${resolvedAdGroup}`;
     const arr = groups.get(key) || [];
     arr.push(r);
@@ -278,14 +279,14 @@ export async function syncPmaxGroupsFromRows(
       // fully-resolved taxonomy name (e.g. "PMAX Test - AE - PMax — Product
       // Discovery - Default_LANG_ENG"). Persist that exact name so the lookup
       // matches; fall back to `adSet` only if no taxonomy name is set.
-      const resolvedAdGroupName = String((anchor as any).taxonomyAdSetName || anchor.adSet || '').trim();
+      const resolvedAdGroupName = resolvePmaxAssetGroupName(anchor);
       const group = await upsertPmaxAssetGroup({
         campaignId,
         userId,
         market: anchor.market,
         phaseName: anchor.phase,
         adGroupName: resolvedAdGroupName,
-        groupName: (anchor as any).taxonomyAdSetName || anchor.adSet || null,
+        groupName: resolvedAdGroupName || null,
         businessName: String(a.business_name || a.brandName || '').trim() || null,
         finalUrl: String(a.destinationUrl || '').trim() || null,
         callToAction: String(a.callToAction || a.call_to_action || '').trim() || null,
