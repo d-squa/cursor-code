@@ -103,8 +103,10 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           <DialogTitle>Review Google Ads Shell changes</DialogTitle>
           <DialogDescription>
             {totalChanges === 0
-              ? 'No changes detected vs. the current campaign.'
-              : `${totalChanges} change(s) detected. Uncheck any you don't want to apply.`}
+              ? pmaxUnchanged.length > 0
+                ? `No changes detected. ${pmaxUnchanged.length} PMax asset group(s) match what's already saved — re-uploading the same values is a no-op. Edit a field in the Excel to see it here.`
+                : 'No changes detected vs. the current campaign.'
+              : `${totalChanges} change(s) detected. Uncheck any you don't want to apply.${pmaxUnchanged.length > 0 ? ` ${pmaxUnchanged.length} PMax group(s) unchanged (skipped).` : ''}`}
           </DialogDescription>
         </DialogHeader>
 
