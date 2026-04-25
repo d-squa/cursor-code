@@ -1608,6 +1608,39 @@ const handler = async (req: Request): Promise<Response> => {
         typeof entry.dsp_entity_id === "string" &&
         entry.dsp_entity_id.includes("assetGroups/")
       ) {
+        const siblingPmaxRows = (adsetStatuses || []).filter((row: any) => {
+          const rowPlatformKey = toPlatformKey(row.platform);
+          return rowPlatformKey === "google"
+            && row.market === entry.market
+            && row.phase_name === entry.phase_name
+            && typeof row.dsp_entity_id === "string"
+            && row.dsp_entity_id.includes("assetGroups/");
+        });
+        const allSiblingAssetGroupsPushed = siblingPmaxRows.length > 0
+          && siblingPmaxRows.every((row: any) => ["pushed", "pushed_to_dsp", "live"].includes(String(row.status || "")));
+
+        if (allSiblingAssetGroupsPushed) {
+          const { data: reconciledAssignments, error: reconcileError } = await supabase
+            .from("creative_assignments")
+            .update({ status: "pushed", error_message: null })
+            .eq("campaign_id", campaign.id)
+            .ilike("platform", "google")
+            .eq("market", entry.market)
+            .eq("phase_name", entry.phase_name)
+            .in("status", ["pending", "pushing", "error"])
+            .select("id");
+
+          if (reconcileError) {
+            console.error(`[push-creatives] Failed to reconcile PMax pending assignments for ${entry.market}/${entry.phase_name}:`, reconcileError);
+          } else if ((reconciledAssignments || []).length > 0) {
+            const reconciledCount = reconciledAssignments!.length;
+            pushedCount += reconciledCount;
+            console.log(
+              `[push-creatives] Reconciled ${reconciledCount} PMax assignment(s) as pushed for ${entry.market}/${entry.phase_name}; assets already live inside pushed asset groups`,
+            );
+          }
+        }
+
         console.log(
           `[push-creatives] Skipping PMax asset group entry "${entry.entity_name}" (${entry.dsp_entity_id}) — handled by push-pmax-asset-groups`,
         );
