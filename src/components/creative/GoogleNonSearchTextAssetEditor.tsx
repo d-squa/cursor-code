@@ -515,16 +515,44 @@ export function GoogleNonSearchTextAssetEditor({
 
   const filteredDrafts = useMemo(() => {
     return drafts.filter((d) => {
+      // PMax shadow rows are hidden — only the anchor draft per group is shown.
+      if (d.type === 'pmax' && pmaxShadowRowIdsRef.current.has(d.rowId)) return false;
       if (typeFilter !== 'all' && d.type !== typeFilter) return false;
       if (validityFilter === 'invalid' && !isDraftInvalid(d)) return false;
       if (validityFilter === 'valid' && isDraftInvalid(d)) return false;
       return true;
     });
-  }, [drafts, typeFilter, validityFilter]);
+  }, [drafts, typeFilter, validityFilter, pmaxShadowRowIdsTrigger]);
+
+  // Apply a text/field patch from the anchor draft to all shadow drafts in
+  // the same PMax group (local state + upstream onRowChange for each).
+  const propagateToPmaxShadows = useCallback((
+    anchorRowId: string,
+    nextDrafts: NonSearchAdDraft[],
+  ): NonSearchAdDraft[] => {
+    const shadowIds = getPmaxShadowsFor(anchorRowId);
+    if (shadowIds.length === 0) return nextDrafts;
+    const anchor = nextDrafts.find((d) => d.rowId === anchorRowId);
+    if (!anchor) return nextDrafts;
+    const sharedPatch: Partial<NonSearchAdDraft> = {
+      headlines: anchor.headlines.slice(),
+      longHeadlines: anchor.longHeadlines.slice(),
+      descriptions: anchor.descriptions.slice(),
+      businessName: anchor.businessName,
+      finalUrl: anchor.finalUrl,
+      callToAction: anchor.callToAction,
+    };
+    const shadowSet = new Set(shadowIds);
+    const out = nextDrafts.map((d) => (shadowSet.has(d.rowId) ? { ...d, ...sharedPatch } : d));
+    out.filter((d) => shadowSet.has(d.rowId)).forEach((d) => {
+      onRowChange(d.rowId, draftToRowUpdates(d));
+    });
+    return out;
+  }, [getPmaxShadowsFor, onRowChange]);
 
   const setHeadline = useCallback((rowId: string, idx: number, value: string) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => {
+      let next = prev.map((d) => {
         if (d.rowId !== rowId) return d;
         const max = SCHEMAS[d.type].headlineMax;
         const headlines = d.headlines.slice();
@@ -532,14 +560,17 @@ export function GoogleNonSearchTextAssetEditor({
         return { ...d, headlines };
       });
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const setLongHeadline = useCallback((rowId: string, idx: number, value: string) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => {
+      let next = prev.map((d) => {
         if (d.rowId !== rowId) return d;
         const max = SCHEMAS[d.type].longHeadlineMax;
         const longHeadlines = d.longHeadlines.slice();
@@ -547,14 +578,17 @@ export function GoogleNonSearchTextAssetEditor({
         return { ...d, longHeadlines };
       });
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const setDescription = useCallback((rowId: string, idx: number, value: string) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => {
+      let next = prev.map((d) => {
         if (d.rowId !== rowId) return d;
         const max = SCHEMAS[d.type].descriptionMax;
         const descriptions = d.descriptions.slice();
@@ -562,19 +596,25 @@ export function GoogleNonSearchTextAssetEditor({
         return { ...d, descriptions };
       });
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const updateField = useCallback((rowId: string, patch: Partial<NonSearchAdDraft>) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => (d.rowId === rowId ? { ...d, ...patch } : d));
+      let next = prev.map((d) => (d.rowId === rowId ? { ...d, ...patch } : d));
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const toggleSelect = useCallback((rowId: string, checked: boolean) => {
     setSelectedIds((prev) => {
