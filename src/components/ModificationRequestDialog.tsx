@@ -250,6 +250,12 @@ export function ModificationRequestDialog({
       if (selectedPhases.length > 0) {
         fullDescription = `Phases: ${selectedPhases.join(", ")}\n${fullDescription}`;
       }
+      if (adSetName.trim()) {
+        fullDescription = `Ad Set: ${adSetName.trim()}\n${fullDescription}`;
+      }
+      if (adName.trim()) {
+        fullDescription = `Ad: ${adName.trim()}\n${fullDescription}`;
+      }
 
       // Create modification request
       const { data: newRequest, error: requestError } = await supabase
@@ -267,6 +273,34 @@ export function ModificationRequestDialog({
         .single();
 
       if (requestError) throw requestError;
+
+      // For Setup Mistake, also create a tracked record so QC blocking + analytics work
+      if (changeType === "setup_mistake" && user?.id) {
+        const { data: campaignRow } = await supabase
+          .from("campaigns")
+          .select("team_id")
+          .eq("id", campaignId)
+          .single();
+
+        await (supabase.from("setup_mistakes" as any) as any).insert({
+          campaign_id: campaignId,
+          team_id: campaignRow?.team_id ?? null,
+          platform: selectedPlatform && selectedPlatform !== "_none" ? selectedPlatform : null,
+          market: selectedMarkets[0] ?? null,
+          phase_name: selectedPhases[0] ?? null,
+          ad_set_name: adSetName.trim() || null,
+          ad_name: adName.trim() || null,
+          entity_type: adName.trim() ? "ad" : adSetName.trim() ? "ad_set" : selectedPhases[0] ? "phase" : selectedMarkets[0] ? "market" : selectedPlatform && selectedPlatform !== "_none" ? "platform" : "campaign",
+          title: description.trim().slice(0, 120) || "Setup mistake",
+          description: description.trim() || null,
+          status: "open",
+          created_by: user.id,
+          metadata: {
+            source: "modification_request_dialog",
+            modification_request_id: newRequest?.id ?? null,
+          },
+        });
+      }
 
       // Only update campaign status to under_modification if not already pushed to DSP
       // Campaigns that are pushed_to_dsp, partially_pushed, or live should retain their status
@@ -302,9 +336,15 @@ export function ModificationRequestDialog({
         },
       });
 
-      toast.success("Modification request sent successfully");
+      toast.success(
+        changeType === "setup_mistake"
+          ? "Setup mistake logged and request sent"
+          : "Modification request sent successfully"
+      );
       setChangeType("");
       setDescription("");
+      setAdSetName("");
+      setAdName("");
       setSelectedPlatform("");
       setSelectedMarkets([]);
       setSelectedPhases([]);
