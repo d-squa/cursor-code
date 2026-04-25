@@ -63,6 +63,8 @@ export function LogActionDialog({
   const [actionType, setActionType] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [adSetName, setAdSetName] = useState("");
+  const [adName, setAdName] = useState("");
   const [loading, setLoading] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [marketSplits, setMarketSplits] = useState<Record<string, any>>({});
