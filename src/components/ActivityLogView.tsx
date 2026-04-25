@@ -84,6 +84,17 @@ export function ActivityLogView({
 
       if (actError) throw actError;
 
+      // Fetch setup_mistakes for status enrichment of mirrored activity log entries
+      const { data: mistakes } = await (supabase.from("setup_mistakes" as any) as any)
+        .select("id, title, status, created_at")
+        .eq("campaign_id", campaignId);
+      const mistakesByKey = new Map<string, "open" | "resolved">();
+      (mistakes || []).forEach((m: any) => {
+        // Match by id (preferred) and by title+timestamp (fallback for older logs)
+        if (m.id) mistakesByKey.set(`id:${m.id}`, m.status);
+        mistakesByKey.set(`title:${m.title}`, m.status);
+      });
+
       // Collect all user IDs
       const allUserIds = new Set<string>();
       requests?.forEach((r) => allUserIds.add(r.requester_id));
@@ -119,19 +130,33 @@ export function ActivityLogView({
       });
 
       // Transform actions to unified format
-      const actionLogs: UnifiedLogEntry[] = (actions || []).map((act) => ({
-        id: act.id,
-        type: "action_log",
-        title: act.title,
-        description: act.description,
-        category: act.action_type,
-        platforms: act.affected_platforms || [],
-        markets: act.affected_markets || [],
-        phases: act.affected_phases || [],
-        user_email: profilesMap[act.user_id] || "Unknown",
-        created_at: act.created_at,
-        metadata: act.metadata,
-      }));
+      const actionLogs: UnifiedLogEntry[] = (actions || []).map((act) => {
+        const isSetupMistake = act.action_type === "setup_mistake";
+        const linkedId = (act.metadata as any)?.setup_mistake_id;
+        let mistakeStatus: "open" | "resolved" | null = null;
+        if (isSetupMistake) {
+          mistakeStatus =
+            (linkedId && mistakesByKey.get(`id:${linkedId}`)) ||
+            mistakesByKey.get(`title:${act.title}`) ||
+            "open";
+        }
+        return {
+          id: act.id,
+          type: "action_log",
+          title: act.title,
+          description: act.description,
+          category: act.action_type,
+          platforms: act.affected_platforms || [],
+          markets: act.affected_markets || [],
+          phases: act.affected_phases || [],
+          user_email: profilesMap[act.user_id] || "Unknown",
+          created_at: act.created_at,
+          metadata: act.metadata,
+          isSetupMistake,
+          mistakeStatus,
+          status: isSetupMistake ? mistakeStatus ?? undefined : undefined,
+        };
+      });
 
       // Merge and sort by date
       const allLogs = [...requestLogs, ...actionLogs].sort(
