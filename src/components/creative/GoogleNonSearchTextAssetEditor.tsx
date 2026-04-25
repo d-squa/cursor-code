@@ -445,6 +445,22 @@ export function GoogleNonSearchTextAssetEditor({
   const [typeFilter, setTypeFilter] = useState<'all' | GoogleNonSearchType>('all');
   const [validityFilter, setValidityFilter] = useState<'all' | 'invalid' | 'valid'>('all');
 
+  // Seed trim picker: keep the first MAX-N from each bucket by default so the
+  // user starts at exactly cap and only deselects to drop further.
+  useEffect(() => {
+    if (!trimGroup) return;
+    const keep = new Set<string>();
+    const seedBucket = (items: { id: string }[], max: number) => {
+      items.slice(0, max).forEach((r) => keep.add(r.id));
+    };
+    seedBucket(trimGroup.buckets.marketingImages, PMAX_LIMITS.MAX_MARKETING_IMAGES);
+    seedBucket(trimGroup.buckets.squareImages, PMAX_LIMITS.MAX_SQUARE_IMAGES);
+    seedBucket(trimGroup.buckets.portraitImages, PMAX_LIMITS.MAX_PORTRAIT_IMAGES);
+    seedBucket(trimGroup.buckets.logos, PMAX_LIMITS.MAX_LOGOS);
+    seedBucket(trimGroup.buckets.videos, PMAX_LIMITS.MAX_VIDEOS);
+    setTrimKeepIds(keep);
+  }, [trimGroup]);
+
   // Filter input rows: must be google, must have a detectable non-Search type,
   // and (optionally) match the scope requested by the caller.
   //
