@@ -366,6 +366,8 @@ export function validatePmaxImages(buckets: PmaxImageBuckets): PmaxValidationIss
   overCap(buckets.videos.length, PMAX_LIMITS.MAX_VIDEOS, 'Videos', 'TOO_MANY_VIDEOS');
   return issues;
 }
+
+/** Detect whether a row belongs to a Performance Max campaign. Mirrors
  *  detectGoogleNonSearchType but inlined here to avoid the React import. */
 export function isPmaxRow(row: CreativeTextAssetRow): boolean {
   if ((row.platform || '').toLowerCase() !== 'google') return false;
