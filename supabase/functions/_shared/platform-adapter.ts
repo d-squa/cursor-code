@@ -3581,19 +3581,18 @@ class GoogleAdsAdapter implements PlatformAdapter {
         unique.push(url);
         if (unique.length >= max) break;
       }
-      // Parallelise image uploads. Each upload fetches the source bytes and
-      // base64-encodes them; doing them sequentially is what burned the CPU
-      // budget on PMax pushes with many creatives.
-      const results = await Promise.all(unique.map(async (url, idx) => {
+
+      // Upload images sequentially for one asset group. Google Ads rejects some
+      // concurrent asset mutations with "modify the same resource at once", and
+      // storage-side transforms above remove the CPU-heavy local crop step.
+      for (let idx = 0; idx < unique.length; idx += 1) {
+        const url = unique[idx];
         try {
-          return await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${idx + 1}`, false, aspect);
+          const assetRn = await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${idx + 1}`, false, aspect);
+          linkSpecs.push({ asset: assetRn, fieldType });
         } catch (e: any) {
           console.warn(`[pmax] failed to upload ${fieldType} image "${url}":`, e?.message || e);
-          return null;
         }
-      }));
-      for (const assetRn of results) {
-        if (assetRn) linkSpecs.push({ asset: assetRn, fieldType });
       }
     };
 
