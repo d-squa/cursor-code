@@ -34,6 +34,7 @@ import {
   type GoogleAdsShellDiff,
   type GoogleKeywordLike,
   type AssignmentLite,
+  type PmaxAssetGroupShellRow,
 } from '@/utils/googleAdsEditorExcel';
 type GoogleShellContext = {
   campaignName: string;
