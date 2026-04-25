@@ -138,6 +138,56 @@ export function QCCheckSection({
     setSetupMistakeDialogOpen(true);
   }, [campaignId]);
 
+  // Open dialog at a higher scope (platform / market / phase) — no qc_tracking_id
+  const handleLogScopedMistake = useCallback(
+    (scope: { platform?: string | null; market?: string | null; phaseName?: string | null; entityType: string }) => {
+      if (!campaignId) return;
+      setSetupMistakeContext({
+        campaignId,
+        qcTrackingId: null,
+        platform: scope.platform ?? null,
+        market: scope.market ?? null,
+        phaseName: scope.phaseName ?? null,
+        adSetName: null,
+        adName: null,
+        entityType: scope.entityType,
+      });
+      setSetupMistakeDialogOpen(true);
+    },
+    [campaignId]
+  );
+
+  // Open mistakes scoped to platform / market / phase (i.e. without a tracking id, or covering an ancestor scope)
+  const openScopedMistakes = useMemo(
+    () => setupMistakes.filter((m) => m.status === "open"),
+    [setupMistakes]
+  );
+
+  const countOpenForScope = useCallback(
+    (scope: { platform?: string | null; market?: string | null; phaseName?: string | null }) =>
+      openScopedMistakes.filter((m) => {
+        if (m.qc_tracking_id) return false; // tracking-level handled per row
+        if (scope.platform != null && m.platform !== scope.platform) return false;
+        if (scope.market != null && m.market !== scope.market) return false;
+        if (scope.phaseName != null && m.phase_name !== scope.phaseName) return false;
+        return true;
+      }).length,
+    [openScopedMistakes]
+  );
+
+  // True if a tracking item is blocked by an ancestor-scope open mistake
+  const isBlockedByAncestorScope = useCallback(
+    (item: QCTrackingItem) =>
+      openScopedMistakes.some(
+        (m) =>
+          !m.qc_tracking_id &&
+          (m.platform == null || m.platform === item.platform) &&
+          (m.market == null || m.market === item.market) &&
+          (m.phase_name == null || m.phase_name === item.phase_name)
+      ),
+    [openScopedMistakes]
+  );
+
   const handleResolveMistake = useCallback(async (mistakeId: string) => {
     try {
       await resolveMistake(mistakeId);
@@ -187,8 +237,13 @@ export function QCCheckSection({
         toast.error("Cannot move to Pushed Live: this item has unresolved Setup Mistakes. Resolve them first.");
         return;
       }
-      // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
+      // Block if any ancestor scope (platform/market/phase) has an open mistake
       const item = items.find(i => i.id === trackingId);
+      if (item && isBlockedByAncestorScope(item)) {
+        toast.error("Cannot move to Pushed Live: an ancestor scope (Platform / Market / Phase) has unresolved Setup Mistakes.");
+        return;
+      }
+      // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
       const isForwardTransition = item && item.current_state === 'qc';
       if (isForwardTransition) {
         setPendingLiveAction(() => () => {
@@ -203,7 +258,7 @@ export function QCCheckSection({
     } else {
       onUpdateState(trackingId, newState);
     }
-  }, [onUpdateState, items, hasOpenMistakeForTracking]);
+  }, [onUpdateState, items, hasOpenMistakeForTracking, isBlockedByAncestorScope, sendLiveNotification]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
@@ -484,18 +539,31 @@ export function QCCheckSection({
 
               return (
                 <Collapsible key={platform} open={isExpanded} onOpenChange={() => togglePlatform(platform)}>
-                  <CollapsibleTrigger className="flex items-center justify-between w-full p-2 hover:bg-muted/50 rounded-md text-sm font-medium">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center w-full p-2 hover:bg-muted/50 rounded-md text-sm font-medium gap-2">
+                    <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
                       {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                       <span className="capitalize">{platform}</span>
                       <Badge variant="outline" className="text-xs">{platformItems.length}</Badge>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">
-                        {platformChecked}/{platformItems.length} progressed
-                      </span>
-                    </div>
-                  </CollapsibleTrigger>
+                      {countOpenForScope({ platform }) > 0 && (
+                        <Badge variant="destructive" className="text-xs gap-1">
+                          <AlertOctagon className="h-3 w-3" />
+                          {countOpenForScope({ platform })} open
+                        </Badge>
+                      )}
+                    </CollapsibleTrigger>
+                    <span className="text-xs text-muted-foreground">
+                      {platformChecked}/{platformItems.length} progressed
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, entityType: "platform" }); }}
+                    >
+                      <AlertOctagon className="h-3 w-3 mr-1" />
+                      Setup Mistake
+                    </Button>
+                  </div>
                   <CollapsibleContent>
                     <div className="ml-4 space-y-1">
                       {Object.entries(markets).map(([market, phases]) => {
@@ -504,10 +572,27 @@ export function QCCheckSection({
 
                         return (
                           <Collapsible key={market} open={isMarketExpanded} onOpenChange={() => toggleMarket(marketKey)}>
-                            <CollapsibleTrigger className="flex items-center gap-2 w-full py-1 px-2 hover:bg-muted/30 rounded text-xs font-medium text-muted-foreground">
-                              {isMarketExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              {market}
-                            </CollapsibleTrigger>
+                            <div className="flex items-center gap-2 w-full py-1 px-2 hover:bg-muted/30 rounded text-xs font-medium text-muted-foreground">
+                              <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                                {isMarketExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                {market}
+                                {countOpenForScope({ platform, market }) > 0 && (
+                                  <Badge variant="destructive" className="text-[10px] gap-1 h-4 px-1">
+                                    <AlertOctagon className="h-2.5 w-2.5" />
+                                    {countOpenForScope({ platform, market })}
+                                  </Badge>
+                                )}
+                              </CollapsibleTrigger>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-[11px]"
+                                onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, market, entityType: "market" }); }}
+                              >
+                                <AlertOctagon className="h-3 w-3 mr-1" />
+                                Setup Mistake
+                              </Button>
+                            </div>
                             <CollapsibleContent>
                               {Object.entries(phases).map(([phase, phaseItems]) => {
                                 const phaseKey = `${platform}|${market}|${phase}`;
@@ -534,10 +619,27 @@ export function QCCheckSection({
                                   <div key={phase} className="ml-4">
                                     {phase !== '_none' ? (
                                       <Collapsible open={isPhaseExpanded} onOpenChange={() => togglePhase(phaseKey)}>
-                                        <CollapsibleTrigger className="flex items-center gap-2 w-full py-0.5 px-2 hover:bg-muted/20 rounded text-xs text-muted-foreground italic">
-                                          {isPhaseExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                          {phase}
-                                        </CollapsibleTrigger>
+                                        <div className="flex items-center gap-2 w-full py-0.5 px-2 hover:bg-muted/20 rounded text-xs text-muted-foreground italic">
+                                          <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                                            {isPhaseExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                            {phase}
+                                            {countOpenForScope({ platform, market, phaseName: phase }) > 0 && (
+                                              <Badge variant="destructive" className="text-[10px] gap-1 h-4 px-1 not-italic">
+                                                <AlertOctagon className="h-2.5 w-2.5" />
+                                                {countOpenForScope({ platform, market, phaseName: phase })}
+                                              </Badge>
+                                            )}
+                                          </CollapsibleTrigger>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 px-2 text-[11px] not-italic"
+                                            onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, market, phaseName: phase, entityType: "phase" }); }}
+                                          >
+                                            <AlertOctagon className="h-3 w-3 mr-1" />
+                                            Setup Mistake
+                                          </Button>
+                                        </div>
                                         <CollapsibleContent>
                                           <HierarchicalEntityContent
                                             campaigns={campaigns}
