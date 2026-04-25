@@ -49,6 +49,7 @@ const ACTION_TYPES = [
   { value: "placement_update", label: "Placement Update", description: "Ad placement or position changes" },
   { value: "conversion_setup", label: "Conversion Setup", description: "Pixel, event, or conversion tracking setup" },
   { value: "reporting_delivery", label: "Reporting Delivery", description: "Report creation or delivery" },
+  { value: "setup_mistake", label: "Setup Mistake", description: "Flag a QC issue. Blocks the affected item from advancing to Pushed Live until resolved." },
   { value: "note", label: "Note/Comment", description: "General observations or documentation" },
 ];
 
@@ -204,6 +205,33 @@ export function LogActionDialog({
         change_type: actionType,
         description: `${title}${description ? `: ${description}` : ""}`,
       });
+
+      // For Setup Mistake, also create a tracked record (no qc_tracking_id from this generic dialog)
+      if (actionType === "setup_mistake" && user?.id) {
+        const { data: campaignRow } = await supabase
+          .from("campaigns")
+          .select("team_id")
+          .eq("id", campaignId)
+          .single();
+
+        await (supabase.from("setup_mistakes" as any) as any).insert({
+          campaign_id: campaignId,
+          team_id: campaignRow?.team_id ?? null,
+          platform: selectedPlatforms[0] ?? null,
+          market: selectedMarkets[0] ?? null,
+          phase_name: selectedPhases[0] ?? null,
+          title: title.trim(),
+          description: description.trim() || null,
+          status: "open",
+          created_by: user.id,
+          metadata: {
+            affected_platforms: selectedPlatforms,
+            affected_markets: selectedMarkets,
+            affected_phases: selectedPhases,
+            source: "log_action_dialog",
+          },
+        });
+      }
 
       toast.success("Action logged successfully");
       onSuccess();

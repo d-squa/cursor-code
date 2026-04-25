@@ -47,11 +47,15 @@ import {
   FastForward,
   Rewind,
   Mail,
+  AlertOctagon,
+  CheckCircle,
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
 import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass, getQCIconColor, getNextState, getPreviousState } from "@/utils/qcUtils";
 import type { QCState } from "@/utils/qcUtils";
+import { useSetupMistakes, type SetupMistake } from "@/hooks/useSetupMistakes";
+import { SetupMistakeDialog, type SetupMistakeContext } from "@/components/SetupMistakeDialog";
 
 interface QCCheckSectionProps {
   items: QCTrackingItem[];
@@ -99,6 +103,49 @@ export function QCCheckSection({
   const [initAttempts, setInitAttempts] = useState(0);
   const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
   const [pendingLiveAction, setPendingLiveAction] = useState<(() => void) | null>(null);
+  const [setupMistakeDialogOpen, setSetupMistakeDialogOpen] = useState(false);
+  const [setupMistakeContext, setSetupMistakeContext] = useState<SetupMistakeContext | null>(null);
+
+  const {
+    mistakes: setupMistakes,
+    refresh: refreshMistakes,
+    resolveMistake,
+    hasOpenMistakeForTracking,
+    openMistakesForTracking,
+  } = useSetupMistakes({ campaignId, enabled: !!campaignId });
+
+  const openMistakesByTracking = useMemo(() => {
+    const map: Record<string, SetupMistake[]> = {};
+    setupMistakes.forEach((m) => {
+      if (m.status !== "open" || !m.qc_tracking_id) return;
+      if (!map[m.qc_tracking_id]) map[m.qc_tracking_id] = [];
+      map[m.qc_tracking_id].push(m);
+    });
+    return map;
+  }, [setupMistakes]);
+
+  const handleLogMistake = useCallback((item: QCTrackingItem) => {
+    setSetupMistakeContext({
+      campaignId: campaignId || item.campaign_id,
+      qcTrackingId: item.id,
+      platform: item.platform,
+      market: item.market,
+      phaseName: item.phase_name,
+      adSetName: item.ad_set_name,
+      adName: item.entity_type === "ad" ? (item.entity_name || null) : null,
+      entityType: item.entity_type,
+    });
+    setSetupMistakeDialogOpen(true);
+  }, [campaignId]);
+
+  const handleResolveMistake = useCallback(async (mistakeId: string) => {
+    try {
+      await resolveMistake(mistakeId);
+      toast.success("Setup mistake resolved");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to resolve");
+    }
+  }, [resolveMistake]);
 
   // Send stakeholder notification when campaign goes live
   const sendLiveNotification = useCallback(async () => {
@@ -135,6 +182,11 @@ export function QCCheckSection({
   // Wraps onUpdateState to intercept FORWARD transitions to pushed_live with confirmation
   const handleUpdateStateWithLiveCheck = useCallback((trackingId: string, newState: QCState) => {
     if (newState === 'pushed_live') {
+      // Block if there are open Setup Mistakes for this item
+      if (hasOpenMistakeForTracking(trackingId)) {
+        toast.error("Cannot move to Pushed Live: this item has unresolved Setup Mistakes. Resolve them first.");
+        return;
+      }
       // Only confirm when moving FORWARD to pushed_live (from qc), not when moving BACK (from delivering)
       const item = items.find(i => i.id === trackingId);
       const isForwardTransition = item && item.current_state === 'qc';
@@ -151,7 +203,7 @@ export function QCCheckSection({
     } else {
       onUpdateState(trackingId, newState);
     }
-  }, [onUpdateState, items]);
+  }, [onUpdateState, items, hasOpenMistakeForTracking]);
 
   const tree = useMemo(() => buildTree(items), [items]);
 
@@ -501,6 +553,9 @@ export function QCCheckSection({
                                             onUpdateState={handleUpdateStateWithLiveCheck}
                                             onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
                                             qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={handleLogMistake}
+                                            onResolveMistake={handleResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
                                           />
                                         </CollapsibleContent>
                                       </Collapsible>
@@ -520,6 +575,9 @@ export function QCCheckSection({
                                         onUpdateState={handleUpdateStateWithLiveCheck}
                                         onBulkCheckAndAdvance={handleBulkCheckAndAdvance}
                                         qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={handleLogMistake}
+                                            onResolveMistake={handleResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
                                       />
                                     )}
                                   </div>
@@ -538,6 +596,13 @@ export function QCCheckSection({
         </TooltipProvider>
       </CardContent>
     </Card>
+    <SetupMistakeDialog
+      open={setupMistakeDialogOpen}
+      onOpenChange={setSetupMistakeDialogOpen}
+      context={setupMistakeContext}
+      onSuccess={() => { void refreshMistakes(); }}
+    />
+    </>
   );
 }
 
@@ -558,6 +623,9 @@ interface HierarchicalEntityContentProps {
   onUpdateState: (trackingId: string, newState: QCState) => void;
   onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => void;
   qcEnforceIndividual?: boolean;
+  onLogMistake: (item: QCTrackingItem) => void;
+  onResolveMistake: (mistakeId: string) => void;
+  openMistakesByTracking: Record<string, SetupMistake[]>;
 }
 
 function HierarchicalEntityContent({
@@ -575,6 +643,9 @@ function HierarchicalEntityContent({
   onUpdateState,
   onBulkCheckAndAdvance,
   qcEnforceIndividual = false,
+  onLogMistake,
+  onResolveMistake,
+  openMistakesByTracking,
 }: HierarchicalEntityContentProps) {
   const allAds = Object.values(adsByAdSet).flat();
   const adGroups = Object.entries(adsByAdSet).map(([groupName, groupAds]) => ({
@@ -653,6 +724,9 @@ function HierarchicalEntityContent({
               onUpdateState={(state) => onUpdateState(item.id, state)}
               onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(item.id, getChecklist(item.platform, item.entity_type), item.current_state)}
               qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
             />
           ))}
         </div>
@@ -693,6 +767,9 @@ function HierarchicalEntityContent({
                   onUpdateState={(state) => onUpdateState(adsetItem.id, state)}
                   onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(adsetItem.id, getChecklist(adsetItem.platform, adsetItem.entity_type), adsetItem.current_state)}
                   qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
                 />
                 {childAds.length > 0 && (
                   <div className="ml-6 space-y-0.5">
@@ -723,6 +800,9 @@ function HierarchicalEntityContent({
                         onUpdateState={(state) => onUpdateState(ad.id, state)}
                         onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
                         qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
                       />
                     ))}
                   </div>
@@ -759,6 +839,9 @@ function HierarchicalEntityContent({
                   onUpdateState={(state) => onUpdateState(ad.id, state)}
                   onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
                   qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
                 />
               ))}
             </div>
@@ -787,6 +870,9 @@ function HierarchicalEntityContent({
               onUpdateState={(state) => onUpdateState(ad.id, state)}
               onBulkCheckAndAdvance={() => onBulkCheckAndAdvance(ad.id, getChecklist(ad.platform, ad.entity_type), ad.current_state)}
               qcEnforceIndividual={qcEnforceIndividual}
+                                            onLogMistake={onLogMistake}
+                                            onResolveMistake={onResolveMistake}
+                                            openMistakesByTracking={openMistakesByTracking}
             />
           ))}
         </div>
@@ -810,6 +896,9 @@ interface EntityRowProps {
   onUpdateState: (state: QCState) => void;
   onBulkCheckAndAdvance: () => void;
   qcEnforceIndividual?: boolean;
+  onLogMistake?: (item: QCTrackingItem) => void;
+  onResolveMistake?: (mistakeId: string) => void;
+  openMistakesByTracking?: Record<string, SetupMistake[]>;
 }
 
 function EntityRow({
@@ -825,10 +914,17 @@ function EntityRow({
   onUpdateState,
   onBulkCheckAndAdvance,
   qcEnforceIndividual = false,
+  onLogMistake,
+  onResolveMistake,
+  openMistakesByTracking,
 }: EntityRowProps) {
+  const openMistakes = openMistakesByTracking?.[item.id] || [];
+  const hasOpenMistakes = openMistakes.length > 0;
   const nextState = getNextState(item.current_state);
   const prevState = getPreviousState(item.current_state);
-  const canAdvance = item.current_state === 'waiting_for_final_qc' ? allChecked : true;
+  const allowMistakeLogging = item.current_state === 'waiting_for_final_qc' || item.current_state === 'qc';
+  const blockedByMistake = nextState === 'pushed_live' && hasOpenMistakes;
+  const canAdvance = (item.current_state === 'waiting_for_final_qc' ? allChecked : true) && !blockedByMistake;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggleExpand}>
@@ -870,6 +966,17 @@ function EntityRow({
                 <CheckCheck className="h-3 w-3 mr-1" />
                 {allChecked ? 'Uncheck All' : 'Check All'}
               </Button>
+              {allowMistakeLogging && onLogMistake && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); onLogMistake(item); }}
+                >
+                  <AlertOctagon className="h-3 w-3 mr-1" />
+                  Setup Mistake
+                </Button>
+              )}
             </div>
             <div className="flex items-center gap-1">
               {prevState && (
@@ -903,12 +1010,46 @@ function EntityRow({
                     </Button>
                   </TooltipTrigger>
                   {!canAdvance && (
-                    <TooltipContent>Complete all checklist items first</TooltipContent>
+                    <TooltipContent>
+                      {blockedByMistake
+                        ? 'Resolve all open Setup Mistakes before moving to Pushed Live'
+                        : 'Complete all checklist items first'}
+                    </TooltipContent>
                   )}
                 </Tooltip>
               )}
             </div>
           </div>
+
+          {hasOpenMistakes && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 space-y-1.5">
+              <div className="text-[11px] font-semibold text-destructive flex items-center gap-1">
+                <AlertOctagon className="h-3 w-3" />
+                {openMistakes.length} open Setup Mistake{openMistakes.length > 1 ? 's' : ''} — blocks Pushed Live
+              </div>
+              {openMistakes.map((m) => (
+                <div key={m.id} className="flex items-start justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{m.title}</div>
+                    {m.description && (
+                      <div className="text-muted-foreground line-clamp-2">{m.description}</div>
+                    )}
+                  </div>
+                  {onResolveMistake && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[11px] px-2 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onResolveMistake(m.id); }}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Resolve
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Checklist Items */}
           <div className="space-y-1.5">
