@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -1102,6 +1102,55 @@ export default function LaunchStatus() {
       setPushingPmaxKey(null);
     }
   };
+
+  // Auto-trigger PMax asset-group push as soon as a (market, phase) shell is
+  // ready and has asset groups awaiting push. The user no longer needs to
+  // click the "Push Asset Groups" button — the edge function itself defers
+  // groups whose minimum requirements aren't met, so it's safe to fire as
+  // soon as we see pushable entities. We dedupe per key to avoid loops.
+  const autoPushedPmaxKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!campaignId || !user) return;
+    if (!liveAdSetStatuses || liveAdSetStatuses.length === 0) return;
+
+    // Group live statuses by (platform, market, phase) to mirror the tracker logic.
+    const grouped: Record<string, typeof liveAdSetStatuses> = {};
+    for (const s of liveAdSetStatuses) {
+      const key = `${s.platform}||${s.market}||${s.phaseName}`;
+      (grouped[key] ||= []).push(s);
+    }
+
+    for (const [key, entries] of Object.entries(grouped)) {
+      const [platform, market, phase] = key.split("||");
+      if (platform !== "Google Ads") continue;
+
+      const campaignEntity = entries.find((e) => e.entityType === "campaign");
+      const adSetEntities = entries.filter((e) => e.entityType === "adset");
+
+      const isPmax =
+        campaignEntity?.entityName?.toUpperCase().startsWith("PMAX") ||
+        adSetEntities.some((a) =>
+          ["awaiting_assets", "assets_incomplete"].includes(a.status),
+        );
+      if (!isPmax) continue;
+
+      const shellReady =
+        campaignEntity &&
+        ["pushed", "pushed_to_dsp", "live"].includes(campaignEntity.status);
+      const hasPushable = adSetEntities.some((a) =>
+        ["awaiting_assets", "push_failed", "assets_incomplete"].includes(a.status),
+      );
+      if (!shellReady || !hasPushable) continue;
+
+      const dedupeKey = `${market}|${phase}`;
+      if (autoPushedPmaxKeysRef.current.has(dedupeKey)) continue;
+      if (pushingPmaxKey === dedupeKey) continue;
+
+      autoPushedPmaxKeysRef.current.add(dedupeKey);
+      handlePushPmaxAssetGroups(market, phase);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveAdSetStatuses, campaignId, user, pushingPmaxKey]);
 
   const handleFixIssue = (fieldPath?: string) => {
     if (!campaignId) return;
