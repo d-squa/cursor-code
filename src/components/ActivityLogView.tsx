@@ -258,6 +258,7 @@ export function ActivityLogView({
       // Tab filter
       if (activeTab === "requests" && log.type !== "change_request") return false;
       if (activeTab === "actions" && log.type !== "action_log") return false;
+      if (activeTab === "setup_mistakes" && !log.isSetupMistake) return false;
 
       // Date filter
       if (dateRange.from || dateRange.to) {
