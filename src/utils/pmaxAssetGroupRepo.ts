@@ -54,7 +54,7 @@ export interface PmaxAssetGroupFull {
   headlines: string[];
   longHeadlines: string[];
   descriptions: string[];
-  creativesByBucket: Record<PmaxBucket, string[]>; // creative_library_assets.id[]
+  creativesByBucket: Record<PmaxBucket, string[]>; // public.creatives.id[]
 }
 
 const EMPTY_BUCKETS: Record<PmaxBucket, string[]> = {
