@@ -3,6 +3,11 @@
  * Provides unified interface for all advertising platforms (Meta, TikTok, etc.)
  * Ensures consistent behavior across platforms while isolating platform-specific implementation
  */
+// Static top-level import — using `await import(...)` from inside an instance
+// method was triggering a "Cannot access 'Image' before initialization" TDZ
+// error on the Supabase edge runtime, which silently disabled image cropping
+// and caused Google Ads to reject PMax asset groups for ASPECT_RATIO_NOT_ALLOWED.
+import { Image as ImagescriptImage } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 
 /**
  * Extract a YouTube video ID from a YouTube URL (watch, youtu.be, shorts, embed).
