@@ -464,6 +464,25 @@ export function ModificationRequestDialog({
             </div>
           )}
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Ad Set (Optional)</Label>
+              <Input
+                placeholder="Ad set name"
+                value={adSetName}
+                onChange={(e) => setAdSetName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Ad (Optional)</Label>
+              <Input
+                placeholder="Ad name"
+                value={adName}
+                onChange={(e) => setAdName(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
