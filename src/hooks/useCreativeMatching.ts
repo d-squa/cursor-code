@@ -2626,9 +2626,8 @@ function matchAssetToStructure(
     structure.platform === 'google' &&
     (requiredCampaignType === 'pmax' ||
       requiredCampaignType === 'performancemax' ||
-      /performance.?max|\bpmax\b/i.test(`${structure.phaseName || ''} ${structure.adSetName || ''}`));
+      /performance.?max|\bpmax\b/i.test(`${structure.googleCampaignType || ''} ${structure.adSetName || ''}`));
   if (isPmaxAdSet) {
-    const { classifyPmaxAsset } = await import('@/utils/pmaxAssetGroupValidation');
     const bucket = classifyPmaxAsset({
       width: asset.technicalAttributes.width,
       height: asset.technicalAttributes.height,
