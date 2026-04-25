@@ -158,14 +158,22 @@ export function buildSheetForGoogleType(
 
   const filtered = rows.filter((r) => detectGoogleNonSearchType(r) === type);
 
-  // PMax: dedupe by (market, phase, adSet); pick the most-populated row per
-  // group as the source of text values, and join creative names.
+  // PMax: dedupe by (market, phase, RESOLVED ad-group name); pick the most-
+  // populated row per group as the source of text values, and join creative
+  // names. The resolved name (taxonomyAdSetName) is what appears in the
+  // in-app editor and what the DB sync upserts under, so the Excel sheet
+  // must agree to avoid splitting one logical asset group across multiple
+  // rows (e.g. `display_image` vs `feed_video` buckets collapsing into one
+  // `_AR` / `_EN` group).
   let materialRows: CreativeTextAssetRow[] = filtered;
   const creativeNamesByRowId = new Map<string, string>();
+  const resolvedAdGroupByRowId = new Map<string, string>();
+  const resolveAdGroup = (r: CreativeTextAssetRow) =>
+    String((r as any).taxonomyAdSetName || r.adSet || '').trim();
   if (type === 'pmax') {
     const groups = new Map<string, CreativeTextAssetRow[]>();
     for (const r of filtered) {
-      const key = [r.market || '', r.phase || '', r.adSet || ''].join('||');
+      const key = [r.market || '', r.phase || '', resolveAdGroup(r)].join('||');
       const arr = groups.get(key) || [];
       arr.push(r);
       groups.set(key, arr);
@@ -181,6 +189,7 @@ export function buildSheetForGoogleType(
       materialRows.push(anchor);
       const names = group.map((g) => g.creativeName).filter(Boolean).join('\n');
       creativeNamesByRowId.set(anchor.id, names || String(anchor.creativeName || ''));
+      resolvedAdGroupByRowId.set(anchor.id, resolveAdGroup(anchor));
     }
   }
 
@@ -189,6 +198,12 @@ export function buildSheetForGoogleType(
       // PMax: replace single creative name with joined pool list.
       if (type === 'pmax' && c.key === 'creativeName') {
         return creativeNamesByRowId.get(row.id) || String((row as any).creativeName || '');
+      }
+      // PMax: emit the RESOLVED taxonomy name in the "Ad Group" column so the
+      // sheet matches what the user sees in the editor and what the importer
+      // looks up.
+      if (type === 'pmax' && c.key === 'adSet') {
+        return resolvedAdGroupByRowId.get(row.id) || resolveAdGroup(row);
       }
       const value = (row as any)[c.key];
       if (c.key === 'callToAction') {
