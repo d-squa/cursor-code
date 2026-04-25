@@ -1527,6 +1527,133 @@ export function GoogleNonSearchTextAssetEditor({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PMax over-cap picker — let user choose which creatives to keep when
+          any bucket exceeds Google's per-asset-group maximums. */}
+      <Dialog open={!!trimGroup} onOpenChange={(o) => !o && setTrimGroup(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Pick which creatives to keep</DialogTitle>
+            <DialogDescription>
+              {trimGroup && (
+                <>
+                  <span className="font-medium">{trimGroup.market} · {trimGroup.phase} · {trimGroup.adGroup}</span>
+                  <br />
+                  Google PMax allows max 20 marketing / 20 square / 20 portrait / 5 logos / 5 videos per asset group. Uncheck creatives to remove them from this asset group.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {trimGroup && (() => {
+            const renderBucket = (
+              label: string,
+              max: number,
+              items: typeof trimGroup.buckets.marketingImages,
+            ) => {
+              if (items.length === 0) return null;
+              const overCap = items.length > max;
+              const keptCount = items.filter((r) => trimKeepIds.has(r.id)).length;
+              return (
+                <div key={label} className="border rounded p-2">
+                  <div className={cn(
+                    'flex items-center justify-between mb-2 text-xs font-semibold',
+                    overCap && keptCount > max && 'text-destructive',
+                  )}>
+                    <span>{label}</span>
+                    <span>{keptCount}/{max} kept ({items.length} attached)</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {items.map((r) => {
+                      const checked = trimKeepIds.has(r.id);
+                      return (
+                        <label
+                          key={r.id}
+                          className={cn(
+                            'flex items-start gap-2 border rounded p-2 cursor-pointer text-[11px]',
+                            checked ? 'border-primary/50 bg-primary/5' : 'border-muted bg-muted/20 opacity-60',
+                          )}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(c) => {
+                              setTrimKeepIds((prev) => {
+                                const next = new Set(prev);
+                                if (c) next.add(r.id);
+                                else next.delete(r.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">{r.creativeName || r.originalFilename || r.id}</div>
+                            <div className="text-muted-foreground">
+                              {(r.width || '?')} × {(r.height || '?')}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            };
+            return (
+              <div className="flex-1 overflow-y-auto space-y-3">
+                {renderBucket(`Marketing Images (1.91:1)`, PMAX_LIMITS.MAX_MARKETING_IMAGES, trimGroup.buckets.marketingImages)}
+                {renderBucket(`Square Marketing Images (1:1)`, PMAX_LIMITS.MAX_SQUARE_IMAGES, trimGroup.buckets.squareImages)}
+                {renderBucket(`Portrait Marketing Images (4:5)`, PMAX_LIMITS.MAX_PORTRAIT_IMAGES, trimGroup.buckets.portraitImages)}
+                {renderBucket(`Logos (1:1)`, PMAX_LIMITS.MAX_LOGOS, trimGroup.buckets.logos)}
+                {renderBucket(`Videos`, PMAX_LIMITS.MAX_VIDEOS, trimGroup.buckets.videos)}
+              </div>
+            );
+          })()}
+          <div className="flex justify-end gap-2 pt-3 border-t">
+            <Button variant="outline" onClick={() => setTrimGroup(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={!trimGroup || (() => {
+                if (!trimGroup) return true;
+                const b = trimGroup.buckets;
+                return (
+                  b.marketingImages.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_MARKETING_IMAGES ||
+                  b.squareImages.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_SQUARE_IMAGES ||
+                  b.portraitImages.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_PORTRAIT_IMAGES ||
+                  b.logos.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_LOGOS ||
+                  b.videos.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_VIDEOS
+                );
+              })()}
+              onClick={async () => {
+                if (!trimGroup || !onDeleteAssignments) return;
+                const allRows = [
+                  ...trimGroup.buckets.marketingImages,
+                  ...trimGroup.buckets.squareImages,
+                  ...trimGroup.buckets.portraitImages,
+                  ...trimGroup.buckets.logos,
+                  ...trimGroup.buckets.videos,
+                ];
+                const toRemove = allRows.filter((r) => !trimKeepIds.has(r.id));
+                const assignmentIds = Array.from(new Set(
+                  toRemove.map((r) => r.assignmentId).filter(Boolean),
+                ));
+                if (assignmentIds.length === 0) {
+                  setTrimGroup(null);
+                  return;
+                }
+                try {
+                  await onDeleteAssignments(assignmentIds);
+                  toast.success(`Removed ${assignmentIds.length} creative${assignmentIds.length === 1 ? '' : 's'} from asset group`);
+                } catch (err) {
+                  console.error('[pmax-trim] delete failed:', err);
+                  toast.error('Failed to remove creatives');
+                }
+                setTrimGroup(null);
+              }}
+            >
+              Remove unchecked
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
