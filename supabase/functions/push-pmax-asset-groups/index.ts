@@ -52,6 +52,31 @@ const STALE_PUSHING_MS = 2 * 60 * 1000;
 const uniqueLimited = (items: string[], max: number) =>
   Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean))).slice(0, max);
 
+const languageAlias: Record<string, string> = {
+  en: "en", eng: "en", english: "en",
+  ar: "ar", ara: "ar", arabic: "ar",
+  de: "de", deu: "de", ger: "de", german: "de",
+  fr: "fr", fra: "fr", fre: "fr", french: "fr",
+  es: "es", esp: "es", spa: "es", spanish: "es",
+  it: "it", ita: "it", italian: "it",
+  pt: "pt", por: "pt", portuguese: "pt",
+  nl: "nl", dut: "nl", nld: "nl", dutch: "nl",
+  tr: "tr", tur: "tr", turkish: "tr",
+  ru: "ru", rus: "ru", russian: "ru",
+  hi: "hi", hin: "hi", hindi: "hi",
+  zh: "zh", chi: "zh", zho: "zh", chinese: "zh",
+};
+
+function languageCodesFromName(value?: string | null): Set<string> {
+  const tokens = String(value || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return new Set(tokens.map((token) => languageAlias[token]).filter(Boolean));
+}
+
+function hasSharedLanguage(left: Set<string>, right: Set<string>): boolean {
+  for (const code of left) if (right.has(code)) return true;
+  return false;
+}
+
 function aspect(width?: number | null, height?: number | null): number | null {
   if (!width || !height || width <= 0 || height <= 0) return null;
   return width / height;
@@ -362,7 +387,7 @@ serve(async (req) => {
 
         // ---- NEW: read text + creative pool from pmax_asset_groups + children ----
         // Hard cutover: legacy creative_assignments columns are NOT consulted.
-        const { data: groupRow } = await supabase
+        const { data: exactGroupRow } = await supabase
           .from("pmax_asset_groups")
           .select("id, business_name, final_url, call_to_action, group_name")
           .eq("campaign_id", campaignId)
@@ -370,6 +395,25 @@ serve(async (req) => {
           .eq("phase_name", row.phase_name)
           .eq("ad_group_name", row.entity_name || "")
           .maybeSingle();
+
+        let groupRow = exactGroupRow;
+        if (!groupRow) {
+          const { data: candidateGroups } = await supabase
+            .from("pmax_asset_groups")
+            .select("id, business_name, final_url, call_to_action, group_name, ad_group_name")
+            .eq("campaign_id", campaignId)
+            .eq("market", row.market)
+            .eq("phase_name", row.phase_name);
+
+          const rowLangs = languageCodesFromName(row.entity_name);
+          const candidates = candidateGroups || [];
+          groupRow = candidates.find((g: any) => hasSharedLanguage(rowLangs, languageCodesFromName(g.ad_group_name))) ||
+            (candidates.length === 1 ? candidates[0] : null);
+
+          if (groupRow) {
+            console.log(`[pmax] matched launch row "${row.entity_name}" to saved asset group "${(groupRow as any).ad_group_name}" via market/phase/language fallback`);
+          }
+        }
 
         if (!groupRow) {
           await supabase
