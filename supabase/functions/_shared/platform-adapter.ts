@@ -1577,8 +1577,7 @@ class GoogleAdsAdapter implements PlatformAdapter {
     minimumSquareSize: number = 128,
   ): Promise<Uint8Array> {
     try {
-      const { Image } = await import("https://deno.land/x/imagescript@1.2.17/mod.ts");
-      const img = await Image.decode(bytes);
+      const img = await ImagescriptImage.decode(bytes);
       const w = img.width;
       const h = img.height;
       const currentRatio = w / h;
