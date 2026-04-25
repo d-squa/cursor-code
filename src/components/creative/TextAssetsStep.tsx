@@ -2378,12 +2378,86 @@ export function TextAssetsStep({
         });
       }
 
+      // ---- Apply PMax asset group updates (text + business name + final URL + CTA) ----
+      const pmaxUpdates = selected.pmaxGroups?.updated || [];
+      if (pmaxUpdates.length > 0) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { upsertPmaxAssetGroup, replacePmaxTextAssets, fetchPmaxAssetGroups } = await import('@/utils/pmaxAssetGroupRepo');
+          const existing = await fetchPmaxAssetGroups(campaignId);
+          const padTo5 = (arr: string[] | undefined): string[] => {
+            const out = (arr || []).slice(0, 5).map((v) => String(v || ''));
+            while (out.length < 5) out.push('');
+            return out;
+          };
+          for (const u of pmaxUpdates) {
+            const cur = existing.find(
+              (g) =>
+                g.group.market === u.market &&
+                g.group.phase_name === u.phaseName &&
+                g.group.ad_group_name === u.assetGroupName,
+            );
+            const baseGroupName = cur?.group.group_name || u.assetGroupName;
+            const upserted = await upsertPmaxAssetGroup({
+              campaignId,
+              userId: user.id,
+              teamId: cur?.group.team_id || null,
+              market: u.market,
+              phaseName: u.phaseName,
+              adGroupName: u.assetGroupName,
+              groupName: baseGroupName,
+              businessName: u.changes.businessName ?? cur?.group.business_name ?? null,
+              finalUrl: u.changes.finalUrl ?? cur?.group.final_url ?? null,
+              callToAction: u.changes.callToAction ?? cur?.group.call_to_action ?? null,
+            });
+            // Replace the entire text pool — only fields the user changed are
+            // overwritten; untouched pools keep their current values.
+            const nextHeadlines = u.changes.headlines ?? cur?.headlines ?? [];
+            const nextLong = u.changes.longHeadlines ?? cur?.longHeadlines ?? [];
+            const nextDesc = u.changes.descriptions ?? cur?.descriptions ?? [];
+            await replacePmaxTextAssets({
+              groupId: upserted.id,
+              headlines: nextHeadlines,
+              longHeadlines: nextLong,
+              descriptions: nextDesc,
+            });
+
+            // Mirror into local rows so the editor reflects changes immediately.
+            const h = padTo5(nextHeadlines);
+            const lh = padTo5(nextLong);
+            const d = padTo5(nextDesc);
+            setRows((prev) =>
+              prev.map((r) => {
+                if (
+                  r.market !== u.market ||
+                  r.phase !== u.phaseName ||
+                  r.adSet !== u.assetGroupName
+                ) return r;
+                const patch: any = {
+                  headline: h[0], headline2: h[1], headline3: h[2], headline4: h[3], headline5: h[4],
+                  long_headline_1: lh[0], long_headline_2: lh[1], long_headline_3: lh[2], long_headline_4: lh[3], long_headline_5: lh[4],
+                  description: d[0], description2: d[1], description3: d[2], description4: d[3], description5: d[4],
+                };
+                if (u.changes.businessName !== undefined) {
+                  patch.business_name = u.changes.businessName;
+                  patch.brandName = u.changes.businessName;
+                }
+                if (u.changes.finalUrl !== undefined) patch.destinationUrl = u.changes.finalUrl;
+                if (u.changes.callToAction !== undefined) patch.callToAction = u.changes.callToAction;
+                return { ...r, ...patch } as CreativeTextAssetRow;
+              }),
+            );
+          }
+        }
+      }
+
       const total =
         selected.keywords.added.length +
         selected.keywords.updated.length +
         selected.keywords.removed.length +
         selected.ads.updated.length +
-        selected.ads.added.length;
+        selected.ads.added.length +
+        pmaxUpdates.length;
       toast.success(`Applied ${total} change(s) from the Google Ads shell`);
     } catch (err) {
       console.error('[GoogleAdsShell] apply failed', err);
