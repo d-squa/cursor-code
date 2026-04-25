@@ -387,7 +387,7 @@ serve(async (req) => {
 
         // ---- NEW: read text + creative pool from pmax_asset_groups + children ----
         // Hard cutover: legacy creative_assignments columns are NOT consulted.
-        const { data: groupRow } = await supabase
+        const { data: exactGroupRow } = await supabase
           .from("pmax_asset_groups")
           .select("id, business_name, final_url, call_to_action, group_name")
           .eq("campaign_id", campaignId)
@@ -395,6 +395,25 @@ serve(async (req) => {
           .eq("phase_name", row.phase_name)
           .eq("ad_group_name", row.entity_name || "")
           .maybeSingle();
+
+        let groupRow = exactGroupRow;
+        if (!groupRow) {
+          const { data: candidateGroups } = await supabase
+            .from("pmax_asset_groups")
+            .select("id, business_name, final_url, call_to_action, group_name, ad_group_name")
+            .eq("campaign_id", campaignId)
+            .eq("market", row.market)
+            .eq("phase_name", row.phase_name);
+
+          const rowLangs = languageCodesFromName(row.entity_name);
+          const candidates = candidateGroups || [];
+          groupRow = candidates.find((g: any) => hasSharedLanguage(rowLangs, languageCodesFromName(g.ad_group_name))) ||
+            (candidates.length === 1 ? candidates[0] : null);
+
+          if (groupRow) {
+            console.log(`[pmax] matched launch row "${row.entity_name}" to saved asset group "${(groupRow as any).ad_group_name}" via market/phase/language fallback`);
+          }
+        }
 
         if (!groupRow) {
           await supabase
