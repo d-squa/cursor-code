@@ -395,6 +395,7 @@ serve(async (req) => {
         const descriptions: string[] = [];
         const marketingImgs: string[] = [];
         const squareImgs: string[] = [];
+        const portraitImgs: string[] = [];
         const logoImgs: string[] = [];
         const ytVideoIds: string[] = [];
 
@@ -419,6 +420,7 @@ serve(async (req) => {
               if (bucket === "logo") logoImgs.push(url);
               else if (bucket === "square") squareImgs.push(url);
               else if (bucket === "marketing") marketingImgs.push(url);
+              else if (bucket === "portrait") portraitImgs.push(url);
               else console.warn(`[pmax] skipping image with unsupported aspect ratio: ${c?.name || c?.original_filename || url} (${c?.width || "?"}x${c?.height || "?"})`);
             }
           }
@@ -461,6 +463,7 @@ serve(async (req) => {
               // Google PMax true maximums per asset group.
               marketingImages: uniqueLimited(marketingImgs, 20),
               squareMarketingImages: uniqueLimited(squareImgs, 20),
+              portraitMarketingImages: uniqueLimited(portraitImgs, 20),
               logoImages: uniqueLimited(logoImgs, 5),
               youtubeVideoIds: uniqueLimited(ytVideoIds, 5),
               hasMerchantCenter,
