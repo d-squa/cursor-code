@@ -85,6 +85,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
         pmaxGroups: {
           updated: pmaxUpdated.filter((_, i) => selectedPmaxUpdates.has(i)),
           skippedNew: pmaxSkipped,
+          unchanged: diff.pmaxGroups.unchanged,
         },
       };
       await onApply(filtered);
