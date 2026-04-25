@@ -47,6 +47,13 @@ import {
   PMAX_LIMITS,
   type PmaxAssetGroupValidation,
 } from '@/utils/pmaxAssetGroupValidation';
+import {
+  upsertPmaxAssetGroup,
+  replacePmaxTextAssets,
+  replacePmaxCreativeAssets,
+  type PmaxBucket,
+} from '@/utils/pmaxAssetGroupRepo';
+import { supabase } from '@/integrations/supabase/client';
 import { AlertTriangle, CheckCircle2, Images } from 'lucide-react';
 
 // ---------- Type detection ----------
