@@ -1168,8 +1168,16 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   }
 
   // ---- PMax Asset Groups diff ----
+  const normalizePmaxKeyPart = (value: string) =>
+    String(value || '')
+      .normalize('NFKC')
+      .replace(/\u00a0/g, ' ')
+      .replace(/[–—]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   const pmaxKey = (m: string, p: string, g: string) =>
-    `${m.trim().toLowerCase()}::${p.trim().toLowerCase()}::${g.trim().toLowerCase()}`;
+    `${normalizePmaxKeyPart(m)}::${normalizePmaxKeyPart(p)}::${normalizePmaxKeyPart(g)}`;
   const curPmaxByKey = new Map<string, CurrentPmaxGroupSnapshot>();
   for (const g of input.current.pmaxGroups || []) {
     curPmaxByKey.set(pmaxKey(g.market, g.phaseName, g.assetGroupName), g);
@@ -1193,29 +1201,28 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   };
 
   for (const after of input.uploaded.pmaxGroups) {
-    const key = pmaxKey(after.market, after.phaseName, after.assetGroupName);
-    const before = curPmaxByKey.get(key);
-    if (!before) {
-      pmaxSkipped.push(after);
-      continue;
-    }
+    const candidateKeys = [
+      pmaxKey(after.market, after.phaseName, after.assetGroupName),
+      after.groupName ? pmaxKey(after.market, after.phaseName, after.groupName) : '',
+    ].filter(Boolean);
+    const before = candidateKeys.map((key) => curPmaxByKey.get(key)).find(Boolean);
     const changes: GoogleAdsShellDiff['pmaxGroups']['updated'][number]['changes'] = {};
-    if (after.businessName.trim() !== (before.businessName || '').trim()) {
+    if (!before || after.businessName.trim() !== (before.businessName || '').trim()) {
       changes.businessName = after.businessName.trim();
     }
-    if (after.finalUrl.trim() !== (before.finalUrl || '').trim()) {
+    if (!before || after.finalUrl.trim() !== (before.finalUrl || '').trim()) {
       changes.finalUrl = after.finalUrl.trim();
     }
-    const beforeCta = normalizeGoogleCta(before.callToAction || '') || '';
+    const beforeCta = normalizeGoogleCta(before?.callToAction || '') || '';
     const afterCta = normalizeGoogleCta(after.callToAction || '') || '';
-    if (afterCta && afterCta !== beforeCta) changes.callToAction = afterCta;
-    if (!eqList(after.headlines, before.headlines || [])) {
+    if (afterCta && (!before || afterCta !== beforeCta)) changes.callToAction = afterCta;
+    if (!before || !eqList(after.headlines, before.headlines || [])) {
       changes.headlines = trimList(after.headlines);
     }
-    if (!eqList(after.longHeadlines, before.longHeadlines || [])) {
+    if (!before || !eqList(after.longHeadlines, before.longHeadlines || [])) {
       changes.longHeadlines = trimList(after.longHeadlines);
     }
-    if (!eqList(after.descriptions, before.descriptions || [])) {
+    if (!before || !eqList(after.descriptions, before.descriptions || [])) {
       changes.descriptions = trimList(after.descriptions);
     }
     if (Object.keys(changes).length > 0) {
