@@ -1419,6 +1419,23 @@ export function TextAssetsStep({
     const ok = await saveTextAssets();
     if (!ok) return;
 
+    // Mirror PMax rows into the new shared-asset-pool tables (pmax_asset_groups
+    // + pmax_text_assets + pmax_creative_assets). push-pmax-asset-groups reads
+    // EXCLUSIVELY from these tables — must run before the auto-push below.
+    try {
+      const { syncPmaxGroupsFromRows } = await import('@/utils/pmaxAssetGroupRepo');
+      const { isPmaxRow } = await import('@/utils/pmaxAssetGroupValidation');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const result = await syncPmaxGroupsFromRows(campaignId, user.id, rows, isPmaxRow);
+        if (result.errors.length > 0) {
+          console.warn('[pmax-sync] partial failures:', result.errors);
+        }
+      }
+    } catch (err) {
+      console.warn('[pmax-sync] failed before auto-push:', err);
+    }
+
     // Auto-trigger PMax asset-group push for any (market, phase) that has
     // validated PMax groups. Fire-and-forget — the user will see results on
     // /status (real-time), and they can also retry via the per-PMax button.
