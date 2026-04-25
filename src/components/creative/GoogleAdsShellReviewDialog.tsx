@@ -26,6 +26,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
   const [selectedRemovals, setSelectedRemovals] = useState<Set<number>>(new Set());
   const [selectedAdUpdates, setSelectedAdUpdates] = useState<Set<string>>(new Set());
   const [selectedNewAds, setSelectedNewAds] = useState<Set<number>>(new Set());
+  const [selectedPmaxUpdates, setSelectedPmaxUpdates] = useState<Set<number>>(new Set());
   const [isApplying, setIsApplying] = useState(false);
 
   // Initialise selections every time the dialog opens with a fresh diff.
@@ -36,23 +37,29 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
     setSelectedRemovals(new Set(diff.keywords.removed.map((_, i) => i)));
     setSelectedAdUpdates(new Set(diff.ads.updated.map((u) => u.assignmentId)));
     setSelectedNewAds(new Set(diff.ads.added.map((_, i) => i)));
+    setSelectedPmaxUpdates(new Set((diff.pmaxGroups?.updated || []).map((_, i) => i)));
   }, [diff]);
 
   if (!diff) return null;
+
+  const pmaxUpdated = diff.pmaxGroups?.updated || [];
+  const pmaxSkipped = diff.pmaxGroups?.skippedNew || [];
 
   const totalChanges =
     diff.keywords.added.length +
     diff.keywords.updated.length +
     diff.keywords.removed.length +
     diff.ads.updated.length +
-    diff.ads.added.length;
+    diff.ads.added.length +
+    pmaxUpdated.length;
 
   const selectedTotal =
     selectedAdds.size +
     selectedUpdates.size +
     selectedRemovals.size +
     selectedAdUpdates.size +
-    selectedNewAds.size;
+    selectedNewAds.size +
+    selectedPmaxUpdates.size;
 
   const toggle = <T,>(set: Set<T>, value: T, setter: (s: Set<T>) => void) => {
     const next = new Set(set);
@@ -75,6 +82,10 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           added: diff.ads.added.filter((_, i) => selectedNewAds.has(i)),
           skippedNew: diff.ads.skippedNew,
         },
+        pmaxGroups: {
+          updated: pmaxUpdated.filter((_, i) => selectedPmaxUpdates.has(i)),
+          skippedNew: pmaxSkipped,
+        },
       };
       await onApply(filtered);
       onOpenChange(false);
@@ -95,7 +106,16 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="keywords" className="flex-1 flex flex-col overflow-hidden">
+        <Tabs
+          defaultValue={
+            pmaxUpdated.length > 0 &&
+            diff.keywords.added.length + diff.keywords.updated.length + diff.keywords.removed.length === 0 &&
+            diff.ads.updated.length + diff.ads.added.length === 0
+              ? 'pmax'
+              : 'keywords'
+          }
+          className="flex-1 flex flex-col overflow-hidden"
+        >
           <TabsList>
             <TabsTrigger value="keywords">
               Keywords
@@ -109,6 +129,12 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                 {diff.ads.updated.length + diff.ads.added.length}
               </Badge>
             </TabsTrigger>
+            {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+              <TabsTrigger value="pmax">
+                PMax Asset Groups
+                <Badge variant="secondary" className="ml-2">{pmaxUpdated.length}</Badge>
+              </TabsTrigger>
+            )}
             {diff.ads.skippedNew.length > 0 && (
               <TabsTrigger value="skipped">
                 Unmatched
@@ -216,6 +242,53 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
               )}
             </ScrollArea>
           </TabsContent>
+
+          {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+            <TabsContent value="pmax" className="flex-1 overflow-hidden mt-2">
+              <ScrollArea className="h-[50vh] pr-3">
+                {pmaxUpdated.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-8 text-center">No PMax asset group changes.</p>
+                )}
+                {pmaxUpdated.length > 0 && (
+                  <Section title="Updated PMax asset groups" icon={<Pencil className="h-4 w-4 text-muted-foreground" />}>
+                    {pmaxUpdated.map((u, i) => (
+                      <div key={`pmax-upd-${i}`} className="border rounded p-2 mb-2">
+                        <Row
+                          checked={selectedPmaxUpdates.has(i)}
+                          onToggle={() => toggle(selectedPmaxUpdates, i, setSelectedPmaxUpdates)}
+                        >
+                          <span className="font-medium">{u.assetGroupName}</span>
+                          <span className="text-muted-foreground text-xs ml-2">{u.market} / {u.phaseName}</span>
+                        </Row>
+                        <ul className="text-xs mt-1 ml-7 space-y-0.5 text-muted-foreground">
+                          {Object.keys(u.changes).map((field) => (
+                            <li key={field}>• {fieldLabel(field)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </Section>
+                )}
+                {pmaxSkipped.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-start gap-2 p-2 mb-2 bg-muted border border-border rounded text-xs">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        These PMax asset group rows couldn't be matched to a known (market, phase, ad group) in this plan.
+                        Check the Market / Phase / Asset Group columns and re-upload.
+                      </div>
+                    </div>
+                    {pmaxSkipped.map((row, i) => (
+                      <div key={`pmax-skip-${i}`} className="text-xs py-1 border-b">
+                        <span className="font-medium">{row.assetGroupName || '(unnamed)'}</span>
+                        <span className="text-muted-foreground ml-2">{row.market} / {row.phaseName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          )}
 
           {diff.ads.skippedNew.length > 0 && (
             <TabsContent value="skipped" className="flex-1 overflow-hidden mt-2">

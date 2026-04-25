@@ -126,6 +126,38 @@ export interface GoogleAdsShellDiff {
     /** Rows that couldn't be matched to a known (campaign, ad group) — surfaced as warnings. */
     skippedNew: AdSheetRow[];
   };
+  /** PMax Asset Group sheet diffs (text + business name + CTA + final URL). */
+  pmaxGroups: {
+    updated: Array<{
+      market: string;
+      phaseName: string;
+      assetGroupName: string;
+      changes: Partial<{
+        businessName: string;
+        finalUrl: string;
+        callToAction: string;
+        headlines: string[];
+        longHeadlines: string[];
+        descriptions: string[];
+      }>;
+    }>;
+    /** Uploaded PMax rows that don't match any known (market, phase, ad group). */
+    skippedNew: ParsedPmaxGroupRow[];
+  };
+}
+
+/** Parsed row from the "PMax Asset Groups" sheet on re-upload. */
+export interface ParsedPmaxGroupRow {
+  market: string;
+  phaseName: string;
+  assetGroupName: string;
+  groupName: string;
+  businessName: string;
+  finalUrl: string;
+  callToAction: string;
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
 }
 
 // ---------- Limits ----------
@@ -808,6 +840,7 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
 export interface ParsedShell {
   keywords: KeywordSheetRow[];
   ads: AdSheetRow[];
+  pmaxGroups: ParsedPmaxGroupRow[];
 }
 
 export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
@@ -930,7 +963,64 @@ export async function parseGoogleAdsShell(file: File): Promise<ParsedShell> {
     }
   }
 
-  return { keywords, ads };
+  // ---- PMax Asset Groups sheet (shared-asset-pool model) ----
+  // Columns (must mirror downloadGooglePmaxAssetGroupShell):
+  // 0 Market | 1 Phase | 2 Asset Group | 3 Group Name | 4 Business Name |
+  // 5 LEN BN | 6 Final URL | 7 Call to Action |
+  // 8.. value/LEN pairs for 5 Headlines, 5 Long Headlines, 5 Descriptions
+  const pmaxGroups: ParsedPmaxGroupRow[] = [];
+  const pmaxSheet = wb.Sheets['PMax Asset Groups'];
+  if (pmaxSheet) {
+    const aoa = XLSX.utils.sheet_to_json(pmaxSheet, { header: 1 }) as any[][];
+    const META_COLS = 8;
+    const HEADLINE_SLOTS = 5;
+    const LONG_HEADLINE_SLOTS = 5;
+    const DESCRIPTION_SLOTS = 5;
+    const headlineStart = META_COLS;
+    const longHeadlineStart = headlineStart + HEADLINE_SLOTS * 2;
+    const descriptionStart = longHeadlineStart + LONG_HEADLINE_SLOTS * 2;
+    const readSlots = (row: any[], start: number, count: number): string[] => {
+      const out: string[] = [];
+      for (let i = 0; i < count; i++) {
+        out.push(String(row?.[start + i * 2] ?? '').trim());
+      }
+      return out;
+    };
+    for (let i = 1; i < aoa.length; i++) {
+      const row = aoa[i];
+      const market = String(row?.[0] ?? '').trim();
+      const phaseName = String(row?.[1] ?? '').trim();
+      const assetGroupName = String(row?.[2] ?? '').trim();
+      if (!market || !phaseName || !assetGroupName) continue;
+      pmaxGroups.push({
+        market,
+        phaseName,
+        assetGroupName,
+        groupName: String(row?.[3] ?? '').trim(),
+        businessName: String(row?.[4] ?? '').trim(),
+        finalUrl: String(row?.[6] ?? '').trim(),
+        callToAction: normalizeGoogleCta(String(row?.[7] ?? '')) || '',
+        headlines: readSlots(row, headlineStart, HEADLINE_SLOTS),
+        longHeadlines: readSlots(row, longHeadlineStart, LONG_HEADLINE_SLOTS),
+        descriptions: readSlots(row, descriptionStart, DESCRIPTION_SLOTS),
+      });
+    }
+  }
+
+  return { keywords, ads, pmaxGroups };
+}
+
+/** Snapshot of an existing PMax asset group (current state) for diffing against an uploaded sheet. */
+export interface CurrentPmaxGroupSnapshot {
+  market: string;
+  phaseName: string;
+  assetGroupName: string;
+  businessName: string;
+  finalUrl: string;
+  callToAction: string;
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
 }
 
 export interface DiffInput {
@@ -944,6 +1034,8 @@ export interface DiffInput {
      * auto-create instead of being flagged as unmatched.
      */
     shell?: Array<{ campaignName: string; adGroupName: string }>;
+    /** Current PMax asset groups (from pmax_asset_groups + pmax_text_assets). */
+    pmaxGroups?: CurrentPmaxGroupSnapshot[];
   };
   uploaded: ParsedShell;
 }
@@ -1067,9 +1159,71 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
     adsAdded.push({ ...after, adName: autoName });
   }
 
+  // ---- PMax Asset Groups diff ----
+  const pmaxKey = (m: string, p: string, g: string) =>
+    `${m.trim().toLowerCase()}::${p.trim().toLowerCase()}::${g.trim().toLowerCase()}`;
+  const curPmaxByKey = new Map<string, CurrentPmaxGroupSnapshot>();
+  for (const g of input.current.pmaxGroups || []) {
+    curPmaxByKey.set(pmaxKey(g.market, g.phaseName, g.assetGroupName), g);
+  }
+
+  const pmaxUpdated: GoogleAdsShellDiff['pmaxGroups']['updated'] = [];
+  const pmaxSkipped: ParsedPmaxGroupRow[] = [];
+
+  // Compare ordered, trimmed string arrays — empty trailing slots ignored.
+  const trimList = (arr: string[]): string[] => {
+    const out = arr.map((v) => String(v || '').trim());
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out;
+  };
+  const eqList = (a: string[], b: string[]): boolean => {
+    const ta = trimList(a);
+    const tb = trimList(b);
+    if (ta.length !== tb.length) return false;
+    for (let i = 0; i < ta.length; i++) if (ta[i] !== tb[i]) return false;
+    return true;
+  };
+
+  for (const after of input.uploaded.pmaxGroups) {
+    const key = pmaxKey(after.market, after.phaseName, after.assetGroupName);
+    const before = curPmaxByKey.get(key);
+    if (!before) {
+      pmaxSkipped.push(after);
+      continue;
+    }
+    const changes: GoogleAdsShellDiff['pmaxGroups']['updated'][number]['changes'] = {};
+    if (after.businessName.trim() !== (before.businessName || '').trim()) {
+      changes.businessName = after.businessName.trim();
+    }
+    if (after.finalUrl.trim() !== (before.finalUrl || '').trim()) {
+      changes.finalUrl = after.finalUrl.trim();
+    }
+    const beforeCta = normalizeGoogleCta(before.callToAction || '') || '';
+    const afterCta = normalizeGoogleCta(after.callToAction || '') || '';
+    if (afterCta && afterCta !== beforeCta) changes.callToAction = afterCta;
+    if (!eqList(after.headlines, before.headlines || [])) {
+      changes.headlines = trimList(after.headlines);
+    }
+    if (!eqList(after.longHeadlines, before.longHeadlines || [])) {
+      changes.longHeadlines = trimList(after.longHeadlines);
+    }
+    if (!eqList(after.descriptions, before.descriptions || [])) {
+      changes.descriptions = trimList(after.descriptions);
+    }
+    if (Object.keys(changes).length > 0) {
+      pmaxUpdated.push({
+        market: after.market,
+        phaseName: after.phaseName,
+        assetGroupName: after.assetGroupName,
+        changes,
+      });
+    }
+  }
+
   return {
     keywords: { added, updated, removed },
     ads: { updated: adsUpdated, added: adsAdded, skippedNew: adsSkippedNew },
+    pmaxGroups: { updated: pmaxUpdated, skippedNew: pmaxSkipped },
   };
 }
 
