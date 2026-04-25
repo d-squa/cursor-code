@@ -47,11 +47,15 @@ import {
   FastForward,
   Rewind,
   Mail,
+  AlertOctagon,
+  CheckCircle,
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
 import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass, getQCIconColor, getNextState, getPreviousState } from "@/utils/qcUtils";
 import type { QCState } from "@/utils/qcUtils";
+import { useSetupMistakes, type SetupMistake } from "@/hooks/useSetupMistakes";
+import { SetupMistakeDialog, type SetupMistakeContext } from "@/components/SetupMistakeDialog";
 
 interface QCCheckSectionProps {
   items: QCTrackingItem[];
