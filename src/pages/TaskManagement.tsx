@@ -418,6 +418,7 @@ export default function TaskManagement() {
       note: "Note",
       other: "Other",
       approval_request: "Approval Required",
+      setup_mistake: "Setup Mistake",
     };
     return labels[type] || type;
   };
