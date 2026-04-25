@@ -2100,11 +2100,13 @@ export function TextAssetsStep({
         shellContextRef.current = ctx;
         const parsed = await parseGoogleAdsShell(file);
         const currentKeywordRows = buildCurrentKeywordRows(scoped.keywords, scoped.expansion);
+        const pmaxSnaps = await loadCurrentPmaxSnapshots();
         const diff = diffShell({
           current: {
             keywords: currentKeywordRows,
             ads: scoped.adRows,
             shell: scoped.expansion.map((e) => ({ campaignName: e.campaignName, adGroupName: e.adGroupName })),
+            pmaxGroups: pmaxSnaps,
           },
           uploaded: parsed,
         });
@@ -2115,7 +2117,7 @@ export function TextAssetsStep({
         toast.error('Could not read the Google Ads shell file');
       }
     },
-    [loadGoogleShellContext, scopeShellContext],
+    [loadGoogleShellContext, scopeShellContext, loadCurrentPmaxSnapshots],
   );
 
   // Search-only scoping: include every Google Search expansion (Brand/Generic/
