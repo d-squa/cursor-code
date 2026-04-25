@@ -1435,11 +1435,16 @@ export function useCreativeMatching(campaignId?: string, selectedPlatform?: Supp
                   thumbnail_url: (asset as any).previewUrl,
                   language: asset.hardConstraints?.language,
                   tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
-                  // If this came from a TikTok platform asset, store the material ID directly (avoids re-upload)
+                  // If this came from a TikTok platform asset, store the material ID directly (avoids re-upload).
+                  // For Google YouTube videos (platformAssetId starts with "yt:"), store the bare video id.
                   platform_video_id:
                     match.structure.platform === 'tiktok' && asset.mediaType === 'video'
                       ? String((asset as any).platformAssetId)
-                      : null,
+                      : match.structure.platform === 'google' &&
+                          asset.mediaType === 'video' &&
+                          String((asset as any).platformAssetId || '').startsWith('yt:')
+                        ? String((asset as any).platformAssetId).slice(3)
+                        : null,
                   platform_image_hash:
                     match.structure.platform === 'tiktok' && asset.mediaType !== 'video'
                       ? String((asset as any).platformAssetId)
