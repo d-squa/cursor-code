@@ -591,6 +591,89 @@ export function GoogleNonSearchTextAssetEditor({
     });
   }, [drafts, typeFilter, validityFilter, pmaxShadowRowIds]);
 
+  // ---------- PMax shared-asset-pool sync ----------
+  // Mirror PMax anchor drafts into pmax_asset_groups + pmax_text_assets +
+  // pmax_creative_assets. Push-pmax-asset-groups reads exclusively from these
+  // tables (legacy creative_assignments columns are no longer consulted).
+  // Debounced so rapid keystrokes don't hammer the DB.
+  useEffect(() => {
+    if (!open || !campaignId) return;
+    const handle = window.setTimeout(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        // One write per anchor group.
+        for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+          const anchorId = pmaxAnchorByGroup.get(key);
+          const anchor = drafts.find((d) => d.rowId === anchorId);
+          if (!anchor) continue;
+          const anchorRow = rows.find((r) => r.id === anchorId);
+          if (!anchorRow) continue;
+          const groupRows = rowIds
+            .map((id) => rows.find((r) => r.id === id))
+            .filter(Boolean) as CreativeTextAssetRow[];
+
+          const group = await upsertPmaxAssetGroup({
+            campaignId,
+            userId: user.id,
+            market: anchorRow.market,
+            phaseName: anchorRow.phase,
+            adGroupName: anchorRow.adSet,
+            groupName: anchor.adGroupName || null,
+            businessName: anchor.businessName || null,
+            finalUrl: anchor.finalUrl || null,
+            callToAction: anchor.callToAction || null,
+          });
+
+          await replacePmaxTextAssets({
+            groupId: group.id,
+            headlines: anchor.headlines.filter((x) => x?.trim()),
+            longHeadlines: anchor.longHeadlines.filter((x) => x?.trim()),
+            descriptions: anchor.descriptions.filter((x) => x?.trim()),
+          });
+
+          // Pull the actual creative records to bucket them by aspect ratio.
+          const creativeIds = Array.from(new Set(groupRows.map((r) => r.creativeId).filter(Boolean)));
+          if (creativeIds.length === 0) {
+            await replacePmaxCreativeAssets({ groupId: group.id, byBucket: {} });
+            continue;
+          }
+          const { data: creatives } = await supabase
+            .from('creatives')
+            .select('id, width, height, aspect_ratio, original_filename, name, folder_path, media_type, platform_video_id')
+            .in('id', creativeIds);
+
+          const byBucket: Record<PmaxBucket, string[]> = {
+            marketing_image: [], square_image: [], portrait_image: [], logo: [], video: [],
+          };
+          for (const c of creatives || []) {
+            const w = Number((c as any).width || 0);
+            const h = Number((c as any).height || 0);
+            const ratio = w > 0 && h > 0 ? w / h : null;
+            const hay = `${(c as any).original_filename || ''} ${(c as any).name || ''} ${(c as any).folder_path || ''}`.toLowerCase();
+            const logoHint = /\blogo\b/.test(hay);
+            if ((c as any).media_type === 'video' || (c as any).platform_video_id) {
+              byBucket.video.push(c.id);
+            } else if (ratio == null) {
+              // No dims — skip; user will see "unclassified" in validator.
+            } else if (Math.abs(ratio - 1) <= 0.05) {
+              if (logoHint || Math.max(w, h) <= 512) byBucket.logo.push(c.id);
+              else byBucket.square_image.push(c.id);
+            } else if (Math.abs(ratio - 1.91) <= 0.06 || Math.abs(ratio - 16 / 9) <= 0.03) {
+              byBucket.marketing_image.push(c.id);
+            } else if (Math.abs(ratio - 0.8) <= 0.05) {
+              byBucket.portrait_image.push(c.id);
+            }
+          }
+          await replacePmaxCreativeAssets({ groupId: group.id, byBucket });
+        }
+      } catch (err) {
+        console.warn('[pmax-sync] failed to mirror to pmax_asset_groups:', err);
+      }
+    }, 800);
+    return () => window.clearTimeout(handle);
+  }, [open, campaignId, drafts, rows, pmaxGroupMembers, pmaxAnchorByGroup]);
+
   // Apply a text/field patch from the anchor draft to all shadow drafts in
   // the same PMax group (local state + upstream onRowChange for each).
   const propagateToPmaxShadows = useCallback((
