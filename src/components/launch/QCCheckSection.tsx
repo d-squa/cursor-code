@@ -889,6 +889,9 @@ interface EntityRowProps {
   onUpdateState: (state: QCState) => void;
   onBulkCheckAndAdvance: () => void;
   qcEnforceIndividual?: boolean;
+  onLogMistake?: (item: QCTrackingItem) => void;
+  onResolveMistake?: (mistakeId: string) => void;
+  openMistakesByTracking?: Record<string, SetupMistake[]>;
 }
 
 function EntityRow({
@@ -904,10 +907,17 @@ function EntityRow({
   onUpdateState,
   onBulkCheckAndAdvance,
   qcEnforceIndividual = false,
+  onLogMistake,
+  onResolveMistake,
+  openMistakesByTracking,
 }: EntityRowProps) {
+  const openMistakes = openMistakesByTracking?.[item.id] || [];
+  const hasOpenMistakes = openMistakes.length > 0;
   const nextState = getNextState(item.current_state);
   const prevState = getPreviousState(item.current_state);
-  const canAdvance = item.current_state === 'waiting_for_final_qc' ? allChecked : true;
+  const allowMistakeLogging = item.current_state === 'waiting_for_final_qc' || item.current_state === 'qc';
+  const blockedByMistake = nextState === 'pushed_live' && hasOpenMistakes;
+  const canAdvance = (item.current_state === 'waiting_for_final_qc' ? allChecked : true) && !blockedByMistake;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggleExpand}>
