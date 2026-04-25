@@ -81,10 +81,11 @@ export function SetupMistakeDialog({ open, onOpenChange, context, onSuccess }: P
       const { error } = await (supabase.from("setup_mistakes" as any) as any).insert(payload);
       if (error) throw error;
 
-      // Mirror into activity_logs and change history for unified analytics
+      // Mirror into activity_logs and change history for unified analytics.
+      // Run independently so a failure in one doesn't break the other.
       const summary = `Setup mistake on ${context.adName || context.adSetName || context.entityType || "item"}: ${title}`;
-      await Promise.all([
-        logCampaignActivity({
+      try {
+        await logCampaignActivity({
           campaignId: context.campaignId,
           userId: user.id,
           actionType: "setup_mistake",
@@ -94,21 +95,28 @@ export function SetupMistakeDialog({ open, onOpenChange, context, onSuccess }: P
           affectedMarkets: context.market ? [context.market] : undefined,
           affectedPhases: context.phaseName ? [context.phaseName] : undefined,
           metadata: {
-            qcTrackingId: context.qcTrackingId,
-            adSetName: context.adSetName,
-            adName: context.adName,
-            entityType: context.entityType,
+            qcTrackingId: context.qcTrackingId ?? null,
+            adSetName: context.adSetName ?? null,
+            adName: context.adName ?? null,
+            entityType: context.entityType ?? null,
             status: "open",
+            source: "setup_mistake_dialog",
           },
-        }),
-        logCampaignHistoryEntry({
+        });
+      } catch (mirrorErr) {
+        console.error("Activity log mirror failed:", mirrorErr);
+      }
+      try {
+        await logCampaignHistoryEntry({
           campaignId: context.campaignId,
           userId: user.id,
           action: "setup_mistake_logged",
           changeType: "quality_check",
           description: summary,
-        }),
-      ]);
+        });
+      } catch (historyErr) {
+        console.error("Change history mirror failed:", historyErr);
+      }
 
       toast.success("Setup mistake logged");
       onSuccess?.();
