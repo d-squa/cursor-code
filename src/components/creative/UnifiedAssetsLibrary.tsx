@@ -200,12 +200,18 @@ export function UnifiedAssetsLibrary({
     
     for (const account of adAccounts) {
       try {
-        const { data, error } = await supabase.functions.invoke('sync-creative-library', {
-          body: { platform: account.platform, advertiserId: account.accountId },
-        });
+        const isGoogle = account.platform === 'google';
+        const fnName = isGoogle ? 'sync-google-ads-assets' : 'sync-creative-library';
+        const fnBody = isGoogle
+          ? { customerId: account.accountId }
+          : { platform: account.platform, advertiserId: account.accountId };
+
+        const { data, error } = await supabase.functions.invoke(fnName, { body: fnBody });
         if (!error && data?.success) {
           successCount++;
-          totalSynced += data.syncedCount || 0;
+          totalSynced += data.syncedCount ?? data.synced ?? 0;
+        } else if (error) {
+          console.error(`Sync error for ${account.platform}:${account.accountId}`, error);
         }
       } catch (err) {
         console.error(`Error syncing ${account.platform}:${account.accountId}`, err);
