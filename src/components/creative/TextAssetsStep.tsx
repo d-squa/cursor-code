@@ -1933,17 +1933,42 @@ export function TextAssetsStep({
     }
   }, [buildPmaxAssetGroupShellRows, loadGoogleShellContext, rows]);
 
+  // Snapshot current PMax asset groups so the diff can compare uploaded values
+  // against what is already saved in pmax_asset_groups + pmax_text_assets.
+  const loadCurrentPmaxSnapshots = useCallback(async () => {
+    try {
+      const { fetchPmaxAssetGroups } = await import('@/utils/pmaxAssetGroupRepo');
+      const groups = await fetchPmaxAssetGroups(campaignId);
+      return groups.map((g) => ({
+        market: g.group.market,
+        phaseName: g.group.phase_name,
+        assetGroupName: g.group.ad_group_name,
+        businessName: g.group.business_name || '',
+        finalUrl: g.group.final_url || '',
+        callToAction: g.group.call_to_action || '',
+        headlines: g.headlines,
+        longHeadlines: g.longHeadlines,
+        descriptions: g.descriptions,
+      }));
+    } catch (err) {
+      console.warn('[GoogleAdsShell] failed to load PMax snapshots', err);
+      return [];
+    }
+  }, [campaignId]);
+
   const handleUploadGoogleAdsShell = useCallback(async (file: File) => {
     try {
       const ctx = await loadGoogleShellContext();
       shellContextRef.current = ctx;
       const parsed = await parseGoogleAdsShell(file);
       const currentKeywordRows = buildCurrentKeywordRows(ctx.keywords, ctx.expansion);
+      const pmaxSnaps = await loadCurrentPmaxSnapshots();
       const diff = diffShell({
         current: {
           keywords: currentKeywordRows,
           ads: ctx.adRows,
           shell: ctx.expansion.map((e) => ({ campaignName: e.campaignName, adGroupName: e.adGroupName })),
+          pmaxGroups: pmaxSnaps,
         },
         uploaded: parsed,
       });
@@ -1953,7 +1978,7 @@ export function TextAssetsStep({
       console.error('[GoogleAdsShell] upload parse failed', err);
       toast.error('Could not read the Google Ads shell file');
     }
-  }, [loadGoogleShellContext]);
+  }, [loadGoogleShellContext, loadCurrentPmaxSnapshots]);
 
   // Filter the campaign-wide shell context down to a single (market, phase). The
   // phase label coming from the editor may include strategy decoration (e.g.
