@@ -247,7 +247,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
             </ScrollArea>
           </TabsContent>
 
-          {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+          {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0 || pmaxUnchanged.length > 0) && (
             <TabsContent value="pmax" className="flex-1 overflow-hidden mt-2">
               <ScrollArea className="h-[50vh] pr-3">
                 {pmaxUpdated.length === 0 && (
