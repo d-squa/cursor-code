@@ -143,6 +143,8 @@ export interface GoogleAdsShellDiff {
     }>;
     /** Uploaded PMax rows that don't match any known (market, phase, ad group). */
     skippedNew: ParsedPmaxGroupRow[];
+    /** Uploaded PMax rows that matched an existing group but had no field differences. */
+    unchanged: Array<{ market: string; phaseName: string; assetGroupName: string }>;
   };
 }
 
@@ -1185,6 +1187,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
 
   const pmaxUpdated: GoogleAdsShellDiff['pmaxGroups']['updated'] = [];
   const pmaxSkipped: ParsedPmaxGroupRow[] = [];
+  const pmaxUnchanged: GoogleAdsShellDiff['pmaxGroups']['unchanged'] = [];
 
   // Compare ordered, trimmed string arrays — empty trailing slots ignored.
   const trimList = (arr: string[]): string[] => {
@@ -1232,13 +1235,19 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
         assetGroupName: after.assetGroupName,
         changes,
       });
+    } else if (before) {
+      pmaxUnchanged.push({
+        market: after.market,
+        phaseName: after.phaseName,
+        assetGroupName: after.assetGroupName,
+      });
     }
   }
 
   return {
     keywords: { added, updated, removed },
     ads: { updated: adsUpdated, added: adsAdded, skippedNew: adsSkippedNew },
-    pmaxGroups: { updated: pmaxUpdated, skippedNew: pmaxSkipped },
+    pmaxGroups: { updated: pmaxUpdated, skippedNew: pmaxSkipped, unchanged: pmaxUnchanged },
   };
 }
 

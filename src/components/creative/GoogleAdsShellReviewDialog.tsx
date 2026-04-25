@@ -44,6 +44,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
 
   const pmaxUpdated = diff.pmaxGroups?.updated || [];
   const pmaxSkipped = diff.pmaxGroups?.skippedNew || [];
+  const pmaxUnchanged = diff.pmaxGroups?.unchanged || [];
 
   const totalChanges =
     diff.keywords.added.length +
@@ -85,6 +86,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
         pmaxGroups: {
           updated: pmaxUpdated.filter((_, i) => selectedPmaxUpdates.has(i)),
           skippedNew: pmaxSkipped,
+          unchanged: diff.pmaxGroups.unchanged,
         },
       };
       await onApply(filtered);
@@ -101,8 +103,10 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           <DialogTitle>Review Google Ads Shell changes</DialogTitle>
           <DialogDescription>
             {totalChanges === 0
-              ? 'No changes detected vs. the current campaign.'
-              : `${totalChanges} change(s) detected. Uncheck any you don't want to apply.`}
+              ? pmaxUnchanged.length > 0
+                ? `No changes detected. ${pmaxUnchanged.length} PMax asset group(s) match what's already saved — re-uploading the same values is a no-op. Edit a field in the Excel to see it here.`
+                : 'No changes detected vs. the current campaign.'
+              : `${totalChanges} change(s) detected. Uncheck any you don't want to apply.${pmaxUnchanged.length > 0 ? ` ${pmaxUnchanged.length} PMax group(s) unchanged (skipped).` : ''}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -129,7 +133,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                 {diff.ads.updated.length + diff.ads.added.length}
               </Badge>
             </TabsTrigger>
-            {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+            {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0 || pmaxUnchanged.length > 0) && (
               <TabsTrigger value="pmax">
                 PMax Asset Groups
                 <Badge variant="secondary" className="ml-2">{pmaxUpdated.length}</Badge>
@@ -243,7 +247,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
             </ScrollArea>
           </TabsContent>
 
-          {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+          {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0 || pmaxUnchanged.length > 0) && (
             <TabsContent value="pmax" className="flex-1 overflow-hidden mt-2">
               <ScrollArea className="h-[50vh] pr-3">
                 {pmaxUpdated.length === 0 && (
@@ -281,6 +285,23 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                     {pmaxSkipped.map((row, i) => (
                       <div key={`pmax-skip-${i}`} className="text-xs py-1 border-b">
                         <span className="font-medium">{row.assetGroupName || '(unnamed)'}</span>
+                        <span className="text-muted-foreground ml-2">{row.market} / {row.phaseName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pmaxUnchanged.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-start gap-2 p-2 mb-2 bg-muted/50 border border-border rounded text-xs">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        <span className="font-medium">{pmaxUnchanged.length} PMax asset group(s) unchanged.</span>{' '}
+                        The uploaded values exactly match what's already saved for these groups, so they'll be skipped. Edit a value in the Excel and re-upload to apply changes.
+                      </div>
+                    </div>
+                    {pmaxUnchanged.map((row, i) => (
+                      <div key={`pmax-unchanged-${i}`} className="text-xs py-1 border-b">
+                        <span className="font-medium">{row.assetGroupName}</span>
                         <span className="text-muted-foreground ml-2">{row.market} / {row.phaseName}</span>
                       </div>
                     ))}
