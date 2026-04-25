@@ -36,6 +36,7 @@ import {
   EDITABLE_COLUMNS,
   type TextAssetColumnKey 
 } from '@/utils/textAssetExcelUtils';
+import { parseGoogleAdsShell } from '@/utils/googleAdsEditorExcel';
 import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/adFormatDetection';
 import { CarouselCreator } from './CarouselCreator';
 import type { CarouselLink } from '@/types/carouselTypes';
@@ -1437,6 +1438,16 @@ export function TextAssetExcelEditor({
     if (!file) return;
     
     try {
+      if (onUploadGoogleAdsShell) {
+        const parsedShell = await parseGoogleAdsShell(file);
+        const shellRowCount =
+          parsedShell.keywords.length + parsedShell.ads.length + parsedShell.pmaxGroups.length;
+        if (shellRowCount > 0) {
+          await onUploadGoogleAdsShell(file);
+          return;
+        }
+      }
+
       const { updatedRows, matchCount, errorCount, rejectedRows } = await parseTextAssetExcel(file, rows);
       onImportRows(updatedRows);
       const rejectedCount = rejectedRows?.length || 0;
@@ -1454,13 +1465,12 @@ export function TextAssetExcelEditor({
     } catch (error) {
       console.error('Import error:', error);
       toast.error('Failed to import file');
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
-    
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }, [rows, onImportRows]);
+  }, [rows, onImportRows, onUploadGoogleAdsShell]);
 
   // Download Excel
   const handleDownload = useCallback(async () => {
