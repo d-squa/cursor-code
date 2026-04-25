@@ -2166,11 +2166,13 @@ export function TextAssetsStep({
       shellContextRef.current = ctx;
       const parsed = await parseGoogleAdsShell(file);
       const currentKeywordRows = buildCurrentKeywordRows(scoped.keywords, scoped.expansion);
+      const pmaxSnaps = await loadCurrentPmaxSnapshots();
       const diff = diffShell({
         current: {
           keywords: currentKeywordRows,
           ads: scoped.adRows,
           shell: scoped.expansion.map((e) => ({ campaignName: e.campaignName, adGroupName: e.adGroupName })),
+          pmaxGroups: pmaxSnaps,
         },
         uploaded: parsed,
       });
@@ -2180,7 +2182,7 @@ export function TextAssetsStep({
       console.error('[GoogleAdsShell] search upload parse failed', err);
       toast.error('Could not read the Google Search shell file');
     }
-  }, [loadGoogleShellContext, scopeShellToSearch]);
+  }, [loadGoogleShellContext, scopeShellToSearch, loadCurrentPmaxSnapshots]);
 
   const applyShellDiff = useCallback(async (selected: GoogleAdsShellDiff) => {
     const ctx = shellContextRef.current;
