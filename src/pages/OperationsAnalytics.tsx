@@ -17,6 +17,7 @@ import { Loader2, CalendarIcon, Clock, Users, TrendingUp, ArrowLeft, ShieldCheck
 import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
 import { QCAnalyticsTab } from "@/components/QCAnalyticsTab";
+import { SetupMistakesAnalytics } from "@/components/SetupMistakesAnalytics";
 import {
   BarChart,
   Bar,
@@ -499,6 +500,10 @@ export default function OperationsAnalytics() {
               <ShieldCheck className="h-4 w-4 mr-2" />
               QC Tracking
             </TabsTrigger>
+            <TabsTrigger value="setup_mistakes">
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Setup Mistakes
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="operations" className="space-y-6">
@@ -692,6 +697,14 @@ export default function OperationsAnalytics() {
             <QCAnalyticsTab
               userId={user?.id || ''}
               selectedCampaign={selectedCampaign}
+              dateRange={dateRange}
+            />
+          </TabsContent>
+
+          <TabsContent value="setup_mistakes">
+            <SetupMistakesAnalytics
+              selectedCampaign={selectedCampaign}
+              selectedClient={selectedClient}
               dateRange={dateRange}
             />
           </TabsContent>

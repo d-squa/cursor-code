@@ -356,6 +356,7 @@ export function QCCheckSection({
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
