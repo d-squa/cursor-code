@@ -290,6 +290,23 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                     ))}
                   </div>
                 )}
+                {pmaxUnchanged.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-start gap-2 p-2 mb-2 bg-muted/50 border border-border rounded text-xs">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        <span className="font-medium">{pmaxUnchanged.length} PMax asset group(s) unchanged.</span>{' '}
+                        The uploaded values exactly match what's already saved for these groups, so they'll be skipped. Edit a value in the Excel and re-upload to apply changes.
+                      </div>
+                    </div>
+                    {pmaxUnchanged.map((row, i) => (
+                      <div key={`pmax-unchanged-${i}`} className="text-xs py-1 border-b">
+                        <span className="font-medium">{row.assetGroupName}</span>
+                        <span className="text-muted-foreground ml-2">{row.market} / {row.phaseName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </ScrollArea>
             </TabsContent>
           )}
