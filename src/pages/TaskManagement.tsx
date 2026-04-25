@@ -296,8 +296,37 @@ export default function TaskManagement() {
     try {
       const task = tasks.find(t => t.id === taskId);
       if (!task) throw new Error("Task not found");
-      
-      const updatePayload: any = { 
+
+      // Setup-mistake tasks are synthetic IDs backed by the setup_mistakes table.
+      if (taskId.startsWith("setup-mistake-")) {
+        const mistakeId = taskId.replace("setup-mistake-", "");
+        const isResolved = newStatus === "completed";
+        const mistakePayload: any = isResolved
+          ? {
+              status: "resolved",
+              resolved_by: user?.id ?? null,
+              resolved_at: new Date().toISOString(),
+            }
+          : {
+              status: "open",
+              resolved_by: null,
+              resolved_at: null,
+              resolution_notes: null,
+            };
+        const { error: mErr } = await (supabase.from("setup_mistakes" as any) as any)
+          .update(mistakePayload)
+          .eq("id", mistakeId);
+        if (mErr) throw mErr;
+
+        toast.success("Status updated successfully");
+        await loadTasks();
+        if (selectedTask?.id === taskId) {
+          setSelectedTask({ ...selectedTask, status: newStatus });
+        }
+        return;
+      }
+
+      const updatePayload: any = {
         status: newStatus,
         updated_at: new Date().toISOString()
       };
