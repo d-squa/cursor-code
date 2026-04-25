@@ -133,7 +133,7 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                 {diff.ads.updated.length + diff.ads.added.length}
               </Badge>
             </TabsTrigger>
-            {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+            {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0 || pmaxUnchanged.length > 0) && (
               <TabsTrigger value="pmax">
                 PMax Asset Groups
                 <Badge variant="secondary" className="ml-2">{pmaxUpdated.length}</Badge>
