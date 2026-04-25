@@ -106,7 +106,16 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="keywords" className="flex-1 flex flex-col overflow-hidden">
+        <Tabs
+          defaultValue={
+            pmaxUpdated.length > 0 &&
+            diff.keywords.added.length + diff.keywords.updated.length + diff.keywords.removed.length === 0 &&
+            diff.ads.updated.length + diff.ads.added.length === 0
+              ? 'pmax'
+              : 'keywords'
+          }
+          className="flex-1 flex flex-col overflow-hidden"
+        >
           <TabsList>
             <TabsTrigger value="keywords">
               Keywords
@@ -120,6 +129,12 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
                 {diff.ads.updated.length + diff.ads.added.length}
               </Badge>
             </TabsTrigger>
+            {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+              <TabsTrigger value="pmax">
+                PMax Asset Groups
+                <Badge variant="secondary" className="ml-2">{pmaxUpdated.length}</Badge>
+              </TabsTrigger>
+            )}
             {diff.ads.skippedNew.length > 0 && (
               <TabsTrigger value="skipped">
                 Unmatched
