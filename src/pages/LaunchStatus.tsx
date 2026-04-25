@@ -1251,7 +1251,7 @@ export default function LaunchStatus() {
         } : undefined,
       }));
 
-      downloadActiplanShell(campaign, mappedAssignments);
+      downloadActiplanShell(campaign, mappedAssignments, { pmaxGroups, pmaxKeys, creativeMediaMap });
     } catch (error: any) {
       console.error("Download shell error:", error);
       toast.error("Failed to download shell: " + error.message);
