@@ -2028,14 +2028,30 @@ export function TextAssetsStep({
           toast.error('No Google Ads structure found for this phase');
           return;
         }
-        downloadGoogleAdsShell({
-          campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
-          expansion: scoped.expansion,
-          keywords: scoped.keywords,
-          adRows: scoped.adRows,
-          // Non-Search phases (PMax, Demand Gen, Display, ...) don't use keywords.
-          includeKeywords: false,
-        });
+        const isPmaxPhase = scoped.expansion.every((ref) => getGoogleAdsSheetSpec(ref.googleCampaignType).type === 'pmax');
+        if (isPmaxPhase) {
+          const normalizedPhase = normalizeSearchPhase(phaseLabel);
+          const groups = buildPmaxAssetGroupShellRows(
+            rows.filter((row) =>
+              (row.platform || '').toLowerCase() === 'google' &&
+              row.market === market &&
+              normalizeSearchPhase(row.phase) === normalizedPhase,
+            ),
+          );
+          await downloadGooglePmaxAssetGroupShell({
+            campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
+            groups,
+          });
+        } else {
+          downloadGoogleAdsShell({
+            campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
+            expansion: scoped.expansion,
+            keywords: scoped.keywords,
+            adRows: scoped.adRows,
+            // Non-Search phases (Demand Gen, Display, ...) don't use keywords.
+            includeKeywords: false,
+          });
+        }
         toast.success(`Shell downloaded for ${phaseLabel}`);
       } catch (err) {
         console.error('[GoogleAdsShell] phase download failed', err);
