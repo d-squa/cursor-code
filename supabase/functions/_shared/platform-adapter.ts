@@ -1697,6 +1697,29 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return resourceName;
   }
 
+  private async uploadImageAssetWithRetry(
+    customerId: string,
+    headers: Record<string, string>,
+    imageUrl: string,
+    name: string,
+    forceUnique: boolean = false,
+    cropAspectRatio: number | null = null,
+  ): Promise<string> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.uploadImageAsset(customerId, headers, imageUrl, name, forceUnique, cropAspectRatio);
+      } catch (error: any) {
+        lastError = error;
+        const message = String(error?.message || error);
+        const retryable = /modify the same resource|Retry the request|concurrent|temporar/i.test(message);
+        if (!retryable || attempt === 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+      }
+    }
+    throw lastError;
+  }
+
   /**
    * Ensure a YouTube video asset exists in the account; create it if not.
    * Returns the asset resource name (customers/X/assets/Y).
