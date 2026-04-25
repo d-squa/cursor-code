@@ -1235,13 +1235,19 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
         assetGroupName: after.assetGroupName,
         changes,
       });
+    } else if (before) {
+      pmaxUnchanged.push({
+        market: after.market,
+        phaseName: after.phaseName,
+        assetGroupName: after.assetGroupName,
+      });
     }
   }
 
   return {
     keywords: { added, updated, removed },
     ads: { updated: adsUpdated, added: adsAdded, skippedNew: adsSkippedNew },
-    pmaxGroups: { updated: pmaxUpdated, skippedNew: pmaxSkipped },
+    pmaxGroups: { updated: pmaxUpdated, skippedNew: pmaxSkipped, unchanged: pmaxUnchanged },
   };
 }
 
