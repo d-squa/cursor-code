@@ -142,7 +142,7 @@ serve(async (req) => {
 
     // ----- Load awaiting_assets (and optionally push_failed) PMax rows -----
     const eligibleStatuses = retryFailed
-      ? ["awaiting_assets", "push_failed", "assets_incomplete"]
+      ? ["awaiting_assets", "push_failed", "assets_incomplete", "pushed_to_dsp", "live"]
       : ["awaiting_assets"];
 
     let rowsQuery = supabase
@@ -447,10 +447,7 @@ serve(async (req) => {
         const hasMerchantCenter = Boolean(marketCfg?.googleMerchantCenterId);
 
         try {
-          const assetGroupResource = await googleAdapter.createPmaxAssetGroup(
-            cleanCustomerId,
-            headers,
-            {
+          const assetGroupParams = {
               campaignId: parentCampaignId,
               name: groupName,
               finalUrl,
@@ -467,8 +464,24 @@ serve(async (req) => {
               logoImages: uniqueLimited(logoImgs, 5),
               youtubeVideoIds: uniqueLimited(ytVideoIds, 5),
               hasMerchantCenter,
-            },
-          );
+            };
+
+          const existingAssetGroup = String(row.dsp_entity_id || "");
+          const assetGroupResource = existingAssetGroup.includes("/assetGroups/")
+            ? existingAssetGroup
+            : await googleAdapter.createPmaxAssetGroup(cleanCustomerId, headers, assetGroupParams);
+
+          if (existingAssetGroup.includes("/assetGroups/") && googleAdapter.syncPmaxAssetGroupAssets) {
+            const linked = await googleAdapter.syncPmaxAssetGroupAssets(cleanCustomerId, headers, {
+              assetGroupResource: existingAssetGroup,
+              marketingImages: assetGroupParams.marketingImages,
+              squareMarketingImages: assetGroupParams.squareMarketingImages,
+              portraitMarketingImages: assetGroupParams.portraitMarketingImages,
+              logoImages: assetGroupParams.logoImages,
+              youtubeVideoIds: assetGroupParams.youtubeVideoIds,
+            });
+            console.log(`[pmax] synced ${linked} assets to existing asset group ${existingAssetGroup}`);
+          }
 
           if (assetGroupResource) {
             await supabase
