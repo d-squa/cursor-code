@@ -552,7 +552,8 @@ export function GoogleNonSearchTextAssetEditor({
       if (d.type !== 'pmax') continue;
       const r = scopedRows.find((row) => row.id === d.rowId);
       if (!r) continue;
-      const key = pmaxGroupKey(r.market, r.phase, r.adSet);
+      const resolvedAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+      const key = pmaxGroupKey(r.market, r.phase, resolvedAdGroup);
       const arr = map.get(key) || [];
       arr.push(d.rowId);
       map.set(key, arr);
