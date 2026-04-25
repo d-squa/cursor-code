@@ -103,6 +103,7 @@ export function bucketPmaxImages(rows: CreativeTextAssetRow[]): PmaxImageBuckets
   const buckets: PmaxImageBuckets = {
     marketingImages: [],
     squareImages: [],
+    portraitImages: [],
     logos: [],
     videos: [],
     unclassified: [],
@@ -127,9 +128,64 @@ export function bucketPmaxImages(rows: CreativeTextAssetRow[]): PmaxImageBuckets
       buckets.squareImages.push(r);
       continue;
     }
+    if (isPortrait45(w, h) && w >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_W && h >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_H) {
+      buckets.portraitImages.push(r);
+      continue;
+    }
     buckets.unclassified.push(r);
   }
   return buckets;
+}
+
+/** Classify a single creative-like input into a PMax bucket, or null if it does
+ *  not fit any of the 5 PMax buckets (marketing / square / portrait / logo / video).
+ *  Used by the matching engine to pre-filter assets for PMax ad sets. */
+export type PmaxBucketName = 'marketing' | 'square' | 'portrait' | 'logo' | 'video';
+
+export interface PmaxClassifyInput {
+  width?: number;
+  height?: number;
+  mediaType?: string;
+  filename?: string;
+  folderPath?: string;
+  name?: string;
+  /** YouTube/platform video id (Google requires uploaded videos for PMax). */
+  platformVideoId?: string;
+}
+
+export function classifyPmaxAsset(input: PmaxClassifyInput): PmaxBucketName | null {
+  const w = Number(input.width || 0);
+  const h = Number(input.height || 0);
+  const mediaType = (input.mediaType || '').toLowerCase();
+  const isVideo = mediaType === 'video' || !!input.platformVideoId;
+  if (isVideo) {
+    // Google PMax only accepts YouTube-hosted videos (platform_video_id).
+    return input.platformVideoId ? 'video' : null;
+  }
+  if (!w || !h) return null;
+  const hay = `${input.filename || ''} ${input.name || ''} ${input.folderPath || ''}`.toLowerCase();
+  const logoHint = /\blogo\b/.test(hay);
+  if (isSquare(w, h)) {
+    if ((logoHint || Math.max(w, h) <= 512) && w >= PMAX_LIMITS.LOGO_MIN_W && h >= PMAX_LIMITS.LOGO_MIN_H) {
+      return 'logo';
+    }
+    if (w >= PMAX_LIMITS.SQUARE_IMAGE_MIN_W && h >= PMAX_LIMITS.SQUARE_IMAGE_MIN_H) {
+      return 'square';
+    }
+    return null;
+  }
+  if (isLandscape191(w, h) && w >= PMAX_LIMITS.MARKETING_IMAGE_MIN_W && h >= PMAX_LIMITS.MARKETING_IMAGE_MIN_H) {
+    return 'marketing';
+  }
+  if (isPortrait45(w, h) && w >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_W && h >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_H) {
+    return 'portrait';
+  }
+  return null;
+}
+
+/** True if an asset can attach to a PMax asset group (any of the 5 buckets). */
+export function isPmaxEligibleAsset(input: PmaxClassifyInput): boolean {
+  return classifyPmaxAsset(input) !== null;
 }
 
 export interface PmaxTextValues {
