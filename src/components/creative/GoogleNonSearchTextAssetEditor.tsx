@@ -513,16 +513,73 @@ export function GoogleNonSearchTextAssetEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // ---------- PMax pool model ----------
+  // For PMax, group drafts by (market, phase, ad_group). One anchor draft per
+  // group is shown in the editor; all other drafts in the same group are
+  // "shadow" rows that share the anchor's text. Editing the anchor propagates
+  // text changes to every shadow so saved data stays consistent.
+  const pmaxGroupMembers = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const d of drafts) {
+      if (d.type !== 'pmax') continue;
+      const r = scopedRows.find((row) => row.id === d.rowId);
+      if (!r) continue;
+      const key = pmaxGroupKey(r.market, r.phase, r.adSet);
+      const arr = map.get(key) || [];
+      arr.push(d.rowId);
+      map.set(key, arr);
+    }
+    return map;
+  }, [drafts, scopedRows]);
+
+  const pmaxAnchorByGroup = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+      let bestId = rowIds[0];
+      let bestScore = -1;
+      for (const id of rowIds) {
+        const d = drafts.find((x) => x.rowId === id);
+        if (!d) continue;
+        const score =
+          d.headlines.filter((x) => x?.trim()).length +
+          d.longHeadlines.filter((x) => x?.trim()).length +
+          d.descriptions.filter((x) => x?.trim()).length +
+          (d.businessName?.trim() ? 1 : 0) +
+          (d.finalUrl?.trim() ? 1 : 0);
+        if (score > bestScore) { bestScore = score; bestId = id; }
+      }
+      out.set(key, bestId);
+    }
+    return out;
+  }, [pmaxGroupMembers, drafts]);
+
+  const pmaxShadowRowIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+      const anchor = pmaxAnchorByGroup.get(key);
+      for (const id of rowIds) if (id !== anchor) set.add(id);
+    }
+    return set;
+  }, [pmaxGroupMembers, pmaxAnchorByGroup]);
+
+  const getPmaxShadowsFor = useCallback((rowId: string): string[] => {
+    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+      if (pmaxAnchorByGroup.get(key) !== rowId) continue;
+      return rowIds.filter((id) => id !== rowId);
+    }
+    return [];
+  }, [pmaxGroupMembers, pmaxAnchorByGroup]);
+
   const filteredDrafts = useMemo(() => {
     return drafts.filter((d) => {
       // PMax shadow rows are hidden — only the anchor draft per group is shown.
-      if (d.type === 'pmax' && pmaxShadowRowIdsRef.current.has(d.rowId)) return false;
+      if (d.type === 'pmax' && pmaxShadowRowIds.has(d.rowId)) return false;
       if (typeFilter !== 'all' && d.type !== typeFilter) return false;
       if (validityFilter === 'invalid' && !isDraftInvalid(d)) return false;
       if (validityFilter === 'valid' && isDraftInvalid(d)) return false;
       return true;
     });
-  }, [drafts, typeFilter, validityFilter, pmaxShadowRowIdsTrigger]);
+  }, [drafts, typeFilter, validityFilter, pmaxShadowRowIds]);
 
   // Apply a text/field patch from the anchor draft to all shadow drafts in
   // the same PMax group (local state + upstream onRowChange for each).
