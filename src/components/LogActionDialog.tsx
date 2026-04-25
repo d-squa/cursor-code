@@ -49,6 +49,7 @@ const ACTION_TYPES = [
   { value: "placement_update", label: "Placement Update", description: "Ad placement or position changes" },
   { value: "conversion_setup", label: "Conversion Setup", description: "Pixel, event, or conversion tracking setup" },
   { value: "reporting_delivery", label: "Reporting Delivery", description: "Report creation or delivery" },
+  { value: "setup_mistake", label: "Setup Mistake", description: "Flag a QC issue. Blocks the affected item from advancing to Pushed Live until resolved." },
   { value: "note", label: "Note/Comment", description: "General observations or documentation" },
 ];
 
