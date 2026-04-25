@@ -35,6 +35,8 @@ interface UnifiedLogEntry {
   user_email: string;
   created_at: string;
   metadata?: any;
+  isSetupMistake?: boolean;
+  mistakeStatus?: "open" | "resolved" | null;
 }
 
 export function ActivityLogView({
@@ -46,7 +48,7 @@ export function ActivityLogView({
   const [logs, setLogs] = useState<UnifiedLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<UnifiedLogEntry | null>(null);
-  const [activeTab, setActiveTab] = useState<"all" | "requests" | "actions">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "requests" | "actions" | "setup_mistakes">("all");
   
   // Filters
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
