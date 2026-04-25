@@ -385,6 +385,7 @@ export function ModificationRequestDialog({
                 <SelectItem value="goals_update">Goals/KPI Update</SelectItem>
                 <SelectItem value="creative_change">Creative Change</SelectItem>
                 <SelectItem value="pause_request">Pause Request</SelectItem>
+                <SelectItem value="setup_mistake">Setup Mistake (blocks Push Live)</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>
