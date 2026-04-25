@@ -158,7 +158,7 @@ export async function replacePmaxTextAssets(input: ReplaceTextInput): Promise<vo
 
 export interface ReplaceCreativesInput {
   groupId: string;
-  /** Map of bucket → ordered list of creative_library_assets.id values. */
+  /** Map of bucket → ordered list of `public.creatives.id` values. */
   byBucket: Partial<Record<PmaxBucket, string[]>>;
 }
 
