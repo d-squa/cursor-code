@@ -577,6 +577,9 @@ interface HierarchicalEntityContentProps {
   onUpdateState: (trackingId: string, newState: QCState) => void;
   onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => void;
   qcEnforceIndividual?: boolean;
+  onLogMistake: (item: QCTrackingItem) => void;
+  onResolveMistake: (mistakeId: string) => void;
+  openMistakesByTracking: Record<string, SetupMistake[]>;
 }
 
 function HierarchicalEntityContent({
