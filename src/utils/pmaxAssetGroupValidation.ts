@@ -380,7 +380,12 @@ export function validatePmaxAssetGroups(rows: CreativeTextAssetRow[]): PmaxAsset
   const groups = new Map<string, CreativeTextAssetRow[]>();
   for (const r of rows) {
     if (!isPmaxRow(r)) continue;
-    const key = pmaxGroupKey(r.market, r.phase, r.adSet);
+    // Use the RESOLVED taxonomy ad-group name when present, so rows that share
+    // a logical PMax asset group but differ in raw `adSet` (e.g. strategy/
+    // language splits) collapse into a single group — matching the upsert key
+    // used by syncPmaxGroupsFromRows and the shell export.
+    const resolvedAdGroup = String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+    const key = pmaxGroupKey(r.market, r.phase, resolvedAdGroup);
     const arr = groups.get(key) || [];
     arr.push(r);
     groups.set(key, arr);

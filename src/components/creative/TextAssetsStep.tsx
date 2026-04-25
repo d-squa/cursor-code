@@ -1866,9 +1866,14 @@ export function TextAssetsStep({
       if ((row.platform || '').toLowerCase() !== 'google') return false;
       return getGoogleAdsSheetSpec(row.googleCampaignType).type === 'pmax';
     });
+    // Group by the RESOLVED asset-group name (same value used downstream as
+    // `assetGroupName`). Grouping by raw `adSet` here would create two buckets
+    // for rows that share a taxonomy name but differ in raw ad-set / strategy
+    // split, producing visually-identical duplicate rows in the shell.
     const grouped = new Map<string, CreativeTextAssetRow[]>();
     for (const row of pmaxRows) {
-      const key = `${row.market}||${row.phase}||${row.adSet}`;
+      const resolvedName = String((row as any).taxonomyAdSetName || row.adSet || '').trim();
+      const key = `${row.market}||${row.phase}||${resolvedName}`;
       const bucket = grouped.get(key) || [];
       bucket.push(row);
       grouped.set(key, bucket);
