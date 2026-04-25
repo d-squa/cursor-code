@@ -14,6 +14,7 @@
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { detectGoogleNonSearchType, type GoogleNonSearchType } from '@/components/creative/GoogleNonSearchTextAssetEditor';
 import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, GOOGLE_CTA_LABEL_LIST } from '@/utils/googleCtaOptions';
+import { resolvePmaxAssetGroupName } from '@/utils/googlePmaxAssetGroupName';
 
 export interface GoogleNonSearchFieldSpec {
   /** Underlying CreativeTextAssetRow key written on import. */
@@ -168,8 +169,7 @@ export function buildSheetForGoogleType(
   let materialRows: CreativeTextAssetRow[] = filtered;
   const creativeNamesByRowId = new Map<string, string>();
   const resolvedAdGroupByRowId = new Map<string, string>();
-  const resolveAdGroup = (r: CreativeTextAssetRow) =>
-    String((r as any).taxonomyAdSetName || r.adSet || '').trim();
+  const resolveAdGroup = (r: CreativeTextAssetRow) => resolvePmaxAssetGroupName(r);
   if (type === 'pmax') {
     const groups = new Map<string, CreativeTextAssetRow[]>();
     for (const r of filtered) {
