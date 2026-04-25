@@ -70,6 +70,7 @@ export async function logCampaignActivity({
   const { error } = await (supabase.from("activity_logs") as any).insert(payload);
 
   if (error) {
-    console.error("Failed to log campaign activity entry:", error);
+    console.error("Failed to log campaign activity entry:", error, "payload:", payload);
+    throw error;
   }
 }
