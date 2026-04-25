@@ -238,6 +238,7 @@ export function ActivityLogView({
       placement_update: "Placement Update",
       conversion_setup: "Conversion Setup",
       reporting_delivery: "Reporting Delivery",
+      setup_mistake: "Setup Mistake",
       note: "Note/Comment",
       other: "Other",
       // Legacy types for backwards compatibility
