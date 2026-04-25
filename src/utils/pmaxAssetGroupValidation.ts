@@ -348,10 +348,24 @@ export function validatePmaxImages(buckets: PmaxImageBuckets): PmaxValidationIss
       field: 'videos',
     });
   }
+  // Over-cap errors — Google PMax rejects asset groups that exceed these counts.
+  const overCap = (count: number, max: number, label: string, code: string) => {
+    if (count > max) {
+      issues.push({
+        code,
+        message: `Too many ${label}: ${count} attached, Google PMax allows max ${max} per asset group. Remove ${count - max} to push.`,
+        severity: 'error',
+        field: 'images',
+      });
+    }
+  };
+  overCap(buckets.marketingImages.length, PMAX_LIMITS.MAX_MARKETING_IMAGES, 'Marketing Images (1.91:1)', 'TOO_MANY_MARKETING_IMAGES');
+  overCap(buckets.squareImages.length, PMAX_LIMITS.MAX_SQUARE_IMAGES, 'Square Marketing Images (1:1)', 'TOO_MANY_SQUARE_IMAGES');
+  overCap(buckets.portraitImages.length, PMAX_LIMITS.MAX_PORTRAIT_IMAGES, 'Portrait Marketing Images (4:5)', 'TOO_MANY_PORTRAIT_IMAGES');
+  overCap(buckets.logos.length, PMAX_LIMITS.MAX_LOGOS, 'Logos (1:1)', 'TOO_MANY_LOGOS');
+  overCap(buckets.videos.length, PMAX_LIMITS.MAX_VIDEOS, 'Videos', 'TOO_MANY_VIDEOS');
   return issues;
 }
-
-/** Detect whether a row belongs to a Performance Max campaign. Mirrors
  *  detectGoogleNonSearchType but inlined here to avoid the React import. */
 export function isPmaxRow(row: CreativeTextAssetRow): boolean {
   if ((row.platform || '').toLowerCase() !== 'google') return false;
