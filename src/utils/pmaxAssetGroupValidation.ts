@@ -93,6 +93,7 @@ function looksLikeLogo(row: CreativeTextAssetRow): boolean {
 export interface PmaxImageBuckets {
   marketingImages: CreativeTextAssetRow[];   // 1.91:1 ≥600×314
   squareImages: CreativeTextAssetRow[];      // 1:1 ≥300×300 (non-logo)
+  portraitImages: CreativeTextAssetRow[];    // 4:5 ≥480×600
   logos: CreativeTextAssetRow[];             // 1:1 ≥128×128 (logo-tagged or small square)
   videos: CreativeTextAssetRow[];
   unclassified: CreativeTextAssetRow[];
