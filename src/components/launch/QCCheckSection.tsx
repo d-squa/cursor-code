@@ -959,6 +959,17 @@ function EntityRow({
                 <CheckCheck className="h-3 w-3 mr-1" />
                 {allChecked ? 'Uncheck All' : 'Check All'}
               </Button>
+              {allowMistakeLogging && onLogMistake && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); onLogMistake(item); }}
+                >
+                  <AlertOctagon className="h-3 w-3 mr-1" />
+                  Setup Mistake
+                </Button>
+              )}
             </div>
             <div className="flex items-center gap-1">
               {prevState && (
@@ -992,12 +1003,46 @@ function EntityRow({
                     </Button>
                   </TooltipTrigger>
                   {!canAdvance && (
-                    <TooltipContent>Complete all checklist items first</TooltipContent>
+                    <TooltipContent>
+                      {blockedByMistake
+                        ? 'Resolve all open Setup Mistakes before moving to Pushed Live'
+                        : 'Complete all checklist items first'}
+                    </TooltipContent>
                   )}
                 </Tooltip>
               )}
             </div>
           </div>
+
+          {hasOpenMistakes && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 space-y-1.5">
+              <div className="text-[11px] font-semibold text-destructive flex items-center gap-1">
+                <AlertOctagon className="h-3 w-3" />
+                {openMistakes.length} open Setup Mistake{openMistakes.length > 1 ? 's' : ''} — blocks Pushed Live
+              </div>
+              {openMistakes.map((m) => (
+                <div key={m.id} className="flex items-start justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{m.title}</div>
+                    {m.description && (
+                      <div className="text-muted-foreground line-clamp-2">{m.description}</div>
+                    )}
+                  </div>
+                  {onResolveMistake && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[11px] px-2 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onResolveMistake(m.id); }}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Resolve
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Checklist Items */}
           <div className="space-y-1.5">
