@@ -436,6 +436,8 @@ export function GoogleNonSearchTextAssetEditor({
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [trimGroup, setTrimGroup] = useState<PmaxAssetGroupValidation | null>(null);
+  const [trimKeepIds, setTrimKeepIds] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<NonSearchAdDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
