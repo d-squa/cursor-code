@@ -3595,17 +3595,23 @@ class GoogleAdsAdapter implements PlatformAdapter {
         if (unique.length >= max) break;
       }
 
-      // Upload images sequentially for one asset group. Google Ads rejects some
-      // concurrent asset mutations with "modify the same resource at once", and
-      // storage-side transforms above remove the CPU-heavy local crop step.
-      for (let idx = 0; idx < unique.length; idx += 1) {
-        const url = unique[idx];
-        try {
-          const assetRn = await this.uploadImageAsset(customerId, headers, url, `${fieldType} ${idx + 1}`, false, aspect);
-          linkSpecs.push({ asset: assetRn, fieldType });
-        } catch (e: any) {
-          console.warn(`[pmax] failed to upload ${fieldType} image "${url}":`, e?.message || e);
-        }
+      // Upload with bounded concurrency (3 in-flight). Pure sequential is too
+      // slow for the 20/20/5 PMax max and trips the edge function CPU/wall-clock
+      // budget; full parallel triggers Google's "modify the same resource at
+      // once" error. Three is a safe middle ground.
+      const CONCURRENCY = 3;
+      for (let i = 0; i < unique.length; i += CONCURRENCY) {
+        const batch = unique.slice(i, i + CONCURRENCY);
+        const settled = await Promise.allSettled(batch.map((url, j) =>
+          this.uploadImageAsset(customerId, headers, url, `${fieldType} ${i + j + 1}`, false, aspect),
+        ));
+        settled.forEach((s, j) => {
+          if (s.status === "fulfilled" && s.value) {
+            linkSpecs.push({ asset: s.value, fieldType });
+          } else if (s.status === "rejected") {
+            console.warn(`[pmax] failed to upload ${fieldType} image "${batch[j]}":`, (s.reason as any)?.message || s.reason);
+          }
+        });
       }
     };
 
