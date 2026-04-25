@@ -1039,7 +1039,6 @@ export interface DiffInput {
   };
   uploaded: ParsedShell;
 }
-}
 
 export function diffShell(input: DiffInput): GoogleAdsShellDiff {
   // ---- Keywords diff ----
