@@ -81,6 +81,8 @@ export function LogActionDialog({
       setActionType("");
       setTitle("");
       setDescription("");
+      setAdSetName("");
+      setAdName("");
       setSelectedPlatforms([]);
       setSelectedMarkets([]);
       setSelectedPhases([]);
