@@ -52,6 +52,31 @@ const STALE_PUSHING_MS = 2 * 60 * 1000;
 const uniqueLimited = (items: string[], max: number) =>
   Array.from(new Set(items.map((item) => String(item || "").trim()).filter(Boolean))).slice(0, max);
 
+const languageAlias: Record<string, string> = {
+  en: "en", eng: "en", english: "en",
+  ar: "ar", ara: "ar", arabic: "ar",
+  de: "de", deu: "de", ger: "de", german: "de",
+  fr: "fr", fra: "fr", fre: "fr", french: "fr",
+  es: "es", esp: "es", spa: "es", spanish: "es",
+  it: "it", ita: "it", italian: "it",
+  pt: "pt", por: "pt", portuguese: "pt",
+  nl: "nl", dut: "nl", nld: "nl", dutch: "nl",
+  tr: "tr", tur: "tr", turkish: "tr",
+  ru: "ru", rus: "ru", russian: "ru",
+  hi: "hi", hin: "hi", hindi: "hi",
+  zh: "zh", chi: "zh", zho: "zh", chinese: "zh",
+};
+
+function languageCodesFromName(value?: string | null): Set<string> {
+  const tokens = String(value || "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return new Set(tokens.map((token) => languageAlias[token]).filter(Boolean));
+}
+
+function hasSharedLanguage(left: Set<string>, right: Set<string>): boolean {
+  for (const code of left) if (right.has(code)) return true;
+  return false;
+}
+
 function aspect(width?: number | null, height?: number | null): number | null {
   if (!width || !height || width <= 0 || height <= 0) return null;
   return width / height;
