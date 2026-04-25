@@ -2058,7 +2058,7 @@ export function TextAssetsStep({
         toast.error('Failed to download Google Ads shell');
       }
     },
-    [loadGoogleShellContext, rows, scopeShellContext],
+    [buildPmaxAssetGroupShellRows, loadGoogleShellContext, rows, scopeShellContext],
   );
 
   const handleUploadGoogleAdsShellForPhase = useCallback(
