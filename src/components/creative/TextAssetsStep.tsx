@@ -1895,10 +1895,14 @@ export function TextAssetsStep({
         else byKind.marketingImages.push(label);
       }
       const a = anchor as any;
+      const resolvedAssetGroupName = String(a.taxonomyAdSetName || anchor.adSet || '').trim();
       return {
         market: anchor.market,
         phaseName: anchor.phase,
-        assetGroupName: anchor.adSet,
+        // Use the fully-resolved taxonomy ad-group name so the Excel matches
+        // what's registered in campaign_launch_status.entity_name (which is
+        // what push-pmax-asset-groups looks up by).
+        assetGroupName: resolvedAssetGroupName,
         groupName: anchor.taxonomyAdSetName || anchor.adSet,
         businessName: anchor.brandName || a.business_name || '',
         finalUrl: anchor.destinationUrl || '',
