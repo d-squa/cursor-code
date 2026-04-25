@@ -138,6 +138,56 @@ export function QCCheckSection({
     setSetupMistakeDialogOpen(true);
   }, [campaignId]);
 
+  // Open dialog at a higher scope (platform / market / phase) — no qc_tracking_id
+  const handleLogScopedMistake = useCallback(
+    (scope: { platform?: string | null; market?: string | null; phaseName?: string | null; entityType: string }) => {
+      if (!campaignId) return;
+      setSetupMistakeContext({
+        campaignId,
+        qcTrackingId: null,
+        platform: scope.platform ?? null,
+        market: scope.market ?? null,
+        phaseName: scope.phaseName ?? null,
+        adSetName: null,
+        adName: null,
+        entityType: scope.entityType,
+      });
+      setSetupMistakeDialogOpen(true);
+    },
+    [campaignId]
+  );
+
+  // Open mistakes scoped to platform / market / phase (i.e. without a tracking id, or covering an ancestor scope)
+  const openScopedMistakes = useMemo(
+    () => setupMistakes.filter((m) => m.status === "open"),
+    [setupMistakes]
+  );
+
+  const countOpenForScope = useCallback(
+    (scope: { platform?: string | null; market?: string | null; phaseName?: string | null }) =>
+      openScopedMistakes.filter((m) => {
+        if (m.qc_tracking_id) return false; // tracking-level handled per row
+        if (scope.platform != null && m.platform !== scope.platform) return false;
+        if (scope.market != null && m.market !== scope.market) return false;
+        if (scope.phaseName != null && m.phase_name !== scope.phaseName) return false;
+        return true;
+      }).length,
+    [openScopedMistakes]
+  );
+
+  // True if a tracking item is blocked by an ancestor-scope open mistake
+  const isBlockedByAncestorScope = useCallback(
+    (item: QCTrackingItem) =>
+      openScopedMistakes.some(
+        (m) =>
+          !m.qc_tracking_id &&
+          (m.platform == null || m.platform === item.platform) &&
+          (m.market == null || m.market === item.market) &&
+          (m.phase_name == null || m.phase_name === item.phase_name)
+      ),
+    [openScopedMistakes]
+  );
+
   const handleResolveMistake = useCallback(async (mistakeId: string) => {
     try {
       await resolveMistake(mistakeId);
