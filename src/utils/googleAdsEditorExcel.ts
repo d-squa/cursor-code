@@ -712,6 +712,9 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
   const HEADLINE_LIMIT = 30;
   const LONG_HEADLINE_LIMIT = 90;
   const DESCRIPTION_LIMIT = 90;
+  const SHORT_DESCRIPTION_LIMIT = 60; // Google PMax requires at least one description ≤60 chars
+  // Per-slot description limits: slot 1 is the mandatory short description.
+  const descriptionLimitForSlot = (i: number) => (i === 0 ? SHORT_DESCRIPTION_LIMIT : DESCRIPTION_LIMIT);
 
   const headlineHeaders: string[] = [];
   for (let i = 1; i <= HEADLINE_SLOTS; i++) {
