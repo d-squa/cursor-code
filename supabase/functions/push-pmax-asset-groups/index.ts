@@ -438,9 +438,9 @@ serve(async (req) => {
               // Cap below Google's true maximums to stay within the edge function
               // CPU budget. Each image upload base64-encodes the source bytes, which
               // is CPU-bound; >~10 images per group reliably trips "CPU Time exceeded".
-              marketingImages: uniqueLimited(marketingImgs, 8),
-              squareMarketingImages: uniqueLimited(squareImgs, 8),
-              logoImages: uniqueLimited(logoImgs, 3),
+              marketingImages: uniqueLimited(marketingImgs, 3),
+              squareMarketingImages: uniqueLimited(squareImgs, 3),
+              logoImages: uniqueLimited(logoImgs, 1),
               youtubeVideoIds: uniqueLimited(ytVideoIds, 5),
               hasMerchantCenter,
             },
