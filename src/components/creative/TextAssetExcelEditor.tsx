@@ -1465,11 +1465,10 @@ export function TextAssetExcelEditor({
     } catch (error) {
       console.error('Import error:', error);
       toast.error('Failed to import file');
-    }
-    
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   }, [rows, onImportRows, onUploadGoogleAdsShell]);
 
