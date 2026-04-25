@@ -206,6 +206,33 @@ export function LogActionDialog({
         description: `${title}${description ? `: ${description}` : ""}`,
       });
 
+      // For Setup Mistake, also create a tracked record (no qc_tracking_id from this generic dialog)
+      if (actionType === "setup_mistake" && user?.id) {
+        const { data: campaignRow } = await supabase
+          .from("campaigns")
+          .select("team_id")
+          .eq("id", campaignId)
+          .single();
+
+        await (supabase.from("setup_mistakes" as any) as any).insert({
+          campaign_id: campaignId,
+          team_id: campaignRow?.team_id ?? null,
+          platform: selectedPlatforms[0] ?? null,
+          market: selectedMarkets[0] ?? null,
+          phase_name: selectedPhases[0] ?? null,
+          title: title.trim(),
+          description: description.trim() || null,
+          status: "open",
+          created_by: user.id,
+          metadata: {
+            affected_platforms: selectedPlatforms,
+            affected_markets: selectedMarkets,
+            affected_phases: selectedPhases,
+            source: "log_action_dialog",
+          },
+        });
+      }
+
       toast.success("Action logged successfully");
       onSuccess();
       onOpenChange(false);
