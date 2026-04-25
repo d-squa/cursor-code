@@ -409,6 +409,9 @@ interface Props {
   /** Optional scope: only show rows for this market+phase pair. */
   scopeMarket?: string;
   scopePhase?: string;
+  /** Required for the PMax shared-asset-pool sync — the editor mirrors PMax
+   *  text + creative-pool edits into pmax_asset_groups + children. */
+  campaignId?: string;
   onRowChange: (rowId: string, updates: Partial<CreativeTextAssetRow>) => void;
   onBulkUpdate: (rowIds: string[], updates: Partial<CreativeTextAssetRow>) => void;
   /** Delete one or more creative assignments (by assignmentId). */
@@ -421,7 +424,7 @@ interface Props {
 }
 
 export function GoogleNonSearchTextAssetEditor({
-  open, onOpenChange, rows, scopeMarket, scopePhase, onRowChange, onBulkUpdate, onDeleteAssignments,
+  open, onOpenChange, rows, scopeMarket, scopePhase, campaignId, onRowChange, onBulkUpdate, onDeleteAssignments,
   onApplyImagesToAllPmaxGroups,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
