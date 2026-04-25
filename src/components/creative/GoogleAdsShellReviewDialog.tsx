@@ -243,6 +243,53 @@ export function GoogleAdsShellReviewDialog({ open, onOpenChange, diff, onApply }
             </ScrollArea>
           </TabsContent>
 
+          {(pmaxUpdated.length > 0 || pmaxSkipped.length > 0) && (
+            <TabsContent value="pmax" className="flex-1 overflow-hidden mt-2">
+              <ScrollArea className="h-[50vh] pr-3">
+                {pmaxUpdated.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-8 text-center">No PMax asset group changes.</p>
+                )}
+                {pmaxUpdated.length > 0 && (
+                  <Section title="Updated PMax asset groups" icon={<Pencil className="h-4 w-4 text-muted-foreground" />}>
+                    {pmaxUpdated.map((u, i) => (
+                      <div key={`pmax-upd-${i}`} className="border rounded p-2 mb-2">
+                        <Row
+                          checked={selectedPmaxUpdates.has(i)}
+                          onToggle={() => toggle(selectedPmaxUpdates, i, setSelectedPmaxUpdates)}
+                        >
+                          <span className="font-medium">{u.assetGroupName}</span>
+                          <span className="text-muted-foreground text-xs ml-2">{u.market} / {u.phaseName}</span>
+                        </Row>
+                        <ul className="text-xs mt-1 ml-7 space-y-0.5 text-muted-foreground">
+                          {Object.keys(u.changes).map((field) => (
+                            <li key={field}>• {fieldLabel(field)}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </Section>
+                )}
+                {pmaxSkipped.length > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-start gap-2 p-2 mb-2 bg-muted border border-border rounded text-xs">
+                      <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                      <div>
+                        These PMax asset group rows couldn't be matched to a known (market, phase, ad group) in this plan.
+                        Check the Market / Phase / Asset Group columns and re-upload.
+                      </div>
+                    </div>
+                    {pmaxSkipped.map((row, i) => (
+                      <div key={`pmax-skip-${i}`} className="text-xs py-1 border-b">
+                        <span className="font-medium">{row.assetGroupName || '(unnamed)'}</span>
+                        <span className="text-muted-foreground ml-2">{row.market} / {row.phaseName}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          )}
+
           {diff.ads.skippedNew.length > 0 && (
             <TabsContent value="skipped" className="flex-1 overflow-hidden mt-2">
               <div className="flex items-start gap-2 p-2 mb-2 bg-muted border border-border rounded text-xs">
