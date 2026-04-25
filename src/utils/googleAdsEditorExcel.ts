@@ -672,6 +672,28 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
   groups: PmaxAssetGroupShellRow[];
 }): Promise<void> {
   const wb = XLSX.utils.book_new();
+  // PMax slot counts (per Google's spec: up to 15 headlines, 5 long headlines, 5 descriptions).
+  // We expose the practical authoring set: 5 headlines, 5 long headlines, 5 descriptions.
+  const HEADLINE_SLOTS = 5;
+  const LONG_HEADLINE_SLOTS = 5;
+  const DESCRIPTION_SLOTS = 5;
+  const HEADLINE_LIMIT = 30;
+  const LONG_HEADLINE_LIMIT = 90;
+  const DESCRIPTION_LIMIT = 90;
+
+  const headlineHeaders: string[] = [];
+  for (let i = 1; i <= HEADLINE_SLOTS; i++) {
+    headlineHeaders.push(`Headline ${i} (max ${HEADLINE_LIMIT})`, `LEN H${i}`);
+  }
+  const longHeadlineHeaders: string[] = [];
+  for (let i = 1; i <= LONG_HEADLINE_SLOTS; i++) {
+    longHeadlineHeaders.push(`Long Headline ${i} (max ${LONG_HEADLINE_LIMIT})`, `LEN LH${i}`);
+  }
+  const descriptionHeaders: string[] = [];
+  for (let i = 1; i <= DESCRIPTION_SLOTS; i++) {
+    descriptionHeaders.push(`Description ${i} (max ${DESCRIPTION_LIMIT})`, `LEN D${i}`);
+  }
+
   const headers = [
     'Market',
     'Phase',
@@ -681,15 +703,24 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
     `LEN BN (max ${BUSINESS_NAME_LIMIT})`,
     'Final URL',
     `Call to Action (${GOOGLE_CTA_LABEL_LIST})`,
-    'Headlines',
-    'Long Headlines',
-    'Descriptions',
+    ...headlineHeaders,
+    ...longHeadlineHeaders,
+    ...descriptionHeaders,
     'Marketing Images',
     'Square Images',
     'Portrait Images',
     'Logos',
     'Videos',
   ];
+
+  const expandSlots = (values: string[], slots: number): string[] => {
+    const out: string[] = [];
+    for (let i = 0; i < slots; i++) {
+      out.push(values[i] || '', ''); // value cell + empty LEN cell (filled via formula below)
+    }
+    return out;
+  };
+
   const aoa: (string | number)[][] = [
     headers,
     ...input.groups.map((g) => [
@@ -701,9 +732,9 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
       '',
       g.finalUrl || '',
       GOOGLE_CTA_OPTIONS.find((o) => o.value === normalizeGoogleCta(g.callToAction || ''))?.label || '',
-      g.headlines.filter(Boolean).join('\n'),
-      g.longHeadlines.filter(Boolean).join('\n'),
-      g.descriptions.filter(Boolean).join('\n'),
+      ...expandSlots(g.headlines.filter(Boolean), HEADLINE_SLOTS),
+      ...expandSlots(g.longHeadlines.filter(Boolean), LONG_HEADLINE_SLOTS),
+      ...expandSlots(g.descriptions.filter(Boolean), DESCRIPTION_SLOTS),
       (g.marketingImages || []).join('\n'),
       (g.squareImages || []).join('\n'),
       (g.portraitImages || []).join('\n'),
@@ -713,11 +744,38 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [
+  // Column widths: meta cols + (value, LEN) pairs for each slot + 5 asset cols
+  const meta = [
     { wch: 14 }, { wch: 28 }, { wch: 34 }, { wch: 34 }, { wch: 24 }, { wch: 10 },
-    { wch: 50 }, { wch: 26 }, { wch: 60 }, { wch: 60 }, { wch: 60 },
+    { wch: 50 }, { wch: 26 },
+  ];
+  const slotCols = (count: number, valWidth: number) => {
+    const out: { wch: number }[] = [];
+    for (let i = 0; i < count; i++) out.push({ wch: valWidth }, { wch: 8 });
+    return out;
+  };
+  ws['!cols'] = [
+    ...meta,
+    ...slotCols(HEADLINE_SLOTS, 36),
+    ...slotCols(LONG_HEADLINE_SLOTS, 50),
+    ...slotCols(DESCRIPTION_SLOTS, 50),
     { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 }, { wch: 50 },
   ];
+
+  // Per-slot LEN formulas: each value cell at column index `c` is followed by a LEN cell at `c+1`.
+  const slotStartIndex = 8; // after the 8 meta columns
+  const totalSlots = HEADLINE_SLOTS + LONG_HEADLINE_SLOTS + DESCRIPTION_SLOTS;
+  for (let r = 1; r < aoa.length; r++) {
+    for (let s = 0; s < totalSlots; s++) {
+      const valColIdx = slotStartIndex + s * 2;
+      const lenColIdx = valColIdx + 1;
+      const valColLetter = XLSX.utils.encode_col(valColIdx);
+      let limit = HEADLINE_LIMIT;
+      if (s >= HEADLINE_SLOTS && s < HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) limit = LONG_HEADLINE_LIMIT;
+      else if (s >= HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) limit = DESCRIPTION_LIMIT;
+      setLenFormula(ws, lenColIdx, r + 1, valColLetter, limit);
+    }
+  }
   const bnCol = XLSX.utils.encode_col(4);
   for (let r = 1; r < aoa.length; r++) {
     setLenFormula(ws, 5, r + 1, bnCol, BUSINESS_NAME_LIMIT);
