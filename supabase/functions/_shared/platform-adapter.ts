@@ -1435,29 +1435,64 @@ class GoogleAdsAdapter implements PlatformAdapter {
   private readonly API_BASE = `https://googleads.googleapis.com/v23`;
   private readonly imageAssetBytesCache = new Map<string, Promise<Uint8Array>>();
 
+  private getTransformedStorageImageUrl(
+    imageUrl: string,
+    cropAspectRatio: number | null,
+  ): string {
+    if (!cropAspectRatio || cropAspectRatio <= 0) return imageUrl;
+
+    try {
+      const url = new URL(imageUrl);
+      const marker = "/storage/v1/object/public/";
+      const markerIndex = url.pathname.indexOf(marker);
+      if (markerIndex === -1) return imageUrl;
+
+      const objectPath = url.pathname.slice(markerIndex + marker.length);
+      const renderPath = `/storage/v1/render/image/public/${objectPath}`;
+      const transformed = new URL(url.toString());
+      transformed.pathname = renderPath;
+      transformed.searchParams.set("resize", "cover");
+      transformed.searchParams.set("quality", "82");
+
+      if (Math.abs(cropAspectRatio - 1.91) < 0.05) {
+        transformed.searchParams.set("width", "1200");
+        transformed.searchParams.set("height", "628");
+      } else if (Math.abs(cropAspectRatio - 1) < 0.05) {
+        transformed.searchParams.set("width", "1024");
+        transformed.searchParams.set("height", "1024");
+      } else if (Math.abs(cropAspectRatio - 0.8) < 0.05) {
+        transformed.searchParams.set("width", "960");
+        transformed.searchParams.set("height", "1200");
+      } else if (Math.abs(cropAspectRatio - 4) < 0.1) {
+        transformed.searchParams.set("width", "1200");
+        transformed.searchParams.set("height", "300");
+      }
+
+      return transformed.toString();
+    } catch {
+      return imageUrl;
+    }
+  }
+
   private async getPreparedImageBytes(
     imageUrl: string,
     cropAspectRatio: number | null = null,
     minimumSquareSize: number = 0,
   ): Promise<Uint8Array> {
-    const cacheKey = `${imageUrl}::${cropAspectRatio ?? "original"}::${minimumSquareSize}`;
+    const preparedUrl = this.getTransformedStorageImageUrl(imageUrl, cropAspectRatio);
+    const cacheKey = `${preparedUrl}::${minimumSquareSize}`;
     const cached = this.imageAssetBytesCache.get(cacheKey);
     if (cached) {
       return new Uint8Array(await cached);
     }
 
     const pendingBytes = (async () => {
-      const imgResp = await fetch(imageUrl);
+      const imgResp = await fetch(preparedUrl);
       if (!imgResp.ok) {
         throw new Error(`Failed to download image (${imgResp.status})`);
       }
 
-      let preparedBytes = new Uint8Array(await imgResp.arrayBuffer());
-      if (cropAspectRatio && cropAspectRatio > 0) {
-        preparedBytes = await this.cropImageToAspectRatio(preparedBytes, cropAspectRatio, minimumSquareSize);
-      }
-
-      return preparedBytes;
+      return new Uint8Array(await imgResp.arrayBuffer());
     })();
 
     this.imageAssetBytesCache.set(cacheKey, pendingBytes);
