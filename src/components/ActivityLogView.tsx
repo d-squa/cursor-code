@@ -400,7 +400,7 @@ export function ActivityLogView({
                         ) : (
                           <div className="space-y-3">
                             {filteredLogs.map((log) => {
-                              const Icon = getTypeIcon(log.type);
+                              const Icon = getEntryIcon(log);
                               return (
                                 <div
                                   key={`${log.type}-${log.id}`}
@@ -415,7 +415,7 @@ export function ActivityLogView({
                                   <div
                                     className={cn(
                                       "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                                      getTypeColor(log.type)
+                                      getEntryColor(log)
                                     )}
                                   >
                                     <Icon className="w-4 h-4 text-white" />
