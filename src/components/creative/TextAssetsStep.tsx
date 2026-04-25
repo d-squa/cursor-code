@@ -25,13 +25,16 @@ import {
   buildAdRowsFromAssignments,
   buildCurrentKeywordRows,
   downloadGoogleAdsShell,
+  downloadGooglePmaxAssetGroupShell,
   parseGoogleAdsShell,
   diffShell,
   applyKeywordDiff,
   adChangesToAssignmentUpdate,
+  getGoogleAdsSheetSpec,
   type GoogleAdsShellDiff,
   type GoogleKeywordLike,
   type AssignmentLite,
+  type PmaxAssetGroupShellRow,
 } from '@/utils/googleAdsEditorExcel';
 type GoogleShellContext = {
   campaignName: string;
@@ -1858,21 +1861,77 @@ export function TextAssetsStep({
     };
   }, [campaignId, campaignName, deriveGoogleShellData, rows]);
 
+  const buildPmaxAssetGroupShellRows = useCallback((sourceRows: CreativeTextAssetRow[]): PmaxAssetGroupShellRow[] => {
+    const pmaxRows = sourceRows.filter((row) => {
+      if ((row.platform || '').toLowerCase() !== 'google') return false;
+      return getGoogleAdsSheetSpec(row.googleCampaignType).type === 'pmax';
+    });
+    const grouped = new Map<string, CreativeTextAssetRow[]>();
+    for (const row of pmaxRows) {
+      const key = `${row.market}||${row.phase}||${row.adSet}`;
+      const bucket = grouped.get(key) || [];
+      bucket.push(row);
+      grouped.set(key, bucket);
+    }
+    return Array.from(grouped.values()).map((groupRows) => {
+      const anchor = groupRows.reduce((best, cur) => {
+        const score = (r: any) => [
+          r.headline, r.headline2, r.headline3, r.headline4, r.headline5,
+          r.primaryText, r.description, r.description2, r.description3, r.description4, r.description5,
+          r.brandName, r.destinationUrl, r.callToAction,
+        ].filter((v) => String(v || '').trim()).length;
+        return score(cur) > score(best) ? cur : best;
+      }, groupRows[0]);
+      const byKind = { marketingImages: [] as string[], squareImages: [] as string[], portraitImages: [] as string[], logos: [] as string[], videos: [] as string[] };
+      const seen = new Set<string>();
+      for (const row of groupRows) {
+        if (!row.creativeName || seen.has(row.creativeId || row.creativeName)) continue;
+        seen.add(row.creativeId || row.creativeName);
+        const label = row.creativeName;
+        if (row.mediaType === 'video') byKind.videos.push(label);
+        else if (/logo/i.test(`${row.creativeName} ${row.originalFilename || ''} ${row.folderPath || ''}`)) byKind.logos.push(label);
+        else if (row.aspectRatio?.includes('1:1')) byKind.squareImages.push(label);
+        else if (row.aspectRatio?.includes('4:5')) byKind.portraitImages.push(label);
+        else byKind.marketingImages.push(label);
+      }
+      const a = anchor as any;
+      return {
+        market: anchor.market,
+        phaseName: anchor.phase,
+        assetGroupName: anchor.adSet,
+        groupName: anchor.taxonomyAdSetName || anchor.adSet,
+        businessName: anchor.brandName || a.business_name || '',
+        finalUrl: anchor.destinationUrl || '',
+        callToAction: String(anchor.callToAction || ''),
+        headlines: [anchor.headline, anchor.headline2, anchor.headline3, anchor.headline4, anchor.headline5].map((v) => String(v || '')),
+        longHeadlines: [anchor.primaryText, a.long_headline_2, a.long_headline_3, a.long_headline_4, a.long_headline_5].map((v) => String(v || '')),
+        descriptions: [anchor.description, anchor.description2, anchor.description3, anchor.description4, anchor.description5].map((v) => String(v || '')),
+        ...byKind,
+      };
+    });
+  }, []);
+
   const handleDownloadGoogleAdsShell = useCallback(async () => {
     try {
       const ctx = await loadGoogleShellContext();
-      downloadGoogleAdsShell({
-        campaignName: ctx.campaignName,
-        expansion: ctx.expansion,
-        keywords: ctx.keywords,
-        adRows: ctx.adRows,
-      });
+      const allPmax = ctx.expansion.length > 0 && ctx.expansion.every((ref) => getGoogleAdsSheetSpec(ref.googleCampaignType).type === 'pmax');
+      if (allPmax) {
+        const groups = buildPmaxAssetGroupShellRows(rows);
+        await downloadGooglePmaxAssetGroupShell({ campaignName: ctx.campaignName, groups });
+      } else {
+        downloadGoogleAdsShell({
+          campaignName: ctx.campaignName,
+          expansion: ctx.expansion,
+          keywords: ctx.keywords,
+          adRows: ctx.adRows,
+        });
+      }
       toast.success('Google Ads shell downloaded');
     } catch (err) {
       console.error('[GoogleAdsShell] download failed', err);
       toast.error('Failed to download Google Ads shell');
     }
-  }, [loadGoogleShellContext]);
+  }, [buildPmaxAssetGroupShellRows, loadGoogleShellContext, rows]);
 
   const handleUploadGoogleAdsShell = useCallback(async (file: File) => {
     try {
@@ -1969,21 +2028,37 @@ export function TextAssetsStep({
           toast.error('No Google Ads structure found for this phase');
           return;
         }
-        downloadGoogleAdsShell({
-          campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
-          expansion: scoped.expansion,
-          keywords: scoped.keywords,
-          adRows: scoped.adRows,
-          // Non-Search phases (PMax, Demand Gen, Display, ...) don't use keywords.
-          includeKeywords: false,
-        });
+        const isPmaxPhase = scoped.expansion.every((ref) => getGoogleAdsSheetSpec(ref.googleCampaignType).type === 'pmax');
+        if (isPmaxPhase) {
+          const normalizedPhase = normalizeSearchPhase(phaseLabel);
+          const groups = buildPmaxAssetGroupShellRows(
+            rows.filter((row) =>
+              (row.platform || '').toLowerCase() === 'google' &&
+              row.market === market &&
+              normalizeSearchPhase(row.phase) === normalizedPhase,
+            ),
+          );
+          await downloadGooglePmaxAssetGroupShell({
+            campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
+            groups,
+          });
+        } else {
+          downloadGoogleAdsShell({
+            campaignName: `${scoped.campaignName} - ${market} - ${phaseLabel}`,
+            expansion: scoped.expansion,
+            keywords: scoped.keywords,
+            adRows: scoped.adRows,
+            // Non-Search phases (Demand Gen, Display, ...) don't use keywords.
+            includeKeywords: false,
+          });
+        }
         toast.success(`Shell downloaded for ${phaseLabel}`);
       } catch (err) {
         console.error('[GoogleAdsShell] phase download failed', err);
         toast.error('Failed to download Google Ads shell');
       }
     },
-    [loadGoogleShellContext, rows, scopeShellContext],
+    [buildPmaxAssetGroupShellRows, loadGoogleShellContext, rows, scopeShellContext],
   );
 
   const handleUploadGoogleAdsShellForPhase = useCallback(
