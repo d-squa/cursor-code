@@ -1213,7 +1213,7 @@ export function diffShell(input: DiffInput): GoogleAdsShellDiff {
     if (!before || after.finalUrl.trim() !== (before.finalUrl || '').trim()) {
       changes.finalUrl = after.finalUrl.trim();
     }
-    const beforeCta = normalizeGoogleCta(before.callToAction || '') || '';
+    const beforeCta = normalizeGoogleCta(before?.callToAction || '') || '';
     const afterCta = normalizeGoogleCta(after.callToAction || '') || '';
     if (afterCta && (!before || afterCta !== beforeCta)) changes.callToAction = afterCta;
     if (!before || !eqList(after.headlines, before.headlines || [])) {
