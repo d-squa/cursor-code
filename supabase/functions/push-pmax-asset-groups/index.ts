@@ -170,9 +170,14 @@ serve(async (req) => {
     // processing, those rows can be selected first on every retry and starve
     // the remaining awaiting asset groups, making the UI look like an infinite
     // push loop.
+    // Include `pushed_to_dsp` rows so adding new creatives after the initial
+    // push triggers `syncPmaxAssetGroupAssets` against the existing asset group.
+    // Without this, the function returns "No PMax asset groups awaiting push"
+    // and the new creatives never reach Google Ads even though the local
+    // `creative_assignments` rows are marked pushed by the reconciler.
     const eligibleStatuses = retryFailed
-      ? ["awaiting_assets", "push_failed", "assets_incomplete"]
-      : ["awaiting_assets"];
+      ? ["awaiting_assets", "push_failed", "assets_incomplete", "pushed_to_dsp"]
+      : ["awaiting_assets", "pushed_to_dsp"];
 
     let rowsQuery = supabase
       .from("campaign_launch_status")
@@ -185,7 +190,12 @@ serve(async (req) => {
     if (marketFilter) rowsQuery = rowsQuery.eq("market", marketFilter);
     if (phaseFilter) rowsQuery = rowsQuery.eq("phase_name", phaseFilter);
 
-    const { data: pendingRows, error: pendingErr } = await rowsQuery;
+    const { data: rawRows, error: pendingErr } = await rowsQuery;
+    // For already-pushed rows, only resync when we have a real assetGroups
+    // resource on file (otherwise there's nothing to sync into).
+    const pendingRows = (rawRows || []).filter((r: any) =>
+      r.status !== "pushed_to_dsp" || String(r.dsp_entity_id || "").includes("/assetGroups/"),
+    );
     if (pendingErr) {
       return new Response(
         JSON.stringify({ error: pendingErr.message }),
