@@ -38,8 +38,16 @@ export const PMAX_LIMITS = {
   MARKETING_IMAGE_MIN_H: 314,
   SQUARE_IMAGE_MIN_W: 300,
   SQUARE_IMAGE_MIN_H: 300,
+  PORTRAIT_IMAGE_MIN_W: 480,
+  PORTRAIT_IMAGE_MIN_H: 600,
   LOGO_MIN_W: 128,
   LOGO_MIN_H: 128,
+  // Google PMax per-asset-group maximums (official API caps).
+  MAX_MARKETING_IMAGES: 20,
+  MAX_SQUARE_IMAGES: 20,
+  MAX_PORTRAIT_IMAGES: 20,
+  MAX_LOGOS: 5,
+  MAX_VIDEOS: 5,
 } as const;
 
 const ASPECT_TOLERANCE = 0.05;
@@ -61,6 +69,13 @@ function isSquare(width?: number, height?: number): boolean {
   return Math.abs(a - 1.0) <= ASPECT_TOLERANCE;
 }
 
+/** Portrait 4:5 (0.8) aspect for PMax portrait marketing images. */
+function isPortrait45(width?: number, height?: number): boolean {
+  const a = aspect(width, height);
+  if (a == null) return false;
+  return Math.abs(a - 0.8) <= ASPECT_TOLERANCE;
+}
+
 /** Heuristic: a creative is a "logo" if its name/folder hints at logo OR it's
  *  square and ≤512px on its longest side. Asset library uploads typically tag
  *  these explicitly via folder name. */
@@ -78,6 +93,7 @@ function looksLikeLogo(row: CreativeTextAssetRow): boolean {
 export interface PmaxImageBuckets {
   marketingImages: CreativeTextAssetRow[];   // 1.91:1 ≥600×314
   squareImages: CreativeTextAssetRow[];      // 1:1 ≥300×300 (non-logo)
+  portraitImages: CreativeTextAssetRow[];    // 4:5 ≥480×600
   logos: CreativeTextAssetRow[];             // 1:1 ≥128×128 (logo-tagged or small square)
   videos: CreativeTextAssetRow[];
   unclassified: CreativeTextAssetRow[];
@@ -87,6 +103,7 @@ export function bucketPmaxImages(rows: CreativeTextAssetRow[]): PmaxImageBuckets
   const buckets: PmaxImageBuckets = {
     marketingImages: [],
     squareImages: [],
+    portraitImages: [],
     logos: [],
     videos: [],
     unclassified: [],
@@ -111,9 +128,64 @@ export function bucketPmaxImages(rows: CreativeTextAssetRow[]): PmaxImageBuckets
       buckets.squareImages.push(r);
       continue;
     }
+    if (isPortrait45(w, h) && w >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_W && h >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_H) {
+      buckets.portraitImages.push(r);
+      continue;
+    }
     buckets.unclassified.push(r);
   }
   return buckets;
+}
+
+/** Classify a single creative-like input into a PMax bucket, or null if it does
+ *  not fit any of the 5 PMax buckets (marketing / square / portrait / logo / video).
+ *  Used by the matching engine to pre-filter assets for PMax ad sets. */
+export type PmaxBucketName = 'marketing' | 'square' | 'portrait' | 'logo' | 'video';
+
+export interface PmaxClassifyInput {
+  width?: number;
+  height?: number;
+  mediaType?: string;
+  filename?: string;
+  folderPath?: string;
+  name?: string;
+  /** YouTube/platform video id (Google requires uploaded videos for PMax). */
+  platformVideoId?: string;
+}
+
+export function classifyPmaxAsset(input: PmaxClassifyInput): PmaxBucketName | null {
+  const w = Number(input.width || 0);
+  const h = Number(input.height || 0);
+  const mediaType = (input.mediaType || '').toLowerCase();
+  const isVideo = mediaType === 'video' || !!input.platformVideoId;
+  if (isVideo) {
+    // Google PMax only accepts YouTube-hosted videos (platform_video_id).
+    return input.platformVideoId ? 'video' : null;
+  }
+  if (!w || !h) return null;
+  const hay = `${input.filename || ''} ${input.name || ''} ${input.folderPath || ''}`.toLowerCase();
+  const logoHint = /\blogo\b/.test(hay);
+  if (isSquare(w, h)) {
+    if ((logoHint || Math.max(w, h) <= 512) && w >= PMAX_LIMITS.LOGO_MIN_W && h >= PMAX_LIMITS.LOGO_MIN_H) {
+      return 'logo';
+    }
+    if (w >= PMAX_LIMITS.SQUARE_IMAGE_MIN_W && h >= PMAX_LIMITS.SQUARE_IMAGE_MIN_H) {
+      return 'square';
+    }
+    return null;
+  }
+  if (isLandscape191(w, h) && w >= PMAX_LIMITS.MARKETING_IMAGE_MIN_W && h >= PMAX_LIMITS.MARKETING_IMAGE_MIN_H) {
+    return 'marketing';
+  }
+  if (isPortrait45(w, h) && w >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_W && h >= PMAX_LIMITS.PORTRAIT_IMAGE_MIN_H) {
+    return 'portrait';
+  }
+  return null;
+}
+
+/** True if an asset can attach to a PMax asset group (any of the 5 buckets). */
+export function isPmaxEligibleAsset(input: PmaxClassifyInput): boolean {
+  return classifyPmaxAsset(input) !== null;
 }
 
 export interface PmaxTextValues {
@@ -276,6 +348,22 @@ export function validatePmaxImages(buckets: PmaxImageBuckets): PmaxValidationIss
       field: 'videos',
     });
   }
+  // Over-cap errors — Google PMax rejects asset groups that exceed these counts.
+  const overCap = (count: number, max: number, label: string, code: string) => {
+    if (count > max) {
+      issues.push({
+        code,
+        message: `Too many ${label}: ${count} attached, Google PMax allows max ${max} per asset group. Remove ${count - max} to push.`,
+        severity: 'error',
+        field: 'images',
+      });
+    }
+  };
+  overCap(buckets.marketingImages.length, PMAX_LIMITS.MAX_MARKETING_IMAGES, 'Marketing Images (1.91:1)', 'TOO_MANY_MARKETING_IMAGES');
+  overCap(buckets.squareImages.length, PMAX_LIMITS.MAX_SQUARE_IMAGES, 'Square Marketing Images (1:1)', 'TOO_MANY_SQUARE_IMAGES');
+  overCap(buckets.portraitImages.length, PMAX_LIMITS.MAX_PORTRAIT_IMAGES, 'Portrait Marketing Images (4:5)', 'TOO_MANY_PORTRAIT_IMAGES');
+  overCap(buckets.logos.length, PMAX_LIMITS.MAX_LOGOS, 'Logos (1:1)', 'TOO_MANY_LOGOS');
+  overCap(buckets.videos.length, PMAX_LIMITS.MAX_VIDEOS, 'Videos', 'TOO_MANY_VIDEOS');
   return issues;
 }
 

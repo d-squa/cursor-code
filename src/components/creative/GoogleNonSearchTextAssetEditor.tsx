@@ -436,12 +436,30 @@ export function GoogleNonSearchTextAssetEditor({
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; assignmentIds: string[] } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [trimGroup, setTrimGroup] = useState<PmaxAssetGroupValidation | null>(null);
+  const [trimKeepIds, setTrimKeepIds] = useState<Set<string>>(new Set());
   const [drafts, setDrafts] = useState<NonSearchAdDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<NonSearchAdDraft | null>(null);
   const [typeFilter, setTypeFilter] = useState<'all' | GoogleNonSearchType>('all');
   const [validityFilter, setValidityFilter] = useState<'all' | 'invalid' | 'valid'>('all');
+
+  // Seed trim picker: keep the first MAX-N from each bucket by default so the
+  // user starts at exactly cap and only deselects to drop further.
+  useEffect(() => {
+    if (!trimGroup) return;
+    const keep = new Set<string>();
+    const seedBucket = (items: { id: string }[], max: number) => {
+      items.slice(0, max).forEach((r) => keep.add(r.id));
+    };
+    seedBucket(trimGroup.buckets.marketingImages, PMAX_LIMITS.MAX_MARKETING_IMAGES);
+    seedBucket(trimGroup.buckets.squareImages, PMAX_LIMITS.MAX_SQUARE_IMAGES);
+    seedBucket(trimGroup.buckets.portraitImages, PMAX_LIMITS.MAX_PORTRAIT_IMAGES);
+    seedBucket(trimGroup.buckets.logos, PMAX_LIMITS.MAX_LOGOS);
+    seedBucket(trimGroup.buckets.videos, PMAX_LIMITS.MAX_VIDEOS);
+    setTrimKeepIds(keep);
+  }, [trimGroup]);
 
   // Filter input rows: must be google, must have a detectable non-Search type,
   // and (optionally) match the scope requested by the caller.
@@ -1202,10 +1220,21 @@ export function GoogleNonSearchTextAssetEditor({
                       <span>H: {g.text.headlines.length}/3</span>
                       <span>LH: {g.text.longHeadlines.length}/1</span>
                       <span>D: {g.text.descriptions.length}/2</span>
-                      <span>1.91:1: {g.buckets.marketingImages.length}</span>
-                      <span>1:1: {g.buckets.squareImages.length}</span>
-                      <span>Logo: {g.buckets.logos.length}</span>
-                      <span>Video: {g.buckets.videos.length}</span>
+                      <span className={cn(g.buckets.marketingImages.length > PMAX_LIMITS.MAX_MARKETING_IMAGES && 'text-destructive font-semibold')}>
+                        1.91:1: {g.buckets.marketingImages.length}/{PMAX_LIMITS.MAX_MARKETING_IMAGES}
+                      </span>
+                      <span className={cn(g.buckets.squareImages.length > PMAX_LIMITS.MAX_SQUARE_IMAGES && 'text-destructive font-semibold')}>
+                        1:1: {g.buckets.squareImages.length}/{PMAX_LIMITS.MAX_SQUARE_IMAGES}
+                      </span>
+                      <span className={cn(g.buckets.portraitImages.length > PMAX_LIMITS.MAX_PORTRAIT_IMAGES && 'text-destructive font-semibold')}>
+                        4:5: {g.buckets.portraitImages.length}/{PMAX_LIMITS.MAX_PORTRAIT_IMAGES}
+                      </span>
+                      <span className={cn(g.buckets.logos.length > PMAX_LIMITS.MAX_LOGOS && 'text-destructive font-semibold')}>
+                        Logo: {g.buckets.logos.length}/{PMAX_LIMITS.MAX_LOGOS}
+                      </span>
+                      <span className={cn(g.buckets.videos.length > PMAX_LIMITS.MAX_VIDEOS && 'text-destructive font-semibold')}>
+                        Video: {g.buckets.videos.length}/{PMAX_LIMITS.MAX_VIDEOS}
+                      </span>
                     </div>
                     {g.errors.length > 0 && (
                       <ul className="mt-1 list-disc list-inside text-destructive space-y-0.5">
@@ -1213,17 +1242,34 @@ export function GoogleNonSearchTextAssetEditor({
                       </ul>
                     )}
                   </div>
-                  {onApplyImagesToAllPmaxGroups && (g.buckets.marketingImages.length > 0 || g.buckets.squareImages.length > 0 || g.buckets.logos.length > 0) && pmaxGroups.length > 1 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-[10px] shrink-0"
-                      onClick={() => onApplyImagesToAllPmaxGroups(g.groupKey)}
-                    >
-                      <Images className="h-3 w-3 mr-1" />
-                      Apply images to all groups
-                    </Button>
-                  )}
+                  <div className="flex flex-col gap-1 shrink-0">
+                    {(g.buckets.marketingImages.length > PMAX_LIMITS.MAX_MARKETING_IMAGES ||
+                      g.buckets.squareImages.length > PMAX_LIMITS.MAX_SQUARE_IMAGES ||
+                      g.buckets.portraitImages.length > PMAX_LIMITS.MAX_PORTRAIT_IMAGES ||
+                      g.buckets.logos.length > PMAX_LIMITS.MAX_LOGOS ||
+                      g.buckets.videos.length > PMAX_LIMITS.MAX_VIDEOS) && onDeleteAssignments && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-[10px]"
+                        onClick={() => setTrimGroup(g)}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Pick which to keep
+                      </Button>
+                    )}
+                    {onApplyImagesToAllPmaxGroups && (g.buckets.marketingImages.length > 0 || g.buckets.squareImages.length > 0 || g.buckets.logos.length > 0) && pmaxGroups.length > 1 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[10px]"
+                        onClick={() => onApplyImagesToAllPmaxGroups(g.groupKey)}
+                      >
+                        <Images className="h-3 w-3 mr-1" />
+                        Apply images to all groups
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1497,6 +1543,133 @@ export function GoogleNonSearchTextAssetEditor({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PMax over-cap picker — let user choose which creatives to keep when
+          any bucket exceeds Google's per-asset-group maximums. */}
+      <Dialog open={!!trimGroup} onOpenChange={(o) => !o && setTrimGroup(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Pick which creatives to keep</DialogTitle>
+            <DialogDescription>
+              {trimGroup && (
+                <>
+                  <span className="font-medium">{trimGroup.market} · {trimGroup.phase} · {trimGroup.adGroup}</span>
+                  <br />
+                  Google PMax allows max 20 marketing / 20 square / 20 portrait / 5 logos / 5 videos per asset group. Uncheck creatives to remove them from this asset group.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {trimGroup && (() => {
+            const renderBucket = (
+              label: string,
+              max: number,
+              items: typeof trimGroup.buckets.marketingImages,
+            ) => {
+              if (items.length === 0) return null;
+              const overCap = items.length > max;
+              const keptCount = items.filter((r) => trimKeepIds.has(r.id)).length;
+              return (
+                <div key={label} className="border rounded p-2">
+                  <div className={cn(
+                    'flex items-center justify-between mb-2 text-xs font-semibold',
+                    overCap && keptCount > max && 'text-destructive',
+                  )}>
+                    <span>{label}</span>
+                    <span>{keptCount}/{max} kept ({items.length} attached)</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {items.map((r) => {
+                      const checked = trimKeepIds.has(r.id);
+                      return (
+                        <label
+                          key={r.id}
+                          className={cn(
+                            'flex items-start gap-2 border rounded p-2 cursor-pointer text-[11px]',
+                            checked ? 'border-primary/50 bg-primary/5' : 'border-muted bg-muted/20 opacity-60',
+                          )}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(c) => {
+                              setTrimKeepIds((prev) => {
+                                const next = new Set(prev);
+                                if (c) next.add(r.id);
+                                else next.delete(r.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate font-medium">{r.creativeName || r.originalFilename || r.id}</div>
+                            <div className="text-muted-foreground">
+                              {(r.width || '?')} × {(r.height || '?')}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            };
+            return (
+              <div className="flex-1 overflow-y-auto space-y-3">
+                {renderBucket(`Marketing Images (1.91:1)`, PMAX_LIMITS.MAX_MARKETING_IMAGES, trimGroup.buckets.marketingImages)}
+                {renderBucket(`Square Marketing Images (1:1)`, PMAX_LIMITS.MAX_SQUARE_IMAGES, trimGroup.buckets.squareImages)}
+                {renderBucket(`Portrait Marketing Images (4:5)`, PMAX_LIMITS.MAX_PORTRAIT_IMAGES, trimGroup.buckets.portraitImages)}
+                {renderBucket(`Logos (1:1)`, PMAX_LIMITS.MAX_LOGOS, trimGroup.buckets.logos)}
+                {renderBucket(`Videos`, PMAX_LIMITS.MAX_VIDEOS, trimGroup.buckets.videos)}
+              </div>
+            );
+          })()}
+          <div className="flex justify-end gap-2 pt-3 border-t">
+            <Button variant="outline" onClick={() => setTrimGroup(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={!trimGroup || (() => {
+                if (!trimGroup) return true;
+                const b = trimGroup.buckets;
+                return (
+                  b.marketingImages.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_MARKETING_IMAGES ||
+                  b.squareImages.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_SQUARE_IMAGES ||
+                  b.portraitImages.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_PORTRAIT_IMAGES ||
+                  b.logos.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_LOGOS ||
+                  b.videos.filter((r) => trimKeepIds.has(r.id)).length > PMAX_LIMITS.MAX_VIDEOS
+                );
+              })()}
+              onClick={async () => {
+                if (!trimGroup || !onDeleteAssignments) return;
+                const allRows = [
+                  ...trimGroup.buckets.marketingImages,
+                  ...trimGroup.buckets.squareImages,
+                  ...trimGroup.buckets.portraitImages,
+                  ...trimGroup.buckets.logos,
+                  ...trimGroup.buckets.videos,
+                ];
+                const toRemove = allRows.filter((r) => !trimKeepIds.has(r.id));
+                const assignmentIds = Array.from(new Set(
+                  toRemove.map((r) => r.assignmentId).filter(Boolean),
+                ));
+                if (assignmentIds.length === 0) {
+                  setTrimGroup(null);
+                  return;
+                }
+                try {
+                  await onDeleteAssignments(assignmentIds);
+                  toast.success(`Removed ${assignmentIds.length} creative${assignmentIds.length === 1 ? '' : 's'} from asset group`);
+                } catch (err) {
+                  console.error('[pmax-trim] delete failed:', err);
+                  toast.error('Failed to remove creatives');
+                }
+                setTrimGroup(null);
+              }}
+            >
+              Remove unchecked
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

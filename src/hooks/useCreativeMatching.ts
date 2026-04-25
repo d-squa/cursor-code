@@ -7,6 +7,7 @@ import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types
 import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode, getDefaultAdSetParams, extractTaxonomyValues, generateTaxonomyString, TaxonomyContext, TaxonomyParam } from '@/utils/taxonomyUtils';
 import { validateCreativeForAds, findCompatibleFormats, PLATFORM_AD_SPECS } from '@/utils/platformAdSpecs';
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from '@/utils/searchStrategyCampaigns';
+import { classifyPmaxAsset } from '@/utils/pmaxAssetGroupValidation';
 
 // Helper to generate taxonomy-based creative name
 function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
@@ -2615,6 +2616,41 @@ function matchAssetToStructure(
       reason: `"${taxonomyCampaignType}" matches (${signals.sources.campaignType || 'filename'})`,
     });
     score += 10;
+  }
+
+  // STRICT: PMax eligibility — block any asset that doesn't fit one of the 5
+  // PMax buckets (marketing 1.91:1, square 1:1, portrait 4:5, logo, video).
+  // This prevents Google-eligible-but-PMax-ineligible assets (e.g. 9:16 reels,
+  // Discovery sizes, undersized images) from ever reaching the PMax editor.
+  const isPmaxAdSet =
+    structure.platform === 'google' &&
+    (requiredCampaignType === 'pmax' ||
+      requiredCampaignType === 'performancemax' ||
+      /performance.?max|\bpmax\b/i.test(`${structure.googleCampaignType || ''} ${structure.adSetName || ''}`));
+  if (isPmaxAdSet) {
+    const bucket = classifyPmaxAsset({
+      width: asset.technicalAttributes.width,
+      height: asset.technicalAttributes.height,
+      mediaType: asset.mediaType,
+      filename: (asset as any).fileName,
+      folderPath: (asset as any).filePath,
+      name: (asset as any).fileName,
+      platformVideoId:
+        (asset as any).platformVideoId ||
+        (asset as any).platform_video_id ||
+        (asset as any).compatibilitySignals?.platformVideoId,
+    });
+    if (!bucket) {
+      blockingReasons.push(
+        `PMax ineligible: asset ${asset.technicalAttributes.width || '?'}×${asset.technicalAttributes.height || '?'} (${asset.mediaType}) does not fit any Performance Max bucket (Marketing 1.91:1 ≥600×314, Square 1:1 ≥300×300, Portrait 4:5 ≥480×600, Logo 1:1 ≥128×128, Video must be a YouTube link).`,
+      );
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+    matchedCriteria.push({
+      criterion: 'PMax bucket',
+      reason: `Fits Google PMax "${bucket}" slot`,
+    });
+    score += 5;
   }
 
   // STRICT: Video-only optimization goals cannot match image assets
