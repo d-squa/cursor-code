@@ -712,6 +712,9 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
   const HEADLINE_LIMIT = 30;
   const LONG_HEADLINE_LIMIT = 90;
   const DESCRIPTION_LIMIT = 90;
+  const SHORT_DESCRIPTION_LIMIT = 60; // Google PMax requires at least one description ≤60 chars
+  // Per-slot description limits: slot 1 is the mandatory short description.
+  const descriptionLimitForSlot = (i: number) => (i === 0 ? SHORT_DESCRIPTION_LIMIT : DESCRIPTION_LIMIT);
 
   const headlineHeaders: string[] = [];
   for (let i = 1; i <= HEADLINE_SLOTS; i++) {
@@ -723,7 +726,9 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
   }
   const descriptionHeaders: string[] = [];
   for (let i = 1; i <= DESCRIPTION_SLOTS; i++) {
-    descriptionHeaders.push(`Description ${i} (max ${DESCRIPTION_LIMIT})`, `LEN D${i}`);
+    const lim = descriptionLimitForSlot(i - 1);
+    const label = i === 1 ? `Short Description 1 (max ${lim}, REQUIRED)` : `Description ${i} (max ${lim})`;
+    descriptionHeaders.push(label, `LEN D${i}`);
   }
 
   const headers = [
@@ -804,7 +809,10 @@ export async function downloadGooglePmaxAssetGroupShell(input: {
       const valColLetter = XLSX.utils.encode_col(valColIdx);
       let limit = HEADLINE_LIMIT;
       if (s >= HEADLINE_SLOTS && s < HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) limit = LONG_HEADLINE_LIMIT;
-      else if (s >= HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) limit = DESCRIPTION_LIMIT;
+      else if (s >= HEADLINE_SLOTS + LONG_HEADLINE_SLOTS) {
+        const descIdx = s - HEADLINE_SLOTS - LONG_HEADLINE_SLOTS;
+        limit = descriptionLimitForSlot(descIdx);
+      }
       setLenFormula(ws, lenColIdx, r + 1, valColLetter, limit);
     }
   }
