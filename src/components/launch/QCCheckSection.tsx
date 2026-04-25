@@ -114,6 +114,39 @@ export function QCCheckSection({
     openMistakesForTracking,
   } = useSetupMistakes({ campaignId, enabled: !!campaignId });
 
+  const openMistakesByTracking = useMemo(() => {
+    const map: Record<string, SetupMistake[]> = {};
+    setupMistakes.forEach((m) => {
+      if (m.status !== "open" || !m.qc_tracking_id) return;
+      if (!map[m.qc_tracking_id]) map[m.qc_tracking_id] = [];
+      map[m.qc_tracking_id].push(m);
+    });
+    return map;
+  }, [setupMistakes]);
+
+  const handleLogMistake = useCallback((item: QCTrackingItem) => {
+    setSetupMistakeContext({
+      campaignId: campaignId || item.campaign_id,
+      qcTrackingId: item.id,
+      platform: item.platform,
+      market: item.market,
+      phaseName: item.phase_name,
+      adSetName: item.ad_set_name,
+      adName: item.entity_type === "ad" ? (item.entity_name || null) : null,
+      entityType: item.entity_type,
+    });
+    setSetupMistakeDialogOpen(true);
+  }, [campaignId]);
+
+  const handleResolveMistake = useCallback(async (mistakeId: string) => {
+    try {
+      await resolveMistake(mistakeId);
+      toast.success("Setup mistake resolved");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to resolve");
+    }
+  }, [resolveMistake]);
+
   // Send stakeholder notification when campaign goes live
   const sendLiveNotification = useCallback(async () => {
     if (!campaignId) return;
