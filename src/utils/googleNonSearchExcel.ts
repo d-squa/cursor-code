@@ -141,7 +141,12 @@ export const GOOGLE_NON_SEARCH_SHEETS: Record<GoogleNonSearchType, GoogleNonSear
   },
 };
 
-/** Headers + data rows for a given Google non-Search type. */
+/** Headers + data rows for a given Google non-Search type.
+ *
+ * For PMax, rows are DEDUPED by (market, phase, ad_group) — text assets are a
+ * shared pool per asset group, not per creative. The "Creative Name" column
+ * lists every creative in the pool (newline-separated). For other types the
+ * sheet remains one row per creative assignment. */
 export function buildSheetForGoogleType(
   rows: CreativeTextAssetRow[],
   type: GoogleNonSearchType,
@@ -152,12 +157,41 @@ export function buildSheetForGoogleType(
   const widths = cols.map((c) => c.width || 20);
 
   const filtered = rows.filter((r) => detectGoogleNonSearchType(r) === type);
-  const data = filtered.map((row) =>
+
+  // PMax: dedupe by (market, phase, adSet); pick the most-populated row per
+  // group as the source of text values, and join creative names.
+  let materialRows: CreativeTextAssetRow[] = filtered;
+  const creativeNamesByRowId = new Map<string, string>();
+  if (type === 'pmax') {
+    const groups = new Map<string, CreativeTextAssetRow[]>();
+    for (const r of filtered) {
+      const key = [r.market || '', r.phase || '', r.adSet || ''].join('||');
+      const arr = groups.get(key) || [];
+      arr.push(r);
+      groups.set(key, arr);
+    }
+    materialRows = [];
+    const score = (r: any) =>
+      [r.headline, r.headline2, r.headline3, r.headline4, r.headline5,
+       r.long_headline_1, r.long_headline_2, r.description, r.description2,
+       r.business_name, r.brandName, r.destinationUrl]
+        .filter((v) => v && String(v).trim()).length;
+    for (const [, group] of groups) {
+      const anchor = group.reduce((best, cur) => (score(cur) > score(best) ? cur : best), group[0]);
+      materialRows.push(anchor);
+      const names = group.map((g) => g.creativeName).filter(Boolean).join('\n');
+      creativeNamesByRowId.set(anchor.id, names || String(anchor.creativeName || ''));
+    }
+  }
+
+  const data = materialRows.map((row) =>
     cols.map((c) => {
+      // PMax: replace single creative name with joined pool list.
+      if (type === 'pmax' && c.key === 'creativeName') {
+        return creativeNamesByRowId.get(row.id) || String((row as any).creativeName || '');
+      }
       const value = (row as any)[c.key];
       if (c.key === 'callToAction') {
-        // Export the UI-friendly label (e.g. "Learn More") so users see/edit a
-        // human-readable value. Import re-normalises to the enum.
         const normalized = normalizeGoogleCta(value);
         const opt = GOOGLE_CTA_OPTIONS.find((o) => o.value === normalized);
         return opt ? opt.label : '';

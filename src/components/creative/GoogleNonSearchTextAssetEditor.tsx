@@ -43,6 +43,7 @@ import { GOOGLE_CTA_OPTIONS, normalizeGoogleCta, googleCtaDisplayText } from '@/
 import { GoogleBulkApplyBar, type BulkParameterDef, type BulkApplyScope } from './GoogleBulkApplyBar';
 import {
   validatePmaxAssetGroups,
+  pmaxGroupKey,
   PMAX_LIMITS,
   type PmaxAssetGroupValidation,
 } from '@/utils/pmaxAssetGroupValidation';
@@ -512,18 +513,103 @@ export function GoogleNonSearchTextAssetEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // ---------- PMax pool model ----------
+  // For PMax, group drafts by (market, phase, ad_group). One anchor draft per
+  // group is shown in the editor; all other drafts in the same group are
+  // "shadow" rows that share the anchor's text. Editing the anchor propagates
+  // text changes to every shadow so saved data stays consistent.
+  const pmaxGroupMembers = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const d of drafts) {
+      if (d.type !== 'pmax') continue;
+      const r = scopedRows.find((row) => row.id === d.rowId);
+      if (!r) continue;
+      const key = pmaxGroupKey(r.market, r.phase, r.adSet);
+      const arr = map.get(key) || [];
+      arr.push(d.rowId);
+      map.set(key, arr);
+    }
+    return map;
+  }, [drafts, scopedRows]);
+
+  const pmaxAnchorByGroup = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+      let bestId = rowIds[0];
+      let bestScore = -1;
+      for (const id of rowIds) {
+        const d = drafts.find((x) => x.rowId === id);
+        if (!d) continue;
+        const score =
+          d.headlines.filter((x) => x?.trim()).length +
+          d.longHeadlines.filter((x) => x?.trim()).length +
+          d.descriptions.filter((x) => x?.trim()).length +
+          (d.businessName?.trim() ? 1 : 0) +
+          (d.finalUrl?.trim() ? 1 : 0);
+        if (score > bestScore) { bestScore = score; bestId = id; }
+      }
+      out.set(key, bestId);
+    }
+    return out;
+  }, [pmaxGroupMembers, drafts]);
+
+  const pmaxShadowRowIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+      const anchor = pmaxAnchorByGroup.get(key);
+      for (const id of rowIds) if (id !== anchor) set.add(id);
+    }
+    return set;
+  }, [pmaxGroupMembers, pmaxAnchorByGroup]);
+
+  const getPmaxShadowsFor = useCallback((rowId: string): string[] => {
+    for (const [key, rowIds] of pmaxGroupMembers.entries()) {
+      if (pmaxAnchorByGroup.get(key) !== rowId) continue;
+      return rowIds.filter((id) => id !== rowId);
+    }
+    return [];
+  }, [pmaxGroupMembers, pmaxAnchorByGroup]);
+
   const filteredDrafts = useMemo(() => {
     return drafts.filter((d) => {
+      // PMax shadow rows are hidden — only the anchor draft per group is shown.
+      if (d.type === 'pmax' && pmaxShadowRowIds.has(d.rowId)) return false;
       if (typeFilter !== 'all' && d.type !== typeFilter) return false;
       if (validityFilter === 'invalid' && !isDraftInvalid(d)) return false;
       if (validityFilter === 'valid' && isDraftInvalid(d)) return false;
       return true;
     });
-  }, [drafts, typeFilter, validityFilter]);
+  }, [drafts, typeFilter, validityFilter, pmaxShadowRowIds]);
+
+  // Apply a text/field patch from the anchor draft to all shadow drafts in
+  // the same PMax group (local state + upstream onRowChange for each).
+  const propagateToPmaxShadows = useCallback((
+    anchorRowId: string,
+    nextDrafts: NonSearchAdDraft[],
+  ): NonSearchAdDraft[] => {
+    const shadowIds = getPmaxShadowsFor(anchorRowId);
+    if (shadowIds.length === 0) return nextDrafts;
+    const anchor = nextDrafts.find((d) => d.rowId === anchorRowId);
+    if (!anchor) return nextDrafts;
+    const sharedPatch: Partial<NonSearchAdDraft> = {
+      headlines: anchor.headlines.slice(),
+      longHeadlines: anchor.longHeadlines.slice(),
+      descriptions: anchor.descriptions.slice(),
+      businessName: anchor.businessName,
+      finalUrl: anchor.finalUrl,
+      callToAction: anchor.callToAction,
+    };
+    const shadowSet = new Set(shadowIds);
+    const out = nextDrafts.map((d) => (shadowSet.has(d.rowId) ? { ...d, ...sharedPatch } : d));
+    out.filter((d) => shadowSet.has(d.rowId)).forEach((d) => {
+      onRowChange(d.rowId, draftToRowUpdates(d));
+    });
+    return out;
+  }, [getPmaxShadowsFor, onRowChange]);
 
   const setHeadline = useCallback((rowId: string, idx: number, value: string) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => {
+      let next = prev.map((d) => {
         if (d.rowId !== rowId) return d;
         const max = SCHEMAS[d.type].headlineMax;
         const headlines = d.headlines.slice();
@@ -531,14 +617,17 @@ export function GoogleNonSearchTextAssetEditor({
         return { ...d, headlines };
       });
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const setLongHeadline = useCallback((rowId: string, idx: number, value: string) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => {
+      let next = prev.map((d) => {
         if (d.rowId !== rowId) return d;
         const max = SCHEMAS[d.type].longHeadlineMax;
         const longHeadlines = d.longHeadlines.slice();
@@ -546,14 +635,17 @@ export function GoogleNonSearchTextAssetEditor({
         return { ...d, longHeadlines };
       });
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const setDescription = useCallback((rowId: string, idx: number, value: string) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => {
+      let next = prev.map((d) => {
         if (d.rowId !== rowId) return d;
         const max = SCHEMAS[d.type].descriptionMax;
         const descriptions = d.descriptions.slice();
@@ -561,19 +653,25 @@ export function GoogleNonSearchTextAssetEditor({
         return { ...d, descriptions };
       });
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const updateField = useCallback((rowId: string, patch: Partial<NonSearchAdDraft>) => {
     setDrafts((prev) => {
-      const next = prev.map((d) => (d.rowId === rowId ? { ...d, ...patch } : d));
+      let next = prev.map((d) => (d.rowId === rowId ? { ...d, ...patch } : d));
       const updated = next.find((d) => d.rowId === rowId);
-      if (updated) onRowChange(rowId, draftToRowUpdates(updated));
+      if (updated) {
+        onRowChange(rowId, draftToRowUpdates(updated));
+        if (updated.type === 'pmax') next = propagateToPmaxShadows(rowId, next);
+      }
       return next;
     });
-  }, [onRowChange]);
+  }, [onRowChange, propagateToPmaxShadows]);
 
   const toggleSelect = useCallback((rowId: string, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -866,6 +964,17 @@ export function GoogleNonSearchTextAssetEditor({
   );
   const pmaxFailingCount = pmaxGroups.filter((g) => !g.isValid).length;
 
+  // Group key -> validation mapping, keyed by anchor rowId, for the
+  // per-row "Invalid/OK" badge in the table.
+  const pmaxGroupByRowId = useMemo(() => {
+    const out = new Map<string, PmaxAssetGroupValidation>();
+    for (const g of pmaxGroups) {
+      const anchor = pmaxAnchorByGroup.get(g.groupKey);
+      if (anchor) out.set(anchor, g);
+    }
+    return out;
+  }, [pmaxGroups, pmaxAnchorByGroup]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden flex flex-col">
@@ -1062,7 +1171,18 @@ export function GoogleNonSearchTextAssetEditor({
                   const sch = SCHEMAS[d.type];
                   const filledH = d.headlines.filter((x) => x.trim()).length;
                   const filledD = d.descriptions.filter((x) => x.trim()).length;
-                  const invalid = isDraftInvalid(d);
+                  // For PMax anchors, use the group-level validation result so
+                  // the badge reflects the asset POOL — not whether this single
+                  // row's text is filled in.
+                  const groupValidation = d.type === 'pmax' ? pmaxGroupByRowId.get(d.rowId) : undefined;
+                  const invalid = groupValidation ? !groupValidation.isValid : isDraftInvalid(d);
+                  const groupSize = d.type === 'pmax'
+                    ? (pmaxGroupMembers.get(pmaxGroupKey(d.market, d.adGroupName, d.adGroupName))?.length || 1)
+                    : 1;
+                  // Count creatives in the group (= number of shadow + anchor rows).
+                  const creativeCount = d.type === 'pmax'
+                    ? Array.from(pmaxGroupMembers.values()).find((ids) => ids.includes(d.rowId))?.length || 1
+                    : 1;
                   return (
                     <div
                       key={d.rowId}
@@ -1079,7 +1199,12 @@ export function GoogleNonSearchTextAssetEditor({
                       <div className="px-2 py-2 min-w-0">
                         <div className="font-medium truncate">{d.campaignName || '—'}</div>
                         <div className="text-muted-foreground truncate">{d.adGroupName || '—'}</div>
-                        <div className="text-[10px] text-muted-foreground">{d.market}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {d.market}
+                          {d.type === 'pmax' && creativeCount > 1 && (
+                            <span className="ml-1">· {creativeCount} creatives in pool</span>
+                          )}
+                        </div>
                       </div>
                       <div className="px-2 py-2"><Badge variant="outline" className="text-[10px]">{sch.label}</Badge></div>
                       <div className="px-2 py-2"><GoogleNonSearchPreview draft={d} compact /></div>
@@ -1107,6 +1232,19 @@ export function GoogleNonSearchTextAssetEditor({
                     <div className="text-sm font-semibold">{focusedDraft.campaignName || '—'}</div>
                     <div className="text-xs text-muted-foreground">{focusedDraft.adGroupName} · {focusedSchema.label}</div>
                   </div>
+                  {focusedDraft.type === 'pmax' && (() => {
+                    const groupRowIds = Array.from(pmaxGroupMembers.values()).find((ids) => ids.includes(focusedDraft.rowId)) || [focusedDraft.rowId];
+                    return (
+                      <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] leading-snug">
+                        <div className="font-semibold text-primary mb-0.5">Shared asset pool</div>
+                        <div className="text-muted-foreground">
+                          Text assets below are entered ONCE for this asset group and apply to all{' '}
+                          <span className="font-medium">{groupRowIds.length} creative{groupRowIds.length === 1 ? '' : 's'}</span>{' '}
+                          in the pool. Google automatically combines text + creatives across placements.
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <GoogleNonSearchPreview draft={focusedDraft} />
 
                   <Section title="Headlines" subtitle={`${focusedSchema.headlineMax} chars max — ${focusedSchema.minHeadlines}+ required`}>
