@@ -69,6 +69,13 @@ function isSquare(width?: number, height?: number): boolean {
   return Math.abs(a - 1.0) <= ASPECT_TOLERANCE;
 }
 
+/** Portrait 4:5 (0.8) aspect for PMax portrait marketing images. */
+function isPortrait45(width?: number, height?: number): boolean {
+  const a = aspect(width, height);
+  if (a == null) return false;
+  return Math.abs(a - 0.8) <= ASPECT_TOLERANCE;
+}
+
 /** Heuristic: a creative is a "logo" if its name/folder hints at logo OR it's
  *  square and ≤512px on its longest side. Asset library uploads typically tag
  *  these explicitly via folder name. */
