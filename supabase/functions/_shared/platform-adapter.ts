@@ -1697,6 +1697,29 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return resourceName;
   }
 
+  private async uploadImageAssetWithRetry(
+    customerId: string,
+    headers: Record<string, string>,
+    imageUrl: string,
+    name: string,
+    forceUnique: boolean = false,
+    cropAspectRatio: number | null = null,
+  ): Promise<string> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.uploadImageAsset(customerId, headers, imageUrl, name, forceUnique, cropAspectRatio);
+      } catch (error: any) {
+        lastError = error;
+        const message = String(error?.message || error);
+        const retryable = /modify the same resource|Retry the request|concurrent|temporar/i.test(message);
+        if (!retryable || attempt === 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+      }
+    }
+    throw lastError;
+  }
+
   /**
    * Ensure a YouTube video asset exists in the account; create it if not.
    * Returns the asset resource name (customers/X/assets/Y).
@@ -3663,6 +3686,79 @@ class GoogleAdsAdapter implements PlatformAdapter {
     return assetGroupResource;
   }
 
+  async syncPmaxAssetGroupAssets(
+    customerId: string,
+    headers: Record<string, string>,
+    params: {
+      assetGroupResource: string;
+      marketingImages: string[];
+      squareMarketingImages: string[];
+      portraitMarketingImages?: string[];
+      logoImages: string[];
+      landscapeLogoImages?: string[];
+      youtubeVideoIds?: string[];
+    },
+  ): Promise<number> {
+    type LinkSpec = { asset: string; fieldType: string };
+    const linkSpecs: LinkSpec[] = [];
+
+    const collectImages = async (urls: string[], fieldType: string, max: number, aspect: number | null) => {
+      const unique = Array.from(new Set(urls.map((u) => String(u || "").trim()).filter(Boolean))).slice(0, max);
+      for (let i = 0; i < unique.length; i++) {
+        try {
+          const asset = await this.uploadImageAssetWithRetry(customerId, headers, unique[i], `${fieldType} sync ${i + 1}`, false, aspect);
+          linkSpecs.push({ asset, fieldType });
+        } catch (e: any) {
+          console.warn(`[pmax-sync] failed to upload ${fieldType} image "${unique[i]}":`, e?.message || e);
+        }
+      }
+    };
+
+    await collectImages(params.marketingImages, "MARKETING_IMAGE", 20, 1.91);
+    await collectImages(params.squareMarketingImages, "SQUARE_MARKETING_IMAGE", 20, 1);
+    if (params.portraitMarketingImages?.length) await collectImages(params.portraitMarketingImages, "PORTRAIT_MARKETING_IMAGE", 20, 0.8);
+    await collectImages(params.logoImages, "LOGO", 5, 1);
+    if (params.landscapeLogoImages?.length) await collectImages(params.landscapeLogoImages, "LANDSCAPE_LOGO", 5, 4);
+
+    for (const videoId of Array.from(new Set((params.youtubeVideoIds || []).map((v) => String(v || "").trim()).filter(Boolean))).slice(0, 5)) {
+      try {
+        const asset = await this.ensureYouTubeVideoAsset(customerId, headers, videoId, `pmax video sync ${videoId}`);
+        linkSpecs.push({ asset, fieldType: "YOUTUBE_VIDEO" });
+      } catch (e: any) {
+        console.warn(`[pmax-sync] failed to ensure YouTube video "${videoId}":`, e?.message || e);
+      }
+    }
+
+    if (linkSpecs.length === 0) return 0;
+    const mutateResp = await fetch(`${this.API_BASE}/customers/${customerId}/googleAds:mutate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        partialFailure: true,
+        mutateOperations: linkSpecs.map((spec) => ({
+          assetGroupAssetOperation: {
+            create: {
+              assetGroup: params.assetGroupResource,
+              asset: spec.asset,
+              fieldType: spec.fieldType,
+            },
+          },
+        })),
+      }),
+    });
+
+    if (!mutateResp.ok) {
+      const errText = await mutateResp.text();
+      throw new Error(`AssetGroup asset sync failed: ${this.summarizeGoogleAdsError(errText)}`);
+    }
+
+    const mutateData = await mutateResp.json();
+    if (mutateData?.partialFailureError) {
+      console.warn("[pmax-sync] partial failures while linking assets:", JSON.stringify(mutateData.partialFailureError).substring(0, 1000));
+    }
+    return (mutateData?.mutateOperationResponses || []).filter((r: any) => r?.assetGroupAssetResult?.resourceName).length;
+  }
+
   /**
    * Create a Performance Max asset group, attach all assets, and (when a
    * Merchant Center is linked) create the required root listing group filter.
@@ -3740,15 +3836,15 @@ class GoogleAdsAdapter implements PlatformAdapter {
         if (unique.length >= max) break;
       }
 
-      // Upload with bounded concurrency (3 in-flight). Pure sequential is too
-      // slow for the 20/20/5 PMax max and trips the edge function CPU/wall-clock
-      // budget; full parallel triggers Google's "modify the same resource at
-      // once" error. Three is a safe middle ground.
-      const CONCURRENCY = 3;
+      // Google Ads can reject parallel asset uploads with
+      // "Multiple requests were attempting to modify the same resource". Upload
+      // images serially so every accepted ActiPlan image has a chance to appear
+      // in Ads Manager instead of being silently skipped from the asset group.
+      const CONCURRENCY = 1;
       for (let i = 0; i < unique.length; i += CONCURRENCY) {
         const batch = unique.slice(i, i + CONCURRENCY);
         const settled = await Promise.allSettled(batch.map((url, j) =>
-          this.uploadImageAsset(customerId, headers, url, `${fieldType} ${i + j + 1}`, false, aspect),
+          this.uploadImageAssetWithRetry(customerId, headers, url, `${fieldType} ${i + j + 1}`, false, aspect),
         ));
         settled.forEach((s, j) => {
           if (s.status === "fulfilled" && s.value) {
