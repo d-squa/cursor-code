@@ -276,6 +276,39 @@ export async function parseTextAssetExcel(
               const rowByHeader: Record<string, string> = {};
               headers.forEach((h, i) => { rowByHeader[h] = String(dataRow[i] ?? ''); });
 
+              // For PMax, the sheet is deduped to one row per asset group;
+              // the "Creative Name" cell may contain a newline-joined list.
+              // Match by (market, phase, ad_group) and propagate updates to
+              // every row in that group.
+              if (googleType === 'pmax') {
+                const market = String(rowByHeader['Market'] || '').trim();
+                const phase = String(rowByHeader['Phase'] || '').trim();
+                const adGroup = String(rowByHeader['Ad Group'] || '').trim();
+                if (!market || !phase || !adGroup) { errorCount++; continue; }
+                const { errors, updates } = validateGoogleNonSearchRow(rowByHeader, googleType);
+                if (errors.length > 0) {
+                  rejectedRows.push({ sheet: sheetName, key: `${market}|${phase}|${adGroup}`, errors });
+                  errorCount++;
+                  continue;
+                }
+                if (Object.keys(updates).length === 0) continue;
+                let applied = 0;
+                updatedRows = updatedRows.map((r) => {
+                  if (
+                    String(r.market || '').trim() === market &&
+                    String(r.phase || '').trim() === phase &&
+                    String(r.adSet || '').trim() === adGroup &&
+                    detectGoogleNonSearchType(r) === 'pmax'
+                  ) {
+                    applied++;
+                    return { ...r, ...updates };
+                  }
+                  return r;
+                });
+                if (applied > 0) matchCount++;
+                continue;
+              }
+
               const key = googleRowMatchKey({
                 platform: rowByHeader['Platform'],
                 market: rowByHeader['Market'],
