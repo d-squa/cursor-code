@@ -7,6 +7,7 @@ import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types
 import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode, getDefaultAdSetParams, extractTaxonomyValues, generateTaxonomyString, TaxonomyContext, TaxonomyParam } from '@/utils/taxonomyUtils';
 import { validateCreativeForAds, findCompatibleFormats, PLATFORM_AD_SPECS } from '@/utils/platformAdSpecs';
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from '@/utils/searchStrategyCampaigns';
+import { classifyPmaxAsset } from '@/utils/pmaxAssetGroupValidation';
 
 // Helper to generate taxonomy-based creative name
 function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
