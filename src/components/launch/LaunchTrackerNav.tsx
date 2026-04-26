@@ -50,16 +50,17 @@ export function LaunchTrackerNav({
         label: platform,
         icon: <Layers className="h-3 w-3" />,
         defaultExpanded: true,
+        targetId: "nav-section-shell",
         children: Array.from(markets.entries()).map(([market, phases]) => ({
           id: `nav-shell-market-${platform}-${market}`,
           label: market,
           icon: <Globe className="h-3 w-3" />,
+          targetId: "nav-section-shell",
           children: Array.from(phases).map((phase) => ({
             id: `nav-shell-phase-${platform}-${market}-${phase}`,
             label: phase,
             icon: <FolderTree className="h-3 w-3" />,
-            // Phase doesn't have its own DOM anchor — scroll to its market.
-            targetId: `nav-shell-market-${platform}-${market}`,
+            targetId: "nav-section-shell",
           })),
         })),
       })
