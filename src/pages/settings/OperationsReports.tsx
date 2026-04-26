@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
 import { formatActiveTime } from "@/hooks/useActiplanTimeTracking";
 import { QCAnalyticsTab } from "@/components/QCAnalyticsTab";
+import { SetupMistakesAnalytics } from "@/components/SetupMistakesAnalytics";
 
 interface ActiPlanSummary {
   id: string;
@@ -914,6 +915,12 @@ export default function OperationsReports() {
                 <QCAnalyticsTab
                   userId={user?.id || ''}
                   selectedCampaign={selectedCampaign}
+                  dateRange={dateRange}
+                />
+
+                <SetupMistakesAnalytics
+                  selectedCampaign={selectedCampaign}
+                  selectedClient="all"
                   dateRange={dateRange}
                 />
               </>
