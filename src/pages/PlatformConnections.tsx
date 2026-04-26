@@ -1438,7 +1438,7 @@ export default function PlatformConnections() {
             {/* TikTok Ad Accounts - Collapsible */}
             <PlatformAccountsCollapsible
               platform="tiktok"
-              icon={<Video className="h-5 w-5 text-black dark:text-white" />}
+              icon={<SiTiktok className="h-5 w-5 text-foreground" />}
               title="TikTok Ad Accounts"
               accounts={tiktokAdAccounts}
               emptyMessage="No TikTok ad accounts synced yet. Connect a TikTok platform to get started."
