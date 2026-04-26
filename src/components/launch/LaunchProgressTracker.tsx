@@ -83,6 +83,10 @@ interface LaunchProgressTrackerProps {
   // awaiting_assets / push_failed asset group under that PMax campaign shell.
   onPushPmaxAssetGroups?: (market: string, phaseName: string) => Promise<void>;
   pushingPmaxKey?: string | null; // `${market}|${phaseName}` while in flight
+  /** Optional QC items used to render the third Outline section. */
+  qcNavItems?: Array<{ platform: string; market: string | null; phase_name: string | null }>;
+  /** Called when the user clicks anything in the QC outline section. */
+  onNavigateQC?: () => void;
 }
 
 // Status indicator for individual items
