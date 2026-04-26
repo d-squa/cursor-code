@@ -21,7 +21,8 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
-import { SiMeta, SiTiktok, SiGoogleads, SiSnapchat, SiLinkedin as SiLinkedinIcon, SiPinterest } from "react-icons/si";
+import { SiMeta, SiTiktok, SiGoogleads, SiSnapchat } from "react-icons/si";
+import { FaLinkedin, FaPinterest } from "react-icons/fa";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
