@@ -842,12 +842,24 @@ export function LaunchProgressTracker({
 
   return (
     <div className="space-y-4">
+      <LaunchTrackerNav
+        adSetStatuses={filteredAdSetStatuses}
+        creativeAssignments={filteredCreativeAssignments}
+        onNavigate={(sectionKey) => {
+          // Make sure the parent card is open when navigating into it
+          setExpandedSections((prev) => {
+            const next = new Set(prev);
+            next.add(sectionKey);
+            return next;
+          });
+        }}
+      />
       {/* Campaign Shell Card - Step 1 */}
       <Collapsible
         open={expandedSections.has("shell")}
         onOpenChange={() => toggleSection("shell")}
       >
-        <Card className={cn(
+        <Card id="nav-section-shell" className={cn(
           "transition-all",
           currentStep === 1 && "ring-2 ring-primary",
           adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0 && "ring-1 ring-emerald-500/30"
