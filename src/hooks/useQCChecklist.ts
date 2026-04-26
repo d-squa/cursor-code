@@ -185,6 +185,23 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
 
     const checkedAt = checked ? new Date().toISOString() : null;
     const checkedBy = checked ? user.id : null;
+    const optimisticCompletions: QCCompletionRecord[] = items.map((item) => {
+      const existing = completions.find((completion) => completion.qc_tracking_id === trackingId && completion.item_key === item.key);
+      return {
+        id: existing?.id || crypto.randomUUID(),
+        qc_tracking_id: trackingId,
+        item_key: item.key,
+        is_checked: checked,
+        checked_by: checkedBy,
+        checked_at: checkedAt,
+        notes: existing?.notes || null,
+      };
+    });
+
+    setCompletions((prev) => [
+      ...prev.filter((completion) => completion.qc_tracking_id !== trackingId),
+      ...optimisticCompletions,
+    ]);
 
     try {
       const payload = items.map((item) => ({
@@ -228,7 +245,7 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
 
       setCompletions((prev) => {
         const savedByKey = new Map(
-          ((savedCompletions || []) as QCCompletionRecord[]).map((completion) => [completion.item_key, completion])
+          ((savedCompletions || []) as unknown as QCCompletionRecord[]).map((completion) => [completion.item_key, completion])
         );
         const otherCompletions = prev.filter((completion) => completion.qc_tracking_id !== trackingId);
         const updatedCompletions = items.map((item) => {
@@ -248,8 +265,9 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
       });
     } catch (error) {
       console.error("Error toggling all checklist items:", error);
+      void fetchData();
     }
-  }, [user, campaignId]);
+  }, [user, campaignId, completions, fetchData]);
 
   // Check if all items are completed for a tracking entity
   const isAllChecked = useCallback((trackingId: string, items: QCChecklistItem[]): boolean => {
