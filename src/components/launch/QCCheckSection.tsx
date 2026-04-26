@@ -413,9 +413,12 @@ export function QCCheckSection({
     };
 
     if (willMoveToPushedLive) {
+      const projectedLiveIds = advanceableItems
+        .filter((item) => getNextState(item.current_state) === 'pushed_live')
+        .map((item) => item.id);
       setPendingLiveAction(() => () => {
         doMove();
-        sendLiveNotification();
+        sendLiveNotification(projectedLiveIds);
       });
       setLiveConfirmOpen(true);
     } else {
