@@ -755,10 +755,10 @@ interface HierarchicalEntityContentProps {
   getCompletions: (trackingId: string) => Record<string, boolean>;
   getCompletionCount: (trackingId: string, items: QCChecklistItem[]) => { checked: number; total: number };
   isAllChecked: (trackingId: string, items: QCChecklistItem[]) => boolean;
-  onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => void;
-  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod?: string) => void;
-  onUpdateState: (trackingId: string, newState: QCState) => void;
-  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => void;
+  onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => Promise<void> | void;
+  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod?: string) => Promise<void> | void;
+  onUpdateState: (trackingId: string, newState: QCState) => Promise<void> | void;
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => Promise<void> | void;
   qcEnforceIndividual?: boolean;
   onLogMistake: (item: QCTrackingItem) => void;
   onResolveMistake: (mistakeId: string) => void;
@@ -1028,10 +1028,10 @@ interface EntityRowProps {
   completions: Record<string, boolean>;
   completionCount: { checked: number; total: number };
   allChecked: boolean;
-  onToggleItem: (key: string, checked: boolean) => void;
-  onToggleAll: (checked: boolean) => void;
-  onUpdateState: (state: QCState) => void;
-  onBulkCheckAndAdvance: () => void;
+  onToggleItem: (key: string, checked: boolean) => Promise<void> | void;
+  onToggleAll: (checked: boolean) => Promise<void> | void;
+  onUpdateState: (state: QCState) => Promise<void> | void;
+  onBulkCheckAndAdvance: () => Promise<void> | void;
   qcEnforceIndividual?: boolean;
   onLogMistake?: (item: QCTrackingItem) => void;
   onResolveMistake?: (mistakeId: string) => void;
@@ -1232,7 +1232,7 @@ interface BulkCheckScope {
 
 interface ScopedBulkCheckMenuProps {
   getChecklist: (platform: string, entityType: string) => QCChecklistItem[];
-  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => void;
+  onBulkCheckAndAdvance: (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod?: string) => Promise<void> | void;
   scopes: BulkCheckScope[];
 }
 
