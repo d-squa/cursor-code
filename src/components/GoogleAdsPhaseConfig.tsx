@@ -309,21 +309,17 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
         )}
       </div>
 
-      {/* Campaign Type */}
+      {/* Campaign Type is auto-derived from Campaign Objective and hidden in UI.
+          Subtype remains visible when applicable for the derived type. */}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label className="text-xs">Campaign Type</Label>
-          <Select value={selectedType} onValueChange={handleCampaignTypeChange}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Select campaign type" />
-            </SelectTrigger>
-            <SelectContent>
-              {campaignTypes.map((type) => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {selectedType && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Campaign Type (auto)</Label>
+            <div className="h-8 px-3 flex items-center text-xs rounded-md border bg-muted/40 text-muted-foreground">
+              {selectedType}
+            </div>
+          </div>
+        )}
 
         {/* Subtype */}
         {subtypes.length > 0 && (
