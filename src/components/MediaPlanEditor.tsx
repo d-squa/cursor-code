@@ -24,6 +24,7 @@ import { KeywordItem } from "./KeywordTargeting";
 import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
+import { Step3StrategyNav } from "./Step3StrategyNav";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
 import {
   Calendar,
