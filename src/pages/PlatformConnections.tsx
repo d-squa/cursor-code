@@ -1456,7 +1456,7 @@ export default function PlatformConnections() {
             {/* Google Ad Accounts - Collapsible */}
             <PlatformAccountsCollapsible
               platform="google"
-              icon={<Search className="h-5 w-5 text-yellow-600" />}
+              icon={<SiGoogleads className="h-5 w-5 text-[#4285F4]" />}
               title="Google Ad Accounts"
               accounts={googleAdAccounts.map((acc) => ({
                 ...acc,
