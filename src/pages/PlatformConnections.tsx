@@ -21,6 +21,8 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
+import { SiMeta, SiTiktok, SiGoogleads, SiSnapchat } from "react-icons/si";
+import { FaLinkedin, FaPinterest } from "react-icons/fa";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
@@ -1217,10 +1219,13 @@ export default function PlatformConnections() {
                 })}
                 {/* Connect more buttons - check limits */}
                 <div className="pt-4 border-t flex gap-3 flex-wrap">
-                  {/* Meta Connect Button */}
+                  {/* Meta Connect Button — brand: Facebook blue */}
                   {adAccountLimits.canHaveMultipleAccounts ? (
-                    <Button onClick={() => handleConnectPlatform("meta", false)}>
-                      <Facebook className="h-4 w-4 mr-2" />
+                    <Button
+                      onClick={() => handleConnectPlatform("meta", false)}
+                      className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90"
+                    >
+                      <SiMeta className="h-4 w-4 mr-2" />
                       Connect Another Meta Account
                     </Button>
                   ) : (
@@ -1228,7 +1233,6 @@ export default function PlatformConnections() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            variant="outline"
                             disabled={adAccountLimits.meta.currentCount > 0}
                             onClick={() => {
                               if (adAccountLimits.meta.currentCount > 0) {
@@ -1238,8 +1242,9 @@ export default function PlatformConnections() {
                                 handleConnectPlatform("meta", false);
                               }
                             }}
+                            className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90 disabled:opacity-60"
                           >
-                            <Facebook className="h-4 w-4 mr-2" />
+                            <SiMeta className="h-4 w-4 mr-2" />
                             Connect Meta Account
                           </Button>
                         </TooltipTrigger>
@@ -1252,14 +1257,13 @@ export default function PlatformConnections() {
                     </TooltipProvider>
                   )}
 
-                  {/* TikTok Connect Button */}
+                  {/* TikTok Connect Button — brand: black */}
                   {adAccountLimits.canHaveMultipleAccounts ? (
                     <Button
                       onClick={() => handleConnectPlatform("tiktok", false)}
-                      variant="outline"
-                      className="border-border"
+                      className="bg-black text-white hover:bg-black/85"
                     >
-                      <Video className="h-4 w-4 mr-2" />
+                      <SiTiktok className="h-4 w-4 mr-2" />
                       Connect TikTok Account
                     </Button>
                   ) : (
@@ -1267,7 +1271,6 @@ export default function PlatformConnections() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            variant="outline"
                             disabled={adAccountLimits.tiktok.currentCount > 0}
                             onClick={() => {
                               if (adAccountLimits.tiktok.currentCount > 0) {
@@ -1277,8 +1280,9 @@ export default function PlatformConnections() {
                                 handleConnectPlatform("tiktok", false);
                               }
                             }}
+                            className="bg-black text-white hover:bg-black/85 disabled:opacity-60"
                           >
-                            <Video className="h-4 w-4 mr-2" />
+                            <SiTiktok className="h-4 w-4 mr-2" />
                             Connect TikTok Account
                           </Button>
                         </TooltipTrigger>
@@ -1290,24 +1294,72 @@ export default function PlatformConnections() {
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  {/* Google Ads Connect Button */}
+
+                  {/* Google Ads Connect Button — brand: Google blue */}
                   <Button
                     onClick={() => handleConnectPlatform("google", false)}
-                    variant="outline"
-                    className="border-border"
+                    className="bg-[#4285F4] text-white hover:bg-[#4285F4]/90"
                   >
-                    <Search className="h-4 w-4 mr-2" />
+                    <SiGoogleads className="h-4 w-4 mr-2" />
                     Connect Google Ads Account
                   </Button>
-                  {/* Snapchat Connect Button */}
+
+                  {/* Snapchat Connect Button — brand: Snap yellow */}
                   <Button
                     onClick={() => handleConnectPlatform("snapchat", false)}
-                    variant="outline"
-                    className="border-border"
+                    className="bg-[#FFFC00] text-black hover:bg-[#FFFC00]/85"
                   >
-                    <Video className="h-4 w-4 mr-2" />
+                    <SiSnapchat className="h-4 w-4 mr-2" />
                     Connect Snapchat Account
                   </Button>
+
+                  {/* LinkedIn — Coming Soon (brand: LinkedIn blue) */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          disabled
+                          className="bg-[#0A66C2] text-white hover:bg-[#0A66C2]/90 disabled:opacity-70 disabled:cursor-not-allowed relative"
+                        >
+                          <FaLinkedin className="h-4 w-4 mr-2" />
+                          Connect LinkedIn Account
+                          <Badge
+                            variant="secondary"
+                            className="ml-2 h-4 px-1.5 text-[10px] bg-white/20 text-white border-0 hover:bg-white/20"
+                          >
+                            Coming soon
+                          </Badge>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>LinkedIn integration is coming soon</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  {/* Pinterest — Coming Soon (brand: Pinterest red) */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          disabled
+                          className="bg-[#E60023] text-white hover:bg-[#E60023]/90 disabled:opacity-70 disabled:cursor-not-allowed relative"
+                        >
+                          <FaPinterest className="h-4 w-4 mr-2" />
+                          Connect Pinterest Account
+                          <Badge
+                            variant="secondary"
+                            className="ml-2 h-4 px-1.5 text-[10px] bg-white/20 text-white border-0 hover:bg-white/20"
+                          >
+                            Coming soon
+                          </Badge>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Pinterest integration is coming soon</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
             )}
