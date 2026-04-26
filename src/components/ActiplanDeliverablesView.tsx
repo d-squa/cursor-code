@@ -361,8 +361,8 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
                          <TableBody>
                            {market.phases.map((phase, idx) => (
                              <>
-                               <TableRow key={idx}>
-                                 <TableCell className="font-medium">{phase.phaseName}</TableCell>
+                                <TableRow key={idx} id={`step5-phase-${platform.platformId}-${market.marketName}-${phase.phaseName}`} className="scroll-mt-24">
+                                  <TableCell className="font-medium">{phase.phaseName}</TableCell>
                                  <TableCell>{phase.kpi}</TableCell>
                                  <TableCell>{format(new Date(phase.startDate), 'MMM d, yyyy')}</TableCell>
                                  <TableCell>{format(new Date(phase.endDate), 'MMM d, yyyy')}</TableCell>
