@@ -2807,6 +2807,15 @@ export function MediaPlanEditor() {
           </CardHeader>
           {currentStep === 3 ? (
             <CardContent className="space-y-6">
+              <Step3StrategyNav
+                platforms={platformsWithMarkets}
+                onNavigatePlatform={(pid) =>
+                  setExpandedPlatforms((prev) => ({ ...prev, [pid]: true }))
+                }
+                onNavigateMarket={(mid) =>
+                  setExpandedMarkets((prev) => ({ ...prev, [mid]: true }))
+                }
+              />
               {/* Phase Scheduling */}
               {(() => {
                 const totalMarkets = platformsWithMarkets.reduce(
