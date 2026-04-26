@@ -170,7 +170,7 @@ export function MultiTreeNav({
           "transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease-out, width 200ms ease-out",
       }}
       className={cn(
-        "fixed z-30 hidden lg:flex flex-col",
+        "fixed z-30 hidden lg:flex flex-col overflow-hidden",
         "bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg",
         collapsed ? "w-10" : "w-64",
         idle && "opacity-40",
