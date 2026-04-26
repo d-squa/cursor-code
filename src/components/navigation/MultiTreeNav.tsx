@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { ChevronRight, PanelRightClose, PanelLeftClose } from "lucide-react";
+import { ChevronRight, ChevronDown, PanelRightClose, PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -204,43 +204,97 @@ export function MultiTreeNav({
       {!collapsed && (
         <ScrollArea className="flex-1 w-full [&>[data-radix-scroll-area-viewport]>div]:!block">
           <div className="p-1.5 space-y-2 w-full max-w-full overflow-x-hidden">
-            {sections.map((section) => {
-              const isActive = activeId === section.id;
-              return (
-                <div key={section.id} className="space-y-0.5 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => scrollToSection(section.id)}
-                    className={cn(
-                      "w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-semibold transition-all min-w-0 overflow-hidden",
-                      "hover:bg-muted/60",
-                      isActive
-                        ? "bg-primary/10 text-primary border-l-2 border-primary"
-                        : "text-foreground border-l-2 border-transparent"
-                    )}
-                  >
-                    {section.icon && (
-                      <span className="text-muted-foreground shrink-0">{section.icon}</span>
-                    )}
-                    <span className="truncate min-w-0">{section.label}</span>
-                  </button>
-                  <div className="space-y-0.5 min-w-0">
-                    {section.nodes.map((node) => (
-                      <NodeRow
-                        key={node.id}
-                        node={node}
-                        depth={0}
-                        onNavigate={handleNavigate}
-                        activeTargetId={activeId}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            {sections.map((section) => (
+              <SectionBlock
+                key={section.id}
+                section={section}
+                isActive={activeId === section.id}
+                onSectionClick={() => scrollToSection(section.id)}
+                onNavigate={handleNavigate}
+                activeTargetId={activeId}
+                storageKey={storageKey}
+              />
+            ))}
           </div>
         </ScrollArea>
       )}
     </aside>
+  );
+}
+
+function SectionBlock({
+  section,
+  isActive,
+  onSectionClick,
+  onNavigate,
+  activeTargetId,
+  storageKey,
+}: {
+  section: TreeSection;
+  isActive: boolean;
+  onSectionClick: () => void;
+  onNavigate: (targetId: string) => void;
+  activeTargetId: string | null;
+  storageKey?: string;
+}) {
+  const sectionStorageKey = storageKey ? `${storageKey}:section:${section.id}` : null;
+  const [open, setOpen] = useState<boolean>(() => {
+    if (!sectionStorageKey || typeof window === "undefined") return true;
+    return window.localStorage.getItem(sectionStorageKey) !== "0";
+  });
+
+  useEffect(() => {
+    if (!sectionStorageKey || typeof window === "undefined") return;
+    window.localStorage.setItem(sectionStorageKey, open ? "1" : "0");
+  }, [open, sectionStorageKey]);
+
+  return (
+    <div className="space-y-0.5 min-w-0">
+      <div
+        className={cn(
+          "w-full flex items-center gap-1 rounded-md text-xs font-semibold transition-all min-w-0 overflow-hidden",
+          isActive
+            ? "bg-primary/10 text-primary border-l-2 border-primary"
+            : "text-foreground border-l-2 border-transparent",
+          "hover:bg-muted/60"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={open ? "Collapse section" : "Expand section"}
+          className="shrink-0 p-1 rounded hover:bg-muted"
+        >
+          {open ? (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onSectionClick}
+          className="flex-1 flex items-center gap-1.5 px-1 py-1 text-left min-w-0 overflow-hidden"
+        >
+          {section.icon && (
+            <span className="text-muted-foreground shrink-0">{section.icon}</span>
+          )}
+          <span className="truncate min-w-0">{section.label}</span>
+        </button>
+      </div>
+      {open && (
+        <div className="space-y-0.5 min-w-0">
+          {section.nodes.map((node) => (
+            <NodeRow
+              key={node.id}
+              node={node}
+              depth={0}
+              onNavigate={onNavigate}
+              activeTargetId={activeTargetId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
