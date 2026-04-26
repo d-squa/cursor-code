@@ -137,7 +137,11 @@ export function MultiTreeNav({
 
   return (
     <aside
-      style={{ top: topOffset, maxHeight: `calc(100vh - ${topOffset + 24}px)` }}
+      style={{
+        top: "50%",
+        transform: "translateY(-50%)",
+        maxHeight: `calc(100vh - ${topOffset + 24}px)`,
+      }}
       className={cn(
         "fixed z-30 hidden lg:flex flex-col",
         "bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg",
