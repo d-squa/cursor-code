@@ -1106,13 +1106,13 @@ function EntityRow({
               </Button>
               {allowMistakeLogging && onLogMistake && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+                  className="h-6 text-xs px-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={(e) => { e.stopPropagation(); onLogMistake(item); }}
                 >
                   <AlertOctagon className="h-3 w-3 mr-1" />
-                  Setup Mistake
+                  Report a Setup Mistake
                 </Button>
               )}
             </div>
