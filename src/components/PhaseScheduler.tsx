@@ -250,6 +250,26 @@ export function PhaseScheduler({
       }
     }
   }, [phaseExpandSignal, phases]);
+
+  // Listen for navigation events from MultiTreeNav to auto-expand a phase
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { phaseId?: string } | undefined;
+      const phaseId = detail?.phaseId;
+      if (!phaseId) return;
+      if (!phases.some((p) => p.id === phaseId)) return;
+      setExpandedPhases((prev) => ({ ...prev, [phaseId]: true }));
+      // After expansion, scroll the phase into view (waits for layout)
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.getElementById(`step3-phase-${phaseId}`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 80);
+      });
+    };
+    window.addEventListener("multitree:expand-phase", handler);
+    return () => window.removeEventListener("multitree:expand-phase", handler);
+  }, [phases]);
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const [pendingBudgetPhaseId, setPendingBudgetPhaseId] = useState<string | null>(null);
