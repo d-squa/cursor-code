@@ -590,13 +590,13 @@ export function QCCheckSection({
                       {platformChecked}/{platformItems.length} progressed
                     </span>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-7 px-3 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, entityType: "platform" }); }}
                     >
                       <AlertOctagon className="h-3 w-3 mr-1" />
-                      Setup Mistake
+                      Report a Setup Mistake
                     </Button>
                   </div>
                   <CollapsibleContent>
