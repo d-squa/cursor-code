@@ -1382,7 +1382,17 @@ export function PlatformMarketBudgetSelector({
   };
 
   return (
-    <Card>
+    <>
+      <PlatformMarketNav
+        platforms={platforms}
+        onNavigatePlatform={(idx) =>
+          setExpandedPlatforms((prev) => ({ ...prev, [idx]: true }))
+        }
+        onNavigateMarket={(marketId) =>
+          setExpandedMarkets((prev) => ({ ...prev, [marketId]: true }))
+        }
+      />
+    <Card id="pm-section-platform-market">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Platform & Market Selection</CardTitle>
