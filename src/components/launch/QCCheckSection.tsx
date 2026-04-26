@@ -448,7 +448,10 @@ export function QCCheckSection({
               {(() => {
                 const pendingMistakes = setupMistakes.filter(m => m.status === "open").length;
                 if (pendingMistakes === 0) return null;
-                const leftPct = Math.min(Math.max(checkedPercent, 2), 98);
+                // Anchor the indicator between the "Waiting for Final Check" and "Checked" stage markers.
+                // Stages are evenly distributed across the bar (4 stages → boundaries at 0%, 25%, 50%, 75%),
+                // so the midpoint between stage 1 and stage 2 sits at ~12.5%.
+                const leftPct = 12.5;
                 return (
                   <Tooltip>
                     <TooltipTrigger asChild>
