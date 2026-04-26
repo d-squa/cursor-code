@@ -75,9 +75,9 @@ interface QCCheckSectionProps {
   getCompletions: (trackingId: string) => Record<string, boolean>;
   getCompletionCount: (trackingId: string, items: QCChecklistItem[]) => { checked: number; total: number };
   isAllChecked: (trackingId: string, items: QCChecklistItem[]) => boolean;
-  onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => void;
-  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod?: string) => void;
-  onUpdateState: (trackingId: string, newState: QCState) => void;
+  onToggleItem: (trackingId: string, itemKey: string, checked: boolean) => Promise<void> | void;
+  onToggleAll: (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod?: string) => Promise<void> | void;
+  onUpdateState: (trackingId: string, newState: QCState) => Promise<void> | void;
   onInitialize: () => void;
 }
 
@@ -402,11 +402,10 @@ export function QCCheckSection({
   };
 
   // Auto-advance handler: check all + move to Checked
-  const handleBulkCheckAndAdvance = (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod: string = 'bulk') => {
-    onToggleAll(trackingId, checklist, true, checkMethod);
+  const handleBulkCheckAndAdvance = async (trackingId: string, checklist: QCChecklistItem[], currentState: QCState, checkMethod: string = 'bulk') => {
+    await onToggleAll(trackingId, checklist, true, checkMethod);
     if (currentState === 'waiting_for_final_qc') {
-      // Small delay to let the toggle persist first
-      setTimeout(() => onUpdateState(trackingId, 'qc'), 100);
+      await onUpdateState(trackingId, 'qc');
     }
   };
 
