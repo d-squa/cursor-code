@@ -1304,14 +1304,29 @@ export default function PlatformConnections() {
                     Connect Google Ads Account
                   </Button>
 
-                  {/* Snapchat Connect Button — brand: Snap yellow */}
-                  <Button
-                    onClick={() => handleConnectPlatform("snapchat", false)}
-                    className="bg-[#FFFC00] text-black hover:bg-[#FFFC00]/85"
-                  >
-                    <SiSnapchat className="h-4 w-4 mr-2" />
-                    Connect Snapchat Account
-                  </Button>
+                  {/* Snapchat — Coming Soon (brand: Snap yellow) */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          disabled
+                          className="bg-[#FFFC00] text-black hover:bg-[#FFFC00]/85 disabled:opacity-70 disabled:cursor-not-allowed relative"
+                        >
+                          <SiSnapchat className="h-4 w-4 mr-2" />
+                          Connect Snapchat Account
+                          <Badge
+                            variant="secondary"
+                            className="ml-2 h-4 px-1.5 text-[10px] bg-black/15 text-black border-0 hover:bg-black/15"
+                          >
+                            Coming soon
+                          </Badge>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Snapchat integration is coming soon</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
                   {/* LinkedIn — Coming Soon (brand: LinkedIn blue) */}
                   <TooltipProvider>
