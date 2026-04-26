@@ -36,8 +36,6 @@ export function Step3StrategyNav({
           id: `step3-phase-${phase.id}`,
           label: phase.name || "Phase",
           icon: <FolderTree className="h-3 w-3" />,
-          // Phases scroll to the market anchor (phases live inside it)
-          targetId: `step3-market-${market.id}`,
           badge: phase.budgetPercentage != null ? (
             <Badge variant="outline" className="h-4 px-1 text-[10px]">
               {phase.budgetPercentage.toFixed(0)}%
@@ -72,6 +70,19 @@ export function Step3StrategyNav({
           if (text.includes(p.name || p.id)) onNavigatePlatform?.(p.id);
           p.markets.forEach((m) => {
             if (m.name && text.includes(m.name)) onNavigateMarket?.(m.id);
+            (m.phases || []).forEach((phase) => {
+              if (phase.name && text.includes(phase.name)) {
+                // Ensure parents are open so the phase anchor exists in the DOM
+                onNavigatePlatform?.(p.id);
+                onNavigateMarket?.(m.id);
+                // Tell PhaseScheduler to open this phase
+                window.dispatchEvent(
+                  new CustomEvent("multitree:expand-phase", {
+                    detail: { phaseId: phase.id },
+                  })
+                );
+              }
+            });
           });
         });
       }}
