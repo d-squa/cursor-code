@@ -706,11 +706,18 @@ export default function TaskManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {STATUS_OPTIONS.filter(opt => opt.value !== "pending_approval").map(opt => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
+                      {STATUS_OPTIONS
+                        .filter(opt => opt.value !== "pending_approval")
+                        .filter(opt =>
+                          selectedTask?.id.startsWith("setup-mistake-")
+                            ? opt.value === "in_progress" || opt.value === "completed"
+                            : true
+                        )
+                        .map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   {updatingStatus && <Loader2 className="h-4 w-4 animate-spin" />}
