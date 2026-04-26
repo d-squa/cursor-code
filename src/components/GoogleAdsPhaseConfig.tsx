@@ -135,9 +135,10 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     [selectedType, selectedSubtype]
   );
 
-  // Auto-set campaign type from objective when not manually set
+  // Auto-set campaign type from objective. Campaign type is derived (hidden in UI)
+  // and always kept in sync with the selected objective.
   useEffect(() => {
-    if (phase.googleCampaignType || !phase.objective) return;
+    if (!phase.objective) return;
     const objectiveToTypeAndSubtype: Record<string, { type: string; subtype?: string }> = {
       AWARENESS_DISPLAY: { type: "Display" },
       AWARENESS_VIDEO_EFFICIENT_REACH: { type: "Video", subtype: "Efficient Reach" },
