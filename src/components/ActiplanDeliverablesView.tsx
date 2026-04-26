@@ -207,9 +207,10 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
       {actiplanForecast.platforms.map((platform) => (
         <Collapsible
           key={platform.platformId}
+          id={`step5-platform-${platform.platformId}`}
           open={expandedPlatforms[platform.platformId]}
           onOpenChange={(open) => setExpandedPlatforms(prev => ({ ...prev, [platform.platformId]: open }))}
-          className="border rounded-lg"
+          className="border rounded-lg scroll-mt-24"
         >
           <CollapsibleTrigger asChild>
             <Button
