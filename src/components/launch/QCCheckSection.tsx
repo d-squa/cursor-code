@@ -355,25 +355,42 @@ export function QCCheckSection({
   };
 
   const handleMoveAllForward = () => {
-    // Check if any items will move FORWARD to pushed_live (from qc state)
-    const willMoveToPushedLive = items.some(item => {
+    // An item is blocked from advancing past Checked → Pushed Live if it has
+    // an open setup mistake (directly or via an ancestor scope).
+    const isItemBlockedByMistake = (item: QCTrackingItem) =>
+      hasOpenMistakeForTracking(item.id) || isBlockedByAncestorScope(item);
+
+    // Determine which items would actually advance, respecting setup-mistake blocks
+    // and the per-item checklist requirement when leaving Waiting for Final Check.
+    const advanceableItems = items.filter((item) => {
       const nextState = getNextState(item.current_state);
-      return nextState === 'pushed_live' && item.current_state === 'qc';
+      if (!nextState) return false;
+      if (item.current_state === 'waiting_for_final_qc') {
+        const checklist = getChecklist(item.platform, item.entity_type);
+        if (!isAllChecked(item.id, checklist)) return false;
+      }
+      // Block transitions into pushed_live when there's an unresolved setup mistake.
+      if (nextState === 'pushed_live' && isItemBlockedByMistake(item)) return false;
+      return true;
     });
 
+    const blockedByMistakeCount = items.filter(
+      (item) => getNextState(item.current_state) === 'pushed_live' && isItemBlockedByMistake(item)
+    ).length;
+
+    const willMoveToPushedLive = advanceableItems.some(
+      (item) => getNextState(item.current_state) === 'pushed_live' && item.current_state === 'qc'
+    );
+
     const doMove = () => {
-      for (const item of items) {
+      for (const item of advanceableItems) {
         const nextState = getNextState(item.current_state);
-        if (nextState) {
-          if (item.current_state === 'waiting_for_final_qc') {
-            const checklist = getChecklist(item.platform, item.entity_type);
-            if (isAllChecked(item.id, checklist)) {
-              onUpdateState(item.id, nextState);
-            }
-          } else {
-            onUpdateState(item.id, nextState);
-          }
-        }
+        if (nextState) onUpdateState(item.id, nextState);
+      }
+      if (blockedByMistakeCount > 0) {
+        toast.warning(
+          `${blockedByMistakeCount} item${blockedByMistakeCount === 1 ? '' : 's'} held back — resolve open setup mistake${blockedByMistakeCount === 1 ? '' : 's'} before pushing live.`
+        );
       }
     };
 
