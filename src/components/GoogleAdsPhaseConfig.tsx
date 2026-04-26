@@ -157,17 +157,19 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     };
     const mapping = objectiveToTypeAndSubtype[phase.objective];
     if (mapping && campaignTypes.includes(mapping.type)) {
-      onUpdate("googleCampaignType", mapping.type);
+      if (phase.googleCampaignType !== mapping.type) {
+        onUpdate("googleCampaignType", mapping.type);
+      }
       const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
-      if (mapping.subtype && availableSubtypes.includes(mapping.subtype)) {
+      if (mapping.subtype && availableSubtypes.includes(mapping.subtype) && phase.googleCampaignSubtype !== mapping.subtype) {
         onUpdate("googleCampaignSubtype", mapping.subtype);
       }
       const newConfig = getGoogleAdsCampaignConfig(mapping.type, mapping.subtype);
-      if (newConfig?.bidStrategies?.length) {
+      if (newConfig?.bidStrategies?.length && !phase.googleBidStrategy) {
         onUpdate("googleBidStrategy", newConfig.bidStrategies[0]);
       }
     }
-  }, [phase.objective, phase.googleCampaignType]);
+  }, [phase.objective]);
 
   // Auto-populate from client defaults when fields are empty
   useEffect(() => {
