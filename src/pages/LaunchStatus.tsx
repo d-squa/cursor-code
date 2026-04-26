@@ -1671,6 +1671,19 @@ export default function LaunchStatus() {
             onDeleteCreativeAssignment={handleDeleteCreativeAssignment}
             onPushPmaxAssetGroups={handlePushPmaxAssetGroups}
             pushingPmaxKey={pushingPmaxKey}
+            qcNavItems={qcItems.map((it) => ({
+              platform: it.platform,
+              market: it.market,
+              phase_name: it.phase_name,
+            }))}
+            onNavigateQC={() => {
+              setQcSectionOpen(true);
+              requestAnimationFrame(() => {
+                document
+                  .getElementById("nav-section-qc")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              });
+            }}
           />
         </div>
       )}
