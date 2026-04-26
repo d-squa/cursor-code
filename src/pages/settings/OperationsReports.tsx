@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
 import { formatActiveTime } from "@/hooks/useActiplanTimeTracking";
 import { QCAnalyticsTab } from "@/components/QCAnalyticsTab";
+import { SetupMistakesAnalytics } from "@/components/SetupMistakesAnalytics";
 
 interface ActiPlanSummary {
   id: string;
