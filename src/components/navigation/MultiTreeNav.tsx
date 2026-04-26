@@ -151,6 +151,12 @@ export function MultiTreeNav({
       ? "left-3"
       : "right-3";
 
+  // When idle (expanded but not hovered), slide half of the panel off-screen on its side
+  const idle = !collapsed && !hovered;
+  const hiddenX =
+    position === "left" ? "translateX(-50%)" : "translateX(50%)";
+  const transform = `translateY(-50%) ${idle ? hiddenX : "translateX(0)"}`;
+
   return (
     <aside
       ref={asideRef as React.RefObject<HTMLElement>}
@@ -158,16 +164,16 @@ export function MultiTreeNav({
       onMouseLeave={() => setHovered(false)}
       style={{
         top: "50%",
-        transform: "translateY(-50%)",
+        transform,
         maxHeight: `calc(100vh - ${topOffset + 24}px)`,
+        transition:
+          "transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease-out, width 200ms ease-out",
       }}
       className={cn(
         "fixed z-30 hidden lg:flex flex-col",
         "bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg",
-        "transition-all duration-200",
         collapsed ? "w-10" : "w-64",
-        // Fade when not hovered (only while expanded) for better page visibility
-        !collapsed && !hovered && "opacity-30 hover:opacity-100",
+        idle && "opacity-40",
         sideClasses,
         className
       )}
