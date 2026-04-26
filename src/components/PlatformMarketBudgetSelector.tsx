@@ -1620,6 +1620,7 @@ export function PlatformMarketBudgetSelector({
                             open={expandedMarkets[market.id] === true}
                             onOpenChange={() => toggleMarketExpanded(market.id)}
                             className="bg-muted/50 rounded-md"
+                            id={`pm-market-${market.id}`}
                           >
                             <div className="p-3">
                               <div className="flex items-center justify-between gap-2">
