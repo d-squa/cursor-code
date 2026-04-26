@@ -169,13 +169,14 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const initAttemptedForCampaignRef = useRef<string | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchData = useCallback(async (force = false) => {
     if (!campaignId || !user) return;
     if (!force && !enabled) return;
 
     try {
-      setLoading(true);
+      if (!force) setLoading(true);
 
       const [trackingRes, transitionsRes] = await Promise.all([
         supabase
@@ -219,7 +220,8 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           filter: `campaign_id=eq.${campaignId}`,
         },
         () => {
-          void fetchData(true);
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = setTimeout(() => void fetchData(true), 250);
         }
       )
       .subscribe();
@@ -230,6 +232,10 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
       }
     };
   }, [campaignId, enabled, user, fetchData]);
@@ -381,6 +387,14 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         metadata: { set_by: user.id },
       });
 
+      setItems((prev) =>
+        prev.map((entry) =>
+          entry.id === trackingId
+            ? { ...entry, current_state: newState, previous_state: entry.current_state }
+            : entry
+        )
+      );
+
       const entityLabel = item.entity_name || item.ad_set_name || item.dsp_entity_id || item.entity_type;
       const description = `${entityLabel} moved from ${item.current_state ? QC_STATE_LABELS[item.current_state] : "Unknown"} to ${QC_STATE_LABELS[newState]}`;
 
@@ -411,13 +425,6 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         }),
       ]);
 
-      setItems((prev) =>
-        prev.map((entry) =>
-          entry.id === trackingId
-            ? { ...entry, current_state: newState, previous_state: entry.current_state }
-            : entry
-        )
-      );
     } catch (error) {
       console.error("Error updating QC state:", error);
     }
