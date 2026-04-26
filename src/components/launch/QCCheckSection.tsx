@@ -443,8 +443,43 @@ export function QCCheckSection({
             <span className="text-muted-foreground">QC Progress</span>
             <span className="font-medium">{checkedPercent}% Complete</span>
           </div>
-          <Progress value={checkedPercent} className="h-2" />
-          <div className="grid grid-cols-4 gap-2 text-xs">
+          <TooltipProvider>
+            <div className="relative">
+              <Progress value={checkedPercent} className="h-2" />
+              {(() => {
+                const pendingMistakes = setupMistakes.filter(m => m.status === "open").length;
+                if (pendingMistakes === 0) return null;
+                const leftPct = Math.min(Math.max(checkedPercent, 2), 98);
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="absolute -top-1.5 -translate-x-1/2 flex flex-col items-center cursor-help"
+                        style={{ left: `${leftPct}%` }}
+                      >
+                        <div className="h-5 w-0.5 bg-destructive" />
+                        <Badge
+                          variant="destructive"
+                          className="mt-0.5 h-4 px-1.5 text-[10px] font-bold leading-none"
+                        >
+                          {pendingMistakes}
+                        </Badge>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">
+                        {pendingMistakes} setup mistake{pendingMistakes === 1 ? "" : "s"} pending resolution
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        QC progress is blocked until these are resolved.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })()}
+            </div>
+          </TooltipProvider>
+          <div className="grid grid-cols-4 gap-2 text-xs pt-3">
             {QC_STAGE_ORDER.map(stage => {
               const count = items.filter(i => i.current_state === stage).length;
               return (
