@@ -451,7 +451,7 @@ function CampaignsShellTree({
           {expandedState[`shell:platform:${platform}`] && (
             <div className="ml-6 border-l pl-2">
               {Object.entries(markets).map(([market, phases]) => (
-                <div key={market}>
+                <div key={market} id={`nav-shell-market-${platform}-${market}`}>
                   <div
                     className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
                     onClick={() => onToggle(`shell:market:${platform}:${market}`)}
