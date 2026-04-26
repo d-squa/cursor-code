@@ -3148,5 +3148,6 @@ export function PlatformMarketBudgetSelector({
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
