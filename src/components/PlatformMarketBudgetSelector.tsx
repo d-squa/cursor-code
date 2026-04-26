@@ -1450,6 +1450,7 @@ export function PlatformMarketBudgetSelector({
                 open={expandedPlatforms[platformIndex] === true}
                 onOpenChange={() => togglePlatformExpanded(platformIndex)}
                 className="border rounded-lg"
+                id={`pm-platform-${platform.id || `idx-${platformIndex}`}`}
               >
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-3">
