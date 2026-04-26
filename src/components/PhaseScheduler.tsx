@@ -1843,6 +1843,7 @@ export function PhaseScheduler({
                 key={phase.id}
                 open={!!expandedPhases[phase.id]}
                 onOpenChange={(open) => togglePhaseExpansion(phase.id, open)}
+                id={`step3-phase-${phase.id}`}
               >
                 <div className="border rounded-lg bg-card">
                   <div className="flex items-center justify-between p-4">

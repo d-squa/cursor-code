@@ -24,6 +24,7 @@ import { KeywordItem } from "./KeywordTargeting";
 import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
+import { Step3StrategyNav } from "./Step3StrategyNav";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
 import {
   Calendar,
@@ -2806,6 +2807,15 @@ export function MediaPlanEditor() {
           </CardHeader>
           {currentStep === 3 ? (
             <CardContent className="space-y-6">
+              <Step3StrategyNav
+                platforms={platformsWithMarkets}
+                onNavigatePlatform={(pid) =>
+                  setExpandedPlatforms((prev) => ({ ...prev, [pid]: true }))
+                }
+                onNavigateMarket={(mid) =>
+                  setExpandedMarkets((prev) => ({ ...prev, [mid]: true }))
+                }
+              />
               {/* Phase Scheduling */}
               {(() => {
                 const totalMarkets = platformsWithMarkets.reduce(
@@ -3107,6 +3117,7 @@ export function MediaPlanEditor() {
                             open={expandedPlatforms[platform.id]}
                             onOpenChange={(open) => setExpandedPlatforms((prev) => ({ ...prev, [platform.id]: open }))}
                             className="border rounded-lg"
+                            id={`step3-platform-${platform.id}`}
                           >
                             <CollapsibleTrigger asChild>
                               <div className="flex items-center gap-2 w-full">
@@ -3181,7 +3192,7 @@ export function MediaPlanEditor() {
                               <div className="space-y-4">
                                 {platform.markets.map((market) => (
                                   <Collapsible key={market.id} open={!!expandedMarkets[market.id]} onOpenChange={(open) => setExpandedMarkets(prev => ({ ...prev, [market.id]: open }))}>
-                                    <Card className="overflow-hidden">
+                                    <Card className="overflow-hidden" id={`step3-market-${market.id}`}>
                                       <CollapsibleTrigger asChild>
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
                                           <div className="flex items-center gap-2">
