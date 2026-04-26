@@ -65,7 +65,7 @@ function NodeRow({
           onNavigate(target);
         }}
         className={cn(
-          "group w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs transition-colors",
+          "group w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 pr-2 text-left text-xs transition-colors min-w-0 overflow-hidden",
           "hover:bg-muted/60",
           isActive && "bg-primary/10 text-primary font-medium"
         )}
@@ -79,8 +79,8 @@ function NodeRow({
           )}
         />
         {node.icon && <span className="shrink-0 text-muted-foreground">{node.icon}</span>}
-        <span className="truncate flex-1">{node.label}</span>
-        {node.badge}
+        <span className="truncate flex-1 min-w-0">{node.label}</span>
+        {node.badge && <span className="shrink-0">{node.badge}</span>}
       </button>
       {hasChildren && open && (
         <div className="mt-0.5 space-y-0.5">
