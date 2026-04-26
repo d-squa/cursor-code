@@ -166,6 +166,7 @@ export default function LaunchStatus() {
   // Tracks the (market|phaseName) currently being pushed via push-pmax-asset-groups
   // so the per-PMax-campaign button can show a spinner.
   const [pushingPmaxKey, setPushingPmaxKey] = useState<string | null>(null);
+  const [qcSectionOpen, setQcSectionOpen] = useState<boolean>(true);
 
   // Use the new real-time progress hook
   const {
