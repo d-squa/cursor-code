@@ -14,6 +14,10 @@ interface Step3StrategyNavProps {
  * Floating mini-map navigation for Step 3: Strategy Configuration.
  * Lists Platform > Market > Phase using anchors `step3-platform-{id}`,
  * `step3-market-{id}`, and `step3-phase-{id}` injected on the rendered nodes.
+ *
+ * Each node shows a combined budget badge: `<parent%> · <total%>↑`
+ *   - parent% = share within its immediate parent
+ *   - total%  = share of the overall campaign budget (cumulative)
  */
 export function Step3StrategyNav({
   platforms,
@@ -23,27 +27,64 @@ export function Step3StrategyNav({
   const sections = useMemo<TreeSection[]>(() => {
     const enabled = platforms.filter((p) => p.enabled && p.markets.length > 0);
 
-    const nodes: TreeNode[] = enabled.map((platform) => ({
-      id: `step3-platform-${platform.id}`,
-      label: platform.name || platform.id,
-      icon: <Layers className="h-3 w-3" />,
-      defaultExpanded: true,
-      children: platform.markets.map((market) => ({
-        id: `step3-market-${market.id}`,
-        label: market.name || "Market",
-        icon: <Globe className="h-3 w-3" />,
-        children: (market.phases || []).map((phase) => ({
-          id: `step3-phase-${phase.id}`,
-          label: phase.name || "Phase",
-          icon: <FolderTree className="h-3 w-3" />,
-          badge: phase.budgetPercentage != null ? (
-            <Badge variant="outline" className="h-4 px-1 text-[10px]">
-              {phase.budgetPercentage.toFixed(0)}%
-            </Badge>
-          ) : undefined,
-        })),
-      })),
-    }));
+    const fmt = (n: number | undefined | null) =>
+      n == null || Number.isNaN(n) ? null : Math.round(n);
+
+    const renderBadge = (parentPct: number | null, totalPct: number | null) => {
+      if (parentPct == null && totalPct == null) return undefined;
+      return (
+        <Badge variant="outline" className="h-4 px-1 text-[10px] font-normal gap-0.5">
+          {parentPct != null && <span>{parentPct}%</span>}
+          {parentPct != null && totalPct != null && (
+            <span className="text-muted-foreground">·</span>
+          )}
+          {totalPct != null && (
+            <span className="text-muted-foreground">{totalPct}%↑</span>
+          )}
+        </Badge>
+      );
+    };
+
+    const nodes: TreeNode[] = enabled.map((platform) => {
+      const platformParent = fmt(platform.budgetPercentage);
+      const platformTotal = platformParent; // platform parent IS total
+
+      return {
+        id: `step3-platform-${platform.id}`,
+        label: platform.name || platform.id,
+        icon: <Layers className="h-3 w-3" />,
+        defaultExpanded: true,
+        badge: renderBadge(platformParent, null),
+        children: platform.markets.map((market) => {
+          const marketParent = fmt(market.budgetPercentage);
+          const marketTotal =
+            marketParent != null && platformTotal != null
+              ? Math.round((marketParent * platformTotal) / 100)
+              : null;
+
+          return {
+            id: `step3-market-${market.id}`,
+            label: market.name || "Market",
+            icon: <Globe className="h-3 w-3" />,
+            badge: renderBadge(marketParent, marketTotal),
+            children: (market.phases || []).map((phase) => {
+              const phaseParent = fmt(phase.budgetPercentage);
+              const phaseTotal =
+                phaseParent != null && marketTotal != null
+                  ? Math.round((phaseParent * marketTotal) / 100)
+                  : null;
+
+              return {
+                id: `step3-phase-${phase.id}`,
+                label: phase.name || "Phase",
+                icon: <FolderTree className="h-3 w-3" />,
+                badge: renderBadge(phaseParent, phaseTotal),
+              };
+            }),
+          };
+        }),
+      };
+    });
 
     if (nodes.length === 0) return [];
 
