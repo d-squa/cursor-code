@@ -19,6 +19,7 @@ import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { useSampleMode } from "@/contexts/SampleModeContext";
+import { PlatformMarketNav } from "./PlatformMarketNav";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -1382,7 +1383,17 @@ export function PlatformMarketBudgetSelector({
   };
 
   return (
-    <Card>
+    <>
+      <PlatformMarketNav
+        platforms={platforms}
+        onNavigatePlatform={(idx) =>
+          setExpandedPlatforms((prev) => ({ ...prev, [idx]: true }))
+        }
+        onNavigateMarket={(marketId) =>
+          setExpandedMarkets((prev) => ({ ...prev, [marketId]: true }))
+        }
+      />
+    <Card id="pm-section-platform-market">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Platform & Market Selection</CardTitle>
@@ -1450,6 +1461,7 @@ export function PlatformMarketBudgetSelector({
                 open={expandedPlatforms[platformIndex] === true}
                 onOpenChange={() => togglePlatformExpanded(platformIndex)}
                 className="border rounded-lg"
+                id={`pm-platform-${platform.id || `idx-${platformIndex}`}`}
               >
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -1619,6 +1631,7 @@ export function PlatformMarketBudgetSelector({
                             open={expandedMarkets[market.id] === true}
                             onOpenChange={() => toggleMarketExpanded(market.id)}
                             className="bg-muted/50 rounded-md"
+                            id={`pm-market-${market.id}`}
                           >
                             <div className="p-3">
                               <div className="flex items-center justify-between gap-2">
@@ -3136,5 +3149,6 @@ export function PlatformMarketBudgetSelector({
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
