@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronsDownUp, Database, Calculator, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { format } from "date-fns";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 import type { KeywordItem } from "@/components/KeywordTargeting";
 import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchStrategyGroups, isSearchPhaseLike } from "@/utils/searchStrategyCampaigns";
@@ -130,6 +130,31 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
     setExpandedMarkets({});
   }, []);
 
+  // Listen for navigation events from the floating mini-map
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { platformId, marketName, anchorId } = (e as CustomEvent).detail || {};
+      if (platformId) {
+        setExpandedPlatforms(prev => ({ ...prev, [platformId]: true }));
+      }
+      if (marketName) {
+        setExpandedMarkets(prev => ({ ...prev, [marketName]: true }));
+      }
+      if (anchorId) {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            document.getElementById(anchorId)?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }, 80);
+        });
+      }
+    };
+    window.addEventListener("step5:navigate", handler);
+    return () => window.removeEventListener("step5:navigate", handler);
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Actiplan Deliverables - Top Level */}
@@ -207,9 +232,10 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
       {actiplanForecast.platforms.map((platform) => (
         <Collapsible
           key={platform.platformId}
+          id={`step5-platform-${platform.platformId}`}
           open={expandedPlatforms[platform.platformId]}
           onOpenChange={(open) => setExpandedPlatforms(prev => ({ ...prev, [platform.platformId]: open }))}
-          className="border rounded-lg"
+          className="border rounded-lg scroll-mt-24"
         >
           <CollapsibleTrigger asChild>
             <Button
@@ -268,9 +294,10 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
             {platform.markets.map((market) => (
               <Collapsible
                 key={market.marketName}
+                id={`step5-market-${platform.platformId}-${market.marketName}`}
                 open={expandedMarkets[market.marketName]}
                 onOpenChange={(open) => setExpandedMarkets(prev => ({ ...prev, [market.marketName]: open }))}
-                className="ml-4 border-l-2 border-border pl-4 mb-4"
+                className="ml-4 border-l-2 border-border pl-4 mb-4 scroll-mt-24"
               >
                 <CollapsibleTrigger asChild>
                   <Button
@@ -359,8 +386,8 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
                          <TableBody>
                            {market.phases.map((phase, idx) => (
                              <>
-                               <TableRow key={idx}>
-                                 <TableCell className="font-medium">{phase.phaseName}</TableCell>
+                                <TableRow key={idx} id={`step5-phase-${platform.platformId}-${market.marketName}-${phase.phaseName}`} className="scroll-mt-24">
+                                  <TableCell className="font-medium">{phase.phaseName}</TableCell>
                                  <TableCell>{phase.kpi}</TableCell>
                                  <TableCell>{format(new Date(phase.startDate), 'MMM d, yyyy')}</TableCell>
                                  <TableCell>{format(new Date(phase.endDate), 'MMM d, yyyy')}</TableCell>
