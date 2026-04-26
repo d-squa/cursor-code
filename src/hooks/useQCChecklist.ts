@@ -178,50 +178,25 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
   const toggleAll = useCallback(async (trackingId: string, items: QCChecklistItem[], checked: boolean, checkMethod: string = 'bulk') => {
     if (!user || items.length === 0) return;
 
+    const checkedAt = checked ? new Date().toISOString() : null;
+    const checkedBy = checked ? user.id : null;
+
     try {
-      // Fetch the latest completions for THIS tracking id from the DB to avoid stale state
-      // (avoids duplicate-insert failures when Check All is clicked rapidly across many items)
-      const { data: latest } = await supabase
+      const payload = items.map((item) => ({
+        qc_tracking_id: trackingId,
+        item_key: item.key,
+        is_checked: checked,
+        checked_by: checkedBy,
+        checked_at: checkedAt,
+        check_method: checkMethod,
+      }));
+
+      const { data: savedCompletions, error } = await supabase
         .from("qc_checklist_completions")
-        .select("id, item_key")
-        .eq("qc_tracking_id", trackingId);
+        .upsert(payload as any, { onConflict: "qc_tracking_id,item_key" })
+        .select("id, qc_tracking_id, item_key, is_checked, checked_by, checked_at, notes");
 
-      const existingMap = new Map<string, string>(
-        ((latest || []) as any[]).map((row) => [row.item_key as string, row.id as string])
-      );
-
-      const checkedAt = checked ? new Date().toISOString() : null;
-      const checkedBy = checked ? user.id : null;
-
-      const toUpdate = items.filter((it) => existingMap.has(it.key));
-      const toInsert = items.filter((it) => !existingMap.has(it.key));
-
-      // Run updates and inserts in parallel for speed
-      await Promise.all([
-        ...toUpdate.map((it) =>
-          supabase
-            .from("qc_checklist_completions")
-            .update({
-              is_checked: checked,
-              checked_by: checkedBy,
-              checked_at: checkedAt,
-              check_method: checkMethod,
-            } as any)
-            .eq("id", existingMap.get(it.key)!)
-        ),
-        toInsert.length > 0
-          ? supabase.from("qc_checklist_completions").insert(
-              toInsert.map((it) => ({
-                qc_tracking_id: trackingId,
-                item_key: it.key,
-                is_checked: checked,
-                checked_by: checkedBy,
-                checked_at: checkedAt,
-                check_method: checkMethod,
-              })) as any
-            )
-          : Promise.resolve(),
-      ]);
+      if (error) throw error;
 
       if (campaignId) {
         const action = checked ? "qc_bulk_check_completed" : "qc_bulk_check_reopened";
@@ -246,19 +221,25 @@ export function useQCChecklist({ campaignId, clientId, enabled = true }: UseQCCh
         ]);
       }
 
-      // Update local state — replace all completions for this tracking id with the new set
       setCompletions((prev) => {
-        const others = prev.filter((c) => c.qc_tracking_id !== trackingId);
-        const newOnes: QCCompletionRecord[] = items.map((it) => ({
-          id: existingMap.get(it.key) || crypto.randomUUID(),
-          qc_tracking_id: trackingId,
-          item_key: it.key,
-          is_checked: checked,
-          checked_by: checkedBy,
-          checked_at: checkedAt,
-          notes: null,
-        }));
-        return [...others, ...newOnes];
+        const savedByKey = new Map(
+          ((savedCompletions || []) as QCCompletionRecord[]).map((completion) => [completion.item_key, completion])
+        );
+        const otherCompletions = prev.filter((completion) => completion.qc_tracking_id !== trackingId);
+        const updatedCompletions = items.map((item) => {
+          const saved = savedByKey.get(item.key);
+          return saved || {
+            id: crypto.randomUUID(),
+            qc_tracking_id: trackingId,
+            item_key: item.key,
+            is_checked: checked,
+            checked_by: checkedBy,
+            checked_at: checkedAt,
+            notes: null,
+          };
+        });
+
+        return [...otherCompletions, ...updatedCompletions];
       });
     } catch (error) {
       console.error("Error toggling all checklist items:", error);
