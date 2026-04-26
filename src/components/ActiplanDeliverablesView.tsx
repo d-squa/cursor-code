@@ -269,9 +269,10 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
             {platform.markets.map((market) => (
               <Collapsible
                 key={market.marketName}
+                id={`step5-market-${platform.platformId}-${market.marketName}`}
                 open={expandedMarkets[market.marketName]}
                 onOpenChange={(open) => setExpandedMarkets(prev => ({ ...prev, [market.marketName]: open }))}
-                className="ml-4 border-l-2 border-border pl-4 mb-4"
+                className="ml-4 border-l-2 border-border pl-4 mb-4 scroll-mt-24"
               >
                 <CollapsibleTrigger asChild>
                   <Button
