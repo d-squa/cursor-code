@@ -36,8 +36,6 @@ export function Step3StrategyNav({
           id: `step3-phase-${phase.id}`,
           label: phase.name || "Phase",
           icon: <FolderTree className="h-3 w-3" />,
-          // Phases scroll to the market anchor (phases live inside it)
-          targetId: `step3-market-${market.id}`,
           badge: phase.budgetPercentage != null ? (
             <Badge variant="outline" className="h-4 px-1 text-[10px]">
               {phase.budgetPercentage.toFixed(0)}%
