@@ -170,7 +170,7 @@ export function MultiTreeNav({
           "transform 300ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease-out, width 200ms ease-out",
       }}
       className={cn(
-        "fixed z-30 hidden lg:flex flex-col",
+        "fixed z-30 hidden lg:flex flex-col overflow-hidden",
         "bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg",
         collapsed ? "w-10" : "w-64",
         idle && "opacity-40",
@@ -202,8 +202,8 @@ export function MultiTreeNav({
       </div>
 
       {!collapsed && (
-        <ScrollArea className="flex-1">
-          <div className="p-1.5 space-y-2 max-w-full overflow-x-hidden">
+        <ScrollArea className="flex-1 w-full [&>[data-radix-scroll-area-viewport]>div]:!block">
+          <div className="p-1.5 space-y-2 w-full max-w-full overflow-x-hidden">
             {sections.map((section) => {
               const isActive = activeId === section.id;
               return (
