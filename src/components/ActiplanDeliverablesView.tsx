@@ -130,6 +130,31 @@ export function ActiplanDeliverablesView({ actiplanForecast, selectedKeywords, b
     setExpandedMarkets({});
   }, []);
 
+  // Listen for navigation events from the floating mini-map
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { platformId, marketName, anchorId } = (e as CustomEvent).detail || {};
+      if (platformId) {
+        setExpandedPlatforms(prev => ({ ...prev, [platformId]: true }));
+      }
+      if (marketName) {
+        setExpandedMarkets(prev => ({ ...prev, [marketName]: true }));
+      }
+      if (anchorId) {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            document.getElementById(anchorId)?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }, 80);
+        });
+      }
+    };
+    window.addEventListener("step5:navigate", handler);
+    return () => window.removeEventListener("step5:navigate", handler);
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Actiplan Deliverables - Top Level */}
