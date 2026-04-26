@@ -590,13 +590,13 @@ export function QCCheckSection({
                       {platformChecked}/{platformItems.length} progressed
                     </span>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-7 px-3 text-xs border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, entityType: "platform" }); }}
                     >
                       <AlertOctagon className="h-3 w-3 mr-1" />
-                      Setup Mistake
+                      Report a Setup Mistake
                     </Button>
                   </div>
                   <CollapsibleContent>
@@ -619,13 +619,13 @@ export function QCCheckSection({
                                 )}
                               </CollapsibleTrigger>
                               <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
-                                className="h-6 px-2 text-[11px]"
+                                className="h-6 px-2 text-[11px] border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, market, entityType: "market" }); }}
                               >
                                 <AlertOctagon className="h-3 w-3 mr-1" />
-                                Setup Mistake
+                                Report a Setup Mistake
                               </Button>
                             </div>
                             <CollapsibleContent>
@@ -666,13 +666,13 @@ export function QCCheckSection({
                                             )}
                                           </CollapsibleTrigger>
                                           <Button
-                                            variant="ghost"
+                                            variant="outline"
                                             size="sm"
-                                            className="h-6 px-2 text-[11px] not-italic"
+                                            className="h-6 px-2 text-[11px] not-italic border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                             onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, market, phaseName: phase, entityType: "phase" }); }}
                                           >
                                             <AlertOctagon className="h-3 w-3 mr-1" />
-                                            Setup Mistake
+                                            Report a Setup Mistake
                                           </Button>
                                         </div>
                                         <CollapsibleContent>
@@ -1106,13 +1106,13 @@ function EntityRow({
               </Button>
               {allowMistakeLogging && onLogMistake && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-6 text-xs px-2 text-destructive hover:text-destructive"
+                  className="h-6 text-xs px-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={(e) => { e.stopPropagation(); onLogMistake(item); }}
                 >
                   <AlertOctagon className="h-3 w-3 mr-1" />
-                  Setup Mistake
+                  Report a Setup Mistake
                 </Button>
               )}
             </div>
