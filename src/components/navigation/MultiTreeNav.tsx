@@ -203,16 +203,16 @@ export function MultiTreeNav({
 
       {!collapsed && (
         <ScrollArea className="flex-1">
-          <div className="p-1.5 space-y-2">
+          <div className="p-1.5 space-y-2 max-w-full overflow-x-hidden">
             {sections.map((section) => {
               const isActive = activeId === section.id;
               return (
-                <div key={section.id} className="space-y-0.5">
+                <div key={section.id} className="space-y-0.5 min-w-0">
                   <button
                     type="button"
                     onClick={() => scrollToSection(section.id)}
                     className={cn(
-                      "w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-semibold transition-all",
+                      "w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-semibold transition-all min-w-0 overflow-hidden",
                       "hover:bg-muted/60",
                       isActive
                         ? "bg-primary/10 text-primary border-l-2 border-primary"
@@ -220,11 +220,11 @@ export function MultiTreeNav({
                     )}
                   >
                     {section.icon && (
-                      <span className="text-muted-foreground">{section.icon}</span>
+                      <span className="text-muted-foreground shrink-0">{section.icon}</span>
                     )}
-                    <span className="truncate">{section.label}</span>
+                    <span className="truncate min-w-0">{section.label}</span>
                   </button>
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 min-w-0">
                     {section.nodes.map((node) => (
                       <NodeRow
                         key={node.id}
