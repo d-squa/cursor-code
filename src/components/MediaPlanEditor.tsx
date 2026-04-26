@@ -3107,6 +3107,7 @@ export function MediaPlanEditor() {
                             open={expandedPlatforms[platform.id]}
                             onOpenChange={(open) => setExpandedPlatforms((prev) => ({ ...prev, [platform.id]: open }))}
                             className="border rounded-lg"
+                            id={`step3-platform-${platform.id}`}
                           >
                             <CollapsibleTrigger asChild>
                               <div className="flex items-center gap-2 w-full">
