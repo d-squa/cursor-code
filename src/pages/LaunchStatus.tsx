@@ -166,6 +166,7 @@ export default function LaunchStatus() {
   // Tracks the (market|phaseName) currently being pushed via push-pmax-asset-groups
   // so the per-PMax-campaign button can show a spinner.
   const [pushingPmaxKey, setPushingPmaxKey] = useState<string | null>(null);
+  const [qcSectionOpen, setQcSectionOpen] = useState<boolean>(true);
 
   // Use the new real-time progress hook
   const {
@@ -1670,14 +1671,27 @@ export default function LaunchStatus() {
             onDeleteCreativeAssignment={handleDeleteCreativeAssignment}
             onPushPmaxAssetGroups={handlePushPmaxAssetGroups}
             pushingPmaxKey={pushingPmaxKey}
+            qcNavItems={qcItems.map((it) => ({
+              platform: it.platform,
+              market: it.market,
+              phase_name: it.phase_name,
+            }))}
+            onNavigateQC={() => {
+              setQcSectionOpen(true);
+              requestAnimationFrame(() => {
+                document
+                  .getElementById("nav-section-qc")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              });
+            }}
           />
         </div>
       )}
 
       {/* Quality Check Section - collapsible, at the bottom */}
       {hasPushedEntities && campaignId && (
-        <div className="mb-6">
-          <Collapsible defaultOpen>
+        <div id="nav-section-qc" className="mb-6 scroll-mt-24">
+          <Collapsible open={qcSectionOpen} onOpenChange={setQcSectionOpen}>
             <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 text-sm font-medium">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4" />

@@ -83,6 +83,10 @@ interface LaunchProgressTrackerProps {
   // awaiting_assets / push_failed asset group under that PMax campaign shell.
   onPushPmaxAssetGroups?: (market: string, phaseName: string) => Promise<void>;
   pushingPmaxKey?: string | null; // `${market}|${phaseName}` while in flight
+  /** Optional QC items used to render the third Outline section. */
+  qcNavItems?: Array<{ platform: string; market: string | null; phase_name: string | null }>;
+  /** Called when the user clicks anything in the QC outline section. */
+  onNavigateQC?: () => void;
 }
 
 // Status indicator for individual items
@@ -593,6 +597,8 @@ export function LaunchProgressTracker({
   onDeleteCreativeAssignment,
   onPushPmaxAssetGroups,
   pushingPmaxKey,
+  qcNavItems,
+  onNavigateQC,
 }: LaunchProgressTrackerProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["shell", "creatives"]));
   const [creativesExpanded, setCreativesExpanded] = useState<Record<string, boolean>>({});
@@ -846,7 +852,12 @@ export function LaunchProgressTracker({
       <LaunchTrackerNav
         adSetStatuses={filteredAdSetStatuses}
         creativeAssignments={filteredCreativeAssignments}
+        qcItems={qcNavItems}
         onNavigate={(sectionKey) => {
+          if (sectionKey === "qc") {
+            onNavigateQC?.();
+            return;
+          }
           // Make sure the parent card is open when navigating into it
           setExpandedSections((prev) => {
             const next = new Set(prev);
