@@ -852,7 +852,12 @@ export function LaunchProgressTracker({
       <LaunchTrackerNav
         adSetStatuses={filteredAdSetStatuses}
         creativeAssignments={filteredCreativeAssignments}
+        qcItems={qcNavItems}
         onNavigate={(sectionKey) => {
+          if (sectionKey === "qc") {
+            onNavigateQC?.();
+            return;
+          }
           // Make sure the parent card is open when navigating into it
           setExpandedSections((prev) => {
             const next = new Set(prev);
