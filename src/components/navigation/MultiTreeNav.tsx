@@ -202,8 +202,8 @@ export function MultiTreeNav({
       </div>
 
       {!collapsed && (
-        <ScrollArea className="flex-1">
-          <div className="p-1.5 space-y-2 max-w-full overflow-x-hidden">
+        <ScrollArea className="flex-1 w-full [&>[data-radix-scroll-area-viewport]>div]:!block">
+          <div className="p-1.5 space-y-2 w-full max-w-full overflow-x-hidden">
             {sections.map((section) => {
               const isActive = activeId === section.id;
               return (
