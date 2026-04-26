@@ -1420,7 +1420,7 @@ export default function PlatformConnections() {
             {/* Meta Ad Accounts - Collapsible */}
             <PlatformAccountsCollapsible
               platform="meta"
-              icon={<Facebook className="h-5 w-5 text-blue-600" />}
+              icon={<SiMeta className="h-5 w-5 text-[#1877F2]" />}
               title="Meta Ad Accounts"
               accounts={metaAdAccounts}
               emptyMessage="No Meta ad accounts synced yet. Connect a Meta platform to get started."
@@ -1438,7 +1438,7 @@ export default function PlatformConnections() {
             {/* TikTok Ad Accounts - Collapsible */}
             <PlatformAccountsCollapsible
               platform="tiktok"
-              icon={<Video className="h-5 w-5 text-black dark:text-white" />}
+              icon={<SiTiktok className="h-5 w-5 text-foreground" />}
               title="TikTok Ad Accounts"
               accounts={tiktokAdAccounts}
               emptyMessage="No TikTok ad accounts synced yet. Connect a TikTok platform to get started."
@@ -1456,7 +1456,7 @@ export default function PlatformConnections() {
             {/* Google Ad Accounts - Collapsible */}
             <PlatformAccountsCollapsible
               platform="google"
-              icon={<Search className="h-5 w-5 text-yellow-600" />}
+              icon={<SiGoogleads className="h-5 w-5 text-[#4285F4]" />}
               title="Google Ad Accounts"
               accounts={googleAdAccounts.map((acc) => ({
                 ...acc,
