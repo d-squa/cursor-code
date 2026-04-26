@@ -266,8 +266,8 @@ export function QCCheckSection({
       if (isForwardTransition) {
         setPendingLiveAction(() => () => {
           onUpdateState(trackingId, newState);
-          // Send stakeholder email notification
-          sendLiveNotification();
+          // Send stakeholder email notification (only fires if all items are live)
+          sendLiveNotification([trackingId]);
         });
         setLiveConfirmOpen(true);
       } else {
