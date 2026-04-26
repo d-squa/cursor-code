@@ -945,7 +945,7 @@ export function LaunchProgressTracker({
         open={expandedSections.has("creatives")}
         onOpenChange={() => toggleSection("creatives")}
       >
-        <Card className={cn(
+        <Card id="nav-section-creatives" className={cn(
           "transition-all",
           !allAdSetsPushed && "opacity-60",
           currentStep === 2 && allAdSetsPushed && "ring-2 ring-primary",
