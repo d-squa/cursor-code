@@ -112,11 +112,27 @@ export function MultiTreeNav({
     if (!storageKey || typeof window === "undefined") return false;
     return window.localStorage.getItem(storageKey) === "1";
   });
+  const [hovered, setHovered] = useState(false);
+  const asideRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!storageKey || typeof window === "undefined") return;
     window.localStorage.setItem(storageKey, collapsed ? "1" : "0");
   }, [collapsed, storageKey]);
+
+  // Click outside the panel collapses it
+  useEffect(() => {
+    if (collapsed) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const node = asideRef.current;
+      if (!node) return;
+      if (!node.contains(e.target as Node)) {
+        setCollapsed(true);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [collapsed]);
 
   const sectionIds = useMemo(() => sections.map((s) => s.id), [sections]);
   const { activeId, scrollToSection } = useActiveSection(sectionIds, {
@@ -137,6 +153,9 @@ export function MultiTreeNav({
 
   return (
     <aside
+      ref={asideRef as React.RefObject<HTMLElement>}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         top: "50%",
         transform: "translateY(-50%)",
@@ -147,6 +166,8 @@ export function MultiTreeNav({
         "bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg",
         "transition-all duration-200",
         collapsed ? "w-10" : "w-64",
+        // Fade when not hovered (only while expanded) for better page visibility
+        !collapsed && !hovered && "opacity-30 hover:opacity-100",
         sideClasses,
         className
       )}
