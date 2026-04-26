@@ -597,6 +597,8 @@ export function LaunchProgressTracker({
   onDeleteCreativeAssignment,
   onPushPmaxAssetGroups,
   pushingPmaxKey,
+  qcNavItems,
+  onNavigateQC,
 }: LaunchProgressTrackerProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["shell", "creatives"]));
   const [creativesExpanded, setCreativesExpanded] = useState<Record<string, boolean>>({});
