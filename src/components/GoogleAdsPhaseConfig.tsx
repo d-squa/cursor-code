@@ -135,9 +135,10 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     [selectedType, selectedSubtype]
   );
 
-  // Auto-set campaign type from objective when not manually set
+  // Auto-set campaign type from objective. Campaign type is derived (hidden in UI)
+  // and always kept in sync with the selected objective.
   useEffect(() => {
-    if (phase.googleCampaignType || !phase.objective) return;
+    if (!phase.objective) return;
     const objectiveToTypeAndSubtype: Record<string, { type: string; subtype?: string }> = {
       AWARENESS_DISPLAY: { type: "Display" },
       AWARENESS_VIDEO_EFFICIENT_REACH: { type: "Video", subtype: "Efficient Reach" },
@@ -156,17 +157,19 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     };
     const mapping = objectiveToTypeAndSubtype[phase.objective];
     if (mapping && campaignTypes.includes(mapping.type)) {
-      onUpdate("googleCampaignType", mapping.type);
+      if (phase.googleCampaignType !== mapping.type) {
+        onUpdate("googleCampaignType", mapping.type);
+      }
       const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
-      if (mapping.subtype && availableSubtypes.includes(mapping.subtype)) {
+      if (mapping.subtype && availableSubtypes.includes(mapping.subtype) && phase.googleCampaignSubtype !== mapping.subtype) {
         onUpdate("googleCampaignSubtype", mapping.subtype);
       }
       const newConfig = getGoogleAdsCampaignConfig(mapping.type, mapping.subtype);
-      if (newConfig?.bidStrategies?.length) {
+      if (newConfig?.bidStrategies?.length && !phase.googleBidStrategy) {
         onUpdate("googleBidStrategy", newConfig.bidStrategies[0]);
       }
     }
-  }, [phase.objective, phase.googleCampaignType]);
+  }, [phase.objective]);
 
   // Auto-populate from client defaults when fields are empty
   useEffect(() => {
@@ -306,21 +309,17 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
         )}
       </div>
 
-      {/* Campaign Type */}
+      {/* Campaign Type is auto-derived from Campaign Objective and hidden in UI.
+          Subtype remains visible when applicable for the derived type. */}
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label className="text-xs">Campaign Type</Label>
-          <Select value={selectedType} onValueChange={handleCampaignTypeChange}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Select campaign type" />
-            </SelectTrigger>
-            <SelectContent>
-              {campaignTypes.map((type) => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {selectedType && (
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Campaign Type (auto)</Label>
+            <div className="h-8 px-3 flex items-center text-xs rounded-md border bg-muted/40 text-muted-foreground">
+              {selectedType}
+            </div>
+          </div>
+        )}
 
         {/* Subtype */}
         {subtypes.length > 0 && (
