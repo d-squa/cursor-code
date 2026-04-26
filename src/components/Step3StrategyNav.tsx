@@ -70,6 +70,19 @@ export function Step3StrategyNav({
           if (text.includes(p.name || p.id)) onNavigatePlatform?.(p.id);
           p.markets.forEach((m) => {
             if (m.name && text.includes(m.name)) onNavigateMarket?.(m.id);
+            (m.phases || []).forEach((phase) => {
+              if (phase.name && text.includes(phase.name)) {
+                // Ensure parents are open so the phase anchor exists in the DOM
+                onNavigatePlatform?.(p.id);
+                onNavigateMarket?.(m.id);
+                // Tell PhaseScheduler to open this phase
+                window.dispatchEvent(
+                  new CustomEvent("multitree:expand-phase", {
+                    detail: { phaseId: phase.id },
+                  })
+                );
+              }
+            });
           });
         });
       }}
