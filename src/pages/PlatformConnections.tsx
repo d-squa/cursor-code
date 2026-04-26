@@ -1420,7 +1420,7 @@ export default function PlatformConnections() {
             {/* Meta Ad Accounts - Collapsible */}
             <PlatformAccountsCollapsible
               platform="meta"
-              icon={<Facebook className="h-5 w-5 text-blue-600" />}
+              icon={<SiMeta className="h-5 w-5 text-[#1877F2]" />}
               title="Meta Ad Accounts"
               accounts={metaAdAccounts}
               emptyMessage="No Meta ad accounts synced yet. Connect a Meta platform to get started."
