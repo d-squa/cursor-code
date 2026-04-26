@@ -431,7 +431,7 @@ function CampaignsShellTree({
   return (
     <div className="space-y-1">
       {Object.entries(grouped).map(([platform, markets]) => (
-        <div key={platform}>
+        <div key={platform} id={`nav-shell-platform-${platform}`}>
           <div
             className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer font-medium"
             onClick={() => onToggle(`shell:platform:${platform}`)}
