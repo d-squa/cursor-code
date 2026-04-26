@@ -666,13 +666,13 @@ export function QCCheckSection({
                                             )}
                                           </CollapsibleTrigger>
                                           <Button
-                                            variant="ghost"
+                                            variant="outline"
                                             size="sm"
-                                            className="h-6 px-2 text-[11px] not-italic"
+                                            className="h-6 px-2 text-[11px] not-italic border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                                             onClick={(e) => { e.stopPropagation(); handleLogScopedMistake({ platform, market, phaseName: phase, entityType: "phase" }); }}
                                           >
                                             <AlertOctagon className="h-3 w-3 mr-1" />
-                                            Setup Mistake
+                                            Report a Setup Mistake
                                           </Button>
                                         </div>
                                         <CollapsibleContent>
