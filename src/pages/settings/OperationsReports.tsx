@@ -917,6 +917,12 @@ export default function OperationsReports() {
                   selectedCampaign={selectedCampaign}
                   dateRange={dateRange}
                 />
+
+                <SetupMistakesAnalytics
+                  selectedCampaign={selectedCampaign}
+                  selectedClient="all"
+                  dateRange={dateRange}
+                />
               </>
             )}
           </>
