@@ -1238,13 +1238,19 @@ interface ScopedBulkCheckMenuProps {
 
 function ScopedBulkCheckMenu({ getChecklist, onBulkCheckAndAdvance, scopes }: ScopedBulkCheckMenuProps) {
   const [confirmScope, setConfirmScope] = useState<BulkCheckScope | null>(null);
+  const [isBulkChecking, setIsBulkChecking] = useState(false);
 
-  const handleBulkCheck = (scope: BulkCheckScope) => {
-    for (const item of scope.items) {
-      const checklist = getChecklist(item.platform, item.entity_type);
-      onBulkCheckAndAdvance(item.id, checklist, item.current_state, 'scoped_bulk');
+  const handleBulkCheck = async (scope: BulkCheckScope) => {
+    setIsBulkChecking(true);
+    try {
+      await Promise.all(scope.items.map((item) => {
+        const checklist = getChecklist(item.platform, item.entity_type);
+        return onBulkCheckAndAdvance(item.id, checklist, item.current_state, 'scoped_bulk');
+      }));
+      setConfirmScope(null);
+    } finally {
+      setIsBulkChecking(false);
     }
-    setConfirmScope(null);
   };
 
   // If only one scope, render a simple button with confirmation
@@ -1272,7 +1278,8 @@ function ScopedBulkCheckMenu({ getChecklist, onBulkCheckAndAdvance, scopes }: Sc
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => confirmScope && handleBulkCheck(confirmScope)}>
+              <AlertDialogAction disabled={isBulkChecking} onClick={() => confirmScope && void handleBulkCheck(confirmScope)}>
+                {isBulkChecking && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                 Yes, Check & Advance
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1317,7 +1324,8 @@ function ScopedBulkCheckMenu({ getChecklist, onBulkCheckAndAdvance, scopes }: Sc
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmScope && handleBulkCheck(confirmScope)}>
+            <AlertDialogAction disabled={isBulkChecking} onClick={() => confirmScope && void handleBulkCheck(confirmScope)}>
+              {isBulkChecking && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               Yes, Check & Advance
             </AlertDialogAction>
           </AlertDialogFooter>
