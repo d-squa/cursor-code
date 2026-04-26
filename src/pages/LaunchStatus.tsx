@@ -1690,8 +1690,8 @@ export default function LaunchStatus() {
 
       {/* Quality Check Section - collapsible, at the bottom */}
       {hasPushedEntities && campaignId && (
-        <div className="mb-6">
-          <Collapsible defaultOpen>
+        <div id="nav-section-qc" className="mb-6 scroll-mt-24">
+          <Collapsible open={qcSectionOpen} onOpenChange={setQcSectionOpen}>
             <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 text-sm font-medium">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4" />
