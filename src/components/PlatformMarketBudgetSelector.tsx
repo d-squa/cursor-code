@@ -19,6 +19,7 @@ import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { useSampleMode } from "@/contexts/SampleModeContext";
+import { PlatformMarketNav } from "./PlatformMarketNav";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
