@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TreeViewControls } from "./TreeViewControls";
+import { LaunchTrackerNav } from "./LaunchTrackerNav";
 import type { LaunchFilters } from "./LaunchFilters";
 
 export type CreativeAssignmentStatus = "pending" | "pushing" | "pushed" | "error";
@@ -431,7 +432,7 @@ function CampaignsShellTree({
   return (
     <div className="space-y-1">
       {Object.entries(grouped).map(([platform, markets]) => (
-        <div key={platform}>
+        <div key={platform} id={`nav-shell-platform-${platform}`}>
           <div
             className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer font-medium"
             onClick={() => onToggle(`shell:platform:${platform}`)}
@@ -451,7 +452,7 @@ function CampaignsShellTree({
           {expandedState[`shell:platform:${platform}`] && (
             <div className="ml-6 border-l pl-2">
               {Object.entries(markets).map(([market, phases]) => (
-                <div key={market}>
+                <div key={market} id={`nav-shell-market-${platform}-${market}`}>
                   <div
                     className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
                     onClick={() => onToggle(`shell:market:${platform}:${market}`)}
@@ -842,12 +843,24 @@ export function LaunchProgressTracker({
 
   return (
     <div className="space-y-4">
+      <LaunchTrackerNav
+        adSetStatuses={filteredAdSetStatuses}
+        creativeAssignments={filteredCreativeAssignments}
+        onNavigate={(sectionKey) => {
+          // Make sure the parent card is open when navigating into it
+          setExpandedSections((prev) => {
+            const next = new Set(prev);
+            next.add(sectionKey);
+            return next;
+          });
+        }}
+      />
       {/* Campaign Shell Card - Step 1 */}
       <Collapsible
         open={expandedSections.has("shell")}
         onOpenChange={() => toggleSection("shell")}
       >
-        <Card className={cn(
+        <Card id="nav-section-shell" className={cn(
           "transition-all",
           currentStep === 1 && "ring-2 ring-primary",
           adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0 && "ring-1 ring-emerald-500/30"
@@ -933,7 +946,7 @@ export function LaunchProgressTracker({
         open={expandedSections.has("creatives")}
         onOpenChange={() => toggleSection("creatives")}
       >
-        <Card className={cn(
+        <Card id="nav-section-creatives" className={cn(
           "transition-all",
           !allAdSetsPushed && "opacity-60",
           currentStep === 2 && allAdSetsPushed && "ring-2 ring-primary",
