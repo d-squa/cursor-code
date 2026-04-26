@@ -197,9 +197,27 @@ export function QCCheckSection({
     }
   }, [resolveMistake]);
 
-  // Send stakeholder notification when campaign goes live
-  const sendLiveNotification = useCallback(async () => {
+  // Send stakeholder notification when campaign goes live.
+  // HARD CONDITION: only fire when EVERY tracked item is at pushed_live or delivering.
+  // `projectedLiveIds` lists tracking IDs that will be moved to pushed_live as part
+  // of the current action — they're treated as already-live for this check.
+  const sendLiveNotification = useCallback(async (projectedLiveIds: string[] = []) => {
     if (!campaignId) return;
+    if (items.length === 0) return;
+
+    const projectedSet = new Set(projectedLiveIds);
+    const allLive = items.every(
+      (item) =>
+        item.current_state === "pushed_live" ||
+        item.current_state === "delivering" ||
+        projectedSet.has(item.id)
+    );
+
+    if (!allLive) {
+      console.log("⏸️ Skipping live notification — not all items are pushed live yet");
+      return;
+    }
+
     try {
       const { data: campaign } = await supabase
         .from("campaigns")
@@ -219,7 +237,7 @@ export function QCCheckSection({
     } catch (err) {
       console.error("Failed to send live notification:", err);
     }
-  }, [campaignId]);
+  }, [campaignId, items]);
 
   // Auto-initialize tracking entries when first mounted or when items are empty (max 2 attempts)
   useEffect(() => {
@@ -248,8 +266,8 @@ export function QCCheckSection({
       if (isForwardTransition) {
         setPendingLiveAction(() => () => {
           onUpdateState(trackingId, newState);
-          // Send stakeholder email notification
-          sendLiveNotification();
+          // Send stakeholder email notification (only fires if all items are live)
+          sendLiveNotification([trackingId]);
         });
         setLiveConfirmOpen(true);
       } else {
@@ -395,9 +413,12 @@ export function QCCheckSection({
     };
 
     if (willMoveToPushedLive) {
+      const projectedLiveIds = advanceableItems
+        .filter((item) => getNextState(item.current_state) === 'pushed_live')
+        .map((item) => item.id);
       setPendingLiveAction(() => () => {
         doMove();
-        sendLiveNotification();
+        sendLiveNotification(projectedLiveIds);
       });
       setLiveConfirmOpen(true);
     } else {
