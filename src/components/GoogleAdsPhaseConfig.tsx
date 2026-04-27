@@ -13,7 +13,7 @@ import {
   getGoogleAdsCampaignConfig,
   type GoogleAdsCampaignType,
 } from "@/utils/googleAdsCampaignMatrix";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { KeywordItem, KeywordStrategy } from "./KeywordTargeting";
