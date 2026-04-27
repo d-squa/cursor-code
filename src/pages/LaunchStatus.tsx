@@ -1742,9 +1742,10 @@ export default function LaunchStatus() {
                         )}
                       </CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {qcProgressed}/{qcTotal} progressed · {qcPercent}% complete
-                        {qcInProgress > 0 && ` · ${qcInProgress} in progress`}
-                        {qcPending > 0 && ` · ${qcPending} awaiting QC`}
+                        {qcDone}/{qcTotal} delivering · {qcPercent}% complete
+                        {qcPending > 0 && ` · ${qcPending} waiting for final check`}
+                        {qcSummary.inQC > 0 && ` · ${qcSummary.inQC} checked`}
+                        {qcSummary.pushedLive > 0 && ` · ${qcSummary.pushedLive} pushed live`}
                         {qcSummary.errors > 0 && ` · ${qcSummary.errors} errors`}
                       </p>
                     </div>
