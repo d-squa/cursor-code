@@ -22,6 +22,14 @@ import { useSampleMode } from "@/contexts/SampleModeContext";
 interface GoogleAdsPhaseConfigProps {
   phase: Phase;
   onUpdate: (field: string, value: any) => void;
+  /**
+   * Optional batched updater. When provided, derived/cascading updates
+   * (objective → campaign type/subtype/bid strategy, applying client defaults,
+   * etc.) are dispatched as a single state update to avoid render storms
+   * that cause downstream UI elements to "flinch" while React processes
+   * many sequential `onUpdate` calls.
+   */
+  onUpdateMany?: (patch: Record<string, any>) => void;
   googleCustomerId?: string;
   selectedKeywords?: KeywordItem[];
   googleDefaults?: {
