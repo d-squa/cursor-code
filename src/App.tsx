@@ -61,6 +61,18 @@ import { SampleModeProvider } from "./contexts/SampleModeContext";
 
 import { TourRibbon } from "./components/TourRibbon";
 import { SampleModeBadge } from "./components/SampleModeBadge";
+
+
+const AppOnlyTourUI = () => {
+  const location = useLocation();
+  if (!location.pathname.startsWith("/app")) return null;
+  return (
+    <>
+      <TourRibbon />
+      <SampleModeBadge />
+    </>
+  );
+};
 import { MarketingGTM } from "./components/MarketingGTM";
 import { DataLayerUserID } from "./components/DataLayerUserID";
 
@@ -76,8 +88,7 @@ const App = () => (
           <SampleModeProvider>
           <MarketingGTM />
           <DataLayerUserID />
-          <TourRibbon />
-          <SampleModeBadge />
+          <AppOnlyTourUI />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
