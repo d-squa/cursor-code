@@ -474,7 +474,10 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
       )}
 
       {config && (
-        <>
+        <div
+          key={`gads-config-${selectedType}-${selectedSubtype || "_"}`}
+          className="space-y-4 animate-fade-in"
+        >
           {/* Bid strategy is driven by the phase Optimization Goal (single source of truth).
               We only render the conditional inputs (Target CPA / ROAS / Max CPC). */}
           {(() => {
