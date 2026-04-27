@@ -137,10 +137,11 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
   const selectedType = phase.googleCampaignType || "";
   const subtypes = useMemo(() => selectedType ? getGoogleAdsSubtypes(selectedType) : [], [selectedType]);
   const selectedSubtype = phase.googleCampaignSubtype || "";
+  const effectiveSubtype = selectedSubtype && subtypes.includes(selectedSubtype) ? selectedSubtype : "";
 
   const config = useMemo(
-    () => getGoogleAdsCampaignConfig(selectedType, selectedSubtype || undefined),
-    [selectedType, selectedSubtype]
+    () => getGoogleAdsCampaignConfig(selectedType, effectiveSubtype || undefined),
+    [selectedType, effectiveSubtype]
   );
 
   // Batched update helper: prefer a single multi-field patch when the parent
@@ -189,12 +190,12 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
       patch.googleCampaignType = mapping.type;
     }
     const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
-    if (
-      mapping.subtype &&
-      availableSubtypes.includes(mapping.subtype) &&
-      phase.googleCampaignSubtype !== mapping.subtype
-    ) {
+    if (mapping.subtype && availableSubtypes.includes(mapping.subtype) && phase.googleCampaignSubtype !== mapping.subtype) {
       patch.googleCampaignSubtype = mapping.subtype;
+    } else if (!mapping.subtype && phase.googleCampaignSubtype) {
+      patch.googleCampaignSubtype = "";
+    } else if (phase.googleCampaignSubtype && !availableSubtypes.includes(phase.googleCampaignSubtype)) {
+      patch.googleCampaignSubtype = "";
     }
     const newConfig = getGoogleAdsCampaignConfig(mapping.type, mapping.subtype);
     if (newConfig?.bidStrategies?.length && !phase.googleBidStrategy) {
@@ -309,13 +310,13 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
   }, [phase.optimizationGoal]);
 
   const handleCampaignTypeChange = (value: string) => {
-    onUpdate("googleCampaignType", value);
-    onUpdate("googleCampaignSubtype", "");
+    const patch: Record<string, any> = { googleCampaignType: value, googleCampaignSubtype: "" };
     // Auto-set bid strategy to first available
     const newConfig = getGoogleAdsCampaignConfig(value);
     if (newConfig?.bidStrategies?.length) {
-      onUpdate("googleBidStrategy", newConfig.bidStrategies[0]);
+      patch.googleBidStrategy = newConfig.bidStrategies[0];
     }
+    applyPatch(patch);
   };
 
   // Keyword strategy summary for Search campaigns
