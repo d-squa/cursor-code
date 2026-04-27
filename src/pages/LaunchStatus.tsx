@@ -26,7 +26,9 @@ import {
   ExternalLink,
   Lock,
   Image,
+  Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
