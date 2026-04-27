@@ -865,6 +865,22 @@ export function LaunchProgressTracker({
             return next;
           });
         }}
+        onNavigateNode={({ section, level, platform, market, phase }) => {
+          const prefix = section === "shell" ? "shell" : section === "creatives" ? "creative" : null;
+          if (!prefix) return;
+          const setter = section === "shell" ? setShellExpanded : setCreativesExpanded;
+          setter((prev) => {
+            const next = { ...prev };
+            next[`${prefix}:platform:${platform}`] = true;
+            if ((level === "market" || level === "phase") && market) {
+              next[`${prefix}:market:${platform}:${market}`] = true;
+            }
+            if (level === "phase" && market && phase) {
+              next[`${prefix}:phase:${platform}:${market}:${phase}`] = true;
+            }
+            return next;
+          });
+        }}
       />
       {/* Campaign Shell Card - Step 1 */}
       <Collapsible
