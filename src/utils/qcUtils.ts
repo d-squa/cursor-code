@@ -19,6 +19,20 @@ export const QC_STAGE_ORDER: QCState[] = [
 
 export const DELIVERING_IMPRESSION_THRESHOLD = 1000;
 
+export const QC_STAGE_PROGRESS: Record<QCState, number> = {
+  'waiting_for_final_qc': 0,
+  'qc': 50,
+  'pushed_live': 75,
+  'delivering': 100,
+};
+
+export function getQCProgressPercent(items: Array<{ current_state: QCState }>): number {
+  if (items.length === 0) return 0;
+
+  const totalProgress = items.reduce((sum, item) => sum + QC_STAGE_PROGRESS[item.current_state], 0);
+  return Math.round(totalProgress / items.length);
+}
+
 /**
  * Validate sequential integrity of a state transition
  */
