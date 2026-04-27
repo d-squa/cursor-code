@@ -330,7 +330,7 @@ export function QCCheckSection({
   }
 
   const deliveredPercent = summary.total > 0 ? Math.round(((summary.delivering + summary.pushedLive) / summary.total) * 100) : 0;
-  const checkedPercent = summary.total > 0 ? Math.round(((summary.inQC + summary.pushedLive + summary.delivering) / summary.total) * 100) : 0;
+  const checkedPercent = summary.total > 0 ? Math.round((summary.delivering / summary.total) * 100) : 0;
 
   const expandAll = () => {
     const platforms: Record<string, boolean> = {};
