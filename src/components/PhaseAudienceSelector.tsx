@@ -471,14 +471,15 @@ export function PhaseAudienceSelector({
             );
           })}
         </div>
-      )}
+        )}
 
-      {!loading && groupOrder.every((g) => (groupedAudiences[g] || []).length === 0) && (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No audiences available in this ad account</p>
-          <p className="text-sm mt-2">Create audiences in your ad account, then refresh here.</p>
-        </div>
-      )}
+        {!loading && groupOrder.every((g) => (groupedAudiences[g] || []).length === 0) && (
+          <div className="text-center py-8 text-muted-foreground animate-fade-in">
+            <p>No audiences available in this ad account</p>
+            <p className="text-sm mt-2">Create audiences in your ad account, then refresh here.</p>
+          </div>
+        )}
+      </div>
 
     </div>
   );
