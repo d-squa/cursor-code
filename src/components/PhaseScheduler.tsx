@@ -1420,6 +1420,38 @@ export function PhaseScheduler({
     return defaultGoal || "";
   };
 
+  const buildGoogleObjectivePatch = (objective: string, autoGoal: string, phase: Phase): Partial<Phase> => {
+    const objectiveToTypeAndSubtype: Record<string, { type: string; subtype?: string }> = {
+      AWARENESS_DISPLAY: { type: "Display" },
+      AWARENESS_VIDEO_EFFICIENT_REACH: { type: "Video", subtype: "Efficient Reach" },
+      AWARENESS_VIDEO_NON_SKIPPABLE: { type: "Video", subtype: "Non-skippable Reach" },
+      AWARENESS_VIDEO_TARGET_FREQUENCY: { type: "Video", subtype: "Target Frequency" },
+      AWARENESS_AD_SEQUENCE: { type: "Video", subtype: "Ad Sequence" },
+      AWARENESS_VIDEO_VIEWS: { type: "Video", subtype: "Video Views" },
+      AWARENESS_AUDIO_REACH: { type: "Video", subtype: "Audio Reach" },
+      CONVERSION_SEARCH: { type: "Search" },
+      CONSIDERATION_PMAX: { type: "Performance Max" },
+      CONSIDERATION_APP_INSTALLS: { type: "App Promotion", subtype: "App Installs" },
+      CONSIDERATION_APP_ENGAGEMENT: { type: "App Promotion", subtype: "App Engagement" },
+      CONSIDERATION_APP_PRE_REGISTRATION: { type: "App Promotion", subtype: "App Pre-registration" },
+      CONSIDERATION_DEMAND_GEN: { type: "Demand Gen" },
+      CONVERSION_SHOPPING: { type: "Shopping" },
+    };
+
+    const mapping = objectiveToTypeAndSubtype[objective];
+    if (!mapping) return autoGoal ? { googleBidStrategy: autoGoal } : {};
+
+    const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
+    const nextSubtype = mapping.subtype && availableSubtypes.includes(mapping.subtype) ? mapping.subtype : "";
+    const config = getGoogleAdsCampaignConfig(mapping.type, nextSubtype || undefined);
+
+    return {
+      googleCampaignType: mapping.type,
+      googleCampaignSubtype: nextSubtype,
+      googleBidStrategy: autoGoal || phase.googleBidStrategy || config?.bidStrategies?.[0],
+    };
+  };
+
   const togglePhaseExpansion = (phaseId: string, open?: boolean) => {
     setExpandedPhases((prev) => ({ ...prev, [phaseId]: open ?? !prev[phaseId] }));
   };
