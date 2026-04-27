@@ -13,7 +13,7 @@ import {
   getGoogleAdsCampaignConfig,
   type GoogleAdsCampaignType,
 } from "@/utils/googleAdsCampaignMatrix";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ShieldCheck, Target, Swords, Ban } from "lucide-react";
 import { KeywordItem, KeywordStrategy } from "./KeywordTargeting";
@@ -22,6 +22,14 @@ import { useSampleMode } from "@/contexts/SampleModeContext";
 interface GoogleAdsPhaseConfigProps {
   phase: Phase;
   onUpdate: (field: string, value: any) => void;
+  /**
+   * Optional batched updater. When provided, derived/cascading updates
+   * (objective → campaign type/subtype/bid strategy, applying client defaults,
+   * etc.) are dispatched as a single state update to avoid render storms
+   * that cause downstream UI elements to "flinch" while React processes
+   * many sequential `onUpdate` calls.
+   */
+  onUpdateMany?: (patch: Record<string, any>) => void;
   googleCustomerId?: string;
   selectedKeywords?: KeywordItem[];
   googleDefaults?: {
@@ -123,7 +131,7 @@ function formatVol(vol?: number) {
   return String(vol);
 }
 
-export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, selectedKeywords, googleDefaults }: GoogleAdsPhaseConfigProps) {
+export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCustomerId, selectedKeywords, googleDefaults }: GoogleAdsPhaseConfigProps) {
   const { isSampleMode } = useSampleMode();
   const campaignTypes = getGoogleAdsCampaignTypes();
   const selectedType = phase.googleCampaignType || "";
@@ -135,8 +143,26 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
     [selectedType, selectedSubtype]
   );
 
-  // Auto-set campaign type from objective. Campaign type is derived (hidden in UI)
-  // and always kept in sync with the selected objective.
+  // Batched update helper: prefer a single multi-field patch when the parent
+  // supports it (avoids cascading re-renders that visually flinch the UI),
+  // otherwise fall back to sequential single-field updates.
+  const applyPatch = useCallback(
+    (patch: Record<string, any>) => {
+      const entries = Object.entries(patch);
+      if (entries.length === 0) return;
+      if (onUpdateMany) {
+        onUpdateMany(patch);
+      } else {
+        for (const [field, value] of entries) onUpdate(field, value);
+      }
+    },
+    [onUpdate, onUpdateMany]
+  );
+
+  // Auto-set campaign type from objective. Campaign type is derived (hidden in
+  // UI) and always kept in sync with the selected objective. We dispatch a
+  // single patch (instead of 1–3 sequential updates) so the parent only
+  // re-renders once per objective change.
   useEffect(() => {
     if (!phase.objective) return;
     const objectiveToTypeAndSubtype: Record<string, { type: string; subtype?: string }> = {
@@ -156,85 +182,104 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, select
       CONVERSION_SHOPPING: { type: "Shopping" },
     };
     const mapping = objectiveToTypeAndSubtype[phase.objective];
-    if (mapping && campaignTypes.includes(mapping.type)) {
-      if (phase.googleCampaignType !== mapping.type) {
-        onUpdate("googleCampaignType", mapping.type);
-      }
-      const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
-      if (mapping.subtype && availableSubtypes.includes(mapping.subtype) && phase.googleCampaignSubtype !== mapping.subtype) {
-        onUpdate("googleCampaignSubtype", mapping.subtype);
-      }
-      const newConfig = getGoogleAdsCampaignConfig(mapping.type, mapping.subtype);
-      if (newConfig?.bidStrategies?.length && !phase.googleBidStrategy) {
-        onUpdate("googleBidStrategy", newConfig.bidStrategies[0]);
-      }
+    if (!mapping || !campaignTypes.includes(mapping.type)) return;
+
+    const patch: Record<string, any> = {};
+    if (phase.googleCampaignType !== mapping.type) {
+      patch.googleCampaignType = mapping.type;
     }
+    const availableSubtypes = getGoogleAdsSubtypes(mapping.type);
+    if (
+      mapping.subtype &&
+      availableSubtypes.includes(mapping.subtype) &&
+      phase.googleCampaignSubtype !== mapping.subtype
+    ) {
+      patch.googleCampaignSubtype = mapping.subtype;
+    }
+    const newConfig = getGoogleAdsCampaignConfig(mapping.type, mapping.subtype);
+    if (newConfig?.bidStrategies?.length && !phase.googleBidStrategy) {
+      patch.googleBidStrategy = newConfig.bidStrategies[0];
+    }
+    applyPatch(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.objective]);
 
-  // Auto-populate from client defaults when fields are empty
+  // Auto-populate from client defaults — applied ONCE per phase, in a single
+  // batched patch. Previously this effect re-fired on every render because
+  // `googleDefaults` was created inline in the parent (new object identity
+  // each render); each `onUpdate` then triggered another parent render, which
+  // produced visible flinching of downstream fields after any unrelated
+  // dropdown change. We now gate it with a ref keyed by phase id.
+  const appliedDefaultsForPhaseRef = useRef<string | null>(null);
   useEffect(() => {
     if (!googleDefaults) return;
+    if (appliedDefaultsForPhaseRef.current === phase.id) return;
+    appliedDefaultsForPhaseRef.current = phase.id;
+
+    const patch: Record<string, any> = {};
     if (!phase.googleCampaignType && googleDefaults.googleCampaignType) {
-      onUpdate("googleCampaignType", googleDefaults.googleCampaignType);
+      patch.googleCampaignType = googleDefaults.googleCampaignType;
       if (googleDefaults.googleCampaignSubtype) {
-        onUpdate("googleCampaignSubtype", googleDefaults.googleCampaignSubtype);
+        patch.googleCampaignSubtype = googleDefaults.googleCampaignSubtype;
       }
     }
     if (!phase.googleBidStrategy && googleDefaults.googleBidStrategy) {
-      onUpdate("googleBidStrategy", googleDefaults.googleBidStrategy);
+      patch.googleBidStrategy = googleDefaults.googleBidStrategy;
     }
     if (phase.googleTargetCpa === undefined && googleDefaults.googleTargetCpa) {
-      onUpdate("googleTargetCpa", googleDefaults.googleTargetCpa);
+      patch.googleTargetCpa = googleDefaults.googleTargetCpa;
     }
     if (phase.googleTargetRoas === undefined && googleDefaults.googleTargetRoas) {
-      onUpdate("googleTargetRoas", googleDefaults.googleTargetRoas);
+      patch.googleTargetRoas = googleDefaults.googleTargetRoas;
     }
     if (phase.googleMaxCpcBid === undefined && googleDefaults.googleMaxCpcBid) {
-      onUpdate("googleMaxCpcBid", googleDefaults.googleMaxCpcBid);
+      patch.googleMaxCpcBid = googleDefaults.googleMaxCpcBid;
     }
     if (phase.googleLocationTargeting === undefined && googleDefaults.googleLocationTargeting) {
-      onUpdate("googleLocationTargeting", googleDefaults.googleLocationTargeting);
+      patch.googleLocationTargeting = googleDefaults.googleLocationTargeting;
     }
     if (phase.googleSearchPartner === undefined && googleDefaults.googleSearchPartner !== undefined) {
-      onUpdate("googleSearchPartner", googleDefaults.googleSearchPartner);
+      patch.googleSearchPartner = googleDefaults.googleSearchPartner;
     }
     if (phase.googleDisplayNetwork === undefined && googleDefaults.googleDisplayNetwork !== undefined) {
-      onUpdate("googleDisplayNetwork", googleDefaults.googleDisplayNetwork);
+      patch.googleDisplayNetwork = googleDefaults.googleDisplayNetwork;
     }
     if (phase.googleCustomerAcquisition === undefined && googleDefaults.googleCustomerAcquisition) {
-      onUpdate("googleCustomerAcquisition", googleDefaults.googleCustomerAcquisition);
+      patch.googleCustomerAcquisition = googleDefaults.googleCustomerAcquisition;
     }
     if (phase.googleOptimizedTargeting === undefined && googleDefaults.googleOptimizedTargeting !== undefined) {
-      onUpdate("googleOptimizedTargeting", googleDefaults.googleOptimizedTargeting);
+      patch.googleOptimizedTargeting = googleDefaults.googleOptimizedTargeting;
     }
     if (phase.googleInventoryType === undefined && googleDefaults.googleInventoryType) {
-      onUpdate("googleInventoryType", googleDefaults.googleInventoryType);
+      patch.googleInventoryType = googleDefaults.googleInventoryType;
     }
     if (phase.googleAiMax === undefined && googleDefaults.googleAiMax !== undefined) {
-      onUpdate("googleAiMax", googleDefaults.googleAiMax);
+      patch.googleAiMax = googleDefaults.googleAiMax;
     }
     if (!phase.googleAiMaxOptions?.length && googleDefaults.googleAiMaxOptions?.length) {
-      onUpdate("googleAiMaxOptions", googleDefaults.googleAiMaxOptions);
+      patch.googleAiMaxOptions = googleDefaults.googleAiMaxOptions;
     }
     if (!phase.googleLandingPageUrl && googleDefaults.googleLandingPageUrl) {
-      onUpdate("googleLandingPageUrl", googleDefaults.googleLandingPageUrl);
+      patch.googleLandingPageUrl = googleDefaults.googleLandingPageUrl;
     }
     if (!phase.googleMerchantCenterId && googleDefaults.googleMerchantCenterId) {
-      onUpdate("googleMerchantCenterId", googleDefaults.googleMerchantCenterId);
-      onUpdate("googleProductFeed", true);
+      patch.googleMerchantCenterId = googleDefaults.googleMerchantCenterId;
+      patch.googleProductFeed = true;
     }
     if (!phase.googleFeedLabel && googleDefaults.googleFeedLabel) {
-      onUpdate("googleFeedLabel", googleDefaults.googleFeedLabel);
+      patch.googleFeedLabel = googleDefaults.googleFeedLabel;
     }
     if (!phase.googlePlacements?.length && googleDefaults.googlePlacements?.length) {
-      onUpdate("googlePlacements", googleDefaults.googlePlacements);
+      patch.googlePlacements = googleDefaults.googlePlacements;
     }
     if (phase.googleBrandGuidelines === undefined && googleDefaults.googleBrandGuidelines !== undefined) {
-      onUpdate("googleBrandGuidelines", googleDefaults.googleBrandGuidelines);
+      patch.googleBrandGuidelines = googleDefaults.googleBrandGuidelines;
     }
     if (!phase.googleBusinessName && googleDefaults.googleBusinessName) {
-      onUpdate("googleBusinessName", googleDefaults.googleBusinessName);
+      patch.googleBusinessName = googleDefaults.googleBusinessName;
     }
+    applyPatch(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.id, googleDefaults]);
 
   const [merchantCenters, setMerchantCenters] = useState<Array<{ id: string; merchantCenterId: string; merchantCenterName: string }>>([]);

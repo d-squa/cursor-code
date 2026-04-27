@@ -3375,8 +3375,10 @@ export function PhaseScheduler({
                             googleBusinessName: adAccountDefaults.googleBusinessName,
                           } : undefined}
                           onUpdate={(field, value) => {
-                            console.log("🔄 PhaseScheduler Google Ads onUpdate called:", { phaseId: phase.id, field, value });
                             updatePhaseField(phase.id, field as keyof Phase, value);
+                          }}
+                          onUpdateMany={(patch) => {
+                            updatePhaseFields(phase.id, patch);
                           }}
                         />
                       )}
