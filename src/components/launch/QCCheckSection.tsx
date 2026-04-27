@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 import type { QCTrackingItem } from "@/hooks/useQCTracking";
 import type { QCChecklistItem } from "@/config/qcChecklists";
-import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass, getQCIconColor, getNextState, getPreviousState } from "@/utils/qcUtils";
+import { QC_STATE_LABELS, QC_STAGE_ORDER, getQCColorClass, getQCIconColor, getNextState, getPreviousState, getQCProgressPercent } from "@/utils/qcUtils";
 import type { QCState } from "@/utils/qcUtils";
 import { useSetupMistakes, type SetupMistake } from "@/hooks/useSetupMistakes";
 import { SetupMistakeDialog, type SetupMistakeContext } from "@/components/SetupMistakeDialog";
@@ -329,8 +329,7 @@ export function QCCheckSection({
     );
   }
 
-  const deliveredPercent = summary.total > 0 ? Math.round(((summary.delivering + summary.pushedLive) / summary.total) * 100) : 0;
-  const checkedPercent = summary.total > 0 ? Math.round((summary.delivering / summary.total) * 100) : 0;
+  const qcProgressPercent = getQCProgressPercent(items);
 
   const expandAll = () => {
     const platforms: Record<string, boolean> = {};
@@ -478,11 +477,11 @@ export function QCCheckSection({
         <div className="space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">QC Progress</span>
-            <span className="font-medium">{checkedPercent}% Complete</span>
+            <span className="font-medium">{qcProgressPercent}% Complete</span>
           </div>
           <TooltipProvider>
             <div className="relative">
-              <Progress value={checkedPercent} className="h-2" />
+              <Progress value={qcProgressPercent} className="h-2" />
               {(() => {
                 const pendingMistakes = setupMistakes.filter(m => m.status === "open").length;
                 if (pendingMistakes === 0) return null;
