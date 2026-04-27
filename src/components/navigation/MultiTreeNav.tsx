@@ -148,10 +148,11 @@ export function MultiTreeNav({
   });
 
   const handleNavigate = useCallback(
-    (targetId: string) => {
+    (targetId: string, node?: TreeNode) => {
       scrollToSection(targetId);
+      onNavigate?.(targetId, node);
     },
-    [scrollToSection]
+    [scrollToSection, onNavigate]
   );
 
   const sideClasses =
