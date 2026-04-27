@@ -45,6 +45,7 @@ import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
 import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
 import { QCCheckSection } from "@/components/launch/QCCheckSection";
+import { getQCProgressPercent } from "@/utils/qcUtils";
 
 interface LaunchStatusEntry {
   id: string;
@@ -1693,11 +1694,11 @@ export default function LaunchStatus() {
       {/* Quality Check Section - Step 3 */}
       {hasPushedEntities && campaignId && (() => {
         const qcDone = qcSummary.delivering;
-        const qcInProgress =
-          qcSummary.inQC + qcSummary.pushedLive;
+        const qcProgressed = qcSummary.inQC + qcSummary.pushedLive + qcSummary.delivering;
+        const qcInProgress = qcSummary.inQC + qcSummary.pushedLive;
         const qcPending = qcSummary.waitingForQC;
         const qcTotal = qcSummary.total;
-        const qcPercent = qcTotal > 0 ? Math.round((qcDone / qcTotal) * 100) : 0;
+        const qcPercent = getQCProgressPercent(qcItems);
         const qcComplete = qcTotal > 0 && qcDone === qcTotal;
 
         return (
@@ -1728,8 +1729,8 @@ export default function LaunchStatus() {
                       <CardTitle className="text-base flex items-center gap-2">
                         Quality Check
                         {qcInProgress > 0 && !qcComplete && (
-                          <Badge variant="secondary" className="text-amber-600">
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          <Badge variant="secondary" className="text-primary">
+                            <Clock className="h-3 w-3 mr-1" />
                             In progress
                           </Badge>
                         )}
@@ -1741,7 +1742,7 @@ export default function LaunchStatus() {
                         )}
                       </CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {qcDone}/{qcTotal} delivering
+                        {qcProgressed}/{qcTotal} progressed · {qcPercent}% complete
                         {qcInProgress > 0 && ` · ${qcInProgress} in progress`}
                         {qcPending > 0 && ` · ${qcPending} awaiting QC`}
                         {qcSummary.errors > 0 && ` · ${qcSummary.errors} errors`}
