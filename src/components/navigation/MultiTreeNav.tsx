@@ -51,7 +51,7 @@ function NodeRow({
 }: {
   node: TreeNode;
   depth: number;
-  onNavigate: (targetId: string) => void;
+  onNavigate: (targetId: string, node?: TreeNode) => void;
   activeTargetId: string | null;
 }) {
   const [open, setOpen] = useState(node.defaultExpanded ?? depth === 0);
