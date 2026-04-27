@@ -2546,12 +2546,13 @@ export function PhaseScheduler({
                           value={phase.objective ?? ""}
                           onValueChange={(value) => {
                             const isTikTok = platformName.toLowerCase().includes('tiktok');
-                            const isMeta = !isTikTok;
+                            const isGoogle = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads' || platformName.toLowerCase().includes('google');
+                            const isMeta = !isTikTok && !isGoogle;
                             const adjustedObjective = value;
                             
                             // Get valid destinations for this objective
-                            const platformType = isTikTok ? "tiktok" : "meta";
-                            const validDestinations = getDestinationsForObjective(platformType, adjustedObjective);
+                            const platformType = isGoogle ? "google" : isTikTok ? "tiktok" : "meta";
+                            const validDestinations = isGoogle ? [] : getDestinationsForObjective(platformType as "meta" | "tiktok", adjustedObjective);
                             
                             // IMPORTANT: Use the ref-backed batch updater so we never write based on a stale `phases` array.
                             // This prevents the Select from “snapping back” to the previous value.
@@ -2571,6 +2572,7 @@ export function PhaseScheduler({
                             const updates: any = {
                               objective: adjustedObjective,
                               optimizationGoal: autoGoal,
+                              ...(isGoogle ? buildGoogleObjectivePatch(adjustedObjective, autoGoal, basePhase) : {}),
                               // Auto-enable/disable broad targeting based on strategy
                               useBroadTargeting: audienceStrategy.useBroadTargeting,
                               // Disable override if broad targeting is auto-enabled
