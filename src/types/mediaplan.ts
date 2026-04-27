@@ -341,6 +341,9 @@ export interface Phase {
   googleTargetCpa?: number; // Target CPA amount
   googleTargetRoas?: number; // Target ROAS percentage
   googleMaxCpcBid?: number; // Max CPC bid
+  googleTargetCpm?: number; // Target CPM amount (Video reach campaigns)
+  googleTargetFrequency?: number; // Target frequency cap per user
+  googleTargetFrequencyPeriod?: string; // WEEK | MONTH
   googleLandingPageUrl?: string; // Landing page URL
   googleConversionAction?: string; // Conversion action
   googleSearchPartner?: boolean; // Include Search Partners
