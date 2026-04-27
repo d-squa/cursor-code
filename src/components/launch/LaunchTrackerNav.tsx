@@ -18,6 +18,15 @@ interface LaunchTrackerNavProps {
   creativeAssignments: CreativeAssignmentItem[];
   qcItems?: QCNavItem[];
   onNavigate?: (sectionKey: "shell" | "creatives" | "qc") => void;
+  /** Called when a tree row at any depth is clicked. Lets the host expand
+   * the matching tree path inside the corresponding card. */
+  onNavigateNode?: (payload: {
+    section: "shell" | "creatives" | "qc";
+    level: "platform" | "market" | "phase";
+    platform: string;
+    market?: string;
+    phase?: string;
+  }) => void;
 }
 
 /**
