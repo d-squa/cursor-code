@@ -41,6 +41,9 @@ interface MultiTreeNavProps {
   className?: string;
   /** Persist collapsed state in localStorage under this key */
   storageKey?: string;
+  /** Optional callback fired when a leaf or branch row is clicked */
+  onNavigate?: (targetId: string, node?: TreeNode) => void;
+
 }
 
 function NodeRow({
