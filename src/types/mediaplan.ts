@@ -73,6 +73,9 @@ export interface Market {
   googleTargetCpa?: number; // Target CPA amount
   googleTargetRoas?: number; // Target ROAS percentage
   googleMaxCpcBid?: number; // Max CPC bid for manual bidding
+  googleTargetCpm?: number; // Target CPM amount (Video reach campaigns)
+  googleTargetFrequency?: number; // Target frequency cap per user (Target Frequency subtype)
+  googleTargetFrequencyPeriod?: string; // WEEK | MONTH (default WEEK)
   googleConversionAction?: string; // Google Ads conversion action
   googleLandingPageUrl?: string; // Landing page URL
   googleMerchantCenterId?: string; // Merchant Center ID for product feeds
