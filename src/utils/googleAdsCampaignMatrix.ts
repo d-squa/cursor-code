@@ -77,8 +77,8 @@ export const GOOGLE_ADS_CAMPAIGN_MATRIX: GoogleAdsCampaignType[] = [
     devices: ["Computers", "Mobile Phones", "Tablets", "TV Screens"],
     networks: {
       searchPartner: false,
-      searchNetwork: true,
-      displayNetwork: false,
+      searchNetwork: false,
+      displayNetwork: true,
       gmail: false,
       discover: false,
       youtube: false,
