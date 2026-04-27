@@ -15,7 +15,10 @@ export interface TreeNode {
   children?: TreeNode[];
   /** Initial expanded state */
   defaultExpanded?: boolean;
+  /** Arbitrary data forwarded to onNavigate for caller-side handling */
+  data?: Record<string, unknown>;
 }
+
 
 export interface TreeSection {
   /** DOM id of the section container in the page */
