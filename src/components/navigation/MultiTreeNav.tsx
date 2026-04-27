@@ -242,7 +242,7 @@ function SectionBlock({
   section: TreeSection;
   isActive: boolean;
   onSectionClick: () => void;
-  onNavigate: (targetId: string) => void;
+  onNavigate: (targetId: string, node?: TreeNode) => void;
   activeTargetId: string | null;
   storageKey?: string;
 }) {
