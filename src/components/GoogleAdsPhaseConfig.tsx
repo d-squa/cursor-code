@@ -974,7 +974,7 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
               placeholder="https://example.com/landing"
             />
           </div>
-        </>
+        </div>
       )}
     </fieldset>
   );
