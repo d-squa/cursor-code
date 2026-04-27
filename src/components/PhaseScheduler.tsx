@@ -59,6 +59,7 @@ import {
 } from "@/utils/destinationOptions";
 import { getTikTokSearchModeConfig } from "@/utils/tiktokOptimizationLocationMapping";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
+import { getGoogleAdsCampaignConfig, getGoogleAdsSubtypes } from "@/utils/googleAdsCampaignMatrix";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
