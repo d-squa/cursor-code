@@ -88,8 +88,7 @@ const App = () => (
           <SampleModeProvider>
           <MarketingGTM />
           <DataLayerUserID />
-          <TourRibbon />
-          <SampleModeBadge />
+          <AppOnlyTourUI />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Landing />} />
