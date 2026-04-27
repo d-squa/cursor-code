@@ -131,7 +131,7 @@ function formatVol(vol?: number) {
   return String(vol);
 }
 
-export function GoogleAdsPhaseConfig({ phase, onUpdate, googleCustomerId, selectedKeywords, googleDefaults }: GoogleAdsPhaseConfigProps) {
+export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCustomerId, selectedKeywords, googleDefaults }: GoogleAdsPhaseConfigProps) {
   const { isSampleMode } = useSampleMode();
   const campaignTypes = getGoogleAdsCampaignTypes();
   const selectedType = phase.googleCampaignType || "";
