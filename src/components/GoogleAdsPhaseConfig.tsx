@@ -488,7 +488,15 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
               bidStrategy === "Maximum CPC" ||
               bidStrategy === "MANUAL_CPC" ||
               bidStrategy === "MAXIMUM_CPC";
-            const hasInput = isTargetCpa || isTargetRoas || isManualCpc;
+            const isTargetCpm =
+              bidStrategy === "Target CPM" ||
+              bidStrategy === "TARGET_CPM" ||
+              bidStrategy === "CPM" ||
+              bidStrategy === "Viewable CPM" ||
+              bidStrategy === "VIEWABLE_IMPRESSIONS";
+            const isTargetFrequencySubtype =
+              (selectedSubtype || "").toLowerCase().includes("target frequency");
+            const hasInput = isTargetCpa || isTargetRoas || isManualCpc || isTargetCpm || isTargetFrequencySubtype;
             if (!hasInput) return null;
             return (
               <div className="grid gap-4 md:grid-cols-2">
@@ -527,6 +535,51 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
                       placeholder="2.00"
                     />
                   </div>
+                )}
+                {isTargetCpm && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Target CPM ($)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="h-8 text-xs"
+                      value={phase.googleTargetCpm ?? ""}
+                      onChange={(e) => onUpdate("googleTargetCpm", parseFloat(e.target.value) || undefined)}
+                      placeholder="5.00"
+                    />
+                  </div>
+                )}
+                {isTargetFrequencySubtype && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Target Frequency (impressions / user)</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={10}
+                        step={1}
+                        className="h-8 text-xs"
+                        value={phase.googleTargetFrequency ?? ""}
+                        onChange={(e) => onUpdate("googleTargetFrequency", parseInt(e.target.value, 10) || undefined)}
+                        placeholder="3"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Frequency Period</Label>
+                      <Select
+                        value={phase.googleTargetFrequencyPeriod || "WEEK"}
+                        onValueChange={(v) => onUpdate("googleTargetFrequencyPeriod", v)}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="WEEK">Per Week</SelectItem>
+                          <SelectItem value="MONTH">Per Month</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 )}
               </div>
             );
