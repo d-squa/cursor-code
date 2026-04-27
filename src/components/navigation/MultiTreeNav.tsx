@@ -60,6 +60,7 @@ function NodeRow({
     <div>
       <button
         type="button"
+        id={node.id}
         onClick={() => {
           if (hasChildren) setOpen((o) => !o);
           onNavigate(target);
