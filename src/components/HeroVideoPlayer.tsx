@@ -7,7 +7,7 @@ interface HeroVideoPlayerProps {
   scrollToAfter?: string;
 }
 
-const DEFAULT_VIDEO_ID = "dQw4w9WgXcQ";
+const DEFAULT_VIDEO_ID = "YzAp9xpDbrQ";
 
 function scrollToElement(selector: string) {
   const el = document.querySelector(selector);
@@ -42,9 +42,7 @@ export default function HeroVideoPlayer({
         const iframe = iframeRef.current;
         if (iframe) {
           const requestFs =
-            iframe.requestFullscreen ||
-            (iframe as any).webkitRequestFullscreen ||
-            (iframe as any).msRequestFullscreen;
+            iframe.requestFullscreen || (iframe as any).webkitRequestFullscreen || (iframe as any).msRequestFullscreen;
           requestFs?.call(iframe);
         }
       } catch {
