@@ -66,7 +66,7 @@ function NodeRow({
         id={node.id}
         onClick={() => {
           if (hasChildren) setOpen((o) => !o);
-          onNavigate(target);
+          onNavigate(target, node);
         }}
         className={cn(
           "group w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 pr-2 text-left text-xs transition-colors min-w-0 overflow-hidden",
