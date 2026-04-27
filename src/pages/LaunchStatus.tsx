@@ -1690,22 +1690,41 @@ export default function LaunchStatus() {
 
       {/* Quality Check Section - collapsible, at the bottom */}
       {hasPushedEntities && campaignId && (
-        <div id="nav-section-qc" className="mb-6 scroll-mt-24">
-          <Collapsible open={qcSectionOpen} onOpenChange={setQcSectionOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 text-sm font-medium">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Quality Check</span>
-                {qcSummary.total > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    {qcSummary.delivering + qcSummary.pushedLive}/{qcSummary.total} progressed
-                  </Badge>
-                )}
-              </div>
-              <ChevronDown className="h-4 w-4 transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+        <Collapsible open={qcSectionOpen} onOpenChange={setQcSectionOpen}>
+          <Card id="nav-section-qc" className="scroll-mt-24 transition-all">
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      Quality Check
+                      {qcSummary.total > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {qcSummary.delivering + qcSummary.pushedLive}/{qcSummary.total} progressed
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    {qcSummary.total > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {qcSummary.delivering + qcSummary.pushedLive}/{qcSummary.total} progressed
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {qcSectionOpen ? (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="mt-2">
+              <CardContent className="pt-0">
                 <QCCheckSection
                   items={qcItems}
                   loading={qcLoading || checklistLoading}
@@ -1720,10 +1739,10 @@ export default function LaunchStatus() {
                   onUpdateState={updateQCState}
                   onInitialize={initializeTracking}
                 />
-              </div>
+              </CardContent>
             </CollapsibleContent>
-          </Collapsible>
-        </div>
+          </Card>
+        </Collapsible>
       )}
 
       {/* Confirmation Dialogs */}
