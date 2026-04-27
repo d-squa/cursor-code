@@ -378,16 +378,25 @@ export function PhaseAudienceSelector({
         </div>
       )}
       
-      {loading && (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </div>
-      )}
+      {/*
+        Stable audiences container.
+        Reserves vertical space and keeps the previous list mounted (dimmed)
+        while reloading, so changing the campaign objective doesn't cause the
+        whole page below to jump up/down. The spinner is overlaid in-place
+        instead of replacing the content.
+      */}
+      <div className="relative min-h-[160px]">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[1px] rounded-md animate-fade-in">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
 
-      {/* Audience Selection by Type */}
-      {!loading && groupOrder.length > 0 && (
-        <div className="space-y-3">
-          {groupOrder.map((group) => {
+        {groupOrder.length > 0 && (
+          <div
+            className={`space-y-3 animate-fade-in transition-opacity duration-200 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}
+          >
+            {groupOrder.map((group) => {
             const audiences = groupedAudiences[group] || [];
 
             // Remove duplicates based on id
