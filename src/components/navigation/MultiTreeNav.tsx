@@ -114,6 +114,7 @@ export function MultiTreeNav({
   scrollRootRef,
   className,
   storageKey,
+  onNavigate,
 }: MultiTreeNavProps) {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (!storageKey || typeof window === "undefined") return false;
