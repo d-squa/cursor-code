@@ -15,7 +15,10 @@ export interface TreeNode {
   children?: TreeNode[];
   /** Initial expanded state */
   defaultExpanded?: boolean;
+  /** Arbitrary data forwarded to onNavigate for caller-side handling */
+  data?: Record<string, unknown>;
 }
+
 
 export interface TreeSection {
   /** DOM id of the section container in the page */
@@ -38,6 +41,9 @@ interface MultiTreeNavProps {
   className?: string;
   /** Persist collapsed state in localStorage under this key */
   storageKey?: string;
+  /** Optional callback fired when a leaf or branch row is clicked */
+  onNavigate?: (targetId: string, node?: TreeNode) => void;
+
 }
 
 function NodeRow({
@@ -48,7 +54,7 @@ function NodeRow({
 }: {
   node: TreeNode;
   depth: number;
-  onNavigate: (targetId: string) => void;
+  onNavigate: (targetId: string, node?: TreeNode) => void;
   activeTargetId: string | null;
 }) {
   const [open, setOpen] = useState(node.defaultExpanded ?? depth === 0);
@@ -63,7 +69,7 @@ function NodeRow({
         id={node.id}
         onClick={() => {
           if (hasChildren) setOpen((o) => !o);
-          onNavigate(target);
+          onNavigate(target, node);
         }}
         className={cn(
           "group w-full flex items-center gap-1.5 rounded-md px-1.5 py-1 pr-2 text-left text-xs transition-colors min-w-0 overflow-hidden",
@@ -108,6 +114,7 @@ export function MultiTreeNav({
   scrollRootRef,
   className,
   storageKey,
+  onNavigate,
 }: MultiTreeNavProps) {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (!storageKey || typeof window === "undefined") return false;
@@ -141,10 +148,11 @@ export function MultiTreeNav({
   });
 
   const handleNavigate = useCallback(
-    (targetId: string) => {
+    (targetId: string, node?: TreeNode) => {
       scrollToSection(targetId);
+      onNavigate?.(targetId, node);
     },
-    [scrollToSection]
+    [scrollToSection, onNavigate]
   );
 
   const sideClasses =
@@ -234,7 +242,7 @@ function SectionBlock({
   section: TreeSection;
   isActive: boolean;
   onSectionClick: () => void;
-  onNavigate: (targetId: string) => void;
+  onNavigate: (targetId: string, node?: TreeNode) => void;
   activeTargetId: string | null;
   storageKey?: string;
 }) {
