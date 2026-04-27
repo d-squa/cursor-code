@@ -25,7 +25,7 @@ export default function HeroVideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const thumbnailUrl = "/video-thumbnail.jpg";
+  const thumbnailUrl = "/video-thumbnail.gif";
 
   const scrollToPricing = useCallback(() => {
     if (!hasScrolledRef.current) {
