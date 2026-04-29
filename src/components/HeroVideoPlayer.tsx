@@ -34,22 +34,27 @@ export default function HeroVideoPlayer({
     }
   }, [scrollToAfter]);
 
-  const startPlaying = () => {
+  const requestFullscreen = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    try {
+      const requestFs =
+        iframe.requestFullscreen ||
+        (iframe as any).webkitRequestFullscreen ||
+        (iframe as any).webkitEnterFullscreen ||
+        (iframe as any).msRequestFullscreen;
+      requestFs?.call(iframe);
+    } catch {
+      // Fullscreen may be blocked — video still plays inline
+    }
+  }, []);
+
+  const startPlaying = useCallback(() => {
     hasScrolledRef.current = false;
     setIsPlaying(true);
-    setTimeout(() => {
-      try {
-        const iframe = iframeRef.current;
-        if (iframe) {
-          const requestFs =
-            iframe.requestFullscreen || (iframe as any).webkitRequestFullscreen || (iframe as any).msRequestFullscreen;
-          requestFs?.call(iframe);
-        }
-      } catch {
-        // Fullscreen may be blocked by browser — video still plays inline
-      }
-    }, 600);
-  };
+    // Wait for iframe to mount before requesting fullscreen
+    setTimeout(requestFullscreen, 300);
+  }, [requestFullscreen]);
 
   // Listen for fullscreen exit → scroll to pricing
   useEffect(() => {
@@ -80,9 +85,7 @@ export default function HeroVideoPlayer({
 
     const handleMessage = (event: MessageEvent) => {
       try {
-        // YouTube sends JSON messages for player state changes
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-        // State 0 = ended
         if (data?.event === "onStateChange" && data?.info === 0) {
           scrollToPricing();
         }
@@ -95,7 +98,7 @@ export default function HeroVideoPlayer({
     return () => window.removeEventListener("message", handleMessage);
   }, [isPlaying, scrollToPricing]);
 
-  // CTA button trigger
+  // External CTA trigger
   useEffect(() => {
     const handler = () => {
       containerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -103,19 +106,39 @@ export default function HeroVideoPlayer({
     };
     window.addEventListener("play-hero-video", handler);
     return () => window.removeEventListener("play-hero-video", handler);
-  }, []);
+  }, [startPlaying]);
 
   return (
     <div ref={containerRef} id="hero-video" className="w-full max-w-3xl mx-auto mt-8 md:mt-12">
       <div className="relative w-full rounded-xl overflow-hidden shadow-lg border border-border bg-card aspect-video">
-        <iframe
-          ref={iframeRef}
-          src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`}
-          title="ActiPlan Explainer Video"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-          allowFullScreen
-          className="absolute inset-0 w-full h-full"
-        />
+        {!isPlaying ? (
+          <button
+            type="button"
+            onClick={startPlaying}
+            className="group absolute inset-0 w-full h-full cursor-pointer"
+            aria-label="Play video"
+          >
+            <img
+              src={thumbnailUrl}
+              alt="ActiPlan Explainer Video Preview"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <span className="absolute inset-0 flex items-center justify-center bg-background/20 group-hover:bg-background/30 transition-colors">
+              <span className="flex items-center justify-center w-20 h-20 rounded-full bg-primary text-primary-foreground shadow-xl group-hover:scale-110 transition-transform">
+                <Play className="h-10 w-10 ml-1" fill="currentColor" />
+              </span>
+            </span>
+          </button>
+        ) : (
+          <iframe
+            ref={iframeRef}
+            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1&playsinline=1`}
+            title="ActiPlan Explainer Video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full"
+          />
+        )}
       </div>
     </div>
   );
