@@ -321,7 +321,7 @@ export default function Auth() {
       localStorage.removeItem("actiplan_onboarding");
       
       const { error } = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/auth`,
+        redirect_uri: window.location.origin,
       });
       if (error) throw error;
     } catch (error: any) {
