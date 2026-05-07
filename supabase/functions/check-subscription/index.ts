@@ -110,6 +110,26 @@ serve(async (req) => {
     }
     // ── END OVERRIDE CHECK ──
 
+    // Resolve workspace scope before Stripe (needed when STRIPE_SECRET_KEY is missing).
+    let isPersonalWorkspace = true;
+    let teamToCheck: { id: string; owner_id: string } | null = null;
+
+    if (activeWorkspaceId) {
+      const { data: team } = await supabaseClient
+        .from("teams")
+        .select("id, owner_id")
+        .eq("id", activeWorkspaceId)
+        .single();
+
+      if (team) {
+        isPersonalWorkspace = team.owner_id === user.id;
+        if (!isPersonalWorkspace) {
+          teamToCheck = team;
+        }
+        logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
+      }
+    }
+
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
       logStep("STRIPE_SECRET_KEY missing; returning unsubscribed fallback");
@@ -174,28 +194,6 @@ serve(async (req) => {
 
       return stripeCustomerId;
     };
-
-    // Determine if we're checking personal workspace or a team workspace
-    // If activeWorkspaceId is provided, check if user owns that workspace
-    let isPersonalWorkspace = true;
-    let teamToCheck: { id: string; owner_id: string } | null = null;
-
-    if (activeWorkspaceId) {
-      const { data: team } = await supabaseClient
-        .from("teams")
-        .select("id, owner_id")
-        .eq("id", activeWorkspaceId)
-        .single();
-
-      if (team) {
-        // If user owns this workspace, it's their personal workspace
-        isPersonalWorkspace = team.owner_id === user.id;
-        if (!isPersonalWorkspace) {
-          teamToCheck = team;
-        }
-        logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
-      }
-    }
 
     // IMPORTANT: Subscription is scoped to the active workspace.
     // - Personal workspace: use the user's OWN subscription.
@@ -472,7 +470,7 @@ serve(async (req) => {
         status: null,
         subscriptionType: "personal",
       },
-      200,
+      500,
     );
   }
 });
