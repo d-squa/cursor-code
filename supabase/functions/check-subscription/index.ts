@@ -12,6 +12,26 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    status,
+  });
+
+const unsubscribedResponse = (subscriptionType: "personal" | "team" = "personal") =>
+  jsonResponse({
+    subscribed: false,
+    onTrial: false,
+    productId: null,
+    priceId: null,
+    billingPeriod: null,
+    subscriptionStart: null,
+    subscriptionEnd: null,
+    trialEnd: null,
+    status: null,
+    subscriptionType,
+  });
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -66,12 +86,15 @@ serve(async (req) => {
       };
 
       const tierConfig = tierPriceMap[override.tier];
+      if (!tierConfig) {
+        logStep("Unknown override tier; falling back to unsubscribed", { tier: override.tier });
+        return unsubscribedResponse("personal");
+      }
       const isYearly = override.billing_period === "yearly";
       const priceId = isYearly ? tierConfig.yearly : tierConfig.monthly;
       const productId = isYearly ? tierConfig.yearlyProductId : tierConfig.productId;
 
-      return new Response(
-        JSON.stringify({
+      return jsonResponse({
           subscribed: true,
           onTrial: false,
           productId,
@@ -83,14 +106,15 @@ serve(async (req) => {
           status: "active",
           subscriptionType: "personal",
           isOverride: true,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
-      );
+        });
     }
     // ── END OVERRIDE CHECK ──
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!stripeKey) {
+      logStep("STRIPE_SECRET_KEY missing; returning unsubscribed fallback");
+      return unsubscribedResponse(isPersonalWorkspace ? "personal" : "team");
+    }
     logStep("Stripe key verified");
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -274,8 +298,7 @@ serve(async (req) => {
             trialEnd,
           });
 
-          return new Response(
-            JSON.stringify({
+          return jsonResponse({
               subscribed: true,
               onTrial,
               productId,
@@ -286,34 +309,14 @@ serve(async (req) => {
               trialEnd,
               status: activeSub.status,
               subscriptionType: "personal",
-            }),
-            {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            },
-          );
+            });
         }
       }
 
       // If viewing personal workspace and no personal subscription, return unsubscribed
       // Don't check team subscriptions for personal workspace
       logStep("Personal workspace with no personal subscription");
-      return new Response(
-        JSON.stringify({
-          subscribed: false,
-          onTrial: false,
-          productId: null,
-          priceId: null,
-          billingPeriod: null,
-          subscriptionEnd: null,
-          trialEnd: null,
-          subscriptionType: "personal",
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        },
-      );
+      return unsubscribedResponse("personal");
     }
 
     // We're viewing a team workspace - check only THAT team's owner subscription
@@ -431,8 +434,7 @@ serve(async (req) => {
             subscriptionStart,
           });
 
-          return new Response(
-            JSON.stringify({
+          return jsonResponse({
               subscribed: true,
               onTrial,
               productId,
@@ -444,12 +446,7 @@ serve(async (req) => {
               status: ownerEligibleSub.status,
               subscriptionType: "team",
               teamId: team.id,
-            }),
-            {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            },
-          );
+            });
         }
       } else {
         logStep("Team owner has no Stripe customer mapping", { teamOwnerId });
@@ -457,27 +454,25 @@ serve(async (req) => {
     }
 
     logStep("No subscription found (personal or team)");
-    return new Response(
-      JSON.stringify({
+    return unsubscribedResponse("team");
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logStep("ERROR in check-subscription", { message: errorMessage });
+    return jsonResponse(
+      {
+        error: errorMessage,
         subscribed: false,
         onTrial: false,
         productId: null,
         priceId: null,
         billingPeriod: null,
+        subscriptionStart: null,
         subscriptionEnd: null,
         trialEnd: null,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
+        status: null,
+        subscriptionType: "personal",
       },
+      200,
     );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR in check-subscription", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
   }
 });

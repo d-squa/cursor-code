@@ -145,6 +145,20 @@ const PRICE_METADATA: Record<
   },
 };
 
+// Legacy/alternate price IDs that may still be sent by older landing pages.
+// Map them to active Stripe prices for this project.
+const PRICE_ID_ALIASES: Record<string, string> = {
+  // Freelancer legacy aliases -> current
+  price_1SyXF5KrTGU4P7548Gb4bgd6: "price_1SydVjKrTGU4P754mZJJWvAq",
+  price_1SyXYDKrTGU4P75427F7A2ge: "price_1SydVuKrTGU4P754zRmad5iJ",
+  // Enterprise legacy aliases -> current
+  price_1SyX3xKrTGU4P754lgSWx7dq: "price_1SydW1KrTGU4P754aeyvSJP8",
+  price_1SyX8xKrTGU4P754mXynM6Qn: "price_1SydW3KrTGU4P754G3iA7VZM",
+  // Agency legacy aliases -> current
+  price_1SyXAnKrTGU4P754hsNny2H7: "price_1SydW5KrTGU4P754vsPg9hWw",
+  price_1SyXD1KrTGU4P7541vWVImFY: "price_1SydW8KrTGU4P754AEitLX2A",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -154,6 +168,9 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
+
+  let requestedPriceId: string | null = null;
+  let resolvedPriceId: string | null = null;
 
   try {
     logStep("Function started");
@@ -166,10 +183,30 @@ serve(async (req) => {
         status: 400,
       });
     }
-    const { priceId } = parseResult.data;
-    logStep("Price ID received", { priceId });
+    requestedPriceId = parseResult.data.priceId;
+    const priceId = PRICE_ID_ALIASES[requestedPriceId] ?? requestedPriceId;
+    resolvedPriceId = priceId;
+    logStep("Price ID received", { requestedPriceId, resolvedPriceId: priceId });
+    if (!PRICE_METADATA[priceId]) {
+      logStep("Unsupported price ID", { requestedPriceId, resolvedPriceId: priceId });
+      return new Response(JSON.stringify({
+        error: "Unsupported plan price selected",
+        errorCode: "UNSUPPORTED_PRICE_ID",
+        requestedPriceId,
+        resolvedPriceId: priceId,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
 
-    const authHeader = req.headers.get("Authorization")!;
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization header" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
     const token = authHeader.replace("Bearer ", "");
     const { data } = await supabaseClient.auth.getUser(token);
     const user = data.user;
@@ -308,6 +345,10 @@ serve(async (req) => {
           return new Response(
             JSON.stringify({
               error: "You are already subscribed to this plan",
+              errorCode: "ALREADY_SUBSCRIBED_SAME_PLAN",
+              requestedPriceId,
+              resolvedPriceId: priceId,
+              currentPriceId,
             }),
             {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -536,12 +577,28 @@ serve(async (req) => {
         status: 200,
       },
     );
-  } catch (error) {
+  } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: "Unable to process checkout request" }), {
+    const errorType = error?.type ?? null;
+    const errorCode = error?.code ?? null;
+    logStep("ERROR", { message: errorMessage, type: errorType, code: errorCode });
+
+    // Surface Stripe request failures as actionable 400s instead of opaque 500s.
+    const isStripeRequestError =
+      errorType === "StripeInvalidRequestError" ||
+      errorType === "StripeAuthenticationError" ||
+      errorType === "StripePermissionError";
+
+    return new Response(JSON.stringify({
+      error: errorMessage || "Unable to process checkout request",
+      errorCode: isStripeRequestError ? "STRIPE_REQUEST_ERROR" : "CHECKOUT_INTERNAL_ERROR",
+      stripeType: errorType,
+      stripeCode: errorCode,
+      requestedPriceId,
+      resolvedPriceId,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
+      status: isStripeRequestError ? 400 : 500,
     });
   }
 });

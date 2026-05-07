@@ -660,7 +660,7 @@ Deno.serve(async (req) => {
       selectedKeywords: searchKeywords.filter(k => !k.isNegative),
     };
 
-    const campaignPayload = {
+    const campaignPayloadBase = {
       user_id: userId,
       team_id: teamId,
       name: "🎄 Q4 Holiday Campaign 2025",
@@ -679,14 +679,29 @@ Deno.serve(async (req) => {
       forecast_data: forecastData,
       generic_config: genericConfig,
       is_sample: true,
-      bo_number: `DSQUAD-Q4-2025-${userId.slice(0, 8)}`,
     };
+    const baseBoNumber = `DSQUAD-Q4-2025-${userId.slice(0, 8)}`;
+    const createCampaign = async (boNumber: string) =>
+      await supabase
+        .from("campaigns")
+        .insert({ ...campaignPayloadBase, bo_number: boNumber })
+        .select()
+        .single();
 
-    const { data: campaign, error: campError } = await supabase
-      .from("campaigns")
-      .insert(campaignPayload)
-      .select()
-      .single();
+    let { data: campaign, error: campError } = await createCampaign(baseBoNumber);
+
+    // Handle stale sample rows that can leave bo_number unique collisions.
+    if (campError?.code === "23505" || (campError?.message || "").toLowerCase().includes("bo_number")) {
+      const fallbackBoNumber = `${baseBoNumber}-${Date.now().toString().slice(-6)}`;
+      console.warn("bo_number conflict; retrying campaign insert", {
+        baseBoNumber,
+        fallbackBoNumber,
+        error: campError.message,
+      });
+      const retry = await createCampaign(fallbackBoNumber);
+      campaign = retry.data;
+      campError = retry.error;
+    }
 
     if (campError) throw campError;
 
@@ -770,7 +785,12 @@ Deno.serve(async (req) => {
 
   } catch (err: any) {
     console.error("Seed tour error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({
+      error: err?.message || "Failed to seed tour data",
+      code: err?.code || null,
+      details: err?.details || null,
+      hint: err?.hint || null,
+    }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
