@@ -5,7 +5,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Pencil, Plus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -38,6 +48,8 @@ export default function ManageClientAccounts() {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState("info");
 
   const canAccessOperations = hasAccess('operations_measurements');
@@ -136,6 +148,27 @@ export default function ManageClientAccounts() {
       console.error("Error updating client:", error);
       toast.error("Failed to update client");
       throw error;
+    }
+  };
+
+  const handleDeleteClient = async () => {
+    if (!selectedClient) return;
+
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("clients").delete().eq("id", selectedClient);
+
+      if (error) throw error;
+
+      toast.success("Client deleted successfully");
+      setDeleteDialogOpen(false);
+      setEditDialogOpen(false);
+      await loadData();
+    } catch (error: any) {
+      console.error("Error deleting client:", error);
+      toast.error(error?.message || "Failed to delete client");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -303,8 +336,42 @@ export default function ManageClientAccounts() {
               onCancel={() => setEditDialogOpen(false)}
               submitLabel="Update Client"
             />
+            <div className="border-t pt-4 mt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete client
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete client</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete {selectedClientData?.name ?? "this client"}? This cannot be
+                undone. Related workspace links and data tied to this client may be removed or become invalid.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteClient}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogContent className="max-w-md">

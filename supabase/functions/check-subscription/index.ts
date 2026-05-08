@@ -66,6 +66,26 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
+    // Resolve workspace scope early so any fallback response reflects the active scope.
+    let isPersonalWorkspace = true;
+    let teamToCheck: { id: string; owner_id: string } | null = null;
+
+    if (activeWorkspaceId) {
+      const { data: team } = await supabaseClient
+        .from("teams")
+        .select("id, owner_id")
+        .eq("id", activeWorkspaceId)
+        .single();
+
+      if (team) {
+        isPersonalWorkspace = team.owner_id === user.id;
+        if (!isPersonalWorkspace) {
+          teamToCheck = team;
+        }
+        logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
+      }
+    }
+
     // ── CHECK FOR ADMIN SUBSCRIPTION OVERRIDE ──
     // If an override exists for this user, return it immediately without touching Stripe
     const { data: override } = await supabaseClient
@@ -88,7 +108,7 @@ serve(async (req) => {
       const tierConfig = tierPriceMap[override.tier];
       if (!tierConfig) {
         logStep("Unknown override tier; falling back to unsubscribed", { tier: override.tier });
-        return unsubscribedResponse("personal");
+        return unsubscribedResponse(isPersonalWorkspace ? "personal" : "team");
       }
       const isYearly = override.billing_period === "yearly";
       const priceId = isYearly ? tierConfig.yearly : tierConfig.monthly;
@@ -109,26 +129,6 @@ serve(async (req) => {
         });
     }
     // ── END OVERRIDE CHECK ──
-
-    // Resolve workspace scope before Stripe (needed when STRIPE_SECRET_KEY is missing).
-    let isPersonalWorkspace = true;
-    let teamToCheck: { id: string; owner_id: string } | null = null;
-
-    if (activeWorkspaceId) {
-      const { data: team } = await supabaseClient
-        .from("teams")
-        .select("id, owner_id")
-        .eq("id", activeWorkspaceId)
-        .single();
-
-      if (team) {
-        isPersonalWorkspace = team.owner_id === user.id;
-        if (!isPersonalWorkspace) {
-          teamToCheck = team;
-        }
-        logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
-      }
-    }
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {

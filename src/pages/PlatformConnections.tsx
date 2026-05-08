@@ -106,9 +106,24 @@ const PLATFORM_TYPES = [
   { id: "snapchat", name: "Snapchat Ads", icon: Video, color: "bg-yellow-400" },
 ];
 
-// IMPORTANT: Must exactly match the URL configured in Meta/TikTok/Google app settings.
-// Use the current origin to support both production domains.
-const OAUTH_REDIRECT_URI = `${window.location.origin}/settings/platforms`;
+/** OAuth redirect path — must match Meta / TikTok / Google developer console allowlists exactly. */
+const OAUTH_REDIRECT_PATH = "/settings/platforms";
+
+/**
+ * Redirect URI sent to platform OAuth dialogs and token exchange.
+ * Defaults to the current browser origin + path (works for production HTTPS).
+ *
+ * Meta in Live mode rejects http://localhost — options:
+ * - Keep the Meta app in Development while testing locally, and allowlist e.g. http://localhost:5173/settings/platforms
+ * - Or set VITE_OAUTH_REDIRECT_ORIGIN=https://your-https-domain.com (staging/production) and complete OAuth on that host
+ * - Or use an HTTPS tunnel (ngrok, etc.) and allowlist that URL
+ */
+function getOAuthRedirectUri(): string {
+  const fromEnv = (import.meta.env.VITE_OAUTH_REDIRECT_ORIGIN as string | undefined)?.trim();
+  const origin =
+    fromEnv && fromEnv.length > 0 ? fromEnv.replace(/\/$/, "") : window.location.origin;
+  return `${origin}${OAUTH_REDIRECT_PATH}`;
+}
 
 export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
@@ -163,7 +178,7 @@ export default function PlatformConnections() {
   const triggerAdLibraryOAuth = useCallback(() => {
     // IMPORTANT: Use the exact production URL - must match what's configured in Meta App
     // Do NOT use window.location.origin as it varies between environments
-    const redirectUri = OAUTH_REDIRECT_URI;
+    const redirectUri = getOAuthRedirectUri();
     const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
 
     if (!clientId) {
@@ -448,7 +463,7 @@ export default function PlatformConnections() {
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
-        const redirectUri = OAUTH_REDIRECT_URI;
+        const redirectUri = getOAuthRedirectUri();
         const clientId = PLATFORM_CONFIG.meta.appId;
 
         console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
@@ -500,7 +515,7 @@ export default function PlatformConnections() {
       }
     } else if (platformType === "tiktok") {
       try {
-        const redirectUri = OAUTH_REDIRECT_URI;
+        const redirectUri = getOAuthRedirectUri();
         const appId = PLATFORM_CONFIG.tiktok.appId;
 
         console.log("TikTok OAuth - App ID:", appId ? "Configured" : "Missing");
@@ -539,7 +554,7 @@ export default function PlatformConnections() {
       }
     } else if (platformType === "google") {
       try {
-        const redirectUri = OAUTH_REDIRECT_URI;
+        const redirectUri = getOAuthRedirectUri();
         const clientId = PLATFORM_CONFIG.google.clientId;
 
         console.log("Google Ads OAuth - Client ID:", clientId ? "Configured" : "Missing");
@@ -580,7 +595,7 @@ export default function PlatformConnections() {
       }
     } else if (platformType === "snapchat") {
       try {
-        const redirectUri = OAUTH_REDIRECT_URI;
+        const redirectUri = getOAuthRedirectUri();
         const clientId = PLATFORM_CONFIG.snapchat.clientId;
 
         console.log("Snapchat OAuth - Client ID:", clientId ? "Configured" : "Missing");
@@ -812,7 +827,7 @@ export default function PlatformConnections() {
         try {
           // IMPORTANT: The redirect_uri used here MUST be identical to the one used in the OAuth dialog request.
           // Never derive from window.location.origin (preview / staging domains will cause code exchange failures).
-          const redirectUri = OAUTH_REDIRECT_URI;
+          const redirectUri = getOAuthRedirectUri();
 
           // Check if this is the Ad Library OAuth callback
           if (state === "meta_adlibrary") {
@@ -1069,6 +1084,16 @@ export default function PlatformConnections() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
       <TourDataBanner />
       <div className="max-w-6xl mx-auto space-y-6">
+        {isSampleMode && (
+          <Alert className="border-primary/30 bg-primary/5">
+            <AlertCircle className="h-4 w-4 text-primary" />
+            <AlertDescription>
+              Sample Tour mode only lists demo ad accounts on this page. Live connections you added (for example
+              after OAuth on production) are still saved but hidden until you turn off{" "}
+              <strong>Show Sample Tour Data</strong> in Settings → Account.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Connect Your Platforms & Accounts</h1>

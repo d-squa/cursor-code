@@ -130,16 +130,18 @@ export function useAdAccountLimits(teamId?: string | null) {
         return;
       }
 
-      // Count ad accounts by team_id and swaps by team using billing cycle
+      // Count real (non-sample) ad accounts — matches subscription slots; tour/demo rows use is_sample=true
       const [metaCountRes, tiktokCountRes, metaSwapsRes, tiktokSwapsRes] = await Promise.all([
         supabase
           .from('meta_ad_accounts')
           .select('id', { count: 'exact', head: true })
-          .eq('team_id', teamId),
+          .eq('team_id', teamId)
+          .eq('is_sample', false),
         supabase
           .from('tiktok_ad_accounts')
           .select('id', { count: 'exact', head: true })
-          .eq('team_id', teamId),
+          .eq('team_id', teamId)
+          .eq('is_sample', false),
         // Use billing-cycle-scoped swap counting
         supabase.rpc('count_swaps_in_billing_period', { 
           _user_id: session.user.id, 

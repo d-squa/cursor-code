@@ -53,6 +53,34 @@ serve(async (req) => {
       phaseName,
     } = body;
 
+    const buildFallbackForecast = (reason: string) => {
+      const numericBudget = Number(budget) || 0;
+      const fallbackCpm = 12;
+      const fallbackCtr = 1.1;
+      const impressions = Math.max(1, Math.round((numericBudget / fallbackCpm) * 1000));
+      const reach = Math.max(1, Math.round(impressions / 2.4));
+      const clicks = Math.max(1, Math.round(impressions * (fallbackCtr / 100)));
+      const results = Math.max(1, Math.round(clicks * 0.025));
+      const costPerResult = Number((numericBudget / results).toFixed(2));
+
+      return {
+        reach,
+        impressions,
+        cpm: fallbackCpm,
+        frequency: Number((impressions / reach).toFixed(2)),
+        clicks,
+        ctr: fallbackCtr,
+        results,
+        costPerResult,
+        resultRate: Number(((results / impressions) * 100).toFixed(3)),
+        audienceSize: reach * 10,
+        confidence: "low",
+        dataSource: "fallback_estimate",
+        fallbackReason: reason,
+        platform: platform || "meta",
+      };
+    };
+
     if (!budget || budget <= 0) {
       throw new Error("Budget must be greater than 0");
     }
@@ -62,7 +90,10 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      console.warn("LOVABLE_API_KEY is not configured, returning fallback estimate");
+      return new Response(JSON.stringify(buildFallbackForecast("LOVABLE_API_KEY_MISSING")), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Look up any benchmark data we have for this market/goal
@@ -204,7 +235,9 @@ Scale metrics proportionally to the $${budget} budget over ${durationDays} days.
       }
       const errorText = await aiResponse.text();
       console.error("AI gateway error:", status, errorText);
-      throw new Error(`AI gateway error: ${status}`);
+      return new Response(JSON.stringify(buildFallbackForecast(`AI_GATEWAY_${status}`)), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const aiData = await aiResponse.json();
@@ -222,7 +255,9 @@ Scale metrics proportionally to the $${budget} budget over ${durationDays} days.
       prediction = JSON.parse(jsonStr);
     } catch (parseErr) {
       console.error("Failed to parse AI response as JSON:", jsonStr);
-      throw new Error("AI returned invalid forecast data");
+      return new Response(JSON.stringify(buildFallbackForecast("AI_INVALID_JSON")), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Validate and normalize the prediction
