@@ -1,4 +1,5 @@
 -- Seed tiktok_ad_accounts from legacy export (CSV-style dump).
+-- All rows use user_id a286c88e-cd14-45af-94df-45ac2eb8d835 (replacing legacy multi-user export).
 -- Fixes: padded invalid UUID first segment (0153e11a-…); corrected OCR typo on user_id for sample rows;
 -- dedupe on (user_id, advertiser_id), keeping latest synced_at (duplicate sample pairs in export).
 -- Inserts when auth.users exists for each row. client_id is kept only if that row exists in
@@ -29,7 +30,7 @@ WITH raw (
   VALUES
     (
       'f455657c-4a24-4aa8-84bc-63ef87a3b3fe'::uuid,
-      '53a618a4-7a82-4f85-88c4-6add867259a4'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       '7553185218446901256',
       'Geely-NEV_SparkFoundry-AE-TT-AGMC',
       '7553185218446901256',
@@ -51,7 +52,7 @@ WITH raw (
     ),
     (
       'c221cad2-6272-46de-9880-37e17afcec83'::uuid,
-      '53a618a4-7a82-4f85-88c4-6add867259a4'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       '7255212225884570113',
       'Geely_SparkFoundry-AE-TT-AGMC',
       '7255212225884570113',
@@ -74,7 +75,7 @@ WITH raw (
     (
       -- Export had 7-char first UUID segment; pad for valid uuid.
       '0153e11a-bc0d-46d7-9574-6c10b6bffbd0'::uuid,
-      '53a618a4-7a82-4f85-88c4-6add867259a4'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       '6812538639113781254',
       'SEPHORA/CUR_SR_PAN-MID-EAST_EMEA_Social-Tiktok_PML_USD_LVMH',
       '6812538639113781254',
@@ -96,7 +97,7 @@ WITH raw (
     ),
     (
       '76191696-d548-458b-907c-8bd7dc1d6d33'::uuid,
-      '53a618a4-7a82-4f85-88c4-6add867259a4'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       '7418111638721775952',
       'ActiPlan Test Account',
       '7418111638721775952',
@@ -118,7 +119,7 @@ WITH raw (
     ),
     (
       '563d718b-d921-4ee8-9290-6162ae876158'::uuid,
-      '558981d6-0ef2-430a-b29d-1171eda1a9fc'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       'sample_tt_789012',
       'Sample | D-squad – TikTok US',
       'sample_tt_789012',
@@ -141,7 +142,7 @@ WITH raw (
     (
       -- Export UUID corrected (segment length).
       'd7ab31ec-7a71-4159-9a67-c5151a750905'::uuid,
-      '558981d6-0ef2-430a-b29d-1171eda1a9fc'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       'sample_tt_445566',
       'Sample | D-squad – TikTok DE',
       'sample_tt_445566',
@@ -163,7 +164,7 @@ WITH raw (
     ),
     (
       '5b3ed29b-29bc-40f1-88a7-3f8e67e32277'::uuid,
-      '558981d6-0ef2-430a-b29d-1171eda1a9fc'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       'sample_tt_789012',
       'Sample | D-squad – TikTok US',
       'sample_tt_789012',
@@ -185,7 +186,7 @@ WITH raw (
     ),
     (
       '2e7ae2b6-7d9f-4fce-94da-d62d88a11c50'::uuid,
-      '558981d6-0ef2-430a-b29d-1171eda1a9fc'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       'sample_tt_445566',
       'Sample | D-squad – TikTok DE',
       'sample_tt_445566',
@@ -207,7 +208,7 @@ WITH raw (
     ),
     (
       '0b20ebe3-8416-404b-aa3d-f5c3526d707f'::uuid,
-      '6d87259f-9c9d-4f42-9531-32127d34d302'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       'sample_tt_789012',
       'Sample | D-squad – TikTok US',
       'sample_tt_789012',
@@ -229,7 +230,7 @@ WITH raw (
     ),
     (
       '94b76a4c-8a3d-4518-9949-56992719d9ea'::uuid,
-      '6d87259f-9c9d-4f42-9531-32127d34d302'::uuid,
+      'a286c88e-cd14-45af-94df-45ac2eb8d835'::uuid,
       'sample_tt_445566',
       'Sample | D-squad – TikTok DE',
       'sample_tt_445566',
