@@ -344,7 +344,7 @@ const Landing = () => {
         ogTitle="ActiPlan | AI Media Buyer for Performance Teams"
         ogDescription="Launch and manage paid media campaigns across platforms using one centralized buying workflow."
         ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-        canonical="https://actiplan.app/media-buying-software"
+        canonical="https://cursor-code-1uryu5q86-d-squas-projects.vercel.app/media-buying-software"
       />
 
       <div className="min-h-screen bg-background">

@@ -43,6 +43,9 @@ serve(async (req) => {
     { auth: { persistSession: false } },
   );
 
+  /** Reflects active workspace after resolution; used for fallbacks and error payloads. Default personal until resolved. */
+  let subscriptionTypeForScope: "personal" | "team" = "personal";
+
   try {
     logStep("Function started");
 
@@ -86,6 +89,8 @@ serve(async (req) => {
       }
     }
 
+    subscriptionTypeForScope = isPersonalWorkspace ? "personal" : "team";
+
     // ── CHECK FOR ADMIN SUBSCRIPTION OVERRIDE ──
     // If an override exists for this user, return it immediately without touching Stripe
     const { data: override } = await supabaseClient
@@ -108,7 +113,7 @@ serve(async (req) => {
       const tierConfig = tierPriceMap[override.tier];
       if (!tierConfig) {
         logStep("Unknown override tier; falling back to unsubscribed", { tier: override.tier });
-        return unsubscribedResponse(isPersonalWorkspace ? "personal" : "team");
+        return unsubscribedResponse(subscriptionTypeForScope);
       }
       const isYearly = override.billing_period === "yearly";
       const priceId = isYearly ? tierConfig.yearly : tierConfig.monthly;
@@ -133,7 +138,7 @@ serve(async (req) => {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
       logStep("STRIPE_SECRET_KEY missing; returning unsubscribed fallback");
-      return unsubscribedResponse(isPersonalWorkspace ? "personal" : "team");
+      return unsubscribedResponse(subscriptionTypeForScope);
     }
     logStep("Stripe key verified");
 
@@ -468,7 +473,7 @@ serve(async (req) => {
         subscriptionEnd: null,
         trialEnd: null,
         status: null,
-        subscriptionType: "personal",
+        subscriptionType: subscriptionTypeForScope,
       },
       500,
     );

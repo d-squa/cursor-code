@@ -344,8 +344,8 @@ const Landing = () => {
         keywords="campaign management, paid advertising, Meta ads, Google Ads, LinkedIn ads, TikTok ads, social media marketing, media planning tool, media buying tool"
         ogTitle="ActiPlan: AI-Powered Paid Media Campaign Manager That Scales Businesses"
         ogDescription="From a single unified platform, ActiPlan helps media planners & digital marketers managing their paid media campaigns across different platforms"
-        ogImage="https://actiplan.app/logo.png"
-        canonical="https://actiplan.app/" />
+        ogImage="https://cursor-code-1uryu5q86-d-squas-projects.vercel.app/logo.png"
+        canonical="https://cursor-code-1uryu5q86-d-squas-projects.vercel.app/" />
 
 
       <div className="min-h-screen bg-background">
