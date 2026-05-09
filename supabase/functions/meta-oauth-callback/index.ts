@@ -63,21 +63,37 @@ serve(async (req) => {
       throw new Error("Meta credentials not configured");
     }
 
-    console.log("Exchanging code for access token...");
+    console.log("Exchanging code for access token...", { redirectUriPrefix: redirectUri.slice(0, 80) });
     const tokenResponse = await fetch(
       `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
     );
 
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json();
+      const errorData = await tokenResponse.json().catch(() => ({}));
       console.error("Token exchange failed:", errorData);
-      
-      // Check for managed account specific errors
-      if (errorData.error?.message?.includes("managed") || errorData.error?.code === 190) {
-        throw new Error("Managed account authentication failed. Please ensure you're using the correct Meta account type.");
-      }
-      
-      throw new Error(`Failed to exchange code for token: ${errorData.error?.message || 'Unknown error'}`);
+
+      const fbMessage =
+        typeof errorData?.error?.message === "string"
+          ? errorData.error.message
+          : JSON.stringify(errorData?.error ?? errorData);
+
+      // Common after changing callback path: Meta requires redirect_uri to match OAuth dialog exactly.
+      const hint =
+        fbMessage.includes("redirect_uri") || fbMessage.includes("Redirect URI")
+          ? "Add this exact URL to Meta Developer → Facebook Login → Valid OAuth Redirect URIs: " + redirectUri
+          : undefined;
+
+      return new Response(
+        JSON.stringify({
+          error: "Meta token exchange failed",
+          details: fbMessage,
+          hint,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const tokenData = await tokenResponse.json();
@@ -279,13 +295,22 @@ serve(async (req) => {
       }
     );
   } catch (error: any) {
+    const message = typeof error?.message === "string" ? error.message : "Failed to connect Meta account";
     console.error("Meta OAuth callback error:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to connect Meta account" }),
+      JSON.stringify({
+        error: message,
+        hint:
+          message.includes("Meta credentials")
+            ? "Set META_APP_ID and META_APP_SECRET in Supabase → Edge Functions → Secrets for this project."
+            : message.includes("token securely") || message.includes("Vault")
+              ? "Check Vault RPC store_platform_token and DB migrations."
+              : undefined,
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });

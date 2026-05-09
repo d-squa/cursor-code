@@ -106,17 +106,19 @@ const PLATFORM_TYPES = [
   { id: "snapchat", name: "Snapchat Ads", icon: Video, color: "bg-yellow-400" },
 ];
 
-/** OAuth redirect path — must match Meta / TikTok / Google developer console allowlists exactly. */
-const OAUTH_REDIRECT_PATH = "/settings/platforms";
+/** Canonical app path — must match Meta / TikTok / Google developer console allowlists exactly. */
+const OAUTH_REDIRECT_PATH = "/app/settings/platforms";
 
 /**
  * Redirect URI sent to platform OAuth dialogs and token exchange.
  * Defaults to the current browser origin + path (works for production HTTPS).
  *
  * Meta in Live mode rejects http://localhost — options:
- * - Keep the Meta app in Development while testing locally, and allowlist e.g. http://localhost:5173/settings/platforms
+ * - Keep the Meta app in Development while testing locally, and allowlist e.g. http://localhost:8080/app/settings/platforms (Vite dev port)
  * - Or set VITE_OAUTH_REDIRECT_ORIGIN=https://your-https-domain.com (staging/production) and complete OAuth on that host
  * - Or use an HTTPS tunnel (ngrok, etc.) and allowlist that URL
+ *
+ * Legacy `/settings/platforms` still redirects to this path via SettingsLegacyRedirect in App.tsx.
  */
 function getOAuthRedirectUri(): string {
   const fromEnv = (import.meta.env.VITE_OAUTH_REDIRECT_ORIGIN as string | undefined)?.trim();
