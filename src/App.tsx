@@ -102,7 +102,8 @@ const App = () => (
             <Route path="/media-planning-software" element={<LandingD />} />
             <Route path="/ai-media-buying-software" element={<LandingE />} />
             <Route path="/cross-platform-ad-management-software" element={<LandingF />} />
-            <Route path="/auth" element={<Auth />} />
+            {/* Splats match /auth and /auth/ — OAuth redirects sometimes include a trailing slash */}
+            <Route path="/auth/*" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />

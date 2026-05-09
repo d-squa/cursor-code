@@ -344,7 +344,7 @@ const Landing = () => {
         ogTitle="ActiPlan | AI Media Planning Tool"
         ogDescription="Forecast delivery, allocate budgets, and launch paid campaigns across platforms from one intelligent planning system."
         ogImage="https://storage.googleapis.com/gpt-engineer-file-uploads/VuvQwKFcSYVB8pjmkGgvmjMDEvF3/social-images/social-1767660811434-logo-product-square transparent.png"
-        canonical="https://cursor-code-1uryu5q86-d-squas-projects.vercel.app/media-planning-software"
+        canonical="https://cursor-code-gamma.vercel.app/media-planning-software"
       />
 
       <div className="min-h-screen bg-background">
