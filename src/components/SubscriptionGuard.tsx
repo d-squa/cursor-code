@@ -15,7 +15,7 @@ interface SubscriptionGuardProps {
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const navigate = useNavigate();
   const { user, loading: authLoading, isEmailConfirmed } = useAuth();
-  const { isSubscribed, loading: subLoading, error: subError, refetch: refetchSubscription } = useSubscription();
+  const { isSubscribed, loading: subLoading, error: subError } = useSubscription();
   const { loading: workspaceLoading, activeWorkspaceId, workspaces } = useWorkspace();
   
   // Track if user was ever subscribed in this session to prevent redirect during transient errors
@@ -28,13 +28,26 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   // Track pending invitation processing
   const [processingInvitation, setProcessingInvitation] = useState(false);
   const invitationProcessedRef = useRef(false);
+  const lastUserIdForInviteRef = useRef<string | undefined>(undefined);
   
-  // Update the ref when subscription status is confirmed
+  // Track prior subscription only while useful; reset once access is clearly revoked so redirects work.
   useEffect(() => {
     if (isSubscribed) {
       wasSubscribedRef.current = true;
+    } else if (!subLoading && !subError) {
+      wasSubscribedRef.current = false;
+      childrenRenderedRef.current = false;
     }
-  }, [isSubscribed]);
+  }, [isSubscribed, subLoading, subError]);
+
+  // If a different user signs in, allow pending-invite processing for the new account
+  useEffect(() => {
+    const id = user?.id;
+    if (lastUserIdForInviteRef.current && id && lastUserIdForInviteRef.current !== id) {
+      invitationProcessedRef.current = false;
+    }
+    lastUserIdForInviteRef.current = id;
+  }, [user?.id]);
 
   // Check and process pending invitation after sign-in
   useEffect(() => {
@@ -123,6 +136,17 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // Wait for workspace to load - subscription check depends on activeWorkspaceId
     if (workspaceLoading) return;
 
+    // Post–email-confirm invite flow: AcceptInvitation stores this before redirect to /auth.
+    // Block /choose-plan until the accept-invitation effect runs (setState is async; this is synchronous).
+    if (
+      user &&
+      isEmailConfirmed &&
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("actiplan_pending_invitation")
+    ) {
+      return;
+    }
+
     // Still recovering workspace or processing invitation
     if (recoveringWorkspace || processingInvitation) return;
     
@@ -170,19 +194,24 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     }
   }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed, workspaceLoading, activeWorkspaceId, recoveringWorkspace, processingInvitation]);
 
-  // Once children have been successfully rendered, never unmount them for transient loading/errors.
-  // This prevents loss of in-progress work when the user minimizes the browser and returns.
+  const waitingOnPendingInvite =
+    !!user &&
+    isEmailConfirmed &&
+    typeof localStorage !== "undefined" &&
+    !!localStorage.getItem("actiplan_pending_invitation");
+
+  // Keep rendering while subscribed, loading after prior access, or Stripe/subscription errors (transient).
   const shouldRenderChildren =
     user &&
     isEmailConfirmed &&
-    (isSubscribed || wasSubscribedRef.current || subError);
+    (isSubscribed || subError || (subLoading && wasSubscribedRef.current));
 
   if (shouldRenderChildren) {
     childrenRenderedRef.current = true;
   }
 
-  // If children were ever rendered, keep them rendered regardless of transient states
-  if (childrenRenderedRef.current && user) {
+  // After first paint of the app, only stay mounted while subscription access or recovery still applies.
+  if (childrenRenderedRef.current && user && (isSubscribed || subLoading || subError)) {
     return (
       <>
         <AmplitudeAnalytics />
@@ -192,7 +221,14 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   }
 
   // Show loading only on initial load (never after children have been rendered)
-  if (authLoading || workspaceLoading || recoveringWorkspace || processingInvitation || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
+  if (
+    authLoading ||
+    workspaceLoading ||
+    recoveringWorkspace ||
+    processingInvitation ||
+    waitingOnPendingInvite ||
+    (subLoading && !isSubscribed && !wasSubscribedRef.current)
+  ) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

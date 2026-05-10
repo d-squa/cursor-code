@@ -81,9 +81,31 @@ serve(async (req) => {
         .single();
 
       if (team) {
-        isPersonalWorkspace = team.owner_id === user.id;
-        if (!isPersonalWorkspace) {
-          teamToCheck = team;
+        // Billing owner (teams.owner_id) always counts as personal scope for Stripe on that workspace.
+        if (team.owner_id === user.id) {
+          isPersonalWorkspace = true;
+          teamToCheck = null;
+        } else {
+          // Team workspace: must still have a user_roles row or we must not grant the team owner's license
+          // (stale localStorage activeWorkspaceId after removal / revoked admin).
+          const { data: membershipRow } = await supabaseClient
+            .from("user_roles")
+            .select("user_id")
+            .eq("team_id", team.id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (!membershipRow) {
+            logStep(
+              "Active workspace is a team the user no longer belongs to; checking personal subscription only",
+              { teamId: team.id, userId: user.id },
+            );
+            isPersonalWorkspace = true;
+            teamToCheck = null;
+          } else {
+            isPersonalWorkspace = false;
+            teamToCheck = team;
+          }
         }
         logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
       }
