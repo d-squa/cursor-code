@@ -50,6 +50,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+/** PostgREST may return smallints as string or wrap scalars; NaN must not count as success. */
+function parseRpcInt(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "bigint") return Number(v);
+  if (Array.isArray(v)) return v.length === 0 ? 0 : parseRpcInt(v[0]);
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function UserManagement() {
   const { user } = useAuth();
   const { workspaces, activeWorkspaceId, activeWorkspace, loading: workspacesLoading } = useWorkspace();
@@ -133,7 +143,14 @@ export default function UserManagement() {
         return priority.find((p) => roles.has(p)) ?? "member";
       };
 
-      return (profiles ?? []).map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
+      // Only show billing owner OR users with a real user_roles row for this team (avoids stale rows after remove).
+      const visibleProfiles = (profiles ?? []).filter((profile: any) => {
+        const uid = profile.id as string;
+        if (team?.owner_id && uid === team.owner_id) return true;
+        return (teamRoles ?? []).some((r: any) => r.user_id === uid);
+      });
+
+      return visibleProfiles.map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
     },
     enabled: !!user?.id && !!activeWorkspaceId,
   });
@@ -221,61 +238,95 @@ export default function UserManagement() {
     },
   });
 
-  // Remove user from team mutation
+  // Remove user from team mutation (SECURITY DEFINER RPC — client DELETE often no-oped under RLS)
   const removeUserFromTeam = useMutation({
     mutationFn: async (userId: string) => {
       if (!activeWorkspaceId) throw new Error("No active workspace");
-      
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("team_id", activeWorkspaceId);
+
+      const { data: removed, error } = await supabase.rpc("remove_team_member_from_team", {
+        p_target_user_id: userId,
+        p_team_id: activeWorkspaceId,
+      });
 
       if (error) throw error;
+      const n = parseRpcInt(removed);
+      if (n < 1) {
+        throw new Error(
+          "No membership row was removed. They may already be removed, or you may lack permission.",
+        );
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+    onSuccess: async (_data, removedUserId) => {
+      const listKey = ["users-with-roles", user?.id, activeWorkspaceId] as const;
+      queryClient.setQueryData(listKey, (old: unknown) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((row: { id?: string }) => row?.id !== removedUserId);
+      });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: listKey }),
+        queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+      ]);
       toast.success(`User removed from ${activeWorkspaceName}`);
       setRemoveConfirm(null);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Failed to remove user: " + error.message);
     },
   });
 
-  // Remove user from ALL teams (platform-wide)
+  /** Removes target user only from teams the caller owns or manages (not global admin). */
   const removeUserFromPlatform = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId);
+      const { data: removed, error } = await supabase.rpc("remove_user_from_teams_i_manage", {
+        p_target_user_id: userId,
+      });
 
       if (error) throw error;
+      const n = parseRpcInt(removed);
+      if (n < 1) {
+        throw new Error(
+          "No team memberships were removed. The user may have no roles in workspaces you administer.",
+        );
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
-      toast.success("User removed from all teams");
+    onSuccess: async (_data, removedUserId) => {
+      const listKey = ["users-with-roles", user?.id, activeWorkspaceId] as const;
+      queryClient.setQueryData(listKey, (old: unknown) => {
+        if (!Array.isArray(old)) return old;
+        return old.filter((row: { id?: string }) => row?.id !== removedUserId);
+      });
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: listKey }),
+        queryClient.invalidateQueries({ queryKey: ["invitations"] }),
+        queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+      ]);
+      toast.success("User removed from every workspace you administer");
       setRemoveConfirm(null);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error("Failed to remove user: " + error.message);
     },
   });
 
-  // Update user role mutation
+  // Update user role mutation (SECURITY DEFINER RPC — client UPDATE often no-ops under RLS with no error)
   const updateUserRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       if (!activeWorkspaceId) throw new Error("No active workspace");
 
-      const { error } = await supabase
-        .from("user_roles")
-        .update({ role: newRole as any })
-        .eq("user_id", userId)
-        .eq("team_id", activeWorkspaceId);
+      const { data: updated, error } = await supabase.rpc("update_team_member_role", {
+        p_team_id: activeWorkspaceId,
+        p_target_user_id: userId,
+        p_new_role: newRole,
+      });
 
       if (error) throw error;
+      const n = parseRpcInt(updated);
+      if (n < 1) {
+        throw new Error(
+          "Role was not updated. You may lack permission, or this member has no role row for this workspace.",
+        );
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
@@ -583,7 +634,7 @@ export default function UserManagement() {
                               onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "platform" })}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Remove from all teams
+                              Remove from workspaces I administer
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -603,7 +654,7 @@ export default function UserManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from all teams"}
+              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from workspaces I administer"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {removeConfirm?.type === "team" ? (
@@ -613,8 +664,8 @@ export default function UserManagement() {
                 </>
               ) : (
                 <>
-                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>all assigned teams</strong> on the platform.
-                  They will lose access to every workspace. This action cannot be undone.
+                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>every workspace you own or administer</strong>.
+                  They will remain on teams managed only by other admins. To fully revoke access, another workspace owner must remove them there too.
                 </>
               )}
             </AlertDialogDescription>
@@ -632,7 +683,7 @@ export default function UserManagement() {
                 }
               }}
             >
-              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from all teams"}
+              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from my workspaces"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
