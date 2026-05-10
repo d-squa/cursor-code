@@ -4791,6 +4791,10 @@ export type Database = {
         Returns: boolean
       }
       migrate_tokens_to_vault: { Args: never; Returns: undefined }
+      remove_member_from_workspace: {
+        Args: { p_target_user_id: string; p_workspace_id: string }
+        Returns: number
+      }
       store_adlibrary_token: {
         Args: { token_value: string; user_id_param: string }
         Returns: undefined

@@ -68,7 +68,11 @@ export default function UserManagement() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteTeamId, setInviteTeamId] = useState<string>("");
-  const [removeConfirm, setRemoveConfirm] = useState<{ userId: string; email: string; type: "team" | "platform" } | null>(null);
+  const [removeConfirm, setRemoveConfirm] = useState<{
+    userId: string;
+    email: string;
+    type: "team" | "workspace";
+  } | null>(null);
 
   useEffect(() => {
     if (activeWorkspaceId) setInviteTeamId(activeWorkspaceId);
@@ -358,13 +362,21 @@ export default function UserManagement() {
     },
   });
 
-  /** Removes target user only from teams the caller owns or manages (not global admin). */
-  const removeUserFromPlatform = useMutation({
+  /** Removes target from all teams in the current billing workspace (RPC). */
+  const removeUserFromWorkspace = useMutation({
     mutationFn: async (userId: string) => {
       if (!guardWrite("Removing team members")) {
         throw new Error("Read-only (Sample Mode or blocked)");
       }
-      const { data: removed, error } = await supabase.rpc("remove_user_from_teams_i_manage", {
+      const wid = activeWorkspace?.workspace_id;
+      if (!wid) {
+        throw new Error(
+          "This team is not linked to a billing workspace yet. Run database migrations or contact support.",
+        );
+      }
+
+      const { data: removed, error } = await supabase.rpc("remove_member_from_workspace", {
+        p_workspace_id: wid,
         p_target_user_id: userId,
       });
 
@@ -372,7 +384,7 @@ export default function UserManagement() {
       const n = parseRpcInt(removed);
       if (n < 1) {
         throw new Error(
-          "No team memberships were removed. The user may have no roles in workspaces you administer.",
+          "No memberships were removed. The user may have no team roles in this workspace, or you may lack permission.",
         );
       }
     },
@@ -387,7 +399,7 @@ export default function UserManagement() {
         queryClient.invalidateQueries({ queryKey: ["invitations"] }),
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
       ]);
-      toast.success("User removed from every workspace you administer");
+      toast.success(`User removed from all teams in this workspace`);
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
@@ -722,14 +734,17 @@ export default function UserManagement() {
                               onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "team" })}
                             >
                               <UserMinus className="mr-2 h-4 w-4" />
-                              Remove from this team
+                              Remove from this team only
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "platform" })}
+                              onClick={() =>
+                                setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "workspace" })
+                              }
+                              disabled={!activeWorkspace?.workspace_id}
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Remove from workspaces I administer
+                              Remove from entire workspace (all teams)
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -749,18 +764,21 @@ export default function UserManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from workspaces I administer"}
+              {removeConfirm?.type === "team"
+                ? "Remove from this team only"
+                : "Remove from entire workspace"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {removeConfirm?.type === "team" ? (
                 <>
-                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>{activeWorkspaceName}</strong> only.
-                  They will retain access to any other teams they belong to.
+                  This removes <strong>{removeConfirm?.email}</strong> from the team <strong>{activeWorkspaceName}</strong> only.
+                  They stay on other teams in this billing workspace if they have memberships there.
                 </>
               ) : (
                 <>
-                  This will remove <strong>{removeConfirm?.email}</strong> from <strong>every workspace you own or administer</strong>.
-                  They will remain on teams managed only by other admins. To fully revoke access, another workspace owner must remove them there too.
+                  This removes <strong>{removeConfirm?.email}</strong> from <strong>every team</strong> in this billing workspace
+                  ({activeWorkspaceName} and any other teams under the same subscription). Pending invitations for this workspace
+                  that match their email will be cancelled.
                 </>
               )}
             </AlertDialogDescription>
@@ -774,11 +792,11 @@ export default function UserManagement() {
                 if (removeConfirm.type === "team") {
                   removeUserFromTeam.mutate(removeConfirm.userId);
                 } else {
-                  removeUserFromPlatform.mutate(removeConfirm.userId);
+                  removeUserFromWorkspace.mutate(removeConfirm.userId);
                 }
               }}
             >
-              {removeConfirm?.type === "team" ? "Remove from team" : "Remove from my workspaces"}
+              {removeConfirm?.type === "team" ? "Remove from this team" : "Remove from entire workspace"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

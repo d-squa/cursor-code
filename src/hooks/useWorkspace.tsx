@@ -7,6 +7,8 @@ export type Workspace = {
   id: string;
   name: string;
   owner_id: string | null;
+  /** Billing workspace id when teams carry workspace_id (subscription container). */
+  workspace_id: string | null;
 };
 
 function storageKey(userId: string) {
@@ -30,7 +32,7 @@ export function useWorkspace() {
       // In this project, `user_roles.team_id` is not guaranteed to have a FK to `teams.id`,
       // which can make embedded joins fail and break workspace resolution.
       const [{ data: ownedTeams, error: ownedError }, { data: roles, error: rolesError }] = await Promise.all([
-        supabase.from("teams").select("id, name, owner_id").eq("owner_id", user.id),
+        supabase.from("teams").select("id, name, owner_id, workspace_id").eq("owner_id", user.id),
         supabase.from("user_roles").select("team_id").eq("user_id", user.id),
       ]);
 
@@ -42,7 +44,7 @@ export function useWorkspace() {
         .filter(Boolean);
 
       const { data: memberTeams, error: memberTeamsError } = teamIds.length
-        ? await supabase.from("teams").select("id, name, owner_id").in("id", teamIds)
+        ? await supabase.from("teams").select("id, name, owner_id, workspace_id").in("id", teamIds)
         : ({ data: [] as any[], error: null } as any);
 
       if (memberTeamsError) throw memberTeamsError;
@@ -50,11 +52,23 @@ export function useWorkspace() {
       const byId = new Map<string, Workspace>();
 
       (ownedTeams ?? []).forEach((t: any) => {
-        if (t?.id) byId.set(t.id, { id: t.id, name: t.name, owner_id: t.owner_id ?? null });
+        if (t?.id)
+          byId.set(t.id, {
+            id: t.id,
+            name: t.name,
+            owner_id: t.owner_id ?? null,
+            workspace_id: (t.workspace_id as string | null) ?? null,
+          });
       });
 
       (memberTeams ?? []).forEach((t: any) => {
-        if (t?.id) byId.set(t.id, { id: t.id, name: t.name, owner_id: t.owner_id ?? null });
+        if (t?.id)
+          byId.set(t.id, {
+            id: t.id,
+            name: t.name,
+            owner_id: t.owner_id ?? null,
+            workspace_id: (t.workspace_id as string | null) ?? null,
+          });
       });
 
       return Array.from(byId.values()).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
