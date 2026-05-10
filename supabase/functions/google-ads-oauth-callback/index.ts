@@ -293,11 +293,31 @@ serve(async (req) => {
     const developerToken = rawDeveloperToken.replace(/\s+/g, "");
 
     if (!clientId || !clientSecret) {
-      throw new Error("Google OAuth credentials not configured");
+      return new Response(
+        JSON.stringify({
+          error: "Google Ads OAuth credentials not configured",
+          hint:
+            "This function exchanges OAuth codes for Google Ads API access (Platform Connections → Connect Google Ads). It is not used for Supabase “Sign in with Google”. Add Edge Function secrets GOOGLE_ADS_OAUTH_CLIENT_ID and GOOGLE_ADS_CLIENT_SECRET (OAuth client from Google Cloud), redeploy google-ads-oauth-callback, and ensure redirect URIs match your app’s Google Ads OAuth redirect.",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     if (!developerToken) {
-      throw new Error("Google Ads Developer Token not configured");
+      return new Response(
+        JSON.stringify({
+          error: "Google Ads Developer Token not configured",
+          hint:
+            "Add GOOGLE_ADS_DEVELOPER_TOKEN from Google Ads API Center as a secret on this Edge Function. Required to call the Google Ads API after OAuth.",
+        }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     console.log(

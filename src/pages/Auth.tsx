@@ -166,6 +166,12 @@ export default function Auth() {
             return;
           }
 
+          // Finishing team invite after email confirm: guard accepts invite + sets workspace before billing checks
+          if (typeof localStorage !== "undefined" && localStorage.getItem("actiplan_pending_invitation")) {
+            navigate("/app/overview");
+            return;
+          }
+
           try {
             const { data: subData } = await supabase.functions.invoke("check-subscription", {
               headers: {

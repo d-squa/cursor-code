@@ -107,22 +107,23 @@ export default function Teams() {
         .single();
       
       if (error) throw error;
-      
-      // Also create a user_role entry for the owner in this new team
+
+      // Owner row is required for RLS elsewhere; roll back the team if this fails.
       if (user?.id && data) {
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert([{
+        const { error: roleError } = await supabase.from("user_roles").insert([
+          {
             user_id: user.id,
             role: "owner" as AppRole,
             team_id: data.id,
-          }]);
-        
+          },
+        ]);
+
         if (roleError) {
-          console.error("Failed to create owner role:", roleError);
+          await supabase.from("teams").delete().eq("id", data.id);
+          throw roleError;
         }
       }
-      
+
       return data;
     },
     onSuccess: () => {
