@@ -94,8 +94,18 @@ export default function UserManagement() {
   });
 
   // Admins and owners can manage users (within the active workspace)
-  const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
-  const { isSampleMode } = useSampleMode();
+  const canManageUsers =
+    myTeamRole === "owner" ||
+    myTeamRole === "admin" ||
+    myTeamRole === "campaign_manager";
+  const { isSampleMode, guardWrite } = useSampleMode();
+
+  /** Roles that appear in the edit dropdown (must match DB enum + RPC expectations). */
+  const EDIT_ROLE_VALUES = useMemo(
+    () =>
+      new Set(["admin", "campaign_manager", "collaborator", "member", "viewer"]),
+    [],
+  );
 
   const activeWorkspaceName = useMemo(() => activeWorkspace?.name ?? "Workspace", [activeWorkspace?.name]);
 
@@ -241,6 +251,9 @@ export default function UserManagement() {
   // Remove user from team mutation (SECURITY DEFINER RPC — client DELETE often no-oped under RLS)
   const removeUserFromTeam = useMutation({
     mutationFn: async (userId: string) => {
+      if (!guardWrite("Removing team members")) {
+        throw new Error("Read-only (Sample Mode or blocked)");
+      }
       if (!activeWorkspaceId) throw new Error("No active workspace");
 
       const { data: removed, error } = await supabase.rpc("remove_team_member_from_team", {
@@ -271,6 +284,7 @@ export default function UserManagement() {
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
+      if (error.message.includes("Read-only")) return;
       toast.error("Failed to remove user: " + error.message);
     },
   });
@@ -278,6 +292,9 @@ export default function UserManagement() {
   /** Removes target user only from teams the caller owns or manages (not global admin). */
   const removeUserFromPlatform = useMutation({
     mutationFn: async (userId: string) => {
+      if (!guardWrite("Removing team members")) {
+        throw new Error("Read-only (Sample Mode or blocked)");
+      }
       const { data: removed, error } = await supabase.rpc("remove_user_from_teams_i_manage", {
         p_target_user_id: userId,
       });
@@ -305,6 +322,7 @@ export default function UserManagement() {
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
+      if (error.message.includes("Read-only")) return;
       toast.error("Failed to remove user: " + error.message);
     },
   });
@@ -312,6 +330,9 @@ export default function UserManagement() {
   // Update user role mutation (SECURITY DEFINER RPC — client UPDATE often no-ops under RLS with no error)
   const updateUserRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+      if (!guardWrite("Changing roles")) {
+        throw new Error("Read-only (Sample Mode or blocked)");
+      }
       if (!activeWorkspaceId) throw new Error("No active workspace");
 
       const { data: updated, error } = await supabase.rpc("update_team_member_role", {
@@ -332,7 +353,8 @@ export default function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
       toast.success("Role updated successfully");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      if (error.message.includes("Read-only")) return;
       toast.error("Failed to update role: " + error.message);
     },
   });
@@ -575,24 +597,28 @@ export default function UserManagement() {
               const isOwner = userItem.role === "owner";
               const isSelf = userItem.id === user?.id;
               const canModify = canManageUsers && !isOwner && !isSelf;
+              const roleKey = String(userItem.role ?? "");
+              const canEditRoleWithSelect =
+                canModify && !isSampleMode && EDIT_ROLE_VALUES.has(roleKey);
 
               return (
                 <TableRow key={userItem.id}>
                   <TableCell>{userItem.email}</TableCell>
                   <TableCell>
-                    {canModify ? (
+                    {canEditRoleWithSelect ? (
                       <Select
-                        value={userItem.role}
+                        value={roleKey}
                         onValueChange={(newRole) =>
                           updateUserRole.mutate({ userId: userItem.id, newRole })
                         }
                       >
-                        <SelectTrigger className="w-[160px]">
+                        <SelectTrigger className="w-[160px]" disabled={isSampleMode}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
+                          <SelectItem value="collaborator">Collaborator</SelectItem>
                           <SelectItem value="member">Member</SelectItem>
                           <SelectItem value="viewer">Viewer</SelectItem>
                         </SelectContent>
@@ -618,7 +644,7 @@ export default function UserManagement() {
                       {canModify && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" disabled={isSampleMode}>
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
