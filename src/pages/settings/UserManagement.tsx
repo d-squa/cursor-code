@@ -174,14 +174,50 @@ export default function UserManagement() {
     queryFn: async () => {
       if (!activeWorkspaceId) return [];
 
-      const { data, error } = await supabase
-        .from("invitations")
-        .select(
-          `
+      const { data: ctxTeam } = await supabase
+        .from("teams")
+        .select("workspace_id")
+        .eq("id", activeWorkspaceId)
+        .maybeSingle();
+
+      const wid = ctxTeam?.workspace_id as string | undefined;
+
+      const baseSelect = `
           *,
           teams (name)
-        `
-        )
+        `;
+
+      if (wid) {
+        const [{ data: byWs, error: e1 }, { data: legacy, error: e2 }] = await Promise.all([
+          supabase
+            .from("invitations")
+            .select(baseSelect)
+            .eq("status", "pending")
+            .eq("workspace_id", wid)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("invitations")
+            .select(baseSelect)
+            .eq("status", "pending")
+            .eq("team_id", activeWorkspaceId)
+            .is("workspace_id", null)
+            .order("created_at", { ascending: false }),
+        ]);
+        if (e1) throw e1;
+        if (e2) throw e2;
+        const seen = new Set<string>();
+        const merged = [...(byWs ?? []), ...(legacy ?? [])].filter((row: { id?: string }) => {
+          const id = row?.id;
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+        return merged;
+      }
+
+      const { data, error } = await supabase
+        .from("invitations")
+        .select(baseSelect)
         .eq("status", "pending")
         .eq("team_id", activeWorkspaceId)
         .order("created_at", { ascending: false });
@@ -198,33 +234,66 @@ export default function UserManagement() {
       // Generate unique token
       const token = crypto.randomUUID();
 
-      // Create invitation
+      const { data: teamRow, error: teamCtxError } = await supabase
+        .from("teams")
+        .select("workspace_id")
+        .eq("id", teamId)
+        .maybeSingle();
+
+      if (teamCtxError) throw teamCtxError;
+
+      const workspaceId = teamRow?.workspace_id as string | undefined;
+      let inviteTeamId = teamId;
+
+      if (workspaceId) {
+        const { data: ws, error: wsError } = await supabase
+          .from("workspaces")
+          .select("default_team_id, name")
+          .eq("id", workspaceId)
+          .maybeSingle();
+
+        if (wsError) throw wsError;
+        if (ws?.default_team_id) {
+          inviteTeamId = ws.default_team_id as string;
+        }
+      }
+
+      // Create invitation (workspace-scoped; join lands on default team at accept-invitation)
       const { data: invitation, error: inviteError } = await supabase
         .from("invitations")
-        .insert([{
-          email,
-          role: role as any,
-          team_id: teamId,
-          token,
-          created_by: user?.id,
-        }])
+        .insert([
+          {
+            email,
+            role: role as any,
+            team_id: inviteTeamId,
+            workspace_id: workspaceId ?? null,
+            token,
+            created_by: user?.id,
+          },
+        ])
         .select()
         .single();
 
       if (inviteError) throw inviteError;
 
-      // Get team name for email
+      // Workspace name for email when available; else team name
       const { data: team } = await supabase
         .from("teams")
         .select("name")
-        .eq("id", teamId)
+        .eq("id", inviteTeamId)
         .single();
+
+      const { data: wsNameRow } = workspaceId
+        ? await supabase.from("workspaces").select("name").eq("id", workspaceId).maybeSingle()
+        : { data: null };
+
+      const displayName = (wsNameRow as { name?: string } | null)?.name ?? team?.name ?? "Team";
 
       // Send invitation email
       const { error: emailError } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email,
-          teamName: team?.name || "Team",
+          teamName: displayName,
           role,
           invitationToken: token,
           origin: window.location.origin,

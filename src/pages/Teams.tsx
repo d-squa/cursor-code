@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { FeatureGate } from "@/components/FeatureGate";
+import { getMaxTeamsForTier } from "@/config/subscriptionTiers";
 import type { Tables, Enums } from "@/integrations/supabase/types";
 
 type Team = Tables<"teams">;
@@ -19,6 +21,7 @@ type AppRole = Enums<"app_role">;
 
 export default function Teams() {
   const { user } = useAuth();
+  const { tier } = useSubscription();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -100,12 +103,46 @@ export default function Teams() {
   // Create team mutation
   const createTeam = useMutation({
     mutationFn: async (team: { name: string; description: string }) => {
+      const maxTeams = getMaxTeamsForTier(tier);
+
+      const { data: ws, error: wsError } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user?.id ?? "")
+        .maybeSingle();
+
+      if (wsError) throw wsError;
+      if (!ws?.id) {
+        throw new Error(
+          "No billing workspace found. Complete onboarding or refresh the page.",
+        );
+      }
+
+      const { count, error: countError } = await supabase
+        .from("teams")
+        .select("*", { count: "exact", head: true })
+        .eq("workspace_id", ws.id);
+
+      if (countError) throw countError;
+      if ((count ?? 0) >= maxTeams) {
+        throw new Error(
+          `Your plan allows up to ${maxTeams} team(s) in your workspace. Upgrade to add more.`,
+        );
+      }
+
       const { data, error } = await supabase
         .from("teams")
-        .insert([{ ...team, owner_id: user?.id }])
+        .insert([
+          {
+            ...team,
+            owner_id: user?.id,
+            workspace_id: ws.id,
+            is_default: false,
+          },
+        ])
         .select()
         .single();
-      
+
       if (error) throw error;
 
       // Owner row is required for RLS elsewhere; roll back the team if this fails.

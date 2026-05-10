@@ -152,6 +152,19 @@ export const OAUTH_CONNECTION_LIMITS: Record<SubscriptionTier, number> = {
   agency: 6,
 };
 
+/** Max teams per billing workspace (default team + additional teams). Enforced in UI; DB stores workspace_id on teams. */
+export const MAX_TEAMS_PER_WORKSPACE: Record<SubscriptionTier, number> = {
+  trial: 1,
+  basic: 1,
+  freelancer: 2,
+  enterprise: 5,
+  agency: 25,
+};
+
+export function getMaxTeamsForTier(tier: SubscriptionTier): number {
+  return MAX_TEAMS_PER_WORKSPACE[tier] ?? 1;
+}
+
 // Team member limits per tier (total team size = owners + admins + members)
 export const TEAM_MEMBER_LIMITS: Record<SubscriptionTier, { owners: number; admins: number; members: number }> = {
   trial: { owners: 1, admins: 0, members: 0 },
