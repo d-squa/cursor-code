@@ -56,6 +56,10 @@ function parseRpcInt(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "bigint") return Number(v);
   if (Array.isArray(v)) return v.length === 0 ? 0 : parseRpcInt(v[0]);
+  if (typeof v === "object" && v !== null) {
+    const o = v as Record<string, unknown>;
+    if ("count" in o) return parseRpcInt(o.count);
+  }
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
@@ -95,6 +99,12 @@ export default function UserManagement() {
   }, [activeWorkspaceId]);
 
   const billingWorkspaceId = activeWorkspace?.workspace_id ?? null;
+
+  /** Must match `users` useQuery key so mutations refetch the list that is actually mounted. */
+  const usersListQueryKey = useMemo(
+    () => ["users-with-roles", user?.id ?? "", billingWorkspaceId, activeWorkspaceId ?? ""] as const,
+    [user?.id, billingWorkspaceId, activeWorkspaceId],
+  );
 
   const { data: myTeamRole } = useQuery({
     queryKey: [
@@ -152,11 +162,8 @@ export default function UserManagement() {
     },
   });
 
-  // Admins and owners can manage users (within the active workspace)
-  const canManageUsers =
-    myTeamRole === "owner" ||
-    myTeamRole === "admin" ||
-    myTeamRole === "campaign_manager";
+  // Billing owner + workspace admins only (subscription roster; not members / campaign managers)
+  const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
   const { isSampleMode, guardWrite } = useSampleMode();
 
   /** Roles that appear in the edit dropdown (must match DB enum + RPC expectations). */
@@ -184,7 +191,7 @@ export default function UserManagement() {
 
   // All subscription members in the billing workspace (every team), or legacy single-team scope
   const { data: users, isLoading: loadingUsers } = useQuery({
-    queryKey: ["users-with-roles", user?.id, billingWorkspaceId, activeWorkspaceId],
+    queryKey: usersListQueryKey,
     queryFn: async () => {
       if (!user?.id || !activeWorkspaceId) return [];
 
@@ -444,6 +451,7 @@ export default function UserManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      void queryClient.invalidateQueries({ queryKey: ["users-with-roles", user?.id] });
       toast.success("Invitation sent successfully!");
       setInviteDialogOpen(false);
       setInviteEmail("");
@@ -477,15 +485,15 @@ export default function UserManagement() {
       }
     },
     onSuccess: async (_data, removedUserId) => {
-      const listKey = ["users-with-roles", user?.id, activeWorkspaceId] as const;
-      queryClient.setQueryData(listKey, (old: unknown) => {
+      queryClient.setQueryData(usersListQueryKey, (old: unknown) => {
         if (!Array.isArray(old)) return old;
         return old.filter((row: { id?: string }) => row?.id !== removedUserId);
       });
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: listKey }),
+        queryClient.refetchQueries({ queryKey: usersListQueryKey }),
         queryClient.invalidateQueries({ queryKey: ["invitations"] }),
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
       ]);
       toast.success(`User removed from ${activeWorkspace?.name ?? "this team"}`);
       setRemoveConfirm(null);
@@ -523,15 +531,15 @@ export default function UserManagement() {
       }
     },
     onSuccess: async (_data, removedUserId) => {
-      const listKey = ["users-with-roles", user?.id, activeWorkspaceId] as const;
-      queryClient.setQueryData(listKey, (old: unknown) => {
+      queryClient.setQueryData(usersListQueryKey, (old: unknown) => {
         if (!Array.isArray(old)) return old;
         return old.filter((row: { id?: string }) => row?.id !== removedUserId);
       });
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: listKey }),
+        queryClient.refetchQueries({ queryKey: usersListQueryKey }),
         queryClient.invalidateQueries({ queryKey: ["invitations"] }),
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
       ]);
       toast.success(`User removed from all teams in this workspace`);
       setRemoveConfirm(null);
@@ -580,8 +588,9 @@ export default function UserManagement() {
         );
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: usersListQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] });
       toast.success("Role updated successfully");
     },
     onError: (error: Error) => {
