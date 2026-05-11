@@ -4,13 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input"; import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSubscription } from "@/hooks/useSubscription";
 import { FeatureGate } from "@/components/FeatureGate";
 import { getMaxTeamsForTier } from "@/config/subscriptionTiers";
@@ -19,8 +21,26 @@ import type { Tables, Enums } from "@/integrations/supabase/types";
 type Team = Tables<"teams">;
 type AppRole = Enums<"app_role">;
 
+const ROLE_PRIORITY = [
+  "owner",
+  "admin",
+  "campaign_manager",
+  "collaborator",
+  "member",
+  "viewer",
+] as const;
+
+function strongestAppRole(roles: Set<string>): string {
+  for (const p of ROLE_PRIORITY) {
+    if (roles.has(p)) return p;
+  }
+  return "member";
+}
+
 export default function Teams() {
   const { user } = useAuth();
+  const { activeWorkspaceId, activeWorkspace, loading: workspaceLoading } = useWorkspace();
+  const billingWorkspaceId = activeWorkspace?.workspace_id ?? null;
   const { tier } = useSubscription();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -30,15 +50,76 @@ export default function Teams() {
   const [newTeam, setNewTeam] = useState({ name: "", description: "" });
   const [inviteData, setInviteData] = useState({ email: "", role: "member" });
 
-  // Fetch teams
-  const { data: teams, isLoading: teamsLoading } = useQuery({
-    queryKey: ["teams"],
+  /** Same semantics as User Management: billing owner or strongest role owner/admin across workspace teams. */
+  const { data: myTeamRole, isPending: myTeamRolePending } = useQuery({
+    queryKey: [
+      "user-mgmt-my-role",
+      user?.id,
+      activeWorkspaceId,
+      billingWorkspaceId,
+      activeWorkspace?.owner_id,
+    ],
+    enabled: !!user?.id && !!activeWorkspaceId,
     queryFn: async () => {
+      if (!user?.id || !activeWorkspaceId) return null;
+
+      if (billingWorkspaceId) {
+        const { data: ws, error: wsErr } = await supabase
+          .from("workspaces")
+          .select("owner_id")
+          .eq("id", billingWorkspaceId)
+          .maybeSingle();
+        if (wsErr) throw wsErr;
+        if (ws?.owner_id === user.id) return "owner";
+
+        const { data: wsTeams, error: teamsErr } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("workspace_id", billingWorkspaceId);
+        if (teamsErr) throw teamsErr;
+        const teamIds = (wsTeams ?? []).map((t: { id: string }) => t.id).filter(Boolean);
+        if (teamIds.length === 0) return "member";
+
+        const { data: roleRows, error: rolesErr } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("team_id", teamIds);
+        if (rolesErr) throw rolesErr;
+        const set = new Set<string>();
+        (roleRows ?? []).forEach((r: { role?: string }) => {
+          if (r.role) set.add(r.role);
+        });
+        return strongestAppRole(set);
+      }
+
+      if (activeWorkspace?.owner_id === user.id) return "owner";
+
       const { data, error } = await supabase
-        .from("teams")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("team_id", activeWorkspaceId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return (data?.role as string | null) ?? "member";
+    },
+  });
+
+  const canManageWorkspaceTeams =
+    !myTeamRolePending && (myTeamRole === "owner" || myTeamRole === "admin");
+
+  // Fetch teams (scope to billing workspace when present so roster matches subscription container)
+  const { data: teams, isLoading: teamsLoading } = useQuery({
+    queryKey: ["teams", billingWorkspaceId],
+    queryFn: async () => {
+      let q = supabase.from("teams").select("*").order("created_at", { ascending: false });
+      if (billingWorkspaceId) {
+        q = q.eq("workspace_id", billingWorkspaceId);
+      }
+      const { data, error } = await q;
+
       if (error) throw error;
       return data as Team[];
     },
@@ -103,16 +184,25 @@ export default function Teams() {
   // Create team mutation
   const createTeam = useMutation({
     mutationFn: async (team: { name: string; description: string }) => {
+      if (!user?.id) throw new Error("Not authenticated");
+      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
+      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
+        throw new Error("Only workspace owners and admins can create teams");
+      }
       const maxTeams = getMaxTeamsForTier(tier);
 
-      const { data: ws, error: wsError } = await supabase
-        .from("workspaces")
-        .select("id")
-        .eq("owner_id", user?.id ?? "")
-        .maybeSingle();
+      let billingWsId = billingWorkspaceId;
+      if (!billingWsId) {
+        const { data: ws, error: wsError } = await supabase
+          .from("workspaces")
+          .select("id")
+          .eq("owner_id", user.id)
+          .maybeSingle();
+        if (wsError) throw wsError;
+        billingWsId = ws?.id ?? null;
+      }
 
-      if (wsError) throw wsError;
-      if (!ws?.id) {
+      if (!billingWsId) {
         throw new Error(
           "No billing workspace found. Complete onboarding or refresh the page.",
         );
@@ -121,7 +211,7 @@ export default function Teams() {
       const { count, error: countError } = await supabase
         .from("teams")
         .select("*", { count: "exact", head: true })
-        .eq("workspace_id", ws.id);
+        .eq("workspace_id", billingWsId);
 
       if (countError) throw countError;
       if ((count ?? 0) >= maxTeams) {
@@ -136,7 +226,7 @@ export default function Teams() {
           {
             ...team,
             owner_id: user?.id,
-            workspace_id: ws.id,
+            workspace_id: billingWsId,
             is_default: false,
           },
         ])
@@ -177,6 +267,12 @@ export default function Teams() {
   // Update team mutation
   const updateTeam = useMutation({
     mutationFn: async (team: { id: string; name: string; description: string }) => {
+      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
+      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
+        throw new Error("Only workspace owners and admins can edit teams");
+      }
+      const target = teams?.find((t) => t.id === team.id) ?? selectedTeam;
+      if (!target) throw new Error("Team not found");
       const { error } = await supabase
         .from("teams")
         .update({ name: team.name, description: team.description })
@@ -189,14 +285,20 @@ export default function Teams() {
       setIsEditDialogOpen(false);
       toast.success("Team updated successfully");
     },
-    onError: () => {
-      toast.error("Failed to update team");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update team");
     },
   });
 
   // Delete team mutation
   const deleteTeam = useMutation({
     mutationFn: async (teamId: string) => {
+      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
+      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
+        throw new Error("Only workspace owners and admins can delete teams");
+      }
+      const target = teams?.find((t) => t.id === teamId) ?? selectedTeam;
+      if (!target) throw new Error("Team not found");
       const { error } = await supabase
         .from("teams")
         .delete()
@@ -208,14 +310,20 @@ export default function Teams() {
       queryClient.invalidateQueries({ queryKey: ["teams"] });
       toast.success("Team deleted successfully");
     },
-    onError: () => {
-      toast.error("Failed to delete team");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete team");
     },
   });
 
   // Invite user mutation
   const inviteUser = useMutation({
     mutationFn: async (data: { email: string; role: string; teamId: string }) => {
+      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
+      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
+        throw new Error("Only workspace owners and admins can invite team members");
+      }
+      const target = teams?.find((t) => t.id === data.teamId) ?? selectedTeam;
+      if (!target) throw new Error("Team not found");
       // Find user by email
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -250,6 +358,10 @@ export default function Teams() {
   // Remove team member mutation
   const removeMember = useMutation({
     mutationFn: async (roleId: string) => {
+      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
+      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
+        throw new Error("Only workspace owners and admins can remove team members");
+      }
       const { error } = await supabase
         .from("user_roles")
         .delete()
@@ -261,14 +373,18 @@ export default function Teams() {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       toast.success("Member removed successfully");
     },
-    onError: () => {
-      toast.error("Failed to remove member");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to remove member");
     },
   });
 
   // Update member role mutation
   const updateMemberRole = useMutation({
     mutationFn: async (data: { roleId: string; newRole: AppRole }) => {
+      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
+      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
+        throw new Error("Only workspace owners and admins can change member roles");
+      }
       const { error } = await supabase
         .from("user_roles")
         .update({ role: data.newRole })
@@ -280,12 +396,12 @@ export default function Teams() {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       toast.success("Role updated successfully");
     },
-    onError: () => {
-      toast.error("Failed to update role");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update role");
     },
   });
 
-  if (teamsLoading) {
+  if (workspaceLoading || teamsLoading) {
     return <div className="p-8">Loading...</div>;
   }
 
@@ -294,6 +410,7 @@ export default function Teams() {
     <div className="container mx-auto p-8 max-w-7xl">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Teams Management</h1>
+        {canManageWorkspaceTeams ? (
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -334,6 +451,7 @@ export default function Teams() {
             </div>
           </DialogContent>
         </Dialog>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -352,6 +470,7 @@ export default function Teams() {
                         <h3 className="font-semibold text-lg">{team.name}</h3>
                         <p className="text-sm text-muted-foreground">{team.description}</p>
                       </div>
+                      {canManageWorkspaceTeams ? (
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
@@ -378,6 +497,7 @@ export default function Teams() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>
@@ -396,7 +516,7 @@ export default function Teams() {
               {selectedTeam && (
                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button size="sm">
+                    <Button size="sm" disabled={!canManageWorkspaceTeams}>
                       <UserPlus className="mr-2 h-4 w-4" />
                       Invite
                     </Button>
@@ -466,6 +586,8 @@ export default function Teams() {
                       <TableCell>
                         {member.role === "owner" ? (
                           <Badge>Owner</Badge>
+                        ) : !canManageWorkspaceTeams ? (
+                          <Badge variant="outline">{member.role?.replace("_", " ")}</Badge>
                         ) : (
                           <Select
                             value={member.role}
@@ -490,6 +612,7 @@ export default function Teams() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          disabled={!canManageWorkspaceTeams || member.role === "owner"}
                           onClick={() => {
                             if (confirm("Remove this member from the team?")) {
                               removeMember.mutate(member.id);
