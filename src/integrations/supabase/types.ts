@@ -4803,6 +4803,16 @@ export type Database = {
         };
         Returns: number;
       }
+      get_workspace_member_summaries: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          id: string
+          email: string
+          role: Database["public"]["Enums"]["app_role"]
+          company_name: string | null
+          created_at: string
+        }[]
+      }
       store_adlibrary_token: {
         Args: { token_value: string; user_id_param: string }
         Returns: undefined

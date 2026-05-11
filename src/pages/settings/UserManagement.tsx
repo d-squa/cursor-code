@@ -53,6 +53,7 @@ import {
 /** PostgREST may return smallints as string or wrap scalars; NaN must not count as success. */
 function parseRpcInt(v: unknown): number {
   if (v == null) return 0;
+  if (typeof v === "boolean") return 0;
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "bigint") return Number(v);
   if (Array.isArray(v)) return v.length === 0 ? 0 : parseRpcInt(v[0]);
@@ -196,66 +197,17 @@ export default function UserManagement() {
       if (!user?.id || !activeWorkspaceId) return [];
 
       if (billingWorkspaceId) {
-        const { data: wsTeams, error: teamsErr } = await supabase
-          .from("teams")
-          .select("id, owner_id")
-          .eq("workspace_id", billingWorkspaceId);
-        if (teamsErr) throw teamsErr;
-
-        const teamList = wsTeams ?? [];
-        const teamIds = teamList.map((t: { id: string }) => t.id).filter(Boolean);
-        if (teamIds.length === 0) return [];
-
-        const { data: teamRoles, error: rolesError } = await supabase
-          .from("user_roles")
-          .select("user_id, role, team_id")
-          .in("team_id", teamIds);
-        if (rolesError) throw rolesError;
-
-        const { data: wsRow, error: wsErr } = await supabase
-          .from("workspaces")
-          .select("owner_id")
-          .eq("id", billingWorkspaceId)
-          .single();
-        if (wsErr) throw wsErr;
-        const billingOwnerId = wsRow?.owner_id as string | undefined;
-
-        const userIds = new Set<string>();
-        (teamRoles ?? []).forEach((r: { user_id: string }) => userIds.add(r.user_id));
-        if (billingOwnerId) userIds.add(billingOwnerId);
-
-        if (userIds.size === 0) return [];
-
-        const { data: profiles, error: profilesError } = await supabase
-          .from("profiles")
-          .select("*")
-          .in("id", Array.from(userIds))
-          .order("created_at", { ascending: false });
-        if (profilesError) throw profilesError;
-
-        const rolesByUser = new Map<string, Set<string>>();
-        (teamRoles ?? []).forEach((r: { user_id: string; role: string }) => {
-          const set = rolesByUser.get(r.user_id) ?? new Set<string>();
-          set.add(r.role);
-          rolesByUser.set(r.user_id, set);
+        const { data: rows, error: rpcErr } = await supabase.rpc("get_workspace_member_summaries", {
+          p_workspace_id: billingWorkspaceId,
         });
+        if (rpcErr) throw rpcErr;
 
-        const pickRole = (uid: string) => {
-          if (billingOwnerId && uid === billingOwnerId) return "owner";
-          const roles = rolesByUser.get(uid);
-          if (!roles || roles.size === 0) return "member";
-          return strongestAppRole(roles);
-        };
-
-        const visibleProfiles = (profiles ?? []).filter((profile: { id: string }) => {
-          const uid = profile.id;
-          if (billingOwnerId && uid === billingOwnerId) return true;
-          return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
-        });
-
-        return visibleProfiles.map((profile: Record<string, unknown>) => ({
-          ...profile,
-          role: pickRole(profile.id as string),
+        return (rows ?? []).map((row) => ({
+          id: row.id,
+          email: row.email,
+          company_name: row.company_name,
+          created_at: row.created_at,
+          role: row.role,
         }));
       }
 
@@ -495,7 +447,9 @@ export default function UserManagement() {
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
         queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
       ]);
-      toast.success(`User removed from ${activeWorkspace?.name ?? "this team"}`);
+      toast.success(
+        `Removed from ${activeWorkspace?.name ?? "this team"}. They stay in this list if they still belong to other teams in the same subscription.`,
+      );
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
@@ -588,10 +542,21 @@ export default function UserManagement() {
         );
       }
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await queryClient.refetchQueries({ queryKey: usersListQueryKey });
       queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] });
-      toast.success("Role updated successfully");
+      const rows = queryClient.getQueryData(usersListQueryKey) as
+        | Array<{ id?: string; role?: string }>
+        | undefined;
+      const row = rows?.find((r) => r.id === variables.userId);
+      if (row && row.role !== variables.newRole) {
+        toast.warning("Role only partly updated", {
+          description:
+            "They still have an owner row on a team they own, or another role row the workspace RPC did not change. Transfer team ownership first if you need to remove owner-level access.",
+        });
+      } else {
+        toast.success("Role updated successfully");
+      }
     },
     onError: (error: Error) => {
       if (error.message.includes("Read-only")) return;
