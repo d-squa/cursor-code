@@ -4795,6 +4795,14 @@ export type Database = {
         Args: { p_target_user_id: string; p_workspace_id: string }
         Returns: number
       }
+      update_member_role_in_workspace: {
+        Args: {
+          p_new_role: Database["public"]["Enums"]["app_role"];
+          p_target_user_id: string;
+          p_workspace_id: string;
+        };
+        Returns: number;
+      }
       store_adlibrary_token: {
         Args: { token_value: string; user_id_param: string }
         Returns: undefined

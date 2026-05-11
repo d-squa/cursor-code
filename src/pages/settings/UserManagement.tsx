@@ -60,6 +60,22 @@ function parseRpcInt(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+const ROLE_PRIORITY = [
+  "owner",
+  "admin",
+  "campaign_manager",
+  "collaborator",
+  "member",
+  "viewer",
+] as const;
+
+function strongestAppRole(roles: Set<string>): string {
+  for (const p of ROLE_PRIORITY) {
+    if (roles.has(p)) return p;
+  }
+  return "member";
+}
+
 export default function UserManagement() {
   const { user } = useAuth();
   const { workspaces, activeWorkspaceId, activeWorkspace, loading: workspacesLoading } = useWorkspace();
@@ -78,11 +94,50 @@ export default function UserManagement() {
     if (activeWorkspaceId) setInviteTeamId(activeWorkspaceId);
   }, [activeWorkspaceId]);
 
+  const billingWorkspaceId = activeWorkspace?.workspace_id ?? null;
+
   const { data: myTeamRole } = useQuery({
-    queryKey: ["my-team-role", user?.id, activeWorkspaceId, activeWorkspace?.owner_id],
+    queryKey: [
+      "user-mgmt-my-role",
+      user?.id,
+      activeWorkspaceId,
+      billingWorkspaceId,
+      activeWorkspace?.owner_id,
+    ],
     enabled: !!user?.id && !!activeWorkspaceId,
     queryFn: async () => {
       if (!user?.id || !activeWorkspaceId) return null;
+
+      if (billingWorkspaceId) {
+        const { data: ws, error: wsErr } = await supabase
+          .from("workspaces")
+          .select("owner_id")
+          .eq("id", billingWorkspaceId)
+          .maybeSingle();
+        if (wsErr) throw wsErr;
+        if (ws?.owner_id === user.id) return "owner";
+
+        const { data: wsTeams, error: teamsErr } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("workspace_id", billingWorkspaceId);
+        if (teamsErr) throw teamsErr;
+        const teamIds = (wsTeams ?? []).map((t: { id: string }) => t.id).filter(Boolean);
+        if (teamIds.length === 0) return "member";
+
+        const { data: roleRows, error: rolesErr } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("team_id", teamIds);
+        if (rolesErr) throw rolesErr;
+        const set = new Set<string>();
+        (roleRows ?? []).forEach((r: { role?: string }) => {
+          if (r.role) set.add(r.role);
+        });
+        return strongestAppRole(set);
+      }
+
       if (activeWorkspace?.owner_id === user.id) return "owner";
 
       const { data, error } = await supabase
@@ -111,13 +166,91 @@ export default function UserManagement() {
     [],
   );
 
-  const activeWorkspaceName = useMemo(() => activeWorkspace?.name ?? "Workspace", [activeWorkspace?.name]);
+  const { data: billingWorkspaceMeta } = useQuery({
+    queryKey: ["billing-workspace-meta", billingWorkspaceId],
+    enabled: !!billingWorkspaceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workspaces")
+        .select("id, name, owner_id")
+        .eq("id", billingWorkspaceId as string)
+        .single();
+      if (error) throw error;
+      return data as { id: string; name: string; owner_id: string };
+    },
+  });
 
-  // Fetch users with their roles - scoped to active workspace
+  const billingTitle = billingWorkspaceMeta?.name ?? activeWorkspace?.name ?? "Workspace";
+
+  // All subscription members in the billing workspace (every team), or legacy single-team scope
   const { data: users, isLoading: loadingUsers } = useQuery({
-    queryKey: ["users-with-roles", user?.id, activeWorkspaceId],
+    queryKey: ["users-with-roles", user?.id, billingWorkspaceId, activeWorkspaceId],
     queryFn: async () => {
       if (!user?.id || !activeWorkspaceId) return [];
+
+      if (billingWorkspaceId) {
+        const { data: wsTeams, error: teamsErr } = await supabase
+          .from("teams")
+          .select("id, owner_id")
+          .eq("workspace_id", billingWorkspaceId);
+        if (teamsErr) throw teamsErr;
+
+        const teamList = wsTeams ?? [];
+        const teamIds = teamList.map((t: { id: string }) => t.id).filter(Boolean);
+        if (teamIds.length === 0) return [];
+
+        const { data: teamRoles, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("user_id, role, team_id")
+          .in("team_id", teamIds);
+        if (rolesError) throw rolesError;
+
+        const { data: wsRow, error: wsErr } = await supabase
+          .from("workspaces")
+          .select("owner_id")
+          .eq("id", billingWorkspaceId)
+          .single();
+        if (wsErr) throw wsErr;
+        const billingOwnerId = wsRow?.owner_id as string | undefined;
+
+        const userIds = new Set<string>();
+        (teamRoles ?? []).forEach((r: { user_id: string }) => userIds.add(r.user_id));
+        if (billingOwnerId) userIds.add(billingOwnerId);
+
+        if (userIds.size === 0) return [];
+
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", Array.from(userIds))
+          .order("created_at", { ascending: false });
+        if (profilesError) throw profilesError;
+
+        const rolesByUser = new Map<string, Set<string>>();
+        (teamRoles ?? []).forEach((r: { user_id: string; role: string }) => {
+          const set = rolesByUser.get(r.user_id) ?? new Set<string>();
+          set.add(r.role);
+          rolesByUser.set(r.user_id, set);
+        });
+
+        const pickRole = (uid: string) => {
+          if (billingOwnerId && uid === billingOwnerId) return "owner";
+          const roles = rolesByUser.get(uid);
+          if (!roles || roles.size === 0) return "member";
+          return strongestAppRole(roles);
+        };
+
+        const visibleProfiles = (profiles ?? []).filter((profile: { id: string }) => {
+          const uid = profile.id;
+          if (billingOwnerId && uid === billingOwnerId) return true;
+          return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
+        });
+
+        return visibleProfiles.map((profile: Record<string, unknown>) => ({
+          ...profile,
+          role: pickRole(profile.id as string),
+        }));
+      }
 
       const [{ data: team, error: teamError }, { data: teamRoles, error: rolesError }] = await Promise.all([
         supabase.from("teams").select("id, owner_id").eq("id", activeWorkspaceId).single(),
@@ -128,7 +261,7 @@ export default function UserManagement() {
       if (rolesError) throw rolesError;
 
       const userIds = new Set<string>();
-      (teamRoles ?? []).forEach((r: any) => userIds.add(r.user_id));
+      (teamRoles ?? []).forEach((r: { user_id: string }) => userIds.add(r.user_id));
       if (team?.owner_id) userIds.add(team.owner_id);
 
       if (userIds.size === 0) return [];
@@ -142,29 +275,30 @@ export default function UserManagement() {
       if (profilesError) throw profilesError;
 
       const rolesByUser = new Map<string, Set<string>>();
-      (teamRoles ?? []).forEach((r: any) => {
+      (teamRoles ?? []).forEach((r: { user_id: string; role: string }) => {
         const set = rolesByUser.get(r.user_id) ?? new Set<string>();
         set.add(r.role);
         rolesByUser.set(r.user_id, set);
       });
 
-      const priority = ["admin", "campaign_manager", "collaborator", "member", "viewer"] as const;
-      const pickRole = (userId: string) => {
-        if (team?.owner_id && userId === team.owner_id) return "owner";
+      const pickRole = (uid: string) => {
+        if (team?.owner_id && uid === team.owner_id) return "owner";
 
-        const roles = rolesByUser.get(userId);
+        const roles = rolesByUser.get(uid);
         if (!roles || roles.size === 0) return "member";
-        return priority.find((p) => roles.has(p)) ?? "member";
+        return strongestAppRole(roles);
       };
 
-      // Only show billing owner OR users with a real user_roles row for this team (avoids stale rows after remove).
-      const visibleProfiles = (profiles ?? []).filter((profile: any) => {
-        const uid = profile.id as string;
+      const visibleProfiles = (profiles ?? []).filter((profile: { id: string }) => {
+        const uid = profile.id;
         if (team?.owner_id && uid === team.owner_id) return true;
-        return (teamRoles ?? []).some((r: any) => r.user_id === uid);
+        return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
       });
 
-      return visibleProfiles.map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
+      return visibleProfiles.map((profile: Record<string, unknown>) => ({
+        ...profile,
+        role: pickRole(profile.id as string),
+      }));
     },
     enabled: !!user?.id && !!activeWorkspaceId,
   });
@@ -174,7 +308,7 @@ export default function UserManagement() {
 
   // Fetch pending invitations (active workspace only)
   const { data: invitations } = useQuery({
-    queryKey: ["invitations", activeWorkspaceId],
+    queryKey: ["invitations", billingWorkspaceId ?? activeWorkspaceId],
     queryFn: async () => {
       if (!activeWorkspaceId) return [];
 
@@ -353,7 +487,7 @@ export default function UserManagement() {
         queryClient.invalidateQueries({ queryKey: ["invitations"] }),
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
       ]);
-      toast.success(`User removed from ${activeWorkspaceName}`);
+      toast.success(`User removed from ${activeWorkspace?.name ?? "this team"}`);
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
@@ -415,6 +549,22 @@ export default function UserManagement() {
         throw new Error("Read-only (Sample Mode or blocked)");
       }
       if (!activeWorkspaceId) throw new Error("No active workspace");
+
+      if (billingWorkspaceId) {
+        const { data: updated, error } = await supabase.rpc("update_member_role_in_workspace", {
+          p_workspace_id: billingWorkspaceId,
+          p_target_user_id: userId,
+          p_new_role: newRole,
+        });
+        if (error) throw error;
+        const n = parseRpcInt(updated);
+        if (n < 1) {
+          throw new Error(
+            "Role was not updated. They may have no team memberships in this workspace, or you may lack permission.",
+          );
+        }
+        return;
+      }
 
       const { data: updated, error } = await supabase.rpc("update_team_member_role", {
         p_team_id: activeWorkspaceId,
@@ -514,7 +664,7 @@ export default function UserManagement() {
   if (workspacesLoading || loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading team members...</div>
+        <div className="text-muted-foreground">Loading members…</div>
       </div>
     );
   }
@@ -528,7 +678,20 @@ export default function UserManagement() {
             {canManageUsers ? "ActiPlanner Management" : "Team Members"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Workspace: <span className="font-medium text-foreground">{activeWorkspaceName}</span>
+            {billingWorkspaceId ? (
+              <>
+                Subscription workspace:{" "}
+                <span className="font-medium text-foreground">{billingTitle}</span>
+                <span className="block text-xs mt-1">
+                  Lists everyone in this billing account across all teams (current team in the app:{" "}
+                  <span className="font-medium text-foreground">{activeWorkspace?.name}</span>).
+                </span>
+              </>
+            ) : (
+              <>
+                Team: <span className="font-medium text-foreground">{activeWorkspace?.name ?? "Workspace"}</span>
+              </>
+            )}
           </p>
         </div>
 
@@ -557,9 +720,9 @@ export default function UserManagement() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="team">Team</Label>
+                  <Label htmlFor="team">{billingWorkspaceId ? "Billing workspace" : "Team"}</Label>
                   <Input
-                    value={activeWorkspace?.name || "Current Workspace"}
+                    value={billingWorkspaceId ? billingTitle : activeWorkspace?.name || "Current team"}
                     disabled
                     className="bg-muted"
                   />
@@ -771,13 +934,14 @@ export default function UserManagement() {
             <AlertDialogDescription>
               {removeConfirm?.type === "team" ? (
                 <>
-                  This removes <strong>{removeConfirm?.email}</strong> from the team <strong>{activeWorkspaceName}</strong> only.
-                  They stay on other teams in this billing workspace if they have memberships there.
+                  This removes <strong>{removeConfirm?.email}</strong> from the team you have selected in the app
+                  (<strong>{activeWorkspace?.name}</strong>) only. They stay on other teams in this billing workspace if
+                  they have memberships there.
                 </>
               ) : (
                 <>
                   This removes <strong>{removeConfirm?.email}</strong> from <strong>every team</strong> in this billing workspace
-                  ({activeWorkspaceName} and any other teams under the same subscription). Pending invitations for this workspace
+                  ({billingTitle} and any other teams under the same subscription). Pending invitations for this workspace
                   that match their email will be cancelled.
                 </>
               )}
