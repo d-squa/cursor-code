@@ -12,6 +12,14 @@ const LegacyRedirect = ({ prefix }: { prefix: string }) => {
   const target = `${prefix}${splat ? `/${splat}` : ""}${location.search}${location.hash}`;
   return <Navigate to={target} replace />;
 };
+
+/** Maps `/settings/...` → `/app/settings/...` via pathname rewrite (reliable for OAuth returns like `/settings/accounts`). */
+const SettingsLegacyRedirect = () => {
+  const location = useLocation();
+  const target =
+    location.pathname.replace(/^\/settings(?=\/|$)/, "/app/settings") + location.search + location.hash;
+  return <Navigate to={target} replace />;
+};
 import Landing from "./pages/Landing";
 import ComparePlans from "./pages/ComparePlans";
 import LandingB from "./pages/LandingB";
@@ -102,7 +110,8 @@ const App = () => (
             <Route path="/media-planning-software" element={<LandingD />} />
             <Route path="/ai-media-buying-software" element={<LandingE />} />
             <Route path="/cross-platform-ad-management-software" element={<LandingF />} />
-            <Route path="/auth" element={<Auth />} />
+            {/* Splats match /auth and /auth/ — OAuth redirects sometimes include a trailing slash */}
+            <Route path="/auth/*" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
@@ -152,7 +161,7 @@ const App = () => (
             <Route path="/creatives/*" element={<LegacyRedirect prefix="/app/creatives" />} />
             <Route path="/manage-accounts" element={<Navigate to="/app/manage-accounts" replace />} />
             <Route path="/teams" element={<Navigate to="/app/teams" replace />} />
-            <Route path="/settings/*" element={<LegacyRedirect prefix="/app/settings" />} />
+            <Route path="/settings/*" element={<SettingsLegacyRedirect />} />
             <Route path="/admin" element={<Navigate to="/app/admin" replace />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

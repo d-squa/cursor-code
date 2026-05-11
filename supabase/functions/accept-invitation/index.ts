@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
 
     const { data: invitation, error: invError } = await admin
       .from("invitations")
-      .select("id, email, team_id, role, status, expires_at")
+      .select("id, email, team_id, role, status, expires_at, workspace_id")
       .eq("token", token)
       .maybeSingle();
 
@@ -94,12 +94,30 @@ Deno.serve(async (req) => {
       return json(403, { error: "Please sign in with the email you were invited with" });
     }
 
+    // Workspace invites: membership is always created on the workspace default team (billing/onboarding).
+    let targetTeamId = invitation.team_id as string;
+    const wsId = invitation.workspace_id as string | null;
+    if (wsId) {
+      const { data: ws, error: wsErr } = await admin
+        .from("workspaces")
+        .select("default_team_id")
+        .eq("id", wsId)
+        .maybeSingle();
+      if (wsErr) {
+        console.error("Load workspace for invitation", wsErr);
+        return json(500, { error: "Failed to load workspace" });
+      }
+      if (ws?.default_team_id) {
+        targetTeamId = ws.default_team_id as string;
+      }
+    }
+
     // Idempotent role assignment
     const { data: existingRole, error: existingRoleError } = await admin
       .from("user_roles")
       .select("id")
       .eq("user_id", user.id)
-      .eq("team_id", invitation.team_id)
+      .eq("team_id", targetTeamId)
       .maybeSingle();
 
     if (existingRoleError) {
@@ -110,7 +128,7 @@ Deno.serve(async (req) => {
     if (!existingRole) {
       const { error: insertRoleError } = await admin.from("user_roles").insert({
         user_id: user.id,
-        team_id: invitation.team_id,
+        team_id: targetTeamId,
         role: invitation.role,
       });
 

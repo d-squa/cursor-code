@@ -80,6 +80,8 @@ interface AdAccount {
   id: string;
   account_id: string;
   account_name: string;
+  /** connected_platforms.id — required for Meta API calls tied to this ad account */
+  platform_id?: string | null;
   advertiser_id?: string;
   platform: "meta" | "tiktok";
   default_pixel_id?: string | null;
@@ -665,21 +667,31 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       if (account.platform === "meta") {
         const defaults = localDefaults[account.id];
         const pixelId = defaults?.default_pixel_id;
-        if (pixelId && !metaConversionEvents[pixelId]) {
-          fetchMetaConversionEvents(pixelId);
+        const cacheKey = `${account.platform_id ?? "any"}:${pixelId}`;
+        if (pixelId && !metaConversionEvents[cacheKey]) {
+          fetchMetaConversionEvents(pixelId, account.platform_id, account.account_id);
         }
       }
     });
   }, [loading, adAccounts, localDefaults]);
 
   // Fetch Meta conversion events for a pixel via edge function
-  const fetchMetaConversionEvents = async (pixelId: string) => {
-    if (metaConversionEvents[pixelId]) return; // Already fetched
+  const fetchMetaConversionEvents = async (
+    pixelId: string,
+    metaConnectedPlatformId?: string | null,
+    metaAdAccountId?: string | null,
+  ) => {
+    const cacheKey = `${metaConnectedPlatformId ?? "any"}:${pixelId}`;
+    if (metaConversionEvents[cacheKey]) return; // Already fetched
 
-    setLoadingMetaEvents(pixelId);
+    setLoadingMetaEvents(cacheKey);
     try {
       const { data, error } = await supabase.functions.invoke("meta-conversion-events", {
-        body: { pixelId },
+        body: {
+          pixelId,
+          ...(metaConnectedPlatformId ? { platformId: metaConnectedPlatformId } : {}),
+          ...(metaAdAccountId ? { adAccountId: metaAdAccountId } : {}),
+        },
       });
 
       if (error) throw error;
@@ -687,7 +699,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       if (data?.events) {
         setMetaConversionEvents((prev) => ({
           ...prev,
-          [pixelId]: data.events,
+          [cacheKey]: data.events,
         }));
       }
     } catch (error) {
@@ -695,7 +707,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Set standard fallback events
       setMetaConversionEvents((prev) => ({
         ...prev,
-        [pixelId]: [
+        [cacheKey]: [
           { id: "Purchase", name: "Purchase" },
           { id: "Lead", name: "Lead" },
           { id: "CompleteRegistration", name: "Complete Registration" },
@@ -1219,9 +1231,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           const selectedCatalog = defaults.default_catalog_id;
           const catalogProductSets = productSets.filter((ps) => ps.catalog_id === selectedCatalog);
           const selectedPixel = defaults.default_pixel_id;
-          const pixelEvents = selectedPixel && metaConversionEvents[selectedPixel]
-            ? metaConversionEvents[selectedPixel]
-            : conversionEvents.filter((e) => e.pixel_id === selectedPixel);
+          const metaEventsCacheKey = selectedPixel
+            ? `${account.platform_id ?? "any"}:${selectedPixel}`
+            : "";
+          const pixelEvents =
+            selectedPixel && metaEventsCacheKey && metaConversionEvents[metaEventsCacheKey]
+              ? metaConversionEvents[metaEventsCacheKey]
+              : conversionEvents.filter((e) => e.pixel_id === selectedPixel);
 
           // Remove ad_account_id filter to show all available resources
           const accountPixels = pixels;
@@ -1305,7 +1321,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 const nextValue = value === "__none__" ? null : value;
                                 updateDefault(account.id, "default_pixel_id", nextValue);
                                 updateDefault(account.id, "default_conversion_event", null);
-                                if (nextValue) fetchMetaConversionEvents(nextValue);
+                                if (nextValue)
+                                  fetchMetaConversionEvents(nextValue, account.platform_id, account.account_id);
                               }}
                             >
                               <SelectTrigger>
@@ -1449,15 +1466,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Select
                               value={defaults.default_conversion_event || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_conversion_event", value)}
-                              disabled={!defaults.default_pixel_id || loadingMetaEvents === selectedPixel}
+                              disabled={!defaults.default_pixel_id || loadingMetaEvents === metaEventsCacheKey}
                             >
                               <SelectTrigger>
-                                <SelectValue placeholder={loadingMetaEvents === selectedPixel ? "Loading events..." : "Select conversion event"} />
+                                <SelectValue placeholder={loadingMetaEvents === metaEventsCacheKey ? "Loading events..." : "Select conversion event"} />
                               </SelectTrigger>
                               <SelectContent>
                                 {pixelEvents.length === 0 ? (
                                   <SelectItem value="none" disabled>
-                                    {loadingMetaEvents === selectedPixel ? "Loading..." : "No events available"}
+                                    {loadingMetaEvents === metaEventsCacheKey ? "Loading..." : "No events available"}
                                   </SelectItem>
                                 ) : (
                                   pixelEvents.map((event: any) => (

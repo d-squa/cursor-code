@@ -43,6 +43,9 @@ serve(async (req) => {
     { auth: { persistSession: false } },
   );
 
+  /** Reflects active workspace after resolution; used for fallbacks and error payloads. Default personal until resolved. */
+  let subscriptionTypeForScope: "personal" | "team" = "personal";
+
   try {
     logStep("Function started");
 
@@ -78,13 +81,37 @@ serve(async (req) => {
         .single();
 
       if (team) {
-        isPersonalWorkspace = team.owner_id === user.id;
-        if (!isPersonalWorkspace) {
-          teamToCheck = team;
+        // Billing owner (teams.owner_id) always counts as personal scope for Stripe on that workspace.
+        if (team.owner_id === user.id) {
+          isPersonalWorkspace = true;
+          teamToCheck = null;
+        } else {
+          // Team workspace: must still have a user_roles row or we must not grant the team owner's license
+          // (stale localStorage activeWorkspaceId after removal / revoked admin).
+          const { data: membershipRow } = await supabaseClient
+            .from("user_roles")
+            .select("user_id")
+            .eq("team_id", team.id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (!membershipRow) {
+            logStep(
+              "Active workspace is a team the user no longer belongs to; checking personal subscription only",
+              { teamId: team.id, userId: user.id },
+            );
+            isPersonalWorkspace = true;
+            teamToCheck = null;
+          } else {
+            isPersonalWorkspace = false;
+            teamToCheck = team;
+          }
         }
         logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
       }
     }
+
+    subscriptionTypeForScope = isPersonalWorkspace ? "personal" : "team";
 
     // ── CHECK FOR ADMIN SUBSCRIPTION OVERRIDE ──
     // If an override exists for this user, return it immediately without touching Stripe
@@ -108,7 +135,7 @@ serve(async (req) => {
       const tierConfig = tierPriceMap[override.tier];
       if (!tierConfig) {
         logStep("Unknown override tier; falling back to unsubscribed", { tier: override.tier });
-        return unsubscribedResponse(isPersonalWorkspace ? "personal" : "team");
+        return unsubscribedResponse(subscriptionTypeForScope);
       }
       const isYearly = override.billing_period === "yearly";
       const priceId = isYearly ? tierConfig.yearly : tierConfig.monthly;
@@ -133,7 +160,7 @@ serve(async (req) => {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) {
       logStep("STRIPE_SECRET_KEY missing; returning unsubscribed fallback");
-      return unsubscribedResponse(isPersonalWorkspace ? "personal" : "team");
+      return unsubscribedResponse(subscriptionTypeForScope);
     }
     logStep("Stripe key verified");
 
@@ -468,7 +495,7 @@ serve(async (req) => {
         subscriptionEnd: null,
         trialEnd: null,
         status: null,
-        subscriptionType: "personal",
+        subscriptionType: subscriptionTypeForScope,
       },
       500,
     );

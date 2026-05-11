@@ -106,23 +106,65 @@ const PLATFORM_TYPES = [
   { id: "snapchat", name: "Snapchat Ads", icon: Video, color: "bg-yellow-400" },
 ];
 
-/** OAuth redirect path — must match Meta / TikTok / Google developer console allowlists exactly. */
-const OAUTH_REDIRECT_PATH = "/settings/platforms";
+/** Canonical app path — must match Meta / TikTok / Google developer console allowlists exactly. */
+const OAUTH_REDIRECT_PATH = "/app/settings/platforms";
+
+/**
+ * OAuth callback pathname (leading slash). Optional `VITE_OAUTH_REDIRECT_PATH` overrides at build time
+ * (e.g. Vercel). Legacy `/settings/platforms` is always normalized to `/app/settings/platforms` so the
+ * TikTok authorize URL matches the registered redirect URI (even if an old constant/env slips in).
+ */
+function oauthRedirectPath(): string {
+  const fromEnv = (import.meta.env.VITE_OAUTH_REDIRECT_PATH as string | undefined)?.trim();
+  const raw = fromEnv || OAUTH_REDIRECT_PATH;
+  const path = raw.startsWith("/") ? raw : `/${raw}`;
+  return path === "/settings/platforms" ? "/app/settings/platforms" : path;
+}
 
 /**
  * Redirect URI sent to platform OAuth dialogs and token exchange.
  * Defaults to the current browser origin + path (works for production HTTPS).
  *
  * Meta in Live mode rejects http://localhost — options:
- * - Keep the Meta app in Development while testing locally, and allowlist e.g. http://localhost:5173/settings/platforms
+ * - Keep the Meta app in Development while testing locally, and allowlist e.g. http://localhost:8080/app/settings/platforms (Vite dev port)
  * - Or set VITE_OAUTH_REDIRECT_ORIGIN=https://your-https-domain.com (staging/production) and complete OAuth on that host
  * - Or use an HTTPS tunnel (ngrok, etc.) and allowlist that URL
+ *
+ * If TikTok still returned you to `/settings/platforms...`, SettingsLegacyRedirect in App.tsx sends the SPA to
+ * `/app/settings/platforms...` — so the callback can look correct while the **authorize** URL still showed the legacy path.
+ *
+ * `VITE_OAUTH_REDIRECT_ORIGIN` must be **origin only** (scheme + host + port). If it accidentally
+ * includes a path (e.g. copied old `/settings/platforms`), we strip to `.origin` so redirect_uri is always `origin + path`.
  */
+function oauthOriginFromEnv(): string {
+  const raw = (import.meta.env.VITE_OAUTH_REDIRECT_ORIGIN as string | undefined)?.trim();
+  if (!raw) return window.location.origin;
+  try {
+    let urlString = raw;
+    if (!/^https?:\/\//i.test(raw)) {
+      urlString =
+        raw.includes("localhost") || /^127\./.test(raw) ? `http://${raw}` : `https://${raw}`;
+    }
+    return new URL(urlString).origin;
+  } catch {
+    return window.location.origin;
+  }
+}
+
 function getOAuthRedirectUri(): string {
-  const fromEnv = (import.meta.env.VITE_OAUTH_REDIRECT_ORIGIN as string | undefined)?.trim();
-  const origin =
-    fromEnv && fromEnv.length > 0 ? fromEnv.replace(/\/$/, "") : window.location.origin;
-  return `${origin}${OAUTH_REDIRECT_PATH}`;
+  const origin = oauthOriginFromEnv();
+  let uri = `${origin}${oauthRedirectPath()}`;
+  try {
+    const u = new URL(uri);
+    const p = u.pathname.replace(/\/+$/, "") || "/";
+    if (p === "/settings/platforms") {
+      u.pathname = "/app/settings/platforms";
+      uri = u.origin + u.pathname + u.search + u.hash;
+    }
+  } catch {
+    /* keep concat */
+  }
+  return uri;
 }
 
 export default function PlatformConnections() {

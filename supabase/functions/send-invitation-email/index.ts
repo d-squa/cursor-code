@@ -92,7 +92,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Get the base URL for the invitation link - use origin from frontend if provided
-    const baseUrl = origin || "https://actiplan.app";
+    const baseUrl = origin || "https://cursor-code-gamma.vercel.app";
     const invitationUrl = `${baseUrl}/accept-invitation?token=${invitationToken}`;
 
     console.log("Invitation URL:", invitationUrl);

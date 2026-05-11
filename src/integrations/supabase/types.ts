@@ -2351,6 +2351,7 @@ export type Database = {
           status: string
           team_id: string | null
           token: string
+          workspace_id: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -2363,6 +2364,7 @@ export type Database = {
           status?: string
           team_id?: string | null
           token: string
+          workspace_id?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -2375,6 +2377,7 @@ export type Database = {
           status?: string
           team_id?: string | null
           token?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {
@@ -2382,6 +2385,13 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -3896,13 +3906,54 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_default: boolean
+          name: string
+          owner_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          owner_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          owner_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          default_team_id: string | null
+          id: string
           name: string
           owner_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          description?: string | null
+          default_team_id?: string | null
           id?: string
           name: string
           owner_id: string
@@ -3910,13 +3961,21 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          description?: string | null
+          default_team_id?: string | null
           id?: string
           name?: string
           owner_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workspaces_default_team_fk"
+            columns: ["default_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tiktok_ad_accounts: {
         Row: {
@@ -4732,6 +4791,28 @@ export type Database = {
         Returns: boolean
       }
       migrate_tokens_to_vault: { Args: never; Returns: undefined }
+      remove_member_from_workspace: {
+        Args: { p_target_user_id: string; p_workspace_id: string }
+        Returns: number
+      }
+      update_member_role_in_workspace: {
+        Args: {
+          p_new_role: Database["public"]["Enums"]["app_role"];
+          p_target_user_id: string;
+          p_workspace_id: string;
+        };
+        Returns: number;
+      }
+      get_workspace_member_summaries: {
+        Args: { p_workspace_id: string }
+        Returns: {
+          id: string
+          email: string
+          role: Database["public"]["Enums"]["app_role"]
+          company_name: string | null
+          created_at: string
+        }[]
+      }
       store_adlibrary_token: {
         Args: { token_value: string; user_id_param: string }
         Returns: undefined
