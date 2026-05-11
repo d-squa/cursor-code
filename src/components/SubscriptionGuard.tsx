@@ -29,6 +29,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const [processingInvitation, setProcessingInvitation] = useState(false);
   const invitationProcessedRef = useRef(false);
   const lastUserIdForInviteRef = useRef<string | undefined>(undefined);
+  const WORKSPACE_RECOVERY_COOLDOWN_MS = 60_000;
   
   // Track prior subscription only while useful; reset once access is clearly revoked so redirects work.
   useEffect(() => {
@@ -114,19 +115,54 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   useEffect(() => {
     if (authLoading || workspaceLoading) return;
     if (!user || !isEmailConfirmed) return;
-    if (workspaces.length > 0) return;
+    if (workspaces.length > 0) {
+      setRecoveringWorkspace(false);
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(`actiplan_workspace_recovery_at:${user.id}`);
+      }
+      return;
+    }
     if (recoveryAttemptedRef.current) return;
+    if (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("actiplan_pending_invitation")
+    ) {
+      // Invite flow owns workspace assignment; do not race with self-recovery.
+      return;
+    }
 
     recoveryAttemptedRef.current = true;
     setRecoveringWorkspace(true);
+    const recoveryKey = `actiplan_workspace_recovery_at:${user.id}`;
 
-    supabase.rpc("ensure_user_workspace").then(({ error }) => {
-      if (error) {
-        console.error("Failed to recover workspace:", error);
+    if (typeof localStorage !== "undefined") {
+      const last = Number(localStorage.getItem(recoveryKey) ?? "0");
+      if (Number.isFinite(last) && Date.now() - last < WORKSPACE_RECOVERY_COOLDOWN_MS) {
+        setRecoveringWorkspace(false);
+        return;
       }
-      // Force a full reload so useWorkspace re-fetches
-      window.location.reload();
-    });
+      localStorage.setItem(recoveryKey, String(Date.now()));
+    }
+
+    supabase
+      .rpc("ensure_user_workspace")
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to recover workspace:", error);
+          setRecoveringWorkspace(false);
+          return;
+        }
+        // Reload only after a successful workspace id result.
+        if (data) {
+          window.location.reload();
+          return;
+        }
+        setRecoveringWorkspace(false);
+      })
+      .catch((err) => {
+        console.error("Failed to recover workspace:", err);
+        setRecoveringWorkspace(false);
+      });
   }, [authLoading, workspaceLoading, user, isEmailConfirmed, workspaces]);
 
   useEffect(() => {
