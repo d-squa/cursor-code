@@ -27,10 +27,23 @@ ALTER TABLE public.teams
 CREATE INDEX IF NOT EXISTS idx_teams_workspace_id ON public.teams (workspace_id);
 
 -- FK from workspace → default team (after teams have ids)
-ALTER TABLE public.workspaces
-  ADD CONSTRAINT workspaces_default_team_fk
-  FOREIGN KEY (default_team_id) REFERENCES public.teams(id) ON DELETE SET NULL
-  NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    INNER JOIN pg_class rel ON rel.oid = c.conrelid
+    INNER JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE nsp.nspname = 'public'
+      AND rel.relname = 'workspaces'
+      AND c.conname = 'workspaces_default_team_fk'
+  ) THEN
+    ALTER TABLE public.workspaces
+      ADD CONSTRAINT workspaces_default_team_fk
+      FOREIGN KEY (default_team_id) REFERENCES public.teams(id) ON DELETE SET NULL
+      NOT VALID;
+  END IF;
+END $$;
 
 -- 3) Backfill: one workspace per distinct team owner; attach all their owned teams
 INSERT INTO public.workspaces (owner_id, name)
