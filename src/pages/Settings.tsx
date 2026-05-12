@@ -59,10 +59,10 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
     roleRequirement: 'owner' // Only owners can see this
   },
   {
-    title: "Subscription users",
+    title: "Subscription Users",
     href: "/app/settings/users",
     icon: Users,
-    description: "Invite people to the subscription (separate from team membership)",
+    description: "Who can access the subscription (not tied to the team switcher)",
     feature: "user_management"
     // No roleRequirement - visible to all, data filtered by role in component
   },

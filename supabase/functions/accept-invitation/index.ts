@@ -15,6 +15,24 @@ function json(status: number, body: Record<string, unknown>) {
   });
 }
 
+/** Stronger app_role wins (subscription roster must reflect invite upgrades, not stale team-only rows). */
+const APP_ROLE_ORDER = [
+  "owner",
+  "admin",
+  "campaign_manager",
+  "collaborator",
+  "member",
+  "viewer",
+] as const;
+
+function strongerAppRole(a: string, b: string): string {
+  const ia = APP_ROLE_ORDER.indexOf(a as (typeof APP_ROLE_ORDER)[number]);
+  const ib = APP_ROLE_ORDER.indexOf(b as (typeof APP_ROLE_ORDER)[number]);
+  const x = ia === -1 ? 99 : ia;
+  const y = ib === -1 ? 99 : ib;
+  return x <= y ? a : b;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -120,11 +138,27 @@ Deno.serve(async (req) => {
 
       alreadyMember = Boolean(existingSm);
 
+      const { data: existingSmRow, error: existingSmSelectErr } = await admin
+        .from("workspace_subscription_members")
+        .select("role")
+        .eq("workspace_id", wsId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existingSmSelectErr) {
+        console.error("Load subscription role for merge", existingSmSelectErr);
+        return json(500, { error: "Failed to load subscription membership" });
+      }
+
+      const mergedSubRole = existingSmRow?.role
+        ? strongerAppRole(String(existingSmRow.role), String(invitation.role))
+        : String(invitation.role);
+
       const { error: upsertSmError } = await admin.from("workspace_subscription_members").upsert(
         {
           workspace_id: wsId,
           user_id: user.id,
-          role: invitation.role,
+          role: mergedSubRole,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "workspace_id,user_id" },
@@ -178,15 +212,36 @@ Deno.serve(async (req) => {
           return json(500, { error: "Failed to join team" });
         }
 
-        // First team join: seed subscription roster row if missing (does not overwrite subscription role later).
+        // Sync subscription roster: upsert with privilege merge (invite admin must not lose to an older team row).
         if (wsId) {
-          const { error: smIns } = await admin.from("workspace_subscription_members").insert({
-            workspace_id: wsId,
-            user_id: user.id,
-            role: invitation.role,
-          });
-          if (smIns && smIns.code !== "23505") {
-            console.error("Insert subscription roster row", smIns);
+          const { data: existingSmRow, error: smSelErr } = await admin
+            .from("workspace_subscription_members")
+            .select("role")
+            .eq("workspace_id", wsId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (smSelErr) {
+            console.error("Load subscription role for merge (team invite)", smSelErr);
+            return json(500, { error: "Failed to load subscription membership" });
+          }
+
+          const mergedSubRole = existingSmRow?.role
+            ? strongerAppRole(String(existingSmRow.role), String(invitation.role))
+            : String(invitation.role);
+
+          const { error: smUpsertErr } = await admin.from("workspace_subscription_members").upsert(
+            {
+              workspace_id: wsId,
+              user_id: user.id,
+              role: mergedSubRole,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "workspace_id,user_id" },
+          );
+
+          if (smUpsertErr) {
+            console.error("Upsert subscription roster row (team invite)", smUpsertErr);
             return json(500, { error: "Failed to sync subscription roster" });
           }
         }

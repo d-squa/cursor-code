@@ -933,15 +933,15 @@ export default function UserManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Subscription users</h1>
+          <h1 className="text-3xl font-bold">Subscription Users</h1>
           <p className="text-muted-foreground mt-1">
             {billingWorkspaceId ? (
               <>
-                Manage who can access this subscription and their{" "}
-                <span className="font-medium text-foreground">subscription role</span> (billing account:{" "}
-                <span className="font-medium text-foreground">{billingTitle}</span>). Team membership and team roles
-                are managed under <span className="font-medium text-foreground">Manage Your Team</span>; changing those
-                does not change subscription roles here.
+                Manage everyone who can access this subscription and their{" "}
+                <span className="font-medium text-foreground">subscription role</span>. You can manage all subscription
+                users regardless of which teams they are assigned to. Team membership and team roles are configured
+                under <span className="font-medium text-foreground">Manage Your Team</span> and do not change
+                subscription roles shown here.
               </>
             ) : (
               <>
@@ -978,9 +978,9 @@ export default function UserManagement() {
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="team">Subscription</Label>
-                  <Input value={billingWorkspaceId ? billingTitle : "—"} disabled className="bg-muted" />
+                <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                  Invitations apply to this subscription only. They do not grant team access until someone is added on{" "}
+                  <span className="font-medium text-foreground">Manage Your Team</span>.
                 </div>
 
                 <div>
@@ -1082,7 +1082,7 @@ export default function UserManagement() {
         </div>
       )}
 
-      {/* Active ActiPlanners */}
+      {/* People on this subscription */}
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">People on this subscription</h2>
         <Table>
