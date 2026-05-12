@@ -36,39 +36,75 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    const { pixelId } = await req.json();
+    const {
+      pixelId,
+      platformId: requestedPlatformId,
+      adAccountId: requestedAdAccountId,
+    } = await req.json();
 
     if (!pixelId) {
       throw new Error("Pixel ID is required");
     }
 
-    // Get user's connected Meta platform
-    const { data: platforms, error: platformsError } = await supabase
+    /** Meta Marketing API uses act_<numeric_id>; UI often stores digits only. */
+    const normalizeActPath = (raw: string): string => {
+      const t = raw.trim();
+      return t.startsWith("act_") ? t : `act_${t}`;
+    };
+
+    // Meta connections for this user (optionally filtered to the ad account's connected_platforms row)
+    let platformsQuery = supabase
       .from("connected_platforms")
       .select("id, access_token")
       .eq("user_id", user.id)
       .eq("platform_type", "meta")
       .eq("is_active", true);
 
+    if (requestedPlatformId && typeof requestedPlatformId === "string") {
+      platformsQuery = platformsQuery.eq("id", requestedPlatformId.trim());
+    }
+
+    const { data: platforms, error: platformsError } = await platformsQuery;
+
     if (platformsError) throw platformsError;
 
     if (!platforms || platforms.length === 0) {
-      throw new Error("Meta platform not connected");
+      throw new Error(
+        requestedPlatformId
+          ? "Meta platform connection not found for this workspace — reconnect Meta in Platform Connections."
+          : "Meta platform not connected",
+      );
     }
 
-    const platform = platforms[0];
+    // Try each Meta connection until Vault / DB yields a token (fixes wrong default when multiple Meta logins exist).
+    let accessToken: string | null = null;
+    for (const platform of platforms) {
+      const t = await getAccessToken(supabase, platform.id, platform.access_token);
+      if (t) {
+        accessToken = t;
+        break;
+      }
+    }
 
-    // Get token from Vault with fallback to database column
-    const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
     if (!accessToken) {
-      throw new Error("Meta access token not found");
+      return new Response(
+        JSON.stringify({
+          error: "Meta access token not found",
+          hint:
+            "No usable token in Vault or connected_platforms for this Meta connection. Reconnect Meta under Settings → Platform Connections, or ensure store_platform_token / get_platform_token migrations are applied. Pass platformId (connected_platforms.id from your meta_ad_accounts row) if you use multiple Meta connections.",
+        }),
+        {
+          status: 503,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        },
+      );
     }
 
-    // Fetch conversion events from Meta pixel
+    // Validate pixel & read name only. `custom_events` is not a field on AdsPixel (Graph #100).
     console.log("Fetching conversion events for pixel:", pixelId);
 
-    const response = await fetch(
-      `https://graph.facebook.com/v22.0/${pixelId}?fields=id,name,custom_events{id,name,event_name}&access_token=${accessToken}`,
+    const pixelResponse = await fetch(
+      `https://graph.facebook.com/v22.0/${encodeURIComponent(pixelId)}?fields=id,name&access_token=${encodeURIComponent(accessToken)}`,
       {
         method: "GET",
         headers: {
@@ -77,11 +113,36 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
 
-    const data = await response.json();
+    const pixelData = await pixelResponse.json();
 
-    if (data.error) {
-      console.error("Meta API Error:", data.error);
-      throw new Error(data.error.message);
+    if (pixelData.error) {
+      console.error("Meta API Error (pixel):", pixelData.error);
+      throw new Error(pixelData.error.message);
+    }
+
+    // Optional: custom conversions on the ad account (named rules — complements standard events).
+    let customConversionEvents: Array<{ id: string; name: string }> = [];
+    if (requestedAdAccountId && typeof requestedAdAccountId === "string") {
+      const actPath = normalizeActPath(requestedAdAccountId);
+      const ccUrl =
+        `https://graph.facebook.com/v22.0/${encodeURIComponent(actPath)}/customconversions?fields=id,name&limit=500&access_token=${encodeURIComponent(accessToken)}`;
+      try {
+        const ccRes = await fetch(ccUrl, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+        const ccData = await ccRes.json();
+        if (ccData.error) {
+          console.warn("Meta customconversions (non-fatal):", ccData.error);
+        } else if (Array.isArray(ccData.data)) {
+          customConversionEvents = ccData.data.map((c: { id?: string; name?: string }) => ({
+            id: c.name || String(c.id ?? ""),
+            name: c.name || String(c.id ?? ""),
+          })).filter((e: { id: string }) => e.id.length > 0);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch custom conversions:", e);
+      }
     }
 
     // Standard Meta conversion events
@@ -100,13 +161,16 @@ const handler = async (req: Request): Promise<Response> => {
       { id: "Subscribe", name: "Subscribe" },
     ];
 
-    // Combine standard events with custom events from pixel
-    const customEvents = (data.custom_events?.data || []).map((event: any) => ({
-      id: event.event_name || event.name,
-      name: event.name || event.event_name,
-    }));
+    const seen = new Set<string>();
+    const deduped: Array<{ id: string; name: string }> = [];
+    for (const ev of [...standardEvents, ...customConversionEvents]) {
+      const key = ev.id.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(ev);
+    }
 
-    const allEvents = [...standardEvents, ...customEvents];
+    const allEvents = deduped;
 
     console.log(`Found ${allEvents.length} conversion events`);
 

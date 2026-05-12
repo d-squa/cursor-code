@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, AlertTriangle, Copy, Check, GraduationCap, RotateCcw, Eye, EyeOff } from "lucide-react";
 import { useTourDataContext } from "@/contexts/TourDataContext";
 import { resetOnboardingTour } from "@/components/OnboardingTour";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,7 @@ import {
 export default function AccountSettings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { activeWorkspaceId, activeWorkspace, workspaces, loading: workspaceLoading } = useWorkspace();
   const [companyName, setCompanyName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -278,6 +280,30 @@ export default function AccountSettings() {
             {billingCustomer?.stripe_customer_id && (
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(billingCustomer.stripe_customer_id, "licenseId")}>
                 {copiedField === "licenseId" ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="min-w-0 flex-1 pr-2">
+              <p className="text-xs text-muted-foreground">Workspace ID</p>
+              <p className="font-mono text-sm break-all">
+                {workspaceLoading ? "…" : activeWorkspaceId || "—"}
+              </p>
+              {activeWorkspace?.name && (
+                <p className="text-xs text-muted-foreground mt-1 truncate" title={activeWorkspace.name}>
+                  Current workspace: {activeWorkspace.name}
+                </p>
+              )}
+              {workspaces.length > 1 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  You have {workspaces.length} workspaces; this ID is the one selected in the workspace switcher. Same value as{" "}
+                  <span className="font-mono">public.teams.id</span> in Supabase.
+                </p>
+              )}
+            </div>
+            {activeWorkspaceId && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyToClipboard(activeWorkspaceId, "workspaceId")}>
+                {copiedField === "workspaceId" ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
               </Button>
             )}
           </div>

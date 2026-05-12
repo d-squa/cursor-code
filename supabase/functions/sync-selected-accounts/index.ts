@@ -1247,19 +1247,27 @@ serve(async (req) => {
       }));
 
       // Replace only accounts from THIS connection (not all team accounts)
-      await supabase
+      const { error: deleteError } = await supabase
         .from("google_ad_accounts")
         .delete()
         .eq("team_id", teamId)
         .eq("platform_id", platformId);
 
-      const { error: insertError } = await supabase
-        .from("google_ad_accounts")
-        .upsert(googleAccountsToInsert, { onConflict: 'user_id,customer_id' });
+      if (deleteError) {
+        console.error("Google Ads delete error:", deleteError);
+        throw new Error(
+          `Failed to clear previous Google Ads selections: ${deleteError.message}${deleteError.details ? ` — ${deleteError.details}` : ""}`,
+        );
+      }
+
+      // Use insert (not upsert): there is no guaranteed UNIQUE(user_id, customer_id) in all deployments,
+      // and PostgREST upsert requires a matching unique constraint. Scoped delete above makes insert sufficient.
+      const { error: insertError } = await supabase.from("google_ad_accounts").insert(googleAccountsToInsert);
 
       if (insertError) {
-        console.error("Google Ads upsert error:", insertError);
-        throw new Error("Failed to save selected Google Ads accounts");
+        console.error("Google Ads insert error:", insertError);
+        const detail = [insertError.message, insertError.hint, insertError.details].filter(Boolean).join(" — ");
+        throw new Error(`Failed to save selected Google Ads accounts: ${detail || insertError.code || "unknown error"}`);
       }
 
       console.log(`Successfully synced ${googleAccountsToInsert.length} Google Ads accounts`);
