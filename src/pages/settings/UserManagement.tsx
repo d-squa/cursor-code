@@ -65,6 +65,26 @@ function parseRpcInt(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Trace roster + RPCs: localStorage actiplan.debugUserMgmt=1 or .env VITE_DEBUG_USER_MGMT=1 (reload). */
+function userMgmtDebugEnabled(): boolean {
+  if (import.meta.env.VITE_DEBUG_USER_MGMT === "1") return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem("actiplan.debugUserMgmt") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function logUserMgmt(event: string, detail: Record<string, unknown>) {
+  if (!userMgmtDebugEnabled()) return;
+  // eslint-disable-next-line no-console
+  console.info(`[UserMgmt:${event}]`, {
+    t: new Date().toISOString(),
+    ...detail,
+  });
+}
+
 const ROLE_PRIORITY = [
   "owner",
   "admin",
@@ -79,6 +99,71 @@ function strongestAppRole(roles: Set<string>): string {
     if (roles.has(p)) return p;
   }
   return "member";
+}
+
+/** Client-side roster when `get_workspace_member_summaries` RPC is missing or errors (e.g. migration not applied). */
+async function fetchBillingWorkspaceMembersFromTables(workspaceId: string) {
+  const { data: wsTeams, error: teamsErr } = await supabase
+    .from("teams")
+    .select("id, owner_id")
+    .eq("workspace_id", workspaceId);
+  if (teamsErr) throw teamsErr;
+
+  const teamList = wsTeams ?? [];
+  const teamIds = teamList.map((t: { id: string }) => t.id).filter(Boolean);
+  if (teamIds.length === 0) return [];
+
+  const { data: teamRoles, error: rolesError } = await supabase
+    .from("user_roles")
+    .select("user_id, role, team_id")
+    .in("team_id", teamIds);
+  if (rolesError) throw rolesError;
+
+  const { data: wsRow, error: wsErr } = await supabase
+    .from("workspaces")
+    .select("owner_id")
+    .eq("id", workspaceId)
+    .single();
+  if (wsErr) throw wsErr;
+  const billingOwnerId = wsRow?.owner_id as string | undefined;
+
+  const userIds = new Set<string>();
+  (teamRoles ?? []).forEach((r: { user_id: string }) => userIds.add(r.user_id));
+  if (billingOwnerId) userIds.add(billingOwnerId);
+
+  if (userIds.size === 0) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("*")
+    .in("id", Array.from(userIds))
+    .order("created_at", { ascending: false });
+  if (profilesError) throw profilesError;
+
+  const rolesByUser = new Map<string, Set<string>>();
+  (teamRoles ?? []).forEach((r: { user_id: string; role: string }) => {
+    const set = rolesByUser.get(r.user_id) ?? new Set<string>();
+    set.add(r.role);
+    rolesByUser.set(r.user_id, set);
+  });
+
+  const pickRole = (uid: string) => {
+    if (billingOwnerId && uid === billingOwnerId) return "owner";
+    const roles = rolesByUser.get(uid);
+    if (!roles || roles.size === 0) return "member";
+    return strongestAppRole(roles);
+  };
+
+  const visibleProfiles = (profiles ?? []).filter((profile: { id: string }) => {
+    const uid = profile.id;
+    if (billingOwnerId && uid === billingOwnerId) return true;
+    return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
+  });
+
+  return visibleProfiles.map((profile: Record<string, unknown>) => ({
+    ...profile,
+    role: pickRole(profile.id as string),
+  }));
 }
 
 export default function UserManagement() {
@@ -167,6 +252,26 @@ export default function UserManagement() {
   const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
   const { isSampleMode, guardWrite } = useSampleMode();
 
+  useEffect(() => {
+    logUserMgmt("session.capabilities", {
+      myTeamRole,
+      canManageUsers,
+      billingWorkspaceId,
+      activeWorkspaceId,
+      activeTeamWorkspaceId: activeWorkspace?.workspace_id ?? null,
+      activeTeamOwnerId: activeWorkspace?.owner_id ?? null,
+      authUserId: user?.id ?? null,
+    });
+  }, [
+    myTeamRole,
+    canManageUsers,
+    billingWorkspaceId,
+    activeWorkspaceId,
+    activeWorkspace?.workspace_id,
+    activeWorkspace?.owner_id,
+    user?.id,
+  ]);
+
   /** Roles that appear in the edit dropdown (must match DB enum + RPC expectations). */
   const EDIT_ROLE_VALUES = useMemo(
     () =>
@@ -197,20 +302,52 @@ export default function UserManagement() {
       if (!user?.id || !activeWorkspaceId) return [];
 
       if (billingWorkspaceId) {
+        logUserMgmt("users.fetch.start", {
+          mode: "billing_rpc",
+          billingWorkspaceId,
+          activeWorkspaceId,
+        });
         const { data: rows, error: rpcErr } = await supabase.rpc("get_workspace_member_summaries", {
           p_workspace_id: billingWorkspaceId,
         });
-        if (rpcErr) throw rpcErr;
+        if (!rpcErr) {
+          const mapped = (rows ?? []).map((row) => ({
+            id: row.id,
+            email: row.email,
+            company_name: row.company_name,
+            created_at: row.created_at,
+            role: row.role,
+          }));
+          logUserMgmt("users.fetch.done", {
+            mode: "billing_rpc",
+            count: mapped.length,
+            sample: mapped.slice(0, 8).map((r) => ({ id: r.id, role: r.role })),
+          });
+          return mapped;
+        }
 
-        return (rows ?? []).map((row) => ({
-          id: row.id,
-          email: row.email,
-          company_name: row.company_name,
-          created_at: row.created_at,
-          role: row.role,
-        }));
+        logUserMgmt("users.fetch.rpc_fallback", {
+          message: rpcErr.message,
+          code: rpcErr.code,
+          details: rpcErr.details,
+          hint: rpcErr.hint,
+        });
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[UserMgmt] get_workspace_member_summaries failed; using client-side roster. Apply migration 20260513100000_workspace_member_summaries_rpc.sql on Supabase.",
+          rpcErr.message,
+        );
+
+        const fallback = await fetchBillingWorkspaceMembersFromTables(billingWorkspaceId);
+        logUserMgmt("users.fetch.done", {
+          mode: "billing_tables_fallback",
+          count: fallback.length,
+          sample: fallback.slice(0, 8).map((r: { id?: string; role?: unknown }) => ({ id: r.id, role: r.role })),
+        });
+        return fallback;
       }
 
+      logUserMgmt("users.fetch.start", { mode: "legacy_team", activeWorkspaceId });
       const [{ data: team, error: teamError }, { data: teamRoles, error: rolesError }] = await Promise.all([
         supabase.from("teams").select("id, owner_id").eq("id", activeWorkspaceId).single(),
         supabase.from("user_roles").select("user_id, role").eq("team_id", activeWorkspaceId),
@@ -254,10 +391,17 @@ export default function UserManagement() {
         return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
       });
 
-      return visibleProfiles.map((profile: Record<string, unknown>) => ({
+      const legacy = visibleProfiles.map((profile: Record<string, unknown>) => ({
         ...profile,
         role: pickRole(profile.id as string),
       }));
+      logUserMgmt("users.fetch.done", {
+        mode: "legacy_team",
+        count: legacy.length,
+        teamRolesCount: (teamRoles ?? []).length,
+        sample: legacy.slice(0, 8).map((r) => ({ id: r.id, role: r.role })),
+      });
+      return legacy;
     },
     enabled: !!user?.id && !!activeWorkspaceId,
   });
@@ -418,7 +562,13 @@ export default function UserManagement() {
   // Remove user from team mutation (SECURITY DEFINER RPC — client DELETE often no-oped under RLS)
   const removeUserFromTeam = useMutation({
     mutationFn: async (userId: string) => {
+      logUserMgmt("remove.team.start", {
+        userId,
+        activeWorkspaceId,
+        isSampleMode,
+      });
       if (!guardWrite("Removing team members")) {
+        logUserMgmt("remove.team.blocked", { reason: "guardWrite" });
         throw new Error("Read-only (Sample Mode or blocked)");
       }
       if (!activeWorkspaceId) throw new Error("No active workspace");
@@ -428,8 +578,20 @@ export default function UserManagement() {
         p_team_id: activeWorkspaceId,
       });
 
-      if (error) throw error;
+      if (error) {
+        logUserMgmt("remove.team.rpc_error", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+        });
+        throw error;
+      }
       const n = parseRpcInt(removed);
+      logUserMgmt("remove.team.rpc_ok", {
+        rawRpcData: removed,
+        typeofRaw: typeof removed,
+        parsedRowCount: n,
+      });
       if (n < 1) {
         throw new Error(
           "No membership row was removed. They may already be removed, or you may lack permission.",
@@ -437,6 +599,7 @@ export default function UserManagement() {
       }
     },
     onSuccess: async (_data, removedUserId) => {
+      logUserMgmt("remove.team.success", { removedUserId });
       queryClient.setQueryData(usersListQueryKey, (old: unknown) => {
         if (!Array.isArray(old)) return old;
         return old.filter((row: { id?: string }) => row?.id !== removedUserId);
@@ -447,12 +610,19 @@ export default function UserManagement() {
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
         queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
       ]);
+      const rowsAfterTeam = queryClient.getQueryData(usersListQueryKey) as Array<{ id?: string }> | undefined;
+      logUserMgmt("remove.team.list_after", {
+        removedUserId,
+        listLength: rowsAfterTeam?.length,
+        targetStillListed: rowsAfterTeam?.some((r) => r.id === removedUserId) ?? false,
+      });
       toast.success(
         `Removed from ${activeWorkspace?.name ?? "this team"}. They stay in this list if they still belong to other teams in the same subscription.`,
       );
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
+      logUserMgmt("remove.team.error", { message: error.message });
       if (error.message.includes("Read-only")) return;
       toast.error("Failed to remove user: " + error.message);
     },
@@ -461,11 +631,19 @@ export default function UserManagement() {
   /** Removes target from all teams in the current billing workspace (RPC). */
   const removeUserFromWorkspace = useMutation({
     mutationFn: async (userId: string) => {
+      const wid = activeWorkspace?.workspace_id;
+      logUserMgmt("remove.workspace.start", {
+        userId,
+        wid,
+        activeWorkspaceId,
+        isSampleMode,
+      });
       if (!guardWrite("Removing team members")) {
+        logUserMgmt("remove.workspace.blocked", { reason: "guardWrite" });
         throw new Error("Read-only (Sample Mode or blocked)");
       }
-      const wid = activeWorkspace?.workspace_id;
       if (!wid) {
+        logUserMgmt("remove.workspace.blocked", { reason: "no_workspace_id_on_active_team" });
         throw new Error(
           "This team is not linked to a billing workspace yet. Run database migrations or contact support.",
         );
@@ -476,8 +654,20 @@ export default function UserManagement() {
         p_target_user_id: userId,
       });
 
-      if (error) throw error;
+      if (error) {
+        logUserMgmt("remove.workspace.rpc_error", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+        });
+        throw error;
+      }
       const n = parseRpcInt(removed);
+      logUserMgmt("remove.workspace.rpc_ok", {
+        rawRpcData: removed,
+        typeofRaw: typeof removed,
+        parsedRowCount: n,
+      });
       if (n < 1) {
         throw new Error(
           "No memberships were removed. The user may have no team roles in this workspace, or you may lack permission.",
@@ -485,6 +675,7 @@ export default function UserManagement() {
       }
     },
     onSuccess: async (_data, removedUserId) => {
+      logUserMgmt("remove.workspace.success", { removedUserId });
       queryClient.setQueryData(usersListQueryKey, (old: unknown) => {
         if (!Array.isArray(old)) return old;
         return old.filter((row: { id?: string }) => row?.id !== removedUserId);
@@ -495,10 +686,17 @@ export default function UserManagement() {
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
         queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
       ]);
+      const rowsAfter = queryClient.getQueryData(usersListQueryKey) as Array<{ id?: string }> | undefined;
+      logUserMgmt("remove.workspace.list_after", {
+        removedUserId,
+        listLength: rowsAfter?.length,
+        targetStillListed: rowsAfter?.some((r) => r.id === removedUserId) ?? false,
+      });
       toast.success(`User removed from all teams in this workspace`);
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
+      logUserMgmt("remove.workspace.error", { message: error.message });
       if (error.message.includes("Read-only")) return;
       toast.error("Failed to remove user: " + error.message);
     },
@@ -507,7 +705,15 @@ export default function UserManagement() {
   // Update user role mutation (SECURITY DEFINER RPC — client UPDATE often no-ops under RLS with no error)
   const updateUserRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+      logUserMgmt("role.update.start", {
+        userId,
+        newRole,
+        billingWorkspaceId,
+        activeWorkspaceId,
+        currentUserId: user?.id,
+      });
       if (!guardWrite("Changing roles")) {
+        logUserMgmt("role.update.blocked", { reason: "guardWrite" });
         throw new Error("Read-only (Sample Mode or blocked)");
       }
       if (!activeWorkspaceId) throw new Error("No active workspace");
@@ -518,8 +724,22 @@ export default function UserManagement() {
           p_target_user_id: userId,
           p_new_role: newRole,
         });
-        if (error) throw error;
+        if (error) {
+          logUserMgmt("role.update.rpc_error", {
+            rpc: "update_member_role_in_workspace",
+            message: error.message,
+            code: error.code,
+            details: error.details,
+          });
+          throw error;
+        }
         const n = parseRpcInt(updated);
+        logUserMgmt("role.update.rpc_ok", {
+          rpc: "update_member_role_in_workspace",
+          rawRpcData: updated,
+          typeofRaw: typeof updated,
+          parsedRowCount: n,
+        });
         if (n < 1) {
           throw new Error(
             "Role was not updated. They may have no team memberships in this workspace, or you may lack permission.",
@@ -534,8 +754,22 @@ export default function UserManagement() {
         p_new_role: newRole,
       });
 
-      if (error) throw error;
+      if (error) {
+        logUserMgmt("role.update.rpc_error", {
+          rpc: "update_team_member_role",
+          message: error.message,
+          code: error.code,
+          details: error.details,
+        });
+        throw error;
+      }
       const n = parseRpcInt(updated);
+      logUserMgmt("role.update.rpc_ok", {
+        rpc: "update_team_member_role",
+        rawRpcData: updated,
+        typeofRaw: typeof updated,
+        parsedRowCount: n,
+      });
       if (n < 1) {
         throw new Error(
           "Role was not updated. You may lack permission, or this member has no role row for this workspace.",
@@ -549,6 +783,12 @@ export default function UserManagement() {
         | Array<{ id?: string; role?: string }>
         | undefined;
       const row = rows?.find((r) => r.id === variables.userId);
+      logUserMgmt("role.update.after_refetch", {
+        userId: variables.userId,
+        requestedRole: variables.newRole,
+        rowRoleAfter: row?.role,
+        listLength: rows?.length,
+      });
       if (row && row.role !== variables.newRole) {
         toast.warning("Role only partly updated", {
           description:
@@ -559,6 +799,7 @@ export default function UserManagement() {
       }
     },
     onError: (error: Error) => {
+      logUserMgmt("role.update.error", { message: error.message });
       if (error.message.includes("Read-only")) return;
       toast.error("Failed to update role: " + error.message);
     },
@@ -826,9 +1067,15 @@ export default function UserManagement() {
                     {canEditRoleWithSelect ? (
                       <Select
                         value={roleKey}
-                        onValueChange={(newRole) =>
-                          updateUserRole.mutate({ userId: userItem.id, newRole })
-                        }
+                        onValueChange={(newRole) => {
+                          logUserMgmt("role.select", {
+                            userId: userItem.id,
+                            email: userItem.email,
+                            fromRole: roleKey,
+                            toRole: newRole,
+                          });
+                          updateUserRole.mutate({ userId: userItem.id, newRole });
+                        }}
                       >
                         <SelectTrigger className="w-[160px]" disabled={isSampleMode}>
                           <SelectValue />
@@ -924,9 +1171,16 @@ export default function UserManagement() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              type="button"
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (!removeConfirm) return;
+                logUserMgmt("remove.confirm", {
+                  type: removeConfirm.type,
+                  targetUserId: removeConfirm.userId,
+                  email: removeConfirm.email,
+                  workspaceIdOnActiveTeam: activeWorkspace?.workspace_id ?? null,
+                });
                 if (removeConfirm.type === "team") {
                   removeUserFromTeam.mutate(removeConfirm.userId);
                 } else {
