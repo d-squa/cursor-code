@@ -1,0 +1,21 @@
+#!/bin/sh
+# Refuse any push whose remote URL targets d-squa/market-flow-editor.
+# Use the actiplan remote for cursor-code, e.g.: git push actiplan main
+
+remote="$1"
+url="$2"
+
+blocked=0
+case "$url" in
+*d-squa/market-flow-editor*)
+	blocked=1
+	;;
+esac
+
+if [ "$blocked" -eq 1 ]; then
+	printf '%s\n' "pre-push: blocked — push URL targets d-squa/market-flow-editor (remote: $remote)." >&2
+	printf '%s\n' "pre-push: use actiplan for production, e.g.: git push actiplan HEAD:main" >&2
+	exit 1
+fi
+
+exit 0
