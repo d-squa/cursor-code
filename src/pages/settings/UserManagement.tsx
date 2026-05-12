@@ -101,23 +101,25 @@ function strongestAppRole(roles: Set<string>): string {
   return "member";
 }
 
-/** Client-side roster when `get_workspace_member_summaries` RPC is missing or errors (e.g. migration not applied). */
+/** Client-side roster when RPC is missing; mirrors subscription roster + team labels. */
 async function fetchBillingWorkspaceMembersFromTables(workspaceId: string) {
+  const { data: subs, error: subsErr } = await supabase
+    .from("workspace_subscription_members")
+    .select("user_id, role")
+    .eq("workspace_id", workspaceId);
+  if (subsErr) throw subsErr;
+
   const { data: wsTeams, error: teamsErr } = await supabase
     .from("teams")
-    .select("id, owner_id")
+    .select("id, name, owner_id")
     .eq("workspace_id", workspaceId);
   if (teamsErr) throw teamsErr;
 
   const teamList = wsTeams ?? [];
   const teamIds = teamList.map((t: { id: string }) => t.id).filter(Boolean);
-  if (teamIds.length === 0) return [];
-
-  const { data: teamRoles, error: rolesError } = await supabase
-    .from("user_roles")
-    .select("user_id, role, team_id")
-    .in("team_id", teamIds);
-  if (rolesError) throw rolesError;
+  const teamNameById = new Map<string, string>(
+    teamList.map((t: { id: string; name: string }) => [t.id, t.name]),
+  );
 
   const { data: wsRow, error: wsErr } = await supabase
     .from("workspaces")
@@ -127,8 +129,21 @@ async function fetchBillingWorkspaceMembersFromTables(workspaceId: string) {
   if (wsErr) throw wsErr;
   const billingOwnerId = wsRow?.owner_id as string | undefined;
 
+  const subByUser = new Map<string, string>();
+  (subs ?? []).forEach((r: { user_id: string; role: string }) => subByUser.set(r.user_id, r.role));
+
+  let teamRoles: { user_id: string; team_id: string }[] = [];
+  if (teamIds.length > 0) {
+    const { data: tr, error: rolesError } = await supabase
+      .from("user_roles")
+      .select("user_id, team_id")
+      .in("team_id", teamIds);
+    if (rolesError) throw rolesError;
+    teamRoles = (tr ?? []) as { user_id: string; team_id: string }[];
+  }
+
   const userIds = new Set<string>();
-  (teamRoles ?? []).forEach((r: { user_id: string }) => userIds.add(r.user_id));
+  subByUser.forEach((_r, uid) => userIds.add(uid));
   if (billingOwnerId) userIds.add(billingOwnerId);
 
   if (userIds.size === 0) return [];
@@ -140,29 +155,29 @@ async function fetchBillingWorkspaceMembersFromTables(workspaceId: string) {
     .order("created_at", { ascending: false });
   if (profilesError) throw profilesError;
 
-  const rolesByUser = new Map<string, Set<string>>();
-  (teamRoles ?? []).forEach((r: { user_id: string; role: string }) => {
-    const set = rolesByUser.get(r.user_id) ?? new Set<string>();
-    set.add(r.role);
-    rolesByUser.set(r.user_id, set);
+  const teamNamesByUser = new Map<string, Set<string>>();
+  teamRoles.forEach((r) => {
+    const nm = teamNameById.get(r.team_id);
+    if (!nm) return;
+    const set = teamNamesByUser.get(r.user_id) ?? new Set<string>();
+    set.add(nm);
+    teamNamesByUser.set(r.user_id, set);
   });
 
   const pickRole = (uid: string) => {
     if (billingOwnerId && uid === billingOwnerId) return "owner";
-    const roles = rolesByUser.get(uid);
-    if (!roles || roles.size === 0) return "member";
-    return strongestAppRole(roles);
+    return subByUser.get(uid) ?? "member";
   };
 
   const visibleProfiles = (profiles ?? []).filter((profile: { id: string }) => {
     const uid = profile.id;
-    if (billingOwnerId && uid === billingOwnerId) return true;
-    return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
+    return subByUser.has(uid) || (billingOwnerId && uid === billingOwnerId);
   });
 
   return visibleProfiles.map((profile: Record<string, unknown>) => ({
     ...profile,
     role: pickRole(profile.id as string),
+    team_names: Array.from(teamNamesByUser.get(profile.id as string) ?? []).sort(),
   }));
 }
 
@@ -173,66 +188,101 @@ export default function UserManagement() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
-  const [inviteTeamId, setInviteTeamId] = useState<string>("");
   const [removeConfirm, setRemoveConfirm] = useState<{
     userId: string;
     email: string;
-    type: "team" | "workspace";
+    kind: "subscription" | "team" | "workspace";
   } | null>(null);
 
-  useEffect(() => {
-    if (activeWorkspaceId) setInviteTeamId(activeWorkspaceId);
-  }, [activeWorkspaceId]);
+  /** Billing workspace for this user — not driven by the team/workspace switcher. */
+  const { data: billingWorkspaceId, isLoading: billingWorkspaceResolving } = useQuery({
+    queryKey: ["billing-workspace-id", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      if (!user?.id) return null as string | null;
 
-  const billingWorkspaceId = activeWorkspace?.workspace_id ?? null;
+      const { data: ownedList, error: ownedErr } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (ownedErr) throw ownedErr;
+      if (ownedList?.[0]?.id) return ownedList[0].id as string;
+
+      const { data: smList, error: smErr } = await supabase
+        .from("workspace_subscription_members")
+        .select("workspace_id")
+        .eq("user_id", user.id)
+        .order("workspace_id", { ascending: true })
+        .limit(1);
+      if (smErr) throw smErr;
+      if (smList?.[0]?.workspace_id) return smList[0].workspace_id as string;
+
+      const { data: roleRows, error: rolesErr } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", user.id);
+      if (rolesErr) throw rolesErr;
+      const teamIds = (roleRows ?? []).map((r: { team_id?: string }) => r.team_id).filter(Boolean) as string[];
+      if (teamIds.length === 0) return null;
+
+      const { data: teamRows, error: teamErr } = await supabase
+        .from("teams")
+        .select("workspace_id")
+        .in("id", teamIds)
+        .not("workspace_id", "is", null);
+      if (teamErr) throw teamErr;
+      const wids = [
+        ...new Set(
+          (teamRows ?? [])
+            .map((t: { workspace_id?: string | null }) => t.workspace_id)
+            .filter(Boolean) as string[],
+        ),
+      ].sort();
+      return wids[0] ?? null;
+    },
+  });
 
   /** Must match `users` useQuery key so mutations refetch the list that is actually mounted. */
   const usersListQueryKey = useMemo(
-    () => ["users-with-roles", user?.id ?? "", billingWorkspaceId, activeWorkspaceId ?? ""] as const,
-    [user?.id, billingWorkspaceId, activeWorkspaceId],
+    () => ["users-with-roles", user?.id ?? "", billingWorkspaceId ?? ""] as const,
+    [user?.id, billingWorkspaceId],
   );
+
+  const { data: mySubscriptionMgmtRole } = useQuery({
+    queryKey: ["user-mgmt-subscription-role", user?.id, billingWorkspaceId],
+    enabled: !!user?.id && !!billingWorkspaceId,
+    queryFn: async () => {
+      if (!user?.id || !billingWorkspaceId) return null;
+      const { data: ws, error: wsErr } = await supabase
+        .from("workspaces")
+        .select("owner_id")
+        .eq("id", billingWorkspaceId)
+        .maybeSingle();
+      if (wsErr) throw wsErr;
+      if (ws?.owner_id === user.id) return "owner";
+      const { data: sm, error: smErr } = await supabase
+        .from("workspace_subscription_members")
+        .select("role")
+        .eq("workspace_id", billingWorkspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (smErr) throw smErr;
+      return (sm?.role as string | null) ?? "member";
+    },
+  });
 
   const { data: myTeamRole } = useQuery({
     queryKey: [
       "user-mgmt-my-role",
       user?.id,
       activeWorkspaceId,
-      billingWorkspaceId,
       activeWorkspace?.owner_id,
     ],
-    enabled: !!user?.id && !!activeWorkspaceId,
+    enabled: !!user?.id && !!activeWorkspaceId && !billingWorkspaceId,
     queryFn: async () => {
       if (!user?.id || !activeWorkspaceId) return null;
-
-      if (billingWorkspaceId) {
-        const { data: ws, error: wsErr } = await supabase
-          .from("workspaces")
-          .select("owner_id")
-          .eq("id", billingWorkspaceId)
-          .maybeSingle();
-        if (wsErr) throw wsErr;
-        if (ws?.owner_id === user.id) return "owner";
-
-        const { data: wsTeams, error: teamsErr } = await supabase
-          .from("teams")
-          .select("id")
-          .eq("workspace_id", billingWorkspaceId);
-        if (teamsErr) throw teamsErr;
-        const teamIds = (wsTeams ?? []).map((t: { id: string }) => t.id).filter(Boolean);
-        if (teamIds.length === 0) return "member";
-
-        const { data: roleRows, error: rolesErr } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .in("team_id", teamIds);
-        if (rolesErr) throw rolesErr;
-        const set = new Set<string>();
-        (roleRows ?? []).forEach((r: { role?: string }) => {
-          if (r.role) set.add(r.role);
-        });
-        return strongestAppRole(set);
-      }
 
       if (activeWorkspace?.owner_id === user.id) return "owner";
 
@@ -248,13 +298,15 @@ export default function UserManagement() {
     },
   });
 
-  // Billing owner + workspace admins only (subscription roster; not members / campaign managers)
-  const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
+  const canManageUsers = billingWorkspaceId
+    ? mySubscriptionMgmtRole === "owner" || mySubscriptionMgmtRole === "admin"
+    : myTeamRole === "owner" || myTeamRole === "admin";
   const { isSampleMode, guardWrite } = useSampleMode();
 
   useEffect(() => {
     logUserMgmt("session.capabilities", {
       myTeamRole,
+      mySubscriptionMgmtRole,
       canManageUsers,
       billingWorkspaceId,
       activeWorkspaceId,
@@ -264,6 +316,7 @@ export default function UserManagement() {
     });
   }, [
     myTeamRole,
+    mySubscriptionMgmtRole,
     canManageUsers,
     billingWorkspaceId,
     activeWorkspaceId,
@@ -295,17 +348,16 @@ export default function UserManagement() {
 
   const billingTitle = billingWorkspaceMeta?.name ?? activeWorkspace?.name ?? "Workspace";
 
-  // All subscription members in the billing workspace (every team), or legacy single-team scope
+  // Subscription roster (billing workspace) or legacy single-team scope
   const { data: users, isLoading: loadingUsers } = useQuery({
     queryKey: usersListQueryKey,
     queryFn: async () => {
-      if (!user?.id || !activeWorkspaceId) return [];
+      if (!user?.id) return [];
 
       if (billingWorkspaceId) {
         logUserMgmt("users.fetch.start", {
           mode: "billing_rpc",
           billingWorkspaceId,
-          activeWorkspaceId,
         });
         const { data: rows, error: rpcErr } = await supabase.rpc("get_workspace_member_summaries", {
           p_workspace_id: billingWorkspaceId,
@@ -317,6 +369,7 @@ export default function UserManagement() {
             company_name: row.company_name,
             created_at: row.created_at,
             role: row.role,
+            team_names: (row as { team_names?: string[] }).team_names ?? [],
           }));
           logUserMgmt("users.fetch.done", {
             mode: "billing_rpc",
@@ -334,7 +387,7 @@ export default function UserManagement() {
         });
         // eslint-disable-next-line no-console
         console.warn(
-          "[UserMgmt] get_workspace_member_summaries failed; using client-side roster. Apply migration 20260513100000_workspace_member_summaries_rpc.sql on Supabase.",
+          "[UserMgmt] get_workspace_member_summaries failed; using client-side roster. Apply latest workspace migrations on Supabase.",
           rpcErr.message,
         );
 
@@ -346,6 +399,8 @@ export default function UserManagement() {
         });
         return fallback;
       }
+
+      if (!activeWorkspaceId) return [];
 
       logUserMgmt("users.fetch.start", { mode: "legacy_team", activeWorkspaceId });
       const [{ data: team, error: teamError }, { data: teamRoles, error: rolesError }] = await Promise.all([
@@ -394,6 +449,7 @@ export default function UserManagement() {
       const legacy = visibleProfiles.map((profile: Record<string, unknown>) => ({
         ...profile,
         role: pickRole(profile.id as string),
+        team_names: [] as string[],
       }));
       logUserMgmt("users.fetch.done", {
         mode: "legacy_team",
@@ -403,16 +459,53 @@ export default function UserManagement() {
       });
       return legacy;
     },
-    enabled: !!user?.id && !!activeWorkspaceId,
+    enabled: !!user?.id && (!!billingWorkspaceId || !!activeWorkspaceId),
   });
 
-  const teams = workspaces;
-
-
-  // Fetch pending invitations (active workspace only)
+  // Pending invitations for this billing account (not tied to the team switcher)
   const { data: invitations } = useQuery({
-    queryKey: ["invitations", billingWorkspaceId ?? activeWorkspaceId],
+    queryKey: ["invitations", billingWorkspaceId ?? "legacy", activeWorkspaceId ?? ""],
     queryFn: async () => {
+      const baseSelect = `
+          *,
+          teams (name)
+        `;
+
+      if (billingWorkspaceId) {
+        const { data: tidRows } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("workspace_id", billingWorkspaceId);
+        const teamIdList = (tidRows ?? []).map((t: { id: string }) => t.id).filter(Boolean);
+
+        const [{ data: byWs, error: e1 }, { data: legacyTeams, error: e2 }] = await Promise.all([
+          supabase
+            .from("invitations")
+            .select(baseSelect)
+            .eq("status", "pending")
+            .eq("workspace_id", billingWorkspaceId)
+            .order("created_at", { ascending: false }),
+          teamIdList.length > 0
+            ? supabase
+                .from("invitations")
+                .select(baseSelect)
+                .eq("status", "pending")
+                .in("team_id", teamIdList)
+                .is("workspace_id", null)
+                .order("created_at", { ascending: false })
+            : Promise.resolve({ data: [] as unknown[], error: null }),
+        ]);
+        if (e1) throw e1;
+        if (e2) throw e2;
+        const seen = new Set<string>();
+        return [...(byWs ?? []), ...(legacyTeams ?? [])].filter((row: { id?: string }) => {
+          const id = row?.id;
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
+      }
+
       if (!activeWorkspaceId) return [];
 
       const { data: ctxTeam } = await supabase
@@ -422,11 +515,6 @@ export default function UserManagement() {
         .maybeSingle();
 
       const wid = ctxTeam?.workspace_id as string | undefined;
-
-      const baseSelect = `
-          *,
-          teams (name)
-        `;
 
       if (wid) {
         const [{ data: byWs, error: e1 }, { data: legacy, error: e2 }] = await Promise.all([
@@ -447,13 +535,12 @@ export default function UserManagement() {
         if (e1) throw e1;
         if (e2) throw e2;
         const seen = new Set<string>();
-        const merged = [...(byWs ?? []), ...(legacy ?? [])].filter((row: { id?: string }) => {
+        return [...(byWs ?? []), ...(legacy ?? [])].filter((row: { id?: string }) => {
           const id = row?.id;
           if (!id || seen.has(id)) return false;
           seen.add(id);
           return true;
         });
-        return merged;
       }
 
       const { data, error } = await supabase
@@ -464,42 +551,30 @@ export default function UserManagement() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
-    enabled: !!activeWorkspaceId,
+    enabled: !!user?.id && (!!billingWorkspaceId || !!activeWorkspaceId),
   });
 
-  // Create invitation mutation
+  // Create invitation mutation (subscription roster: subscription_access_only; no automatic team powers)
   const createInvitation = useMutation({
-    mutationFn: async ({ email, role, teamId }: { email: string; role: string; teamId: string }) => {
-      // Generate unique token
+    mutationFn: async ({ email, role }: { email: string; role: string }) => {
+      if (!billingWorkspaceId) throw new Error("No billing workspace");
+
       const token = crypto.randomUUID();
 
-      const { data: teamRow, error: teamCtxError } = await supabase
-        .from("teams")
-        .select("workspace_id")
-        .eq("id", teamId)
-        .maybeSingle();
+      const { data: ws, error: wsError } = await supabase
+        .from("workspaces")
+        .select("default_team_id, name")
+        .eq("id", billingWorkspaceId)
+        .single();
 
-      if (teamCtxError) throw teamCtxError;
-
-      const workspaceId = teamRow?.workspace_id as string | undefined;
-      let inviteTeamId = teamId;
-
-      if (workspaceId) {
-        const { data: ws, error: wsError } = await supabase
-          .from("workspaces")
-          .select("default_team_id, name")
-          .eq("id", workspaceId)
-          .maybeSingle();
-
-        if (wsError) throw wsError;
-        if (ws?.default_team_id) {
-          inviteTeamId = ws.default_team_id as string;
-        }
+      if (wsError) throw wsError;
+      const inviteTeamId = (ws?.default_team_id as string | null) ?? null;
+      if (!inviteTeamId) {
+        throw new Error("Workspace has no default team; run migrations or contact support.");
       }
 
-      // Create invitation (workspace-scoped; join lands on default team at accept-invitation)
       const { data: invitation, error: inviteError } = await supabase
         .from("invitations")
         .insert([
@@ -507,7 +582,8 @@ export default function UserManagement() {
             email,
             role: role as any,
             team_id: inviteTeamId,
-            workspace_id: workspaceId ?? null,
+            workspace_id: billingWorkspaceId,
+            subscription_access_only: true,
             token,
             created_by: user?.id,
           },
@@ -517,20 +593,10 @@ export default function UserManagement() {
 
       if (inviteError) throw inviteError;
 
-      // Workspace name for email when available; else team name
-      const { data: team } = await supabase
-        .from("teams")
-        .select("name")
-        .eq("id", inviteTeamId)
-        .single();
+      const { data: team } = await supabase.from("teams").select("name").eq("id", inviteTeamId).single();
 
-      const { data: wsNameRow } = workspaceId
-        ? await supabase.from("workspaces").select("name").eq("id", workspaceId).maybeSingle()
-        : { data: null };
+      const displayName = ws?.name ?? team?.name ?? "Subscription";
 
-      const displayName = (wsNameRow as { name?: string } | null)?.name ?? team?.name ?? "Team";
-
-      // Send invitation email
       const { error: emailError } = await supabase.functions.invoke("send-invitation-email", {
         body: {
           email,
@@ -552,46 +618,23 @@ export default function UserManagement() {
       setInviteDialogOpen(false);
       setInviteEmail("");
       setInviteRole("member");
-      setInviteTeamId(activeWorkspaceId || "");
     },
     onError: (error) => {
       toast.error("Failed to send invitation: " + error.message);
     },
   });
 
-  // Remove user from team mutation (SECURITY DEFINER RPC — client DELETE often no-oped under RLS)
+  /** Legacy single-team: remove team membership only (does not change subscription roster). */
   const removeUserFromTeam = useMutation({
     mutationFn: async (userId: string) => {
-      logUserMgmt("remove.team.start", {
-        userId,
-        activeWorkspaceId,
-        isSampleMode,
-      });
-      if (!guardWrite("Removing team members")) {
-        logUserMgmt("remove.team.blocked", { reason: "guardWrite" });
-        throw new Error("Read-only (Sample Mode or blocked)");
-      }
+      if (!guardWrite("Removing team members")) throw new Error("Read-only (Sample Mode or blocked)");
       if (!activeWorkspaceId) throw new Error("No active workspace");
-
       const { data: removed, error } = await supabase.rpc("remove_team_member_from_team", {
         p_target_user_id: userId,
         p_team_id: activeWorkspaceId,
       });
-
-      if (error) {
-        logUserMgmt("remove.team.rpc_error", {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-        });
-        throw error;
-      }
+      if (error) throw error;
       const n = parseRpcInt(removed);
-      logUserMgmt("remove.team.rpc_ok", {
-        rawRpcData: removed,
-        typeofRaw: typeof removed,
-        parsedRowCount: n,
-      });
       if (n < 1) {
         throw new Error(
           "No membership row was removed. They may already be removed, or you may lack permission.",
@@ -599,39 +642,31 @@ export default function UserManagement() {
       }
     },
     onSuccess: async (_data, removedUserId) => {
-      logUserMgmt("remove.team.success", { removedUserId });
-      queryClient.setQueryData(usersListQueryKey, (old: unknown) => {
-        if (!Array.isArray(old)) return old;
-        return old.filter((row: { id?: string }) => row?.id !== removedUserId);
-      });
       await Promise.all([
         queryClient.refetchQueries({ queryKey: usersListQueryKey }),
         queryClient.invalidateQueries({ queryKey: ["invitations"] }),
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
         queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
       ]);
-      const rowsAfterTeam = queryClient.getQueryData(usersListQueryKey) as Array<{ id?: string }> | undefined;
-      logUserMgmt("remove.team.list_after", {
-        removedUserId,
-        listLength: rowsAfterTeam?.length,
-        targetStillListed: rowsAfterTeam?.some((r) => r.id === removedUserId) ?? false,
-      });
-      toast.success(
-        `Removed from ${activeWorkspace?.name ?? "this team"}. They stay in this list if they still belong to other teams in the same subscription.`,
-      );
+      toast.success(`Removed from ${activeWorkspace?.name ?? "this team"}.`);
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
-      logUserMgmt("remove.team.error", { message: error.message });
       if (error.message.includes("Read-only")) return;
       toast.error("Failed to remove user: " + error.message);
     },
   });
 
-  /** Removes target from all teams in the current billing workspace (RPC). */
+  /** Removes target from subscription (and all teams in that billing workspace). */
   const removeUserFromWorkspace = useMutation({
-    mutationFn: async (userId: string) => {
-      const wid = activeWorkspace?.workspace_id;
+    mutationFn: async ({
+      userId,
+      workspaceId: workspaceIdOverride,
+    }: {
+      userId: string;
+      workspaceId?: string | null;
+    }) => {
+      const wid = (workspaceIdOverride ?? billingWorkspaceId) ?? undefined;
       logUserMgmt("remove.workspace.start", {
         userId,
         wid,
@@ -643,9 +678,9 @@ export default function UserManagement() {
         throw new Error("Read-only (Sample Mode or blocked)");
       }
       if (!wid) {
-        logUserMgmt("remove.workspace.blocked", { reason: "no_workspace_id_on_active_team" });
+        logUserMgmt("remove.workspace.blocked", { reason: "no_billing_workspace" });
         throw new Error(
-          "This team is not linked to a billing workspace yet. Run database migrations or contact support.",
+          "No billing workspace resolved. Run database migrations or contact support.",
         );
       }
 
@@ -674,7 +709,8 @@ export default function UserManagement() {
         );
       }
     },
-    onSuccess: async (_data, removedUserId) => {
+    onSuccess: async (_data, variables) => {
+      const removedUserId = variables.userId;
       logUserMgmt("remove.workspace.success", { removedUserId });
       queryClient.setQueryData(usersListQueryKey, (old: unknown) => {
         if (!Array.isArray(old)) return old;
@@ -685,6 +721,8 @@ export default function UserManagement() {
         queryClient.invalidateQueries({ queryKey: ["invitations"] }),
         queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
         queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-mgmt-subscription-role"] }),
+        queryClient.invalidateQueries({ queryKey: ["billing-workspace-id"] }),
       ]);
       const rowsAfter = queryClient.getQueryData(usersListQueryKey) as Array<{ id?: string }> | undefined;
       logUserMgmt("remove.workspace.list_after", {
@@ -692,7 +730,7 @@ export default function UserManagement() {
         listLength: rowsAfter?.length,
         targetStillListed: rowsAfter?.some((r) => r.id === removedUserId) ?? false,
       });
-      toast.success(`User removed from all teams in this workspace`);
+      toast.success("User removed from this subscription");
       setRemoveConfirm(null);
     },
     onError: (error: Error) => {
@@ -716,17 +754,17 @@ export default function UserManagement() {
         logUserMgmt("role.update.blocked", { reason: "guardWrite" });
         throw new Error("Read-only (Sample Mode or blocked)");
       }
-      if (!activeWorkspaceId) throw new Error("No active workspace");
+      if (!billingWorkspaceId && !activeWorkspaceId) throw new Error("No workspace context");
 
       if (billingWorkspaceId) {
-        const { data: updated, error } = await supabase.rpc("update_member_role_in_workspace", {
+        const { data: updated, error } = await supabase.rpc("update_subscription_member_role", {
           p_workspace_id: billingWorkspaceId,
           p_target_user_id: userId,
           p_new_role: newRole,
         });
         if (error) {
           logUserMgmt("role.update.rpc_error", {
-            rpc: "update_member_role_in_workspace",
+            rpc: "update_subscription_member_role",
             message: error.message,
             code: error.code,
             details: error.details,
@@ -735,18 +773,20 @@ export default function UserManagement() {
         }
         const n = parseRpcInt(updated);
         logUserMgmt("role.update.rpc_ok", {
-          rpc: "update_member_role_in_workspace",
+          rpc: "update_subscription_member_role",
           rawRpcData: updated,
           typeofRaw: typeof updated,
           parsedRowCount: n,
         });
         if (n < 1) {
           throw new Error(
-            "Role was not updated. They may have no team memberships in this workspace, or you may lack permission.",
+            "Subscription role was not updated. They may lack a subscription row, or you may lack permission.",
           );
         }
         return;
       }
+
+      if (!activeWorkspaceId) throw new Error("No active workspace");
 
       const { data: updated, error } = await supabase.rpc("update_team_member_role", {
         p_team_id: activeWorkspaceId,
@@ -779,6 +819,7 @@ export default function UserManagement() {
     onSuccess: async (_data, variables) => {
       await queryClient.refetchQueries({ queryKey: usersListQueryKey });
       queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] });
+      queryClient.invalidateQueries({ queryKey: ["user-mgmt-subscription-role"] });
       const rows = queryClient.getQueryData(usersListQueryKey) as
         | Array<{ id?: string; role?: string }>
         | undefined;
@@ -789,7 +830,11 @@ export default function UserManagement() {
         rowRoleAfter: row?.role,
         listLength: rows?.length,
       });
-      if (row && row.role !== variables.newRole) {
+      if (billingWorkspaceId && row && row.role !== variables.newRole) {
+        toast.warning("Subscription role did not fully apply", {
+          description: "Refresh the page or check billing owner / admin permissions.",
+        });
+      } else if (!billingWorkspaceId && row && row.role !== variables.newRole) {
         toast.warning("Role only partly updated", {
           description:
             "They still have an owner row on a team they own, or another role row the workspace RPC did not change. Transfer team ownership first if you need to remove owner-level access.",
@@ -864,7 +909,7 @@ export default function UserManagement() {
   };
 
   const handleInvite = () => {
-    if (!inviteEmail || !inviteRole || !activeWorkspaceId) {
+    if (!inviteEmail || !inviteRole || !billingWorkspaceId) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -872,11 +917,10 @@ export default function UserManagement() {
     createInvitation.mutate({
       email: inviteEmail,
       role: inviteRole,
-      teamId: activeWorkspaceId,
     });
   };
 
-  if (workspacesLoading || loadingUsers) {
+  if (billingWorkspaceResolving || (!billingWorkspaceId && workspacesLoading) || loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-muted-foreground">Loading members…</div>
@@ -889,38 +933,38 @@ export default function UserManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">
-            {canManageUsers ? "ActiPlanner Management" : "Team Members"}
-          </h1>
+          <h1 className="text-3xl font-bold">Subscription users</h1>
           <p className="text-muted-foreground mt-1">
             {billingWorkspaceId ? (
               <>
-                Subscription workspace:{" "}
-                <span className="font-medium text-foreground">{billingTitle}</span>
-                <span className="block text-xs mt-1">
-                  Lists everyone in this billing account across all teams (current team in the app:{" "}
-                  <span className="font-medium text-foreground">{activeWorkspace?.name}</span>).
-                </span>
+                Manage who can access this subscription and their{" "}
+                <span className="font-medium text-foreground">subscription role</span> (billing account:{" "}
+                <span className="font-medium text-foreground">{billingTitle}</span>). Team membership and team roles
+                are managed under <span className="font-medium text-foreground">Manage Your Team</span>; changing those
+                does not change subscription roles here.
               </>
             ) : (
               <>
                 Team: <span className="font-medium text-foreground">{activeWorkspace?.name ?? "Workspace"}</span>
+                <span className="block text-xs mt-1">
+                  Subscription roster requires a billing workspace. Use Manage Your Team for this team&apos;s members.
+                </span>
               </>
             )}
           </p>
         </div>
 
-        {canManageUsers && (
+        {canManageUsers && billingWorkspaceId && (
           <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
             <DialogTrigger asChild>
               <Button disabled={isSampleMode} title={isSampleMode ? "Disabled in Sample Mode" : undefined}>
                 <UserPlus className="mr-2 h-4 w-4" />
-                Invite ActiPlanner
+                Invite subscription user
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Invite New ActiPlanner</DialogTitle>
+                <DialogTitle>Invite subscription user</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div>
@@ -935,16 +979,12 @@ export default function UserManagement() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="team">{billingWorkspaceId ? "Billing workspace" : "Team"}</Label>
-                  <Input
-                    value={billingWorkspaceId ? billingTitle : activeWorkspace?.name || "Current team"}
-                    disabled
-                    className="bg-muted"
-                  />
+                  <Label htmlFor="team">Subscription</Label>
+                  <Input value={billingWorkspaceId ? billingTitle : "—"} disabled className="bg-muted" />
                 </div>
 
                 <div>
-                  <Label htmlFor="role">Role</Label>
+                  <Label htmlFor="role">Subscription role</Label>
                   <Select value={inviteRole} onValueChange={setInviteRole}>
                     <SelectTrigger>
                       <SelectValue />
@@ -980,7 +1020,7 @@ export default function UserManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
-                <TableHead>Team</TableHead>
+                <TableHead>Scope</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Sent</TableHead>
                 <TableHead>Expires</TableHead>
@@ -991,7 +1031,13 @@ export default function UserManagement() {
               {invitations.map((invitation: any) => (
                 <TableRow key={invitation.id}>
                   <TableCell>{invitation.email}</TableCell>
-                  <TableCell>{invitation.teams?.name || "N/A"}</TableCell>
+                  <TableCell>
+                    {invitation.subscription_access_only ? (
+                      <Badge variant="secondary">Subscription only</Badge>
+                    ) : (
+                      invitation.teams?.name || "Team"
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">{invitation.role}</Badge>
                   </TableCell>
@@ -1038,14 +1084,13 @@ export default function UserManagement() {
 
       {/* Active ActiPlanners */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">
-          {canManageUsers ? "Active ActiPlanners" : "Team Members"}
-        </h2>
+        <h2 className="text-xl font-semibold">People on this subscription</h2>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>Subscription role</TableHead>
+              <TableHead>Teams</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Joined</TableHead>
               {canManageUsers && <TableHead>Actions</TableHead>}
@@ -1100,6 +1145,19 @@ export default function UserManagement() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    {Array.isArray(userItem.team_names) && userItem.team_names.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[240px]">
+                        {userItem.team_names.map((name: string) => (
+                          <Badge key={name} variant="outline" className="font-normal">
+                            {name}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">No teams</span>
+                    )}
+                  </TableCell>
                   <TableCell>{userItem.company_name || "—"}</TableCell>
                   <TableCell>
                     {new Date(userItem.created_at).toLocaleDateString()}
@@ -1114,22 +1172,51 @@ export default function UserManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "team" })}
-                            >
-                              <UserMinus className="mr-2 h-4 w-4" />
-                              Remove from this team only
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() =>
-                                setRemoveConfirm({ userId: userItem.id, email: userItem.email, type: "workspace" })
-                              }
-                              disabled={!activeWorkspace?.workspace_id}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove from entire workspace (all teams)
-                            </DropdownMenuItem>
+                            {billingWorkspaceId ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() =>
+                                  setRemoveConfirm({
+                                    userId: userItem.id,
+                                    email: userItem.email,
+                                    kind: "subscription",
+                                  })
+                                }
+                                disabled={!billingWorkspaceId}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Remove from subscription
+                              </DropdownMenuItem>
+                            ) : (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    setRemoveConfirm({
+                                      userId: userItem.id,
+                                      email: userItem.email,
+                                      kind: "team",
+                                    })
+                                  }
+                                >
+                                  <UserMinus className="mr-2 h-4 w-4" />
+                                  Remove from this team only
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() =>
+                                    setRemoveConfirm({
+                                      userId: userItem.id,
+                                      email: userItem.email,
+                                      kind: "workspace",
+                                    })
+                                  }
+                                  disabled={!activeWorkspace?.workspace_id}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Remove from entire workspace (all teams)
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -1148,22 +1235,29 @@ export default function UserManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              {removeConfirm?.type === "team"
+              {removeConfirm?.kind === "team"
                 ? "Remove from this team only"
-                : "Remove from entire workspace"}
+                : removeConfirm?.kind === "workspace"
+                  ? "Remove from entire workspace"
+                  : "Remove from subscription"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {removeConfirm?.type === "team" ? (
+              {removeConfirm?.kind === "team" ? (
                 <>
-                  This removes <strong>{removeConfirm?.email}</strong> from the team you have selected in the app
-                  (<strong>{activeWorkspace?.name}</strong>) only. They stay on other teams in this billing workspace if
-                  they have memberships there.
+                  This removes <strong>{removeConfirm?.email}</strong> from the team{" "}
+                  <strong>{activeWorkspace?.name}</strong> only. Their subscription access here is unchanged.
+                </>
+              ) : removeConfirm?.kind === "workspace" ? (
+                <>
+                  This removes <strong>{removeConfirm?.email}</strong> from <strong>every team</strong> in this billing
+                  workspace and from the subscription roster. Pending invitations for this workspace that match their
+                  email will be cancelled.
                 </>
               ) : (
                 <>
-                  This removes <strong>{removeConfirm?.email}</strong> from <strong>every team</strong> in this billing workspace
-                  ({billingTitle} and any other teams under the same subscription). Pending invitations for this workspace
-                  that match their email will be cancelled.
+                  This removes <strong>{removeConfirm?.email}</strong> from the subscription{" "}
+                  <strong>{billingTitle}</strong> (all teams under it and their subscription row). Pending invitations
+                  that match their email for this workspace will be cancelled.
                 </>
               )}
             </AlertDialogDescription>
@@ -1176,19 +1270,32 @@ export default function UserManagement() {
               onClick={() => {
                 if (!removeConfirm) return;
                 logUserMgmt("remove.confirm", {
-                  type: removeConfirm.type,
+                  kind: removeConfirm.kind,
                   targetUserId: removeConfirm.userId,
                   email: removeConfirm.email,
-                  workspaceIdOnActiveTeam: activeWorkspace?.workspace_id ?? null,
                 });
-                if (removeConfirm.type === "team") {
+                if (removeConfirm.kind === "team") {
                   removeUserFromTeam.mutate(removeConfirm.userId);
+                } else if (removeConfirm.kind === "workspace") {
+                  const w = activeWorkspace?.workspace_id;
+                  if (!w) {
+                    toast.error("This team is not linked to a billing workspace.");
+                    return;
+                  }
+                  removeUserFromWorkspace.mutate({
+                    userId: removeConfirm.userId,
+                    workspaceId: w,
+                  });
                 } else {
-                  removeUserFromWorkspace.mutate(removeConfirm.userId);
+                  removeUserFromWorkspace.mutate({ userId: removeConfirm.userId });
                 }
               }}
             >
-              {removeConfirm?.type === "team" ? "Remove from this team" : "Remove from entire workspace"}
+              {removeConfirm?.kind === "team"
+                ? "Remove from this team"
+                : removeConfirm?.kind === "workspace"
+                  ? "Remove from entire workspace"
+                  : "Remove from subscription"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

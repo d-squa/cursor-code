@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
 
     const { data: invitation, error: invError } = await admin
       .from("invitations")
-      .select("id, email, team_id, role, status, expires_at, workspace_id")
+      .select("id, email, team_id, role, status, expires_at, workspace_id, subscription_access_only")
       .eq("token", token)
       .maybeSingle();
 
@@ -94,47 +94,102 @@ Deno.serve(async (req) => {
       return json(403, { error: "Please sign in with the email you were invited with" });
     }
 
-    // Workspace invites: membership is always created on the workspace default team (billing/onboarding).
-    let targetTeamId = invitation.team_id as string;
     const wsId = invitation.workspace_id as string | null;
-    if (wsId) {
-      const { data: ws, error: wsErr } = await admin
-        .from("workspaces")
-        .select("default_team_id")
-        .eq("id", wsId)
+    const subscriptionOnly = Boolean(
+      (invitation as { subscription_access_only?: boolean | null }).subscription_access_only,
+    );
+
+    let alreadyMember = false;
+
+    if (subscriptionOnly) {
+      if (!wsId) {
+        return json(400, { error: "Invalid subscription invitation (missing workspace)" });
+      }
+
+      const { data: existingSm, error: existingSmError } = await admin
+        .from("workspace_subscription_members")
+        .select("user_id")
+        .eq("workspace_id", wsId)
+        .eq("user_id", user.id)
         .maybeSingle();
-      if (wsErr) {
-        console.error("Load workspace for invitation", wsErr);
-        return json(500, { error: "Failed to load workspace" });
+
+      if (existingSmError) {
+        console.error("Check subscription membership error", existingSmError);
+        return json(500, { error: "Failed to check subscription membership" });
       }
-      if (ws?.default_team_id) {
-        targetTeamId = ws.default_team_id as string;
+
+      alreadyMember = Boolean(existingSm);
+
+      const { error: upsertSmError } = await admin.from("workspace_subscription_members").upsert(
+        {
+          workspace_id: wsId,
+          user_id: user.id,
+          role: invitation.role,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "workspace_id,user_id" },
+      );
+
+      if (upsertSmError) {
+        console.error("Upsert subscription membership error", upsertSmError);
+        return json(500, { error: "Failed to add subscription access" });
       }
-    }
+    } else {
+      // Workspace invites: membership is always created on the workspace default team (billing/onboarding).
+      let targetTeamId = invitation.team_id as string;
+      if (wsId) {
+        const { data: ws, error: wsErr } = await admin
+          .from("workspaces")
+          .select("default_team_id")
+          .eq("id", wsId)
+          .maybeSingle();
+        if (wsErr) {
+          console.error("Load workspace for invitation", wsErr);
+          return json(500, { error: "Failed to load workspace" });
+        }
+        if (ws?.default_team_id) {
+          targetTeamId = ws.default_team_id as string;
+        }
+      }
 
-    // Idempotent role assignment
-    const { data: existingRole, error: existingRoleError } = await admin
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("team_id", targetTeamId)
-      .maybeSingle();
+      const { data: existingRole, error: existingRoleError } = await admin
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("team_id", targetTeamId)
+        .maybeSingle();
 
-    if (existingRoleError) {
-      console.error("Check existing role error", existingRoleError);
-      return json(500, { error: "Failed to check membership" });
-    }
+      if (existingRoleError) {
+        console.error("Check existing role error", existingRoleError);
+        return json(500, { error: "Failed to check membership" });
+      }
 
-    if (!existingRole) {
-      const { error: insertRoleError } = await admin.from("user_roles").insert({
-        user_id: user.id,
-        team_id: targetTeamId,
-        role: invitation.role,
-      });
+      alreadyMember = Boolean(existingRole);
 
-      if (insertRoleError) {
-        console.error("Insert role error", insertRoleError);
-        return json(500, { error: "Failed to join team" });
+      if (!existingRole) {
+        const { error: insertRoleError } = await admin.from("user_roles").insert({
+          user_id: user.id,
+          team_id: targetTeamId,
+          role: invitation.role,
+        });
+
+        if (insertRoleError) {
+          console.error("Insert role error", insertRoleError);
+          return json(500, { error: "Failed to join team" });
+        }
+
+        // First team join: seed subscription roster row if missing (does not overwrite subscription role later).
+        if (wsId) {
+          const { error: smIns } = await admin.from("workspace_subscription_members").insert({
+            workspace_id: wsId,
+            user_id: user.id,
+            role: invitation.role,
+          });
+          if (smIns && smIns.code !== "23505") {
+            console.error("Insert subscription roster row", smIns);
+            return json(500, { error: "Failed to sync subscription roster" });
+          }
+        }
       }
     }
 
@@ -148,7 +203,11 @@ Deno.serve(async (req) => {
       return json(500, { error: "Failed to finalize invitation" });
     }
 
-    return json(200, { ok: true, already_member: Boolean(existingRole) });
+    return json(200, {
+      ok: true,
+      already_member: alreadyMember,
+      subscription_only: subscriptionOnly,
+    });
   } catch (e) {
     console.error("accept-invitation unexpected error", e);
     return json(500, { error: "Unexpected server error" });

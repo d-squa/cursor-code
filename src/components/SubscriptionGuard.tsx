@@ -133,6 +133,17 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
 
     recoveryAttemptedRef.current = true;
     setRecoveringWorkspace(true);
+
+    const { count: subMemberCount, error: subCountErr } = await supabase
+      .from("workspace_subscription_members")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    if (!subCountErr && subMemberCount != null && subMemberCount > 0) {
+      setRecoveringWorkspace(false);
+      return;
+    }
+
     const recoveryKey = `actiplan_workspace_recovery_at:${user.id}`;
 
     if (typeof localStorage !== "undefined") {

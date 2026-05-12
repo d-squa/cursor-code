@@ -76,7 +76,7 @@ serve(async (req) => {
     if (activeWorkspaceId) {
       const { data: team } = await supabaseClient
         .from("teams")
-        .select("id, owner_id")
+        .select("id, owner_id, workspace_id")
         .eq("id", activeWorkspaceId)
         .single();
 
@@ -95,7 +95,18 @@ serve(async (req) => {
             .eq("user_id", user.id)
             .maybeSingle();
 
-          if (!membershipRow) {
+          let subscriptionRosterAccess = false;
+          if (!membershipRow && team.workspace_id) {
+            const { data: subMem } = await supabaseClient
+              .from("workspace_subscription_members")
+              .select("user_id")
+              .eq("user_id", user.id)
+              .eq("workspace_id", team.workspace_id as string)
+              .maybeSingle();
+            subscriptionRosterAccess = Boolean(subMem);
+          }
+
+          if (!membershipRow && !subscriptionRosterAccess) {
             logStep(
               "Active workspace is a team the user no longer belongs to; checking personal subscription only",
               { teamId: team.id, userId: user.id },
