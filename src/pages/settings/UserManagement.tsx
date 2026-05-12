@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Trash2, Mail, Send, Copy, MoreHorizontal, UserMinus, AlertTriangle } from "lucide-react";
+import { UserPlus, Trash2, Mail, Send, Copy, MoreHorizontal, AlertTriangle } from "lucide-react";
 import { FeatureGate } from "@/components/FeatureGate";
 import {
   DropdownMenu,
@@ -99,6 +99,10 @@ function strongestAppRole(roles: Set<string>): string {
     if (roles.has(p)) return p;
   }
   return "member";
+}
+
+function formatRoleLabel(role: string): string {
+  return role.replace(/_/g, " ");
 }
 
 /** Client-side roster when RPC is missing; mirrors subscription roster + team labels. */
@@ -191,7 +195,13 @@ export default function UserManagement() {
   const [removeConfirm, setRemoveConfirm] = useState<{
     userId: string;
     email: string;
-    kind: "subscription" | "team" | "workspace";
+    workspaceId: string;
+  } | null>(null);
+  const [roleChangeConfirm, setRoleChangeConfirm] = useState<{
+    userId: string;
+    email: string;
+    fromRole: string;
+    toRole: string;
   } | null>(null);
 
   /** Billing workspace for this user — not driven by the team/workspace switcher. */
@@ -331,22 +341,6 @@ export default function UserManagement() {
       new Set(["admin", "campaign_manager", "collaborator", "member", "viewer"]),
     [],
   );
-
-  const { data: billingWorkspaceMeta } = useQuery({
-    queryKey: ["billing-workspace-meta", billingWorkspaceId],
-    enabled: !!billingWorkspaceId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("workspaces")
-        .select("id, name, owner_id")
-        .eq("id", billingWorkspaceId as string)
-        .single();
-      if (error) throw error;
-      return data as { id: string; name: string; owner_id: string };
-    },
-  });
-
-  const billingTitle = billingWorkspaceMeta?.name ?? activeWorkspace?.name ?? "Workspace";
 
   // Subscription roster (billing workspace) or legacy single-team scope
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -624,40 +618,7 @@ export default function UserManagement() {
     },
   });
 
-  /** Legacy single-team: remove team membership only (does not change subscription roster). */
-  const removeUserFromTeam = useMutation({
-    mutationFn: async (userId: string) => {
-      if (!guardWrite("Removing team members")) throw new Error("Read-only (Sample Mode or blocked)");
-      if (!activeWorkspaceId) throw new Error("No active workspace");
-      const { data: removed, error } = await supabase.rpc("remove_team_member_from_team", {
-        p_target_user_id: userId,
-        p_team_id: activeWorkspaceId,
-      });
-      if (error) throw error;
-      const n = parseRpcInt(removed);
-      if (n < 1) {
-        throw new Error(
-          "No membership row was removed. They may already be removed, or you may lack permission.",
-        );
-      }
-    },
-    onSuccess: async (_data, removedUserId) => {
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: usersListQueryKey }),
-        queryClient.invalidateQueries({ queryKey: ["invitations"] }),
-        queryClient.invalidateQueries({ queryKey: ["workspaces"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-mgmt-my-role"] }),
-      ]);
-      toast.success(`Removed from ${activeWorkspace?.name ?? "this team"}.`);
-      setRemoveConfirm(null);
-    },
-    onError: (error: Error) => {
-      if (error.message.includes("Read-only")) return;
-      toast.error("Failed to remove user: " + error.message);
-    },
-  });
-
-  /** Removes target from subscription (and all teams in that billing workspace). */
+  /** Removes user from this subscription (all teams in the billing workspace + subscription roster row). */
   const removeUserFromWorkspace = useMutation({
     mutationFn: async ({
       userId,
@@ -986,7 +947,7 @@ export default function UserManagement() {
                 <div>
                   <Label htmlFor="role">Subscription role</Label>
                   <Select value={inviteRole} onValueChange={setInviteRole}>
-                    <SelectTrigger>
+                    <SelectTrigger className="text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:line-clamp-none">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1089,7 +1050,7 @@ export default function UserManagement() {
           <TableHeader>
             <TableRow>
               <TableHead>Email</TableHead>
-              <TableHead>Subscription role</TableHead>
+              <TableHead className="min-w-[220px]">Subscription role</TableHead>
               <TableHead>Teams</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Joined</TableHead>
@@ -1113,16 +1074,25 @@ export default function UserManagement() {
                       <Select
                         value={roleKey}
                         onValueChange={(newRole) => {
-                          logUserMgmt("role.select", {
+                          if (newRole === roleKey) return;
+                          logUserMgmt("role.select.pending_confirm", {
                             userId: userItem.id,
                             email: userItem.email,
                             fromRole: roleKey,
                             toRole: newRole,
                           });
-                          updateUserRole.mutate({ userId: userItem.id, newRole });
+                          setRoleChangeConfirm({
+                            userId: userItem.id,
+                            email: userItem.email,
+                            fromRole: roleKey,
+                            toRole: newRole,
+                          });
                         }}
                       >
-                        <SelectTrigger className="w-[160px]" disabled={isSampleMode}>
+                        <SelectTrigger
+                          className="h-auto min-h-10 w-full min-w-[220px] max-w-[min(100%,280px)] justify-between gap-2 py-2 text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:whitespace-normal [&>span]:break-words [&>span]:leading-snug [&>span]:line-clamp-none"
+                          disabled={isSampleMode}
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1139,7 +1109,7 @@ export default function UserManagement() {
                           isOwner ? "default" : userItem.role === "admin" ? "secondary" : "outline"
                         }
                       >
-                        {userItem.role.replace("_", " ")}
+                        {formatRoleLabel(String(userItem.role))}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -1172,51 +1142,27 @@ export default function UserManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {billingWorkspaceId ? (
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={() =>
-                                  setRemoveConfirm({
-                                    userId: userItem.id,
-                                    email: userItem.email,
-                                    kind: "subscription",
-                                  })
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => {
+                                const wid = billingWorkspaceId ?? activeWorkspace?.workspace_id ?? null;
+                                if (!wid) {
+                                  toast.error(
+                                    "Cannot remove from subscription until this account is linked to a billing workspace.",
+                                  );
+                                  return;
                                 }
-                                disabled={!billingWorkspaceId}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Remove from subscription
-                              </DropdownMenuItem>
-                            ) : (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    setRemoveConfirm({
-                                      userId: userItem.id,
-                                      email: userItem.email,
-                                      kind: "team",
-                                    })
-                                  }
-                                >
-                                  <UserMinus className="mr-2 h-4 w-4" />
-                                  Remove from this team only
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() =>
-                                    setRemoveConfirm({
-                                      userId: userItem.id,
-                                      email: userItem.email,
-                                      kind: "workspace",
-                                    })
-                                  }
-                                  disabled={!activeWorkspace?.workspace_id}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Remove from entire workspace (all teams)
-                                </DropdownMenuItem>
-                              </>
-                            )}
+                                setRemoveConfirm({
+                                  userId: userItem.id,
+                                  email: userItem.email,
+                                  workspaceId: wid,
+                                });
+                              }}
+                              disabled={!(billingWorkspaceId ?? activeWorkspace?.workspace_id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove from subscription
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -1229,37 +1175,54 @@ export default function UserManagement() {
         </Table>
       </div>
 
+      <AlertDialog
+        open={!!roleChangeConfirm}
+        onOpenChange={(open) => !open && setRoleChangeConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change subscription role?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Change role for <strong className="text-foreground">{roleChangeConfirm?.email}</strong> from{" "}
+              <strong className="text-foreground">
+                {roleChangeConfirm ? formatRoleLabel(roleChangeConfirm.fromRole) : ""}
+              </strong>{" "}
+              to{" "}
+              <strong className="text-foreground">
+                {roleChangeConfirm ? formatRoleLabel(roleChangeConfirm.toRole) : ""}
+              </strong>
+              ? This updates their subscription access level across this billing account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={() => {
+                const snap = roleChangeConfirm;
+                if (!snap) return;
+                logUserMgmt("role.change.confirm", { userId: snap.userId, toRole: snap.toRole });
+                updateUserRole.mutate({ userId: snap.userId, newRole: snap.toRole });
+              }}
+            >
+              Change role
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Confirmation Dialog */}
       <AlertDialog open={!!removeConfirm} onOpenChange={(open) => !open && setRemoveConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              {removeConfirm?.kind === "team"
-                ? "Remove from this team only"
-                : removeConfirm?.kind === "workspace"
-                  ? "Remove from entire workspace"
-                  : "Remove from subscription"}
+              Remove from subscription?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {removeConfirm?.kind === "team" ? (
-                <>
-                  This removes <strong>{removeConfirm?.email}</strong> from the team{" "}
-                  <strong>{activeWorkspace?.name}</strong> only. Their subscription access here is unchanged.
-                </>
-              ) : removeConfirm?.kind === "workspace" ? (
-                <>
-                  This removes <strong>{removeConfirm?.email}</strong> from <strong>every team</strong> in this billing
-                  workspace and from the subscription roster. Pending invitations for this workspace that match their
-                  email will be cancelled.
-                </>
-              ) : (
-                <>
-                  This removes <strong>{removeConfirm?.email}</strong> from the subscription{" "}
-                  <strong>{billingTitle}</strong> (all teams under it and their subscription row). Pending invitations
-                  that match their email for this workspace will be cancelled.
-                </>
-              )}
+              This removes <strong>{removeConfirm?.email}</strong> from this subscription: they lose subscription access
+              and are removed from <strong>every team</strong> under this billing account. Pending invitations that match
+              their email for this subscription will be cancelled.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1270,32 +1233,17 @@ export default function UserManagement() {
               onClick={() => {
                 if (!removeConfirm) return;
                 logUserMgmt("remove.confirm", {
-                  kind: removeConfirm.kind,
                   targetUserId: removeConfirm.userId,
                   email: removeConfirm.email,
+                  workspaceId: removeConfirm.workspaceId,
                 });
-                if (removeConfirm.kind === "team") {
-                  removeUserFromTeam.mutate(removeConfirm.userId);
-                } else if (removeConfirm.kind === "workspace") {
-                  const w = activeWorkspace?.workspace_id;
-                  if (!w) {
-                    toast.error("This team is not linked to a billing workspace.");
-                    return;
-                  }
-                  removeUserFromWorkspace.mutate({
-                    userId: removeConfirm.userId,
-                    workspaceId: w,
-                  });
-                } else {
-                  removeUserFromWorkspace.mutate({ userId: removeConfirm.userId });
-                }
+                removeUserFromWorkspace.mutate({
+                  userId: removeConfirm.userId,
+                  workspaceId: removeConfirm.workspaceId,
+                });
               }}
             >
-              {removeConfirm?.kind === "team"
-                ? "Remove from this team"
-                : removeConfirm?.kind === "workspace"
-                  ? "Remove from entire workspace"
-                  : "Remove from subscription"}
+              Remove from subscription
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
