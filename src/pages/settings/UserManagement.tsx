@@ -101,6 +101,71 @@ function strongestAppRole(roles: Set<string>): string {
   return "member";
 }
 
+/** Client-side roster when `get_workspace_member_summaries` RPC is missing or errors (e.g. migration not applied). */
+async function fetchBillingWorkspaceMembersFromTables(workspaceId: string) {
+  const { data: wsTeams, error: teamsErr } = await supabase
+    .from("teams")
+    .select("id, owner_id")
+    .eq("workspace_id", workspaceId);
+  if (teamsErr) throw teamsErr;
+
+  const teamList = wsTeams ?? [];
+  const teamIds = teamList.map((t: { id: string }) => t.id).filter(Boolean);
+  if (teamIds.length === 0) return [];
+
+  const { data: teamRoles, error: rolesError } = await supabase
+    .from("user_roles")
+    .select("user_id, role, team_id")
+    .in("team_id", teamIds);
+  if (rolesError) throw rolesError;
+
+  const { data: wsRow, error: wsErr } = await supabase
+    .from("workspaces")
+    .select("owner_id")
+    .eq("id", workspaceId)
+    .single();
+  if (wsErr) throw wsErr;
+  const billingOwnerId = wsRow?.owner_id as string | undefined;
+
+  const userIds = new Set<string>();
+  (teamRoles ?? []).forEach((r: { user_id: string }) => userIds.add(r.user_id));
+  if (billingOwnerId) userIds.add(billingOwnerId);
+
+  if (userIds.size === 0) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("*")
+    .in("id", Array.from(userIds))
+    .order("created_at", { ascending: false });
+  if (profilesError) throw profilesError;
+
+  const rolesByUser = new Map<string, Set<string>>();
+  (teamRoles ?? []).forEach((r: { user_id: string; role: string }) => {
+    const set = rolesByUser.get(r.user_id) ?? new Set<string>();
+    set.add(r.role);
+    rolesByUser.set(r.user_id, set);
+  });
+
+  const pickRole = (uid: string) => {
+    if (billingOwnerId && uid === billingOwnerId) return "owner";
+    const roles = rolesByUser.get(uid);
+    if (!roles || roles.size === 0) return "member";
+    return strongestAppRole(roles);
+  };
+
+  const visibleProfiles = (profiles ?? []).filter((profile: { id: string }) => {
+    const uid = profile.id;
+    if (billingOwnerId && uid === billingOwnerId) return true;
+    return (teamRoles ?? []).some((r: { user_id: string }) => r.user_id === uid);
+  });
+
+  return visibleProfiles.map((profile: Record<string, unknown>) => ({
+    ...profile,
+    role: pickRole(profile.id as string),
+  }));
+}
+
 export default function UserManagement() {
   const { user } = useAuth();
   const { workspaces, activeWorkspaceId, activeWorkspace, loading: workspacesLoading } = useWorkspace();
@@ -245,27 +310,41 @@ export default function UserManagement() {
         const { data: rows, error: rpcErr } = await supabase.rpc("get_workspace_member_summaries", {
           p_workspace_id: billingWorkspaceId,
         });
-        if (rpcErr) {
-          logUserMgmt("users.fetch.rpc_error", {
-            message: rpcErr.message,
-            code: rpcErr.code,
-            details: rpcErr.details,
-            hint: rpcErr.hint,
+        if (!rpcErr) {
+          const mapped = (rows ?? []).map((row) => ({
+            id: row.id,
+            email: row.email,
+            company_name: row.company_name,
+            created_at: row.created_at,
+            role: row.role,
+          }));
+          logUserMgmt("users.fetch.done", {
+            mode: "billing_rpc",
+            count: mapped.length,
+            sample: mapped.slice(0, 8).map((r) => ({ id: r.id, role: r.role })),
           });
-          throw rpcErr;
+          return mapped;
         }
-        const mapped = (rows ?? []).map((row) => ({
-          id: row.id,
-          email: row.email,
-          company_name: row.company_name,
-          created_at: row.created_at,
-          role: row.role,
-        }));
-        logUserMgmt("users.fetch.done", {
-          count: mapped.length,
-          sample: mapped.slice(0, 8).map((r) => ({ id: r.id, role: r.role })),
+
+        logUserMgmt("users.fetch.rpc_fallback", {
+          message: rpcErr.message,
+          code: rpcErr.code,
+          details: rpcErr.details,
+          hint: rpcErr.hint,
         });
-        return mapped;
+        // eslint-disable-next-line no-console
+        console.warn(
+          "[UserMgmt] get_workspace_member_summaries failed; using client-side roster. Apply migration 20260513100000_workspace_member_summaries_rpc.sql on Supabase.",
+          rpcErr.message,
+        );
+
+        const fallback = await fetchBillingWorkspaceMembersFromTables(billingWorkspaceId);
+        logUserMgmt("users.fetch.done", {
+          mode: "billing_tables_fallback",
+          count: fallback.length,
+          sample: fallback.slice(0, 8).map((r: { id?: string; role?: unknown }) => ({ id: r.id, role: r.role })),
+        });
+        return fallback;
       }
 
       logUserMgmt("users.fetch.start", { mode: "legacy_team", activeWorkspaceId });

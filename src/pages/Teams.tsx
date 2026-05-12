@@ -21,6 +21,20 @@ import type { Tables, Enums } from "@/integrations/supabase/types";
 type Team = Tables<"teams">;
 type AppRole = Enums<"app_role">;
 
+function parseRpcInt(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === "boolean") return 0;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "bigint") return Number(v);
+  if (Array.isArray(v)) return v.length === 0 ? 0 : parseRpcInt(v[0]);
+  if (typeof v === "object" && v !== null) {
+    const o = v as Record<string, unknown>;
+    if ("count" in o) return parseRpcInt(o.count);
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 const ROLE_PRIORITY = [
   "owner",
   "admin",
@@ -355,19 +369,31 @@ export default function Teams() {
     },
   });
 
-  // Remove team member mutation
+  // Remove team member (RPC — direct DELETE is often blocked by RLS for billing owners without a row on this team)
   const removeMember = useMutation({
-    mutationFn: async (roleId: string) => {
+    mutationFn: async (targetUserId: string) => {
+      if (!selectedTeam?.id) throw new Error("No team selected");
       if (myTeamRolePending) throw new Error("Still loading workspace permissions");
       if (myTeamRole !== "owner" && myTeamRole !== "admin") {
         throw new Error("Only workspace owners and admins can remove team members");
       }
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("id", roleId);
-      
+      if (targetUserId === user?.id) {
+        throw new Error("You cannot remove yourself from the team here.");
+      }
+      if (selectedTeam.owner_id === targetUserId) {
+        throw new Error("Transfer team ownership before removing the team owner.");
+      }
+
+      const { data: removed, error } = await supabase.rpc("remove_team_member_from_team", {
+        p_target_user_id: targetUserId,
+        p_team_id: selectedTeam.id,
+      });
+
       if (error) throw error;
+      const n = parseRpcInt(removed);
+      if (n < 1) {
+        throw new Error("No membership was removed. They may not be on this team, or you may lack permission.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
@@ -378,19 +404,32 @@ export default function Teams() {
     },
   });
 
-  // Update member role mutation
+  // Update member role (RPC — direct UPDATE is often blocked by RLS)
   const updateMemberRole = useMutation({
-    mutationFn: async (data: { roleId: string; newRole: AppRole }) => {
+    mutationFn: async (data: { targetUserId: string; newRole: AppRole }) => {
+      if (!selectedTeam?.id) throw new Error("No team selected");
       if (myTeamRolePending) throw new Error("Still loading workspace permissions");
       if (myTeamRole !== "owner" && myTeamRole !== "admin") {
         throw new Error("Only workspace owners and admins can change member roles");
       }
-      const { error } = await supabase
-        .from("user_roles")
-        .update({ role: data.newRole })
-        .eq("id", data.roleId);
-      
+      if (data.targetUserId === user?.id) {
+        throw new Error("You cannot change your own role here.");
+      }
+      if (selectedTeam.owner_id === data.targetUserId) {
+        throw new Error("Transfer team ownership before changing the team owner role.");
+      }
+
+      const { data: updated, error } = await supabase.rpc("update_team_member_role", {
+        p_team_id: selectedTeam.id,
+        p_target_user_id: data.targetUserId,
+        p_new_role: data.newRole,
+      });
+
       if (error) throw error;
+      const n = parseRpcInt(updated);
+      if (n < 1) {
+        throw new Error("Role was not updated. They may have no role row on this team, or you may lack permission.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
@@ -418,7 +457,7 @@ export default function Teams() {
               Create Team
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Create New Team</DialogTitle>
             </DialogHeader>
@@ -521,7 +560,7 @@ export default function Teams() {
                       Invite
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent aria-describedby={undefined}>
                     <DialogHeader>
                       <DialogTitle>Invite ActiPlanner to Team</DialogTitle>
                     </DialogHeader>
@@ -592,7 +631,10 @@ export default function Teams() {
                           <Select
                             value={member.role}
                             onValueChange={(value) =>
-                              updateMemberRole.mutate({ roleId: member.id, newRole: value as AppRole })
+                              updateMemberRole.mutate({
+                                targetUserId: member.user_id,
+                                newRole: value as AppRole,
+                              })
                             }
                           >
                             <SelectTrigger className="w-40">
@@ -615,7 +657,7 @@ export default function Teams() {
                           disabled={!canManageWorkspaceTeams || member.role === "owner"}
                           onClick={() => {
                             if (confirm("Remove this member from the team?")) {
-                              removeMember.mutate(member.id);
+                              removeMember.mutate(member.user_id);
                             }
                           }}
                         >
@@ -637,7 +679,7 @@ export default function Teams() {
 
       {/* Edit Team Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Edit Team</DialogTitle>
           </DialogHeader>
