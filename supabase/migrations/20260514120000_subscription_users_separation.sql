@@ -102,6 +102,9 @@ ON CONFLICT (workspace_id, user_id) DO UPDATE
 SET role = 'owner'::public.app_role;
 
 -- Subscription roster + team labels (user_roles are team-only; role here is subscription role).
+-- Older DBs may have get_workspace_member_summaries without team_names; Postgres cannot change OUT params with CREATE OR REPLACE.
+DROP FUNCTION IF EXISTS public.get_workspace_member_summaries(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_workspace_member_summaries(p_workspace_id uuid)
 RETURNS TABLE (
   id uuid,

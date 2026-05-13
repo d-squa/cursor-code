@@ -70,6 +70,8 @@ COMMENT ON FUNCTION public.can_view_roles_in_team(uuid, uuid) IS
 
 DROP POLICY IF EXISTS "Workspace peers can view member profiles" ON public.profiles;
 
+DROP FUNCTION IF EXISTS public.get_workspace_member_summaries(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_workspace_member_summaries(p_workspace_id uuid)
 RETURNS TABLE (
   id uuid,
