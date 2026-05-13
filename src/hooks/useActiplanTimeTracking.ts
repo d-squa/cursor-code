@@ -109,6 +109,9 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       lastHeartbeatRef.current = Date.now();
       isActiveRef.current = true;
       setIsTracking(true);
+
+      const { data: sess } = await supabase.auth.getSession();
+      if (sess.session?.access_token) accessTokenRef.current = sess.session.access_token;
       
       console.log("[TimeTracking] Session started:", data.id);
     } catch (err) {
@@ -144,6 +147,9 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
         .from("actiplan_time_sessions")
         .update(updateData)
         .eq("id", sessionIdRef.current);
+
+      const { data: sess } = await supabase.auth.getSession();
+      if (sess.session?.access_token) accessTokenRef.current = sess.session.access_token;
 
       if (endSession) {
         console.log("[TimeTracking] Session ended. Total seconds:", accumulatedSecondsRef.current);
@@ -198,6 +204,9 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   const handleVisibilityChange = useCallback(() => {
     if (document.hidden) {
       markIdle();
+      void supabase.auth.getSession().then(({ data }) => {
+        if (data.session?.access_token) accessTokenRef.current = data.session.access_token;
+      });
     } else {
       handleActivity();
     }

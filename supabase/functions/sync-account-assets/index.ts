@@ -248,21 +248,24 @@ serve(async (req) => {
       const assignedPagesData = await assignedPagesResponse.json();
       
       if (assignedPagesData?.data && assignedPagesData.data.length > 0) {
-        const pageIds = assignedPagesData.data.map((page: any) => String(page.id));
-        // Prefer delete by page_id so it works even when meta_pages has no ad_account_id column yet
-        await supabase
-          .from("meta_pages")
-          .delete()
-          .eq("user_id", user.id)
-          .in("page_id", pageIds);
-
-        const pagesFull = assignedPagesData.data.map((page: any) => ({
+        // Graph can return the same page more than once; one upsert batch must not duplicate (user_id, page_id).
+        const pagesFullRaw = assignedPagesData.data.map((page: any) => ({
           user_id: user.id,
           ad_account_id: accountId,
           page_id: page.id,
           page_name: page.name,
           synced_at: new Date().toISOString(),
         }));
+        const pagesFull = [
+          ...new Map(pagesFullRaw.map((p) => [String(p.page_id), p])).values(),
+        ];
+        const pageIds = pagesFull.map((p) => String(p.page_id));
+        // Prefer delete by page_id so it works even when meta_pages has no ad_account_id column yet
+        await supabase
+          .from("meta_pages")
+          .delete()
+          .eq("user_id", user.id)
+          .in("page_id", pageIds);
 
         let pagesError = (
           await supabase.from("meta_pages").upsert(pagesFull, { onConflict: "user_id,page_id" })
@@ -300,7 +303,13 @@ serve(async (req) => {
           }
         });
 
-        const igIds = instagramToInsert.map((r) => r.instagram_account_id);
+        const instagramRows = [
+          ...new Map(
+            instagramToInsert.map((r) => [String(r.instagram_account_id), r]),
+          ).values(),
+        ];
+
+        const igIds = instagramRows.map((r) => r.instagram_account_id);
         if (igIds.length > 0) {
           await supabase
             .from("meta_instagram_accounts")
@@ -309,9 +318,9 @@ serve(async (req) => {
             .in("instagram_account_id", igIds);
         }
 
-        if (instagramToInsert.length > 0) {
+        if (instagramRows.length > 0) {
           let igError = (
-            await supabase.from("meta_instagram_accounts").upsert(instagramToInsert, {
+            await supabase.from("meta_instagram_accounts").upsert(instagramRows, {
               onConflict: "user_id,instagram_account_id",
             })
           ).error;
@@ -320,7 +329,7 @@ serve(async (req) => {
             (igError.code === "PGRST204" || /ad_account_id/i.test(igError.message || ""))
           ) {
             console.warn("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts upsert without ad_account_id (legacy schema)");
-            const igLegacy = instagramToInsert.map(({ ad_account_id: _a, ...row }) => row);
+            const igLegacy = instagramRows.map(({ ad_account_id: _a, ...row }) => row);
             igError = (
               await supabase.from("meta_instagram_accounts").upsert(igLegacy, {
                 onConflict: "user_id,instagram_account_id",
@@ -328,7 +337,7 @@ serve(async (req) => {
             ).error;
           }
           if (!igError) {
-            syncResults.instagramAccounts = instagramToInsert.length;
+            syncResults.instagramAccounts = instagramRows.length;
             console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
           } else {
             console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts upsert error:", igError);
