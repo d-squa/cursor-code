@@ -234,12 +234,16 @@ serve(async (req) => {
           .eq("ad_account_id", accountId);
 
         const instagramToInsert: any[] = [];
+        const seenInstagramIds = new Set<string>();
         assignedPagesData.data.forEach((page: any) => {
           if (page.instagram_business_account) {
+            const igId = String(page.instagram_business_account.id);
+            if (seenInstagramIds.has(igId)) return;
+            seenInstagramIds.add(igId);
             instagramToInsert.push({
               user_id: user.id,
               ad_account_id: accountId,
-              instagram_account_id: page.instagram_business_account.id,
+              instagram_account_id: igId,
               username: page.instagram_business_account.username || page.name,
               synced_at: new Date().toISOString(),
             });
@@ -247,7 +251,10 @@ serve(async (req) => {
         });
 
         if (instagramToInsert.length > 0) {
-          const { error: igError } = await supabase.from("meta_instagram_accounts").insert(instagramToInsert);
+          const { error: igError } = await supabase.from("meta_instagram_accounts").upsert(
+            instagramToInsert,
+            { onConflict: "user_id,instagram_account_id" },
+          );
           if (!igError) {
             syncResults.instagramAccounts = instagramToInsert.length;
             console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
