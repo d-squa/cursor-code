@@ -28,6 +28,8 @@ function clientErrorStatus(message: string): number | null {
     m.includes("invalid json body") ||
     m.includes("no active meta platform connection") ||
     m.includes("failed to retrieve access token") ||
+    m.includes("failed to retrieve google access token") ||
+    m.includes("no active google ads platform connection") ||
     m.includes("missing supabase_url") ||
     m.includes("service_role_key")
   ) {
