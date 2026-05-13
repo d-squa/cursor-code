@@ -1,5 +1,7 @@
 -- Full subscription roster for managers without relying on RLS-visible user_roles joins.
 -- Same authorization idea as update_member_role_in_workspace / remove_member_from_workspace.
+-- Later migrations add team_names to RETURNS TABLE; DROP first so this file can apply on newer DBs.
+DROP FUNCTION IF EXISTS public.get_workspace_member_summaries(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_workspace_member_summaries(p_workspace_id uuid)
 RETURNS TABLE (
