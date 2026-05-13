@@ -203,14 +203,24 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   // Handle visibility change (tab switch, minimize)
   const handleVisibilityChange = useCallback(() => {
     if (document.hidden) {
-      markIdle();
-      void supabase.auth.getSession().then(({ data }) => {
+      void (async () => {
+        try {
+          await updateSession(false);
+        } finally {
+          markIdle();
+        }
+        try {
+          await supabase.auth.refreshSession();
+        } catch {
+          /* ignore */
+        }
+        const { data } = await supabase.auth.getSession();
         if (data.session?.access_token) accessTokenRef.current = data.session.access_token;
-      });
+      })();
     } else {
       handleActivity();
     }
-  }, [markIdle, handleActivity]);
+  }, [markIdle, handleActivity, updateSession]);
 
   // Handle window blur/focus
   const handleWindowBlur = useCallback(() => {
@@ -226,33 +236,43 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
     const sessionId = sessionIdRef.current;
     if (!sessionId || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
 
+    unloadFlushDoneRef.current = true;
+
     const now = Date.now();
     if (isActiveRef.current) {
       const secondsSinceLastHeartbeat = Math.floor((now - lastHeartbeatRef.current) / 1000);
       accumulatedSecondsRef.current += secondsSinceLastHeartbeat;
     }
 
-    const token =
-      accessTokenRef.current ?? readSupabaseAccessTokenFromLocalStorage(SUPABASE_URL);
-    if (!token) return;
+    void (async () => {
+      try {
+        await supabase.auth.refreshSession();
+      } catch {
+        /* ignore */
+      }
+      const { data: s } = await supabase.auth.getSession();
+      const token =
+        s.session?.access_token ??
+        accessTokenRef.current ??
+        readSupabaseAccessTokenFromLocalStorage(SUPABASE_URL);
+      if (!token) return;
 
-    unloadFlushDoneRef.current = true;
-
-    void fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        active_seconds: accumulatedSecondsRef.current,
-        is_active: false,
-        session_end: new Date().toISOString(),
-      }),
-      keepalive: true,
-    });
+      await fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          active_seconds: accumulatedSecondsRef.current,
+          is_active: false,
+          session_end: new Date().toISOString(),
+        }),
+        keepalive: true,
+      });
+    })();
   }, []);
 
   // Handle page unload / mobile tab discard (beforeunload is not always fired)

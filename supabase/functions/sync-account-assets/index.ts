@@ -34,6 +34,43 @@ function clientErrorStatus(message: string): number | null {
   return null;
 }
 
+/** PostgREST `.in()` URLs can exceed limits; delete in chunks so rows are actually removed before insert. */
+const REST_IN_CHUNK = 80;
+
+async function deleteUserRowsInChunks(
+  supabase: any,
+  table: "meta_pages" | "meta_instagram_accounts",
+  userId: string,
+  column: "page_id" | "instagram_account_id",
+  ids: string[],
+): Promise<{ code?: string; message?: string } | null> {
+  const uniq = [...new Set(ids.map((id) => String(id)))];
+  for (let i = 0; i < uniq.length; i += REST_IN_CHUNK) {
+    const chunk = uniq.slice(i, i + REST_IN_CHUNK);
+    const { error } = await supabase.from(table).delete().eq("user_id", userId).in(column, chunk);
+    if (error) return error;
+  }
+  return null;
+}
+
+/** Prefer bulk insert after delete; on conflict / partial failure, fall back to one-row upserts. */
+async function insertOrUpsertEach(
+  supabase: any,
+  table: "meta_pages" | "meta_instagram_accounts",
+  rows: Record<string, unknown>[],
+  onConflict: string,
+): Promise<{ code?: string; message?: string } | null> {
+  if (rows.length === 0) return null;
+  const { error: bulkErr } = await supabase.from(table).insert(rows);
+  if (!bulkErr) return null;
+  console.warn(`[SYNC-ACCOUNT-ASSETS] ${table} bulk insert failed, using per-row upsert`, bulkErr);
+  for (const row of rows) {
+    const { error } = await supabase.from(table).upsert([row], { onConflict });
+    if (error) return error;
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -260,30 +297,46 @@ serve(async (req) => {
           ...new Map(pagesFullRaw.map((p) => [String(p.page_id), p])).values(),
         ];
         const pageIds = pagesFull.map((p) => String(p.page_id));
-        // Prefer delete by page_id so it works even when meta_pages has no ad_account_id column yet
-        await supabase
-          .from("meta_pages")
-          .delete()
-          .eq("user_id", user.id)
-          .in("page_id", pageIds);
+        const normalizedPages = pagesFull.map((p) => ({
+          ...p,
+          page_id: String(p.page_id),
+        }));
 
-        let pagesError = (
-          await supabase.from("meta_pages").upsert(pagesFull, { onConflict: "user_id,page_id" })
-        ).error;
+        const delPagesErr = await deleteUserRowsInChunks(
+          supabase,
+          "meta_pages",
+          user.id,
+          "page_id",
+          pageIds,
+        );
+        if (delPagesErr) {
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_pages chunked delete:", delPagesErr);
+        }
+
+        let pagesError = await insertOrUpsertEach(
+          supabase,
+          "meta_pages",
+          normalizedPages as Record<string, unknown>[],
+          "user_id,page_id",
+        );
         if (
           pagesError &&
           (pagesError.code === "PGRST204" || /ad_account_id/i.test(pagesError.message || ""))
         ) {
-          console.warn("[SYNC-ACCOUNT-ASSETS] meta_pages upsert without ad_account_id (legacy schema)");
-          const pagesLegacy = pagesFull.map(({ ad_account_id: _a, ...row }) => row);
-          pagesError = (await supabase.from("meta_pages").upsert(pagesLegacy, { onConflict: "user_id,page_id" }))
-            .error;
+          console.warn("[SYNC-ACCOUNT-ASSETS] meta_pages write without ad_account_id (legacy schema)");
+          const pagesLegacy = normalizedPages.map(({ ad_account_id: _a, ...row }) => row);
+          pagesError = await insertOrUpsertEach(
+            supabase,
+            "meta_pages",
+            pagesLegacy as Record<string, unknown>[],
+            "user_id,page_id",
+          );
         }
         if (!pagesError) {
-          syncResults.pages = pagesFull.length;
+          syncResults.pages = normalizedPages.length;
           console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
         } else {
-          console.error("[SYNC-ACCOUNT-ASSETS] meta_pages upsert error:", pagesError);
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_pages write error:", pagesError);
         }
 
         const instagramToInsert: any[] = [];
@@ -307,40 +360,48 @@ serve(async (req) => {
           ...new Map(
             instagramToInsert.map((r) => [String(r.instagram_account_id), r]),
           ).values(),
-        ];
+        ].map((r) => ({
+          ...r,
+          instagram_account_id: String(r.instagram_account_id),
+        }));
 
         const igIds = instagramRows.map((r) => r.instagram_account_id);
-        if (igIds.length > 0) {
-          await supabase
-            .from("meta_instagram_accounts")
-            .delete()
-            .eq("user_id", user.id)
-            .in("instagram_account_id", igIds);
+        const delIgErr = await deleteUserRowsInChunks(
+          supabase,
+          "meta_instagram_accounts",
+          user.id,
+          "instagram_account_id",
+          igIds,
+        );
+        if (delIgErr) {
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts chunked delete:", delIgErr);
         }
 
         if (instagramRows.length > 0) {
-          let igError = (
-            await supabase.from("meta_instagram_accounts").upsert(instagramRows, {
-              onConflict: "user_id,instagram_account_id",
-            })
-          ).error;
+          let igError = await insertOrUpsertEach(
+            supabase,
+            "meta_instagram_accounts",
+            instagramRows as Record<string, unknown>[],
+            "user_id,instagram_account_id",
+          );
           if (
             igError &&
             (igError.code === "PGRST204" || /ad_account_id/i.test(igError.message || ""))
           ) {
-            console.warn("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts upsert without ad_account_id (legacy schema)");
+            console.warn("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts write without ad_account_id (legacy schema)");
             const igLegacy = instagramRows.map(({ ad_account_id: _a, ...row }) => row);
-            igError = (
-              await supabase.from("meta_instagram_accounts").upsert(igLegacy, {
-                onConflict: "user_id,instagram_account_id",
-              })
-            ).error;
+            igError = await insertOrUpsertEach(
+              supabase,
+              "meta_instagram_accounts",
+              igLegacy as Record<string, unknown>[],
+              "user_id,instagram_account_id",
+            );
           }
           if (!igError) {
             syncResults.instagramAccounts = instagramRows.length;
             console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
           } else {
-            console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts upsert error:", igError);
+            console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts write error:", igError);
           }
         }
       } else {
