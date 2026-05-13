@@ -1,7 +1,6 @@
--- Restrict workspace-wide team visibility: only managers (not every member) may list all teams
--- under the same billing workspace. Others keep access only to teams they own or have user_roles on.
---
--- Use SECURITY DEFINER helper so this policy never subqueries public.teams (would re-enter teams RLS -> 500).
+-- teams policy "Workspace managers..." used EXISTS subqueries against public.teams.
+-- Evaluating those rows re-applied teams RLS on the inner scan -> infinite recursion -> PostgREST 500.
+-- Delegate the manager check to workspace_subscription_roster_reader_can_see_all (SECURITY DEFINER, row_security off).
 
 CREATE OR REPLACE FUNCTION public.workspace_subscription_roster_reader_can_see_all(p_workspace_id uuid)
 RETURNS boolean
@@ -46,7 +45,6 @@ COMMENT ON FUNCTION public.workspace_subscription_roster_reader_can_see_all(uuid
 
 GRANT EXECUTE ON FUNCTION public.workspace_subscription_roster_reader_can_see_all(uuid) TO authenticated;
 
-DROP POLICY IF EXISTS "Workspace members can view teams in same workspace" ON public.teams;
 DROP POLICY IF EXISTS "Workspace managers can view all teams in workspace" ON public.teams;
 
 CREATE POLICY "Workspace managers can view all teams in workspace"
