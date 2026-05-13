@@ -53,17 +53,14 @@ async function deleteUserRowsInChunks(
   return null;
 }
 
-/** Prefer bulk insert after delete; on conflict / partial failure, fall back to one-row upserts. */
-async function insertOrUpsertEach(
+/** Chunked delete, then one-row upserts only (avoids multi-row insert/upsert 409 and noisy failed bulk requests). */
+async function upsertEachRow(
   supabase: any,
   table: "meta_pages" | "meta_instagram_accounts",
   rows: Record<string, unknown>[],
   onConflict: string,
 ): Promise<{ code?: string; message?: string } | null> {
   if (rows.length === 0) return null;
-  const { error: bulkErr } = await supabase.from(table).insert(rows);
-  if (!bulkErr) return null;
-  console.warn(`[SYNC-ACCOUNT-ASSETS] ${table} bulk insert failed, using per-row upsert`, bulkErr);
   for (const row of rows) {
     const { error } = await supabase.from(table).upsert([row], { onConflict });
     if (error) return error;
@@ -313,7 +310,7 @@ serve(async (req) => {
           console.error("[SYNC-ACCOUNT-ASSETS] meta_pages chunked delete:", delPagesErr);
         }
 
-        let pagesError = await insertOrUpsertEach(
+        let pagesError = await upsertEachRow(
           supabase,
           "meta_pages",
           normalizedPages as Record<string, unknown>[],
@@ -325,7 +322,7 @@ serve(async (req) => {
         ) {
           console.warn("[SYNC-ACCOUNT-ASSETS] meta_pages write without ad_account_id (legacy schema)");
           const pagesLegacy = normalizedPages.map(({ ad_account_id: _a, ...row }) => row);
-          pagesError = await insertOrUpsertEach(
+          pagesError = await upsertEachRow(
             supabase,
             "meta_pages",
             pagesLegacy as Record<string, unknown>[],
@@ -378,7 +375,7 @@ serve(async (req) => {
         }
 
         if (instagramRows.length > 0) {
-          let igError = await insertOrUpsertEach(
+          let igError = await upsertEachRow(
             supabase,
             "meta_instagram_accounts",
             instagramRows as Record<string, unknown>[],
@@ -390,7 +387,7 @@ serve(async (req) => {
           ) {
             console.warn("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts write without ad_account_id (legacy schema)");
             const igLegacy = instagramRows.map(({ ad_account_id: _a, ...row }) => row);
-            igError = await insertOrUpsertEach(
+            igError = await upsertEachRow(
               supabase,
               "meta_instagram_accounts",
               igLegacy as Record<string, unknown>[],

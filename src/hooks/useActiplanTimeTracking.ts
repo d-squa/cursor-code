@@ -25,8 +25,17 @@ function readSupabaseAccessTokenFromLocalStorage(url: string): string | null {
   try {
     const raw = localStorage.getItem(`sb-${ref}-auth-token`);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { access_token?: string };
-    return parsed.access_token ?? null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const fromObj = (o: unknown): string | null => {
+      if (!o || typeof o !== "object") return null;
+      const t = (o as { access_token?: unknown }).access_token;
+      return typeof t === "string" ? t : null;
+    };
+    return (
+      (typeof parsed.access_token === "string" ? parsed.access_token : null) ??
+      fromObj(parsed.currentSession) ??
+      fromObj(parsed.session)
+    );
   } catch {
     return null;
   }
@@ -245,11 +254,28 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
     }
 
     void (async () => {
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+
       try {
         await supabase.auth.refreshSession();
       } catch {
         /* ignore */
       }
+
+      const body = {
+        active_seconds: accumulatedSecondsRef.current,
+        is_active: false,
+        session_end: new Date().toISOString(),
+      };
+
+      const { error: clientErr } = await supabase
+        .from("actiplan_time_sessions")
+        .update(body)
+        .eq("id", sid);
+
+      if (!clientErr) return;
+
       const { data: s } = await supabase.auth.getSession();
       const token =
         s.session?.access_token ??
@@ -257,7 +283,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
         readSupabaseAccessTokenFromLocalStorage(SUPABASE_URL);
       if (!token) return;
 
-      await fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionId}`, {
+      await fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sid}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -265,11 +291,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
           apikey: SUPABASE_PUBLISHABLE_KEY,
           Prefer: "return=minimal",
         },
-        body: JSON.stringify({
-          active_seconds: accumulatedSecondsRef.current,
-          is_active: false,
-          session_end: new Date().toISOString(),
-        }),
+        body: JSON.stringify(body),
         keepalive: true,
       });
     })();
