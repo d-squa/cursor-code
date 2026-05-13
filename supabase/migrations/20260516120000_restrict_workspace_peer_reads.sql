@@ -2,7 +2,117 @@
 -- plus the same elevated workspace managers as teams SELECT (billing owner, subscription owner/admin,
 -- any team owner in workspace, team admin in workspace).
 -- Also restrict get_workspace_member_summaries to those managers (not every subscription member).
+--
+-- Self-contained: if subscription roster migration never ran, create workspace_subscription_members + backfill here.
 
+-- ---------------------------------------------------------------------------
+-- Bootstrap (no-op when table already exists from 20260514120000)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.app_role_priority(r public.app_role)
+RETURNS integer
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE r
+    WHEN 'owner'::public.app_role THEN 1
+    WHEN 'admin'::public.app_role THEN 2
+    WHEN 'campaign_manager'::public.app_role THEN 3
+    WHEN 'collaborator'::public.app_role THEN 4
+    WHEN 'member'::public.app_role THEN 5
+    WHEN 'viewer'::public.app_role THEN 6
+    ELSE 99
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.app_role_stronger(a public.app_role, b public.app_role)
+RETURNS public.app_role
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE
+    WHEN public.app_role_priority(a) <= public.app_role_priority(b) THEN a
+    ELSE b
+  END;
+$$;
+
+CREATE TABLE IF NOT EXISTS public.workspace_subscription_members (
+  workspace_id uuid NOT NULL REFERENCES public.workspaces(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  role public.app_role NOT NULL DEFAULT 'member'::public.app_role,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_subscription_members_user_id
+  ON public.workspace_subscription_members(user_id);
+
+ALTER TABLE public.workspace_subscription_members ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS workspace_subscription_members_select ON public.workspace_subscription_members;
+
+CREATE POLICY workspace_subscription_members_select
+  ON public.workspace_subscription_members
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      WHERE w.id = workspace_subscription_members.workspace_id
+        AND w.owner_id = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.user_roles ur
+      INNER JOIN public.teams t ON t.id = ur.team_id
+      WHERE t.workspace_id = workspace_subscription_members.workspace_id
+        AND ur.user_id = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.workspace_subscription_members sm2
+      WHERE sm2.workspace_id = workspace_subscription_members.workspace_id
+        AND sm2.user_id = auth.uid()
+    )
+  );
+
+REVOKE ALL ON public.workspace_subscription_members FROM PUBLIC;
+GRANT SELECT ON public.workspace_subscription_members TO authenticated;
+GRANT ALL ON public.workspace_subscription_members TO service_role;
+
+ALTER TABLE public.invitations
+  ADD COLUMN IF NOT EXISTS subscription_access_only boolean NOT NULL DEFAULT false;
+
+INSERT INTO public.workspace_subscription_members (workspace_id, user_id, role)
+SELECT x.workspace_id,
+       x.user_id,
+       (array_agg(x.role ORDER BY public.app_role_priority(x.role)))[1] AS best_role
+FROM (
+  SELECT t.workspace_id,
+         ur.user_id,
+         ur.role
+  FROM public.user_roles ur
+  INNER JOIN public.teams t ON t.id = ur.team_id
+  WHERE t.workspace_id IS NOT NULL
+) x
+GROUP BY x.workspace_id, x.user_id
+ON CONFLICT (workspace_id, user_id) DO UPDATE
+SET role = public.app_role_stronger(
+  public.workspace_subscription_members.role,
+  EXCLUDED.role
+);
+
+INSERT INTO public.workspace_subscription_members (workspace_id, user_id, role)
+SELECT w.id, w.owner_id, 'owner'::public.app_role
+FROM public.workspaces w
+WHERE w.owner_id IS NOT NULL
+ON CONFLICT (workspace_id, user_id) DO UPDATE
+SET role = 'owner'::public.app_role;
+
+DROP FUNCTION IF EXISTS public.app_role_stronger(public.app_role, public.app_role);
+DROP FUNCTION IF EXISTS public.app_role_priority(public.app_role);
+
+-- ---------------------------------------------------------------------------
+-- Peer visibility restrictions
+-- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.can_view_roles_in_team(_viewer_id uuid, _team_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -157,6 +267,8 @@ BEGIN
   ORDER BY p.created_at DESC;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.get_workspace_member_summaries(uuid) TO authenticated;
 
 COMMENT ON FUNCTION public.get_workspace_member_summaries(uuid) IS
   'Subscription roster (definer read): billing owner, subscription owner/admin, any team owner in workspace, or team admin may list.';
