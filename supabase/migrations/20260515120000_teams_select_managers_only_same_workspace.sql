@@ -2,6 +2,7 @@
 -- under the same billing workspace. Others keep access only to teams they own or have user_roles on.
 
 DROP POLICY IF EXISTS "Workspace members can view teams in same workspace" ON public.teams;
+DROP POLICY IF EXISTS "Workspace managers can view all teams in workspace" ON public.teams;
 
 CREATE POLICY "Workspace managers can view all teams in workspace"
 ON public.teams
