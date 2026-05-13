@@ -204,10 +204,12 @@ export default function UserManagement() {
     toRole: string;
   } | null>(null);
 
-  /** Billing workspace for this user — not driven by the team/workspace switcher. */
-  const { data: billingWorkspaceId, isLoading: billingWorkspaceResolving } = useQuery({
+  /** Billing workspace for Subscription Users: prefer the team switcher (org you're working in), else resolve from the signed-in account. */
+  const billingFromSwitcher = activeWorkspace?.workspace_id ?? null;
+
+  const { data: fallbackBillingWorkspaceId, isLoading: fallbackBillingResolving } = useQuery({
     queryKey: ["billing-workspace-id", user?.id],
-    enabled: !!user?.id,
+    enabled: !!user?.id && !billingFromSwitcher,
     queryFn: async () => {
       if (!user?.id) return null as string | null;
 
@@ -253,6 +255,10 @@ export default function UserManagement() {
       return wids[0] ?? null;
     },
   });
+
+  const billingWorkspaceId = billingFromSwitcher ?? fallbackBillingWorkspaceId ?? null;
+  const billingWorkspaceResolving =
+    workspacesLoading || (!billingFromSwitcher && fallbackBillingResolving);
 
   /** Must match `users` useQuery key so mutations refetch the list that is actually mounted. */
   const usersListQueryKey = useMemo(
