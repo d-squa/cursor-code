@@ -7,14 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/** Values that may exist in meta_ad_accounts.account_id for the same logical account */
+function adAccountIdVariants(raw: string): string[] {
+  const s = String(raw).trim();
+  if (!s) return [];
+  const numeric = s.replace(/^act_/i, "");
+  const withAct = numeric ? `act_${numeric}` : s;
+  return [...new Set([s, numeric, withAct].filter((x) => x.length > 0))];
+}
+
+/** Map known validation / auth / config errors to 4xx instead of always 500 */
+function clientErrorStatus(message: string): number | null {
+  const m = (message || "").toLowerCase();
+  if (
+    m.includes("no authorization header") ||
+    m.includes("unauthorized") ||
+    m.includes("account id is required") ||
+    m.includes("platform must be") ||
+    m.includes("request body is required") ||
+    m.includes("invalid json body") ||
+    m.includes("no active meta platform connection") ||
+    m.includes("failed to retrieve access token")
+  ) {
+    return 400;
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("authorization");
@@ -29,7 +59,18 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { accountId, platform } = await req.json();
+    let body: { accountId?: string; platform?: string };
+    const text = await req.text();
+    if (!text?.trim()) {
+      throw new Error("Request body is required");
+    }
+    try {
+      body = JSON.parse(text) as { accountId?: string; platform?: string };
+    } catch {
+      throw new Error("Invalid JSON body");
+    }
+
+    const { accountId, platform } = body;
 
     if (!accountId) {
       throw new Error("Account ID is required");
@@ -52,12 +93,14 @@ serve(async (req) => {
     let fallbackToken: string | null = null;
 
     // Try to find the platform connection that was used to sync this ad account
-    const { data: metaAdAccount } = await supabase
+    const accountIdVariants = adAccountIdVariants(accountId);
+    const { data: metaAdAccountRows } = await supabase
       .from("meta_ad_accounts")
       .select("user_id, team_id")
-      .eq("account_id", accountId)
+      .in("account_id", accountIdVariants)
       .eq("user_id", user.id)
-      .maybeSingle();
+      .limit(1);
+    const metaAdAccount = metaAdAccountRows?.[0] ?? null;
 
     // Get all active Meta platform connections for this user
     const { data: metaPlatforms, error: platformError } = await supabase
@@ -205,14 +248,15 @@ serve(async (req) => {
       const assignedPagesData = await assignedPagesResponse.json();
       
       if (assignedPagesData?.data && assignedPagesData.data.length > 0) {
-        // Delete existing pages for this specific account
+        const pageIds = assignedPagesData.data.map((page: any) => String(page.id));
+        // Prefer delete by page_id so it works even when meta_pages has no ad_account_id column yet
         await supabase
           .from("meta_pages")
           .delete()
           .eq("user_id", user.id)
-          .eq("ad_account_id", accountId);
+          .in("page_id", pageIds);
 
-        const pagesToInsert = assignedPagesData.data.map((page: any) => ({
+        const pagesFull = assignedPagesData.data.map((page: any) => ({
           user_id: user.id,
           ad_account_id: accountId,
           page_id: page.id,
@@ -220,18 +264,24 @@ serve(async (req) => {
           synced_at: new Date().toISOString(),
         }));
 
-        const { error: pagesError } = await supabase.from("meta_pages").insert(pagesToInsert);
-        if (!pagesError) {
-          syncResults.pages = pagesToInsert.length;
-          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
+        let pagesError = (
+          await supabase.from("meta_pages").upsert(pagesFull, { onConflict: "user_id,page_id" })
+        ).error;
+        if (
+          pagesError &&
+          (pagesError.code === "PGRST204" || /ad_account_id/i.test(pagesError.message || ""))
+        ) {
+          console.warn("[SYNC-ACCOUNT-ASSETS] meta_pages upsert without ad_account_id (legacy schema)");
+          const pagesLegacy = pagesFull.map(({ ad_account_id: _a, ...row }) => row);
+          pagesError = (await supabase.from("meta_pages").upsert(pagesLegacy, { onConflict: "user_id,page_id" }))
+            .error;
         }
-
-        // Delete existing Instagram accounts for this ad account
-        await supabase
-          .from("meta_instagram_accounts")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("ad_account_id", accountId);
+        if (!pagesError) {
+          syncResults.pages = pagesFull.length;
+          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
+        } else {
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_pages upsert error:", pagesError);
+        }
 
         const instagramToInsert: any[] = [];
         const seenInstagramIds = new Set<string>();
@@ -250,14 +300,38 @@ serve(async (req) => {
           }
         });
 
+        const igIds = instagramToInsert.map((r) => r.instagram_account_id);
+        if (igIds.length > 0) {
+          await supabase
+            .from("meta_instagram_accounts")
+            .delete()
+            .eq("user_id", user.id)
+            .in("instagram_account_id", igIds);
+        }
+
         if (instagramToInsert.length > 0) {
-          const { error: igError } = await supabase.from("meta_instagram_accounts").upsert(
-            instagramToInsert,
-            { onConflict: "user_id,instagram_account_id" },
-          );
+          let igError = (
+            await supabase.from("meta_instagram_accounts").upsert(instagramToInsert, {
+              onConflict: "user_id,instagram_account_id",
+            })
+          ).error;
+          if (
+            igError &&
+            (igError.code === "PGRST204" || /ad_account_id/i.test(igError.message || ""))
+          ) {
+            console.warn("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts upsert without ad_account_id (legacy schema)");
+            const igLegacy = instagramToInsert.map(({ ad_account_id: _a, ...row }) => row);
+            igError = (
+              await supabase.from("meta_instagram_accounts").upsert(igLegacy, {
+                onConflict: "user_id,instagram_account_id",
+              })
+            ).error;
+          }
           if (!igError) {
             syncResults.instagramAccounts = instagramToInsert.length;
             console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
+          } else {
+            console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts upsert error:", igError);
           }
         }
       } else {
@@ -365,12 +439,14 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
-    console.error("[SYNC-ACCOUNT-ASSETS] Error:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[SYNC-ACCOUNT-ASSETS] Error:", message, error);
+    const status = clientErrorStatus(message) ?? 500;
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       {
-        status: 500,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
@@ -841,12 +917,14 @@ async function syncGoogleAdsAssets(
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
-    console.error("[SYNC-ACCOUNT-ASSETS] Google sync error:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[SYNC-ACCOUNT-ASSETS] Google sync error:", message, error);
+    const status = clientErrorStatus(message) ?? 500;
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       {
-        status: 500,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

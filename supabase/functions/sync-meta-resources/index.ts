@@ -193,26 +193,34 @@ serve(async (req) => {
         }));
 
         await supabase.from("meta_pages").delete().eq("user_id", user.id);
-        const { error: pagesError } = await supabase.from("meta_pages").insert(pagesToInsert);
-        
+        const { error: pagesError } = await supabase.from("meta_pages").upsert(pagesToInsert, {
+          onConflict: "user_id,page_id",
+        });
+
         if (!pagesError) {
           syncResults.pages = pagesToInsert.length;
           console.log(`Synced ${syncResults.pages} pages`);
         }
 
-        // Extract Instagram accounts
-        const instagramAccounts = pagesData.data
+        // Extract Instagram accounts (dedupe: multiple pages can reference the same IG account)
+        const instagramAccountsRaw = pagesData.data
           .filter((page: any) => page.instagram_business_account)
           .map((page: any) => ({
             user_id: user.id,
-            instagram_account_id: page.instagram_business_account.id,
-            username: page.instagram_business_account.username,
+            instagram_account_id: String(page.instagram_business_account.id),
+            username: page.instagram_business_account.username || page.name || "Instagram",
+            synced_at: new Date().toISOString(),
           }));
+        const instagramAccounts = [
+          ...new Map(instagramAccountsRaw.map((r) => [r.instagram_account_id, r])).values(),
+        ];
 
         if (instagramAccounts.length > 0) {
           await supabase.from("meta_instagram_accounts").delete().eq("user_id", user.id);
-          const { error: igError } = await supabase.from("meta_instagram_accounts").insert(instagramAccounts);
-          
+          const { error: igError } = await supabase.from("meta_instagram_accounts").upsert(instagramAccounts, {
+            onConflict: "user_id,instagram_account_id",
+          });
+
           if (!igError) {
             syncResults.instagramAccounts = instagramAccounts.length;
             console.log(`Synced ${syncResults.instagramAccounts} Instagram accounts`);

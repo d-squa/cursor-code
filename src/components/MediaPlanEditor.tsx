@@ -190,8 +190,15 @@ export function MediaPlanEditor() {
   useEffect(() => {
     if (user) {
       const loadTeamName = async () => {
-        const { data } = await supabase.from("teams").select("name").eq("owner_id", user.id).single();
-        if (data?.name) setTeamName(data.name);
+        // Avoid .single() / .maybeSingle(): multiple owned teams (or RLS quirks) can yield 406 with object Accept.
+        const { data: rows } = await supabase
+          .from("teams")
+          .select("name")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+        const name = rows?.[0]?.name;
+        if (name) setTeamName(name);
       };
       loadTeamName();
     }

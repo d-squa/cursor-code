@@ -2,6 +2,9 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
 const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "mousemove"];
@@ -16,12 +19,26 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   const [isTracking, setIsTracking] = useState(false);
   
   const sessionIdRef = useRef<string | null>(null);
+  /** Patched on auth changes; read synchronously in beforeunload for keepalive PATCH. */
+  const accessTokenRef = useRef<string | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const accumulatedSecondsRef = useRef<number>(0);
   const isActiveRef = useRef<boolean>(true);
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHeartbeatRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    const sync = async () => {
+      const { data } = await supabase.auth.getSession();
+      accessTokenRef.current = data.session?.access_token ?? null;
+    };
+    void sync();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      accessTokenRef.current = session?.access_token ?? null;
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   // Start a new session
   const startSession = useCallback(async () => {
@@ -167,24 +184,34 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
 
   // Handle page unload
   const handleBeforeUnload = useCallback(() => {
-    if (sessionIdRef.current) {
-      // Use sendBeacon for reliable delivery on page close
-      const now = Date.now();
-      if (isActiveRef.current) {
-        const secondsSinceLastHeartbeat = Math.floor((now - lastHeartbeatRef.current) / 1000);
-        accumulatedSecondsRef.current += secondsSinceLastHeartbeat;
-      }
-      
-      // Sync update using fetch with keepalive
-      navigator.sendBeacon?.(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionIdRef.current}`,
-        JSON.stringify({
-          active_seconds: accumulatedSecondsRef.current,
-          is_active: false,
-          session_end: new Date().toISOString(),
-        })
-      );
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) return;
+
+    const now = Date.now();
+    if (isActiveRef.current) {
+      const secondsSinceLastHeartbeat = Math.floor((now - lastHeartbeatRef.current) / 1000);
+      accumulatedSecondsRef.current += secondsSinceLastHeartbeat;
     }
+
+    const token = accessTokenRef.current;
+    if (!token || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
+
+    // sendBeacon is POST-only and cannot send Authorization → 401. Use PATCH + keepalive.
+    void fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        active_seconds: accumulatedSecondsRef.current,
+        is_active: false,
+        session_end: new Date().toISOString(),
+      }),
+      keepalive: true,
+    });
   }, []);
 
   // Setup effect
