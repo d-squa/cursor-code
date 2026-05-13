@@ -5,6 +5,33 @@ import { useAuth } from "./useAuth";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
+function supabaseProjectRefFromUrl(url: string): string | null {
+  try {
+    const host = new URL(url).hostname;
+    if (host.endsWith(".supabase.co")) {
+      return host.replace(".supabase.co", "");
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Sync read for tab close when accessTokenRef is not hydrated yet. */
+function readSupabaseAccessTokenFromLocalStorage(url: string): string | null {
+  if (typeof localStorage === "undefined") return null;
+  const ref = supabaseProjectRefFromUrl(url);
+  if (!ref) return null;
+  try {
+    const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { access_token?: string };
+    return parsed.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "mousemove"];
@@ -27,6 +54,8 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHeartbeatRef = useRef<number>(Date.now());
+  /** Avoid duplicate PATCH when both pagehide and beforeunload fire. */
+  const unloadFlushDoneRef = useRef(false);
 
   useEffect(() => {
     const sync = async () => {
@@ -75,6 +104,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       }
 
       sessionIdRef.current = data.id;
+      unloadFlushDoneRef.current = false;
       accumulatedSecondsRef.current = 0;
       lastHeartbeatRef.current = Date.now();
       isActiveRef.current = true;
@@ -182,10 +212,10 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
     handleActivity();
   }, [handleActivity]);
 
-  // Handle page unload
-  const handleBeforeUnload = useCallback(() => {
+  const flushSessionOnLeave = useCallback(() => {
+    if (unloadFlushDoneRef.current) return;
     const sessionId = sessionIdRef.current;
-    if (!sessionId) return;
+    if (!sessionId || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
 
     const now = Date.now();
     if (isActiveRef.current) {
@@ -193,10 +223,12 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       accumulatedSecondsRef.current += secondsSinceLastHeartbeat;
     }
 
-    const token = accessTokenRef.current;
-    if (!token || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
+    const token =
+      accessTokenRef.current ?? readSupabaseAccessTokenFromLocalStorage(SUPABASE_URL);
+    if (!token) return;
 
-    // sendBeacon is POST-only and cannot send Authorization → 401. Use PATCH + keepalive.
+    unloadFlushDoneRef.current = true;
+
     void fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionId}`, {
       method: "PATCH",
       headers: {
@@ -213,6 +245,15 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       keepalive: true,
     });
   }, []);
+
+  // Handle page unload / mobile tab discard (beforeunload is not always fired)
+  const handleBeforeUnload = useCallback(() => {
+    flushSessionOnLeave();
+  }, [flushSessionOnLeave]);
+
+  const handlePageHide = useCallback(() => {
+    flushSessionOnLeave();
+  }, [flushSessionOnLeave]);
 
   // Setup effect
   useEffect(() => {
@@ -233,6 +274,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
     window.addEventListener("blur", handleWindowBlur);
     window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
 
     // Start initial idle timeout
     idleTimeoutRef.current = setTimeout(markIdle, IDLE_TIMEOUT_MS);
@@ -251,6 +293,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
 
       // Clear intervals/timeouts
       if (heartbeatIntervalRef.current) {
@@ -263,7 +306,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       // End session
       updateSession(true);
     };
-  }, [campaignId, user?.id, enabled, startSession, handleActivity, handleVisibilityChange, handleWindowBlur, handleWindowFocus, handleBeforeUnload, markIdle, updateSession]);
+  }, [campaignId, user?.id, enabled, startSession, handleActivity, handleVisibilityChange, handleWindowBlur, handleWindowFocus, handleBeforeUnload, handlePageHide, markIdle, updateSession]);
 
   return { isTracking };
 }
