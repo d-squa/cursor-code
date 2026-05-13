@@ -2349,6 +2349,7 @@ export type Database = {
           id: string
           role: Database["public"]["Enums"]["app_role"]
           status: string
+          subscription_access_only: boolean
           team_id: string | null
           token: string
           workspace_id: string | null
@@ -2362,6 +2363,7 @@ export type Database = {
           id?: string
           role: Database["public"]["Enums"]["app_role"]
           status?: string
+          subscription_access_only?: boolean
           team_id?: string | null
           token: string
           workspace_id?: string | null
@@ -2375,6 +2377,7 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           status?: string
+          subscription_access_only?: boolean
           team_id?: string | null
           token?: string
           workspace_id?: string | null
@@ -3942,6 +3945,45 @@ export type Database = {
           },
         ]
       }
+      workspace_subscription_members: {
+        Row: {
+          created_at: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_subscription_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_subscription_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -4811,7 +4853,16 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           company_name: string | null
           created_at: string
+          team_names: string[]
         }[]
+      }
+      update_subscription_member_role: {
+        Args: {
+          p_new_role: Database["public"]["Enums"]["app_role"]
+          p_target_user_id: string
+          p_workspace_id: string
+        }
+        Returns: number
       }
       store_adlibrary_token: {
         Args: { token_value: string; user_id_param: string }

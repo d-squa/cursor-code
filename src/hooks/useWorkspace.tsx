@@ -71,6 +71,37 @@ export function useWorkspace() {
           });
       });
 
+      // Subscription-only members (roster without team user_roles): attach default team for billing context.
+      if (byId.size === 0) {
+        const { data: subRows, error: subErr } = await supabase
+          .from("workspace_subscription_members")
+          .select("workspace_id")
+          .eq("user_id", user.id);
+        if (subErr) throw subErr;
+        const wsIds = [
+          ...new Set((subRows ?? []).map((r: { workspace_id?: string }) => r.workspace_id).filter(Boolean)),
+        ] as string[];
+        if (wsIds.length > 0) {
+          const { data: wsList, error: wsListErr } = await supabase
+            .from("workspaces")
+            .select("id, name, owner_id, default_team_id")
+            .in("id", wsIds);
+          if (wsListErr) throw wsListErr;
+          (wsList ?? []).forEach((w: any) => {
+            const dt = w?.default_team_id as string | null | undefined;
+            const wid = w?.id as string | undefined;
+            if (dt && wid) {
+              byId.set(dt, {
+                id: dt,
+                name: (w.name as string) || "Subscription",
+                owner_id: (w.owner_id as string | null) ?? null,
+                workspace_id: wid,
+              });
+            }
+          });
+        }
+      }
+
       return Array.from(byId.values()).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     },
   });

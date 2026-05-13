@@ -9,6 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -51,6 +61,10 @@ function strongestAppRole(roles: Set<string>): string {
   return "member";
 }
 
+function formatRoleLabel(role: string): string {
+  return role.replace(/_/g, " ");
+}
+
 export default function Teams() {
   const { user } = useAuth();
   const { activeWorkspaceId, activeWorkspace, loading: workspaceLoading } = useWorkspace();
@@ -63,6 +77,12 @@ export default function Teams() {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [newTeam, setNewTeam] = useState({ name: "", description: "" });
   const [inviteData, setInviteData] = useState({ email: "", role: "member" });
+  const [teamRoleChangeConfirm, setTeamRoleChangeConfirm] = useState<{
+    targetUserId: string;
+    email: string;
+    fromRole: string;
+    toRole: AppRole;
+  } | null>(null);
 
   /** Same semantics as User Management: billing owner or strongest role owner/admin across workspace teams. */
   const { data: myTeamRole, isPending: myTeamRolePending } = useQuery({
@@ -433,9 +453,11 @@ export default function Teams() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      setTeamRoleChangeConfirm(null);
       toast.success("Role updated successfully");
     },
     onError: (error: Error) => {
+      setTeamRoleChangeConfirm(null);
       toast.error(error.message || "Failed to update role");
     },
   });
@@ -581,7 +603,7 @@ export default function Teams() {
                           value={inviteData.role}
                           onValueChange={(value) => setInviteData({ ...inviteData, role: value })}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:line-clamp-none">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -626,18 +648,21 @@ export default function Teams() {
                         {member.role === "owner" ? (
                           <Badge>Owner</Badge>
                         ) : !canManageWorkspaceTeams ? (
-                          <Badge variant="outline">{member.role?.replace("_", " ")}</Badge>
+                          <Badge variant="outline">{formatRoleLabel(String(member.role ?? ""))}</Badge>
                         ) : (
                           <Select
                             value={member.role}
-                            onValueChange={(value) =>
-                              updateMemberRole.mutate({
+                            onValueChange={(value) => {
+                              if (value === member.role) return;
+                              setTeamRoleChangeConfirm({
                                 targetUserId: member.user_id,
-                                newRole: value as AppRole,
-                              })
-                            }
+                                email: member.profile?.email ?? member.user_id,
+                                fromRole: String(member.role),
+                                toRole: value as AppRole,
+                              });
+                            }}
                           >
-                            <SelectTrigger className="w-40">
+                            <SelectTrigger className="h-auto min-h-10 w-full min-w-[200px] max-w-[min(100%,260px)] justify-between gap-2 py-2 text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:whitespace-normal [&>span]:break-words [&>span]:leading-snug [&>span]:line-clamp-none">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -676,6 +701,44 @@ export default function Teams() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog
+        open={!!teamRoleChangeConfirm}
+        onOpenChange={(open) => !open && setTeamRoleChangeConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change team role?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Change role for <strong className="text-foreground">{teamRoleChangeConfirm?.email}</strong> from{" "}
+              <strong className="text-foreground">
+                {teamRoleChangeConfirm ? formatRoleLabel(teamRoleChangeConfirm.fromRole) : ""}
+              </strong>{" "}
+              to{" "}
+              <strong className="text-foreground">
+                {teamRoleChangeConfirm ? formatRoleLabel(teamRoleChangeConfirm.toRole) : ""}
+              </strong>
+              ? This updates their role on <strong className="text-foreground">{selectedTeam?.name}</strong> only.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={() => {
+                const snap = teamRoleChangeConfirm;
+                if (!snap) return;
+                updateMemberRole.mutate({
+                  targetUserId: snap.targetUserId,
+                  newRole: snap.toRole,
+                });
+              }}
+            >
+              Change role
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit Team Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

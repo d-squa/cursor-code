@@ -133,36 +133,47 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
 
     recoveryAttemptedRef.current = true;
     setRecoveringWorkspace(true);
-    const recoveryKey = `actiplan_workspace_recovery_at:${user.id}`;
 
-    if (typeof localStorage !== "undefined") {
-      const last = Number(localStorage.getItem(recoveryKey) ?? "0");
-      if (Number.isFinite(last) && Date.now() - last < WORKSPACE_RECOVERY_COOLDOWN_MS) {
-        setRecoveringWorkspace(false);
-        return;
-      }
-      localStorage.setItem(recoveryKey, String(Date.now()));
-    }
+    void (async () => {
+      try {
+        const { count: subMemberCount, error: subCountErr } = await supabase
+          .from("workspace_subscription_members")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id);
 
-    supabase
-      .rpc("ensure_user_workspace")
-      .then(({ data, error }) => {
+        if (!subCountErr && subMemberCount != null && subMemberCount > 0) {
+          setRecoveringWorkspace(false);
+          recoveryAttemptedRef.current = false;
+          return;
+        }
+
+        const recoveryKey = `actiplan_workspace_recovery_at:${user.id}`;
+
+        if (typeof localStorage !== "undefined") {
+          const last = Number(localStorage.getItem(recoveryKey) ?? "0");
+          if (Number.isFinite(last) && Date.now() - last < WORKSPACE_RECOVERY_COOLDOWN_MS) {
+            setRecoveringWorkspace(false);
+            return;
+          }
+          localStorage.setItem(recoveryKey, String(Date.now()));
+        }
+
+        const { data, error } = await supabase.rpc("ensure_user_workspace");
         if (error) {
           console.error("Failed to recover workspace:", error);
           setRecoveringWorkspace(false);
           return;
         }
-        // Reload only after a successful workspace id result.
         if (data) {
           window.location.reload();
           return;
         }
         setRecoveringWorkspace(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to recover workspace:", err);
         setRecoveringWorkspace(false);
-      });
+      }
+    })();
   }, [authLoading, workspaceLoading, user, isEmailConfirmed, workspaces]);
 
   useEffect(() => {
