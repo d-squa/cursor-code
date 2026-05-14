@@ -684,6 +684,11 @@ export function CampaignForecast({
           });
           if (error) {
             console.warn(`Failed to sync Meta account ${accountId}:`, error.message ?? error, data);
+          } else if (data && typeof data === "object" && (data as { success?: boolean }).success === false) {
+            console.warn(
+              `Failed to sync Meta account ${accountId}:`,
+              (data as { error?: string }).error ?? data,
+            );
           }
           return { data, error };
         })(),
@@ -699,6 +704,11 @@ export function CampaignForecast({
           });
           if (error) {
             console.warn(`Failed to sync Google account ${accountId}:`, error.message ?? error, data);
+          } else if (data && typeof data === "object" && (data as { success?: boolean }).success === false) {
+            console.warn(
+              `Failed to sync Google account ${accountId}:`,
+              (data as { error?: string }).error ?? data,
+            );
           }
           return { data, error };
         })(),

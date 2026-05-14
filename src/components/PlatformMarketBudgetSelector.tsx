@@ -558,10 +558,13 @@ export function PlatformMarketBudgetSelector({
   const handleSyncMetaAccountAssets = async (accountId: string) => {
     setSyncingAccountId(accountId);
     try {
-      const { error } = await supabase.functions.invoke("sync-account-assets", {
+      const { data, error } = await supabase.functions.invoke("sync-account-assets", {
         body: { accountId, platform: "meta" },
       });
       if (error) throw error;
+      if (data && typeof data === "object" && (data as { success?: boolean }).success === false) {
+        throw new Error((data as { error?: string }).error || "Sync failed");
+      }
       toast.success("Assets synced successfully. Refreshing...");
       await fetchMetaResources();
     } catch (err: any) {

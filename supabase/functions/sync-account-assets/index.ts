@@ -16,32 +16,6 @@ function adAccountIdVariants(raw: string): string[] {
   return [...new Set([s, numeric, withAct].filter((x) => x.length > 0))];
 }
 
-/** Map known validation / auth / config errors to 4xx instead of always 500 */
-function clientErrorStatus(message: string): number | null {
-  const m = (message || "").toLowerCase();
-  if (
-    m.includes("no authorization header") ||
-    m.includes("unauthorized") ||
-    m.includes("account id is required") ||
-    m.includes("platform must be") ||
-    m.includes("request body is required") ||
-    m.includes("invalid json body") ||
-    m.includes("no active meta platform connection") ||
-    m.includes("failed to retrieve access token") ||
-    m.includes("failed to retrieve google access token") ||
-    m.includes("google ads token:") ||
-    m.includes("vault rpc failed when reading google access token") ||
-    m.includes("no google access token in vault") ||
-    m.includes("google access token is expired or expiring") ||
-    m.includes("no active google ads platform connection") ||
-    m.includes("missing supabase_url") ||
-    m.includes("service_role_key")
-  ) {
-    return 400;
-  }
-  return null;
-}
-
 /** PostgREST `.in()` URLs can exceed limits; delete in chunks so rows are actually removed before insert. */
 const REST_IN_CHUNK = 80;
 
@@ -574,13 +548,22 @@ serve(async (req) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[SYNC-ACCOUNT-ASSETS] Error:", message, error);
-    const status = clientErrorStatus(message) ?? 500;
+    const authFailure =
+      message === "No authorization header" ||
+      message === "Unauthorized";
+    // Non-auth failures return 200 + { success: false } so supabase.functions.invoke
+    // still delivers JSON to callers (e.g. benchmark sync) instead of only a FunctionsHttpError.
+    const status = authFailure ? 401 : 200;
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({
+        success: false,
+        error: message,
+        ...(authFailure ? {} : { recoverable: true }),
+      }),
       {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
@@ -1118,13 +1101,21 @@ async function syncGoogleAdsAssets(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[SYNC-ACCOUNT-ASSETS] Google sync error:", message, error);
-    const status = clientErrorStatus(message) ?? 500;
+    const authFailure =
+      message === "No authorization header" ||
+      message === "Unauthorized";
+    const status = authFailure ? 401 : 200;
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({
+        success: false,
+        error: message,
+        platform: "google",
+        ...(authFailure ? {} : { recoverable: true }),
+      }),
       {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 }
