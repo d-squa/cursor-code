@@ -2,6 +2,45 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+function supabaseProjectRefFromUrl(url: string): string | null {
+  try {
+    const host = new URL(url).hostname;
+    if (host.endsWith(".supabase.co")) {
+      return host.replace(".supabase.co", "");
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Sync read for tab close when accessTokenRef is not hydrated yet. */
+function readSupabaseAccessTokenFromLocalStorage(url: string): string | null {
+  if (typeof localStorage === "undefined") return null;
+  const ref = supabaseProjectRefFromUrl(url);
+  if (!ref) return null;
+  try {
+    const raw = localStorage.getItem(`sb-${ref}-auth-token`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const fromObj = (o: unknown): string | null => {
+      if (!o || typeof o !== "object") return null;
+      const t = (o as { access_token?: unknown }).access_token;
+      return typeof t === "string" ? t : null;
+    };
+    return (
+      (typeof parsed.access_token === "string" ? parsed.access_token : null) ??
+      fromObj(parsed.currentSession) ??
+      fromObj(parsed.session)
+    );
+  } catch {
+    return null;
+  }
+}
+
 const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
 const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart", "mousemove"];
@@ -16,12 +55,28 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   const [isTracking, setIsTracking] = useState(false);
   
   const sessionIdRef = useRef<string | null>(null);
+  /** Patched on auth changes; read synchronously in beforeunload for keepalive PATCH. */
+  const accessTokenRef = useRef<string | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const accumulatedSecondsRef = useRef<number>(0);
   const isActiveRef = useRef<boolean>(true);
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHeartbeatRef = useRef<number>(Date.now());
+  /** Avoid duplicate PATCH when both pagehide and beforeunload fire. */
+  const unloadFlushDoneRef = useRef(false);
+
+  useEffect(() => {
+    const sync = async () => {
+      const { data } = await supabase.auth.getSession();
+      accessTokenRef.current = data.session?.access_token ?? null;
+    };
+    void sync();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      accessTokenRef.current = session?.access_token ?? null;
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   // Start a new session
   const startSession = useCallback(async () => {
@@ -58,10 +113,14 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       }
 
       sessionIdRef.current = data.id;
+      unloadFlushDoneRef.current = false;
       accumulatedSecondsRef.current = 0;
       lastHeartbeatRef.current = Date.now();
       isActiveRef.current = true;
       setIsTracking(true);
+
+      const { data: sess } = await supabase.auth.getSession();
+      if (sess.session?.access_token) accessTokenRef.current = sess.session.access_token;
       
       console.log("[TimeTracking] Session started:", data.id);
     } catch (err) {
@@ -97,6 +156,9 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
         .from("actiplan_time_sessions")
         .update(updateData)
         .eq("id", sessionIdRef.current);
+
+      const { data: sess } = await supabase.auth.getSession();
+      if (sess.session?.access_token) accessTokenRef.current = sess.session.access_token;
 
       if (endSession) {
         console.log("[TimeTracking] Session ended. Total seconds:", accumulatedSecondsRef.current);
@@ -150,11 +212,24 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
   // Handle visibility change (tab switch, minimize)
   const handleVisibilityChange = useCallback(() => {
     if (document.hidden) {
-      markIdle();
+      void (async () => {
+        try {
+          await updateSession(false);
+        } finally {
+          markIdle();
+        }
+        try {
+          await supabase.auth.refreshSession();
+        } catch {
+          /* ignore */
+        }
+        const { data } = await supabase.auth.getSession();
+        if (data.session?.access_token) accessTokenRef.current = data.session.access_token;
+      })();
     } else {
       handleActivity();
     }
-  }, [markIdle, handleActivity]);
+  }, [markIdle, handleActivity, updateSession]);
 
   // Handle window blur/focus
   const handleWindowBlur = useCallback(() => {
@@ -165,27 +240,71 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
     handleActivity();
   }, [handleActivity]);
 
-  // Handle page unload
-  const handleBeforeUnload = useCallback(() => {
-    if (sessionIdRef.current) {
-      // Use sendBeacon for reliable delivery on page close
-      const now = Date.now();
-      if (isActiveRef.current) {
-        const secondsSinceLastHeartbeat = Math.floor((now - lastHeartbeatRef.current) / 1000);
-        accumulatedSecondsRef.current += secondsSinceLastHeartbeat;
-      }
-      
-      // Sync update using fetch with keepalive
-      navigator.sendBeacon?.(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sessionIdRef.current}`,
-        JSON.stringify({
-          active_seconds: accumulatedSecondsRef.current,
-          is_active: false,
-          session_end: new Date().toISOString(),
-        })
-      );
+  const flushSessionOnLeave = useCallback(() => {
+    if (unloadFlushDoneRef.current) return;
+    const sessionId = sessionIdRef.current;
+    if (!sessionId || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) return;
+
+    unloadFlushDoneRef.current = true;
+
+    const now = Date.now();
+    if (isActiveRef.current) {
+      const secondsSinceLastHeartbeat = Math.floor((now - lastHeartbeatRef.current) / 1000);
+      accumulatedSecondsRef.current += secondsSinceLastHeartbeat;
     }
+
+    void (async () => {
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+
+      try {
+        await supabase.auth.refreshSession();
+      } catch {
+        /* ignore */
+      }
+
+      const body = {
+        active_seconds: accumulatedSecondsRef.current,
+        is_active: false,
+        session_end: new Date().toISOString(),
+      };
+
+      const { error: clientErr } = await supabase
+        .from("actiplan_time_sessions")
+        .update(body)
+        .eq("id", sid);
+
+      if (!clientErr) return;
+
+      const { data: s } = await supabase.auth.getSession();
+      const token =
+        s.session?.access_token ??
+        accessTokenRef.current ??
+        readSupabaseAccessTokenFromLocalStorage(SUPABASE_URL);
+      if (!token) return;
+
+      await fetch(`${SUPABASE_URL}/rest/v1/actiplan_time_sessions?id=eq.${sid}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify(body),
+        keepalive: true,
+      });
+    })();
   }, []);
+
+  // Handle page unload / mobile tab discard (beforeunload is not always fired)
+  const handleBeforeUnload = useCallback(() => {
+    flushSessionOnLeave();
+  }, [flushSessionOnLeave]);
+
+  const handlePageHide = useCallback(() => {
+    flushSessionOnLeave();
+  }, [flushSessionOnLeave]);
 
   // Setup effect
   useEffect(() => {
@@ -206,6 +325,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
     window.addEventListener("blur", handleWindowBlur);
     window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
 
     // Start initial idle timeout
     idleTimeoutRef.current = setTimeout(markIdle, IDLE_TIMEOUT_MS);
@@ -224,6 +344,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
 
       // Clear intervals/timeouts
       if (heartbeatIntervalRef.current) {
@@ -236,7 +357,7 @@ export function useActiplanTimeTracking({ campaignId, enabled = true }: UseActip
       // End session
       updateSession(true);
     };
-  }, [campaignId, user?.id, enabled, startSession, handleActivity, handleVisibilityChange, handleWindowBlur, handleWindowFocus, handleBeforeUnload, markIdle, updateSession]);
+  }, [campaignId, user?.id, enabled, startSession, handleActivity, handleVisibilityChange, handleWindowBlur, handleWindowFocus, handleBeforeUnload, handlePageHide, markIdle, updateSession]);
 
   return { isTracking };
 }

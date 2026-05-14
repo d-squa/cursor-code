@@ -599,16 +599,21 @@ async function syncMetaAccountsInBackground(
       await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'pages', `Saving ${allPages.length} pages...`, processedCounts);
       
       if (allPages.length > 0) {
-        const pageIdsToSync = allPages.map(p => p.page_id);
+        const dedupedPages = [
+          ...new Map(allPages.map((p) => [`${p.user_id}_${p.page_id}`, p])).values(),
+        ];
+        const pageIdsToSync = dedupedPages.map((p) => p.page_id);
         await supabase
           .from("meta_pages")
           .delete()
           .eq("user_id", userId)
           .in("page_id", pageIdsToSync);
         
-        const { error: pagesError } = await supabase.from("meta_pages").insert(allPages);
+        const { error: pagesError } = await supabase.from("meta_pages").upsert(dedupedPages, {
+          onConflict: "user_id,page_id",
+        });
         if (pagesError) {
-          console.error("[SYNC-META] Error inserting pages:", pagesError);
+          console.error("[SYNC-META] Error upserting pages:", pagesError);
         }
       }
 
@@ -618,16 +623,23 @@ async function syncMetaAccountsInBackground(
       await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'instagram_accounts', `Saving ${allInstagramAccounts.length} Instagram accounts...`, processedCounts);
       
       if (allInstagramAccounts.length > 0) {
-        const igIdsToSync = allInstagramAccounts.map(ig => ig.instagram_account_id);
+        const dedupedIg = [
+          ...new Map(
+            allInstagramAccounts.map((ig) => [`${ig.user_id}_${ig.instagram_account_id}`, ig]),
+          ).values(),
+        ];
+        const igIdsToSync = dedupedIg.map((ig) => ig.instagram_account_id);
         await supabase
           .from("meta_instagram_accounts")
           .delete()
           .eq("user_id", userId)
           .in("instagram_account_id", igIdsToSync);
         
-        const { error: igError } = await supabase.from("meta_instagram_accounts").insert(allInstagramAccounts);
+        const { error: igError } = await supabase.from("meta_instagram_accounts").upsert(dedupedIg, {
+          onConflict: "user_id,instagram_account_id",
+        });
         if (igError) {
-          console.error("[SYNC-META] Error inserting Instagram accounts:", igError);
+          console.error("[SYNC-META] Error upserting Instagram accounts:", igError);
         }
       }
 

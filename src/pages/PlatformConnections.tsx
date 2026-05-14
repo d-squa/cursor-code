@@ -1000,6 +1000,9 @@ export default function PlatformConnections() {
       });
 
       if (error) throw error;
+      if (data && typeof data === "object" && (data as { success?: boolean }).success === false) {
+        throw new Error((data as { error?: string }).error || "Sync failed");
+      }
 
       toast.success(`Assets synced for ${account.account_name}`, {
         description: data?.message || "Pixels, pages, catalogs, and benchmarks synced successfully",

@@ -1,11 +1,110 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
-import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getAccessToken, resolveGoogleAdsAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+/** Values that may exist in meta_ad_accounts.account_id for the same logical account */
+function adAccountIdVariants(raw: string): string[] {
+  const s = String(raw).trim();
+  if (!s) return [];
+  const numeric = s.replace(/^act_/i, "");
+  const withAct = numeric ? `act_${numeric}` : s;
+  return [...new Set([s, numeric, withAct].filter((x) => x.length > 0))];
+}
+
+/** PostgREST `.in()` URLs can exceed limits; delete in chunks so rows are actually removed before insert. */
+const REST_IN_CHUNK = 80;
+
+async function deleteUserRowsInChunks(
+  supabase: any,
+  table: "meta_pages" | "meta_instagram_accounts",
+  userId: string,
+  column: "page_id" | "instagram_account_id",
+  ids: string[],
+): Promise<{ code?: string; message?: string } | null> {
+  const uniq = [...new Set(ids.map((id) => String(id)))];
+  for (let i = 0; i < uniq.length; i += REST_IN_CHUNK) {
+    const chunk = uniq.slice(i, i + REST_IN_CHUNK);
+    const { error } = await supabase.from(table).delete().eq("user_id", userId).in(column, chunk);
+    if (error) return error;
+  }
+  return null;
+}
+
+function isPostgresUniqueViolation(err: { code?: string; message?: string; details?: string } | null): boolean {
+  if (!err) return false;
+  const blob = `${err.code ?? ""} ${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
+  return (
+    err.code === "23505" ||
+    blob.includes("duplicate key") ||
+    blob.includes("already exists") ||
+    blob.includes("unique constraint")
+  );
+}
+
+/**
+ * DB unique keys are (user_id, page_id) and (user_id, instagram_account_id) — not scoped by ad_account_id.
+ * If pre-delete missed a row (RLS edge, URL length, race) or upsert degrades to INSERT, apply UPDATE by that key.
+ */
+async function updateMetaRowOnDuplicate(
+  supabase: any,
+  table: "meta_pages" | "meta_instagram_accounts",
+  row: Record<string, unknown>,
+): Promise<{ code?: string; message?: string } | null> {
+  const userId = String(row.user_id ?? "");
+  if (table === "meta_pages") {
+    const pageId = String(row.page_id ?? "");
+    const patch: Record<string, unknown> = {
+      page_name: row.page_name,
+      synced_at: row.synced_at,
+    };
+    if (row.ad_account_id !== undefined && row.ad_account_id !== null) {
+      patch.ad_account_id = row.ad_account_id;
+    }
+    const { error } = await supabase.from(table).update(patch).eq("user_id", userId).eq("page_id", pageId);
+    return error ?? null;
+  }
+  const igId = String(row.instagram_account_id ?? "");
+  const patch: Record<string, unknown> = {
+    username: row.username,
+    synced_at: row.synced_at,
+  };
+  if (row.ad_account_id !== undefined && row.ad_account_id !== null) {
+    patch.ad_account_id = row.ad_account_id;
+  }
+  const { error } = await supabase
+    .from(table)
+    .update(patch)
+    .eq("user_id", userId)
+    .eq("instagram_account_id", igId);
+  return error ?? null;
+}
+
+/** Chunked delete, then one-row upserts only (avoids multi-row insert/upsert 409 and noisy failed bulk requests). */
+async function upsertEachRow(
+  supabase: any,
+  table: "meta_pages" | "meta_instagram_accounts",
+  rows: Record<string, unknown>[],
+  onConflict: string,
+): Promise<{ code?: string; message?: string } | null> {
+  if (rows.length === 0) return null;
+  for (const row of rows) {
+    let { error } = await supabase.from(table).upsert([row], { onConflict });
+    if (error && isPostgresUniqueViolation(error)) {
+      console.warn(
+        `[SYNC-ACCOUNT-ASSETS] ${table} upsert hit unique conflict; updating existing row (key matches meta_pages_user_page_key / meta_instagram_accounts_user_account_key)`,
+        { page_id: row.page_id, instagram_account_id: row.instagram_account_id },
+      );
+      error = await updateMetaRowOnDuplicate(supabase, table, row);
+    }
+    if (error) return error;
+  }
+  return null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,8 +112,11 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get("authorization");
@@ -29,7 +131,18 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { accountId, platform } = await req.json();
+    let body: { accountId?: string; platform?: string };
+    const text = await req.text();
+    if (!text?.trim()) {
+      throw new Error("Request body is required");
+    }
+    try {
+      body = JSON.parse(text) as { accountId?: string; platform?: string };
+    } catch {
+      throw new Error("Invalid JSON body");
+    }
+
+    const { accountId, platform } = body;
 
     if (!accountId) {
       throw new Error("Account ID is required");
@@ -52,12 +165,14 @@ serve(async (req) => {
     let fallbackToken: string | null = null;
 
     // Try to find the platform connection that was used to sync this ad account
-    const { data: metaAdAccount } = await supabase
+    const accountIdVariants = adAccountIdVariants(accountId);
+    const { data: metaAdAccountRows } = await supabase
       .from("meta_ad_accounts")
       .select("user_id, team_id")
-      .eq("account_id", accountId)
+      .in("account_id", accountIdVariants)
       .eq("user_id", user.id)
-      .maybeSingle();
+      .limit(1);
+    const metaAdAccount = metaAdAccountRows?.[0] ?? null;
 
     // Get all active Meta platform connections for this user
     const { data: metaPlatforms, error: platformError } = await supabase
@@ -205,33 +320,59 @@ serve(async (req) => {
       const assignedPagesData = await assignedPagesResponse.json();
       
       if (assignedPagesData?.data && assignedPagesData.data.length > 0) {
-        // Delete existing pages for this specific account
-        await supabase
-          .from("meta_pages")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("ad_account_id", accountId);
-
-        const pagesToInsert = assignedPagesData.data.map((page: any) => ({
+        // Graph can return the same page more than once; one upsert batch must not duplicate (user_id, page_id).
+        const pagesFullRaw = assignedPagesData.data.map((page: any) => ({
           user_id: user.id,
           ad_account_id: accountId,
           page_id: page.id,
           page_name: page.name,
           synced_at: new Date().toISOString(),
         }));
+        const pagesFull = [
+          ...new Map(pagesFullRaw.map((p) => [String(p.page_id), p])).values(),
+        ];
+        const pageIds = pagesFull.map((p) => String(p.page_id));
+        const normalizedPages = pagesFull.map((p) => ({
+          ...p,
+          page_id: String(p.page_id),
+        }));
 
-        const { error: pagesError } = await supabase.from("meta_pages").insert(pagesToInsert);
-        if (!pagesError) {
-          syncResults.pages = pagesToInsert.length;
-          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
+        const delPagesErr = await deleteUserRowsInChunks(
+          supabase,
+          "meta_pages",
+          user.id,
+          "page_id",
+          pageIds,
+        );
+        if (delPagesErr) {
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_pages chunked delete:", delPagesErr);
         }
 
-        // Delete existing Instagram accounts for this ad account
-        await supabase
-          .from("meta_instagram_accounts")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("ad_account_id", accountId);
+        let pagesError = await upsertEachRow(
+          supabase,
+          "meta_pages",
+          normalizedPages as Record<string, unknown>[],
+          "user_id,page_id",
+        );
+        if (
+          pagesError &&
+          (pagesError.code === "PGRST204" || /ad_account_id/i.test(pagesError.message || ""))
+        ) {
+          console.warn("[SYNC-ACCOUNT-ASSETS] meta_pages write without ad_account_id (legacy schema)");
+          const pagesLegacy = normalizedPages.map(({ ad_account_id: _a, ...row }) => row);
+          pagesError = await upsertEachRow(
+            supabase,
+            "meta_pages",
+            pagesLegacy as Record<string, unknown>[],
+            "user_id,page_id",
+          );
+        }
+        if (!pagesError) {
+          syncResults.pages = normalizedPages.length;
+          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
+        } else {
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_pages write error:", pagesError);
+        }
 
         const instagramToInsert: any[] = [];
         const seenInstagramIds = new Set<string>();
@@ -250,14 +391,52 @@ serve(async (req) => {
           }
         });
 
-        if (instagramToInsert.length > 0) {
-          const { error: igError } = await supabase.from("meta_instagram_accounts").upsert(
-            instagramToInsert,
-            { onConflict: "user_id,instagram_account_id" },
+        const instagramRows = [
+          ...new Map(
+            instagramToInsert.map((r) => [String(r.instagram_account_id), r]),
+          ).values(),
+        ].map((r) => ({
+          ...r,
+          instagram_account_id: String(r.instagram_account_id),
+        }));
+
+        const igIds = instagramRows.map((r) => r.instagram_account_id);
+        const delIgErr = await deleteUserRowsInChunks(
+          supabase,
+          "meta_instagram_accounts",
+          user.id,
+          "instagram_account_id",
+          igIds,
+        );
+        if (delIgErr) {
+          console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts chunked delete:", delIgErr);
+        }
+
+        if (instagramRows.length > 0) {
+          let igError = await upsertEachRow(
+            supabase,
+            "meta_instagram_accounts",
+            instagramRows as Record<string, unknown>[],
+            "user_id,instagram_account_id",
           );
+          if (
+            igError &&
+            (igError.code === "PGRST204" || /ad_account_id/i.test(igError.message || ""))
+          ) {
+            console.warn("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts write without ad_account_id (legacy schema)");
+            const igLegacy = instagramRows.map(({ ad_account_id: _a, ...row }) => row);
+            igError = await upsertEachRow(
+              supabase,
+              "meta_instagram_accounts",
+              igLegacy as Record<string, unknown>[],
+              "user_id,instagram_account_id",
+            );
+          }
           if (!igError) {
-            syncResults.instagramAccounts = instagramToInsert.length;
+            syncResults.instagramAccounts = instagramRows.length;
             console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
+          } else {
+            console.error("[SYNC-ACCOUNT-ASSETS] meta_instagram_accounts write error:", igError);
           }
         }
       } else {
@@ -348,9 +527,9 @@ serve(async (req) => {
       console.log(`[SYNC-ACCOUNT-ASSETS] Syncing performance benchmarks for ${accountId}...`);
       benchmarkResults = await syncAccountBenchmarks(supabase, user.id, accountId, accessToken);
       console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Synced ${benchmarkResults.synced} benchmarks`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[SYNC-ACCOUNT-ASSETS] Error syncing benchmarks:", error);
-      benchmarkResults.error = error.message;
+      benchmarkResults.error = error instanceof Error ? error.message : String(error);
     }
 
     return new Response(
@@ -359,20 +538,32 @@ serve(async (req) => {
         accountId,
         syncResults,
         benchmarksSynced: benchmarkResults.synced,
+        benchmarkSyncError: benchmarkResults.error,
         message: `Synced ${syncResults.pixels} pixels, ${syncResults.pages} pages, ${syncResults.instagramAccounts} Instagram accounts, ${syncResults.catalogs} catalogs, ${syncResults.productSets} product sets, ${syncResults.conversionEvents} conversion events`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
-    console.error("[SYNC-ACCOUNT-ASSETS] Error:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[SYNC-ACCOUNT-ASSETS] Error:", message, error);
+    const authFailure =
+      message === "No authorization header" ||
+      message === "Unauthorized";
+    // Non-auth failures return 200 + { success: false } so supabase.functions.invoke
+    // still delivers JSON to callers (e.g. benchmark sync) instead of only a FunctionsHttpError.
+    const status = authFailure ? 401 : 200;
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        success: false,
+        error: message,
+        ...(authFailure ? {} : { recoverable: true }),
+      }),
       {
-        status: 500,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
@@ -387,44 +578,50 @@ async function syncAccountBenchmarks(
   accountId: string,
   accessToken: string
 ): Promise<{ synced: number; error: string | null }> {
-  // Get client industry for this account
-  let industry: string | null = null;
-  
-  const { data: accountData } = await supabase
-    .from("meta_ad_accounts")
-    .select("client_id")
-    .eq("account_id", accountId)
-    .eq("user_id", userId)
-    .maybeSingle();
+  try {
+    // Get client industry for this account
+    let industry: string | null = null;
 
-  if (accountData?.client_id) {
-    const { data: clientData } = await supabase
-      .from("clients")
-      .select("industry")
-      .eq("id", accountData.client_id)
+    const { data: accountData } = await supabase
+      .from("meta_ad_accounts")
+      .select("client_id")
+      .eq("account_id", accountId)
+      .eq("user_id", userId)
       .maybeSingle();
-    
-    industry = clientData?.industry || null;
-    console.log(`[BENCHMARK] Found client industry: ${industry}`);
+
+    if (accountData?.client_id) {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("industry")
+        .eq("id", accountData.client_id)
+        .maybeSingle();
+
+      industry = clientData?.industry || null;
+      console.log(`[BENCHMARK] Found client industry: ${industry}`);
+    }
+
+    // Generate 12 monthly date ranges (last 12 full months)
+    const monthlyRanges = generateMonthlyRanges(12);
+    console.log(`[BENCHMARK] Will sync ${monthlyRanges.length} monthly segments`);
+
+    let totalStored = 0;
+
+    for (const { start, end } of monthlyRanges) {
+      console.log(`[BENCHMARK] Processing month: ${start} to ${end}`);
+
+      const monthCount = await syncMetaBenchmarksForPeriod(
+        supabase, userId, accountId, accessToken, industry, start, end
+      );
+      totalStored += monthCount;
+    }
+
+    console.log(`[BENCHMARK] ✅ Total Meta benchmarks stored: ${totalStored}`);
+    return { synced: totalStored, error: null };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[BENCHMARK] syncAccountBenchmarks failed:", e);
+    return { synced: 0, error: msg };
   }
-
-  // Generate 12 monthly date ranges (last 12 full months)
-  const monthlyRanges = generateMonthlyRanges(12);
-  console.log(`[BENCHMARK] Will sync ${monthlyRanges.length} monthly segments`);
-
-  let totalStored = 0;
-
-  for (const { start, end } of monthlyRanges) {
-    console.log(`[BENCHMARK] Processing month: ${start} to ${end}`);
-    
-    const monthCount = await syncMetaBenchmarksForPeriod(
-      supabase, userId, accountId, accessToken, industry, start, end
-    );
-    totalStored += monthCount;
-  }
-
-  console.log(`[BENCHMARK] ✅ Total Meta benchmarks stored: ${totalStored}`);
-  return { synced: totalStored, error: null };
 }
 
 /**
@@ -480,146 +677,165 @@ async function syncMetaBenchmarksForPeriod(
   dateRangeStart: string,
   dateRangeEnd: string
 ): Promise<number> {
-  const benchmarkMap = new Map<string, {
-    market: string; optimization_goal: string;
-    total_spend: number; total_results: number;
-    impressions: number; clicks: number;
-    link_clicks: number; landing_page_views: number;
-    revenue: number; campaign_count: number; industry: string | null;
-  }>();
+  try {
+    const benchmarkMap = new Map<string, {
+      market: string; optimization_goal: string;
+      total_spend: number; total_results: number;
+      impressions: number; clicks: number;
+      link_clicks: number; landing_page_views: number;
+      revenue: number; campaign_count: number; industry: string | null;
+    }>();
 
-  // Fetch at CAMPAIGN level with objective so we can properly attribute spend
-  const insightsUrl = `https://graph.facebook.com/v21.0/${accountId}/insights?` +
-    `time_range={'since':'${dateRangeStart}','until':'${dateRangeEnd}'}` +
-    `&fields=campaign_id,campaign_name,objective,spend,impressions,actions,action_values,clicks,reach` +
-    `&breakdowns=country` +
-    `&level=campaign` +
-    `&limit=500` +
-    `&access_token=${accessToken}`;
+    // Fetch at CAMPAIGN level with objective so we can properly attribute spend
+    const insightsUrl = `https://graph.facebook.com/v21.0/${accountId}/insights?` +
+      `time_range={'since':'${dateRangeStart}','until':'${dateRangeEnd}'}` +
+      `&fields=campaign_id,campaign_name,objective,spend,impressions,actions,action_values,clicks,reach` +
+      `&breakdowns=country` +
+      `&level=campaign` +
+      `&limit=500` +
+      `&access_token=${accessToken}`;
 
-  const insightsResponse = await fetch(insightsUrl);
-  if (!insightsResponse.ok) {
-    const errorText = await insightsResponse.text();
-    console.warn(`[BENCHMARK] Skipping ${accountId} for ${dateRangeStart} - API error: ${errorText}`);
-    return 0;
-  }
-
-  const insightsData = await insightsResponse.json();
-  const insights = insightsData.data || [];
-  if (insights.length === 0) return 0;
-
-  for (const insight of insights) {
-    const country = insight.country || "UNKNOWN";
-    const spend = parseFloat(insight.spend || "0");
-    const impressions = parseFloat(insight.impressions || "0");
-    const clicks = parseFloat(insight.clicks || "0");
-    const reach = parseFloat(insight.reach || "0");
-    const actions = insight.actions || [];
-    const actionValues = insight.action_values || [];
-    const objective = insight.objective || "UNKNOWN";
-
-    if (spend <= 0) continue;
-
-    const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
-    const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
-    const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
-    const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
-
-    let revenue = 0;
-    for (const av of actionValues) {
-      if (["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(av.action_type)) {
-        revenue += parseFloat(av.value || "0");
-      }
+    const insightsResponse = await fetch(insightsUrl);
+    if (!insightsResponse.ok) {
+      const errorText = await insightsResponse.text();
+      console.warn(`[BENCHMARK] Skipping ${accountId} for ${dateRangeStart} - API error: ${errorText}`);
+      return 0;
     }
 
-    // Determine primary optimization goal from campaign objective
-    const primaryConfig = metaObjectiveToPrimary[objective];
-    let optimizationGoal = primaryConfig?.goal || objective;
-    let results = 0;
+    let insightsData: { data?: unknown };
+    try {
+      insightsData = await insightsResponse.json();
+    } catch {
+      console.warn(`[BENCHMARK] Skipping ${accountId} for ${dateRangeStart} - invalid JSON from insights`);
+      return 0;
+    }
 
-    if (primaryConfig) {
-      if (primaryConfig.actionTypes.includes("__reach__")) {
-        results = reach;
-      } else {
-        for (const actionType of primaryConfig.actionTypes) {
-          const action = actions.find((a: any) => a.action_type === actionType);
-          if (action) {
-            results = parseFloat(action.value || "0");
-            break;
+    const insights = Array.isArray(insightsData?.data) ? insightsData.data : [];
+    if (insights.length === 0) return 0;
+
+    for (const insight of insights) {
+      if (!insight || typeof insight !== "object") continue;
+
+      const country = (insight as { country?: string }).country || "UNKNOWN";
+      const spend = parseFloat(String((insight as { spend?: string }).spend || "0"));
+      const impressions = parseFloat(String((insight as { impressions?: string }).impressions || "0"));
+      const clicks = parseFloat(String((insight as { clicks?: string }).clicks || "0"));
+      const reach = parseFloat(String((insight as { reach?: string }).reach || "0"));
+      const rawActions = (insight as { actions?: unknown }).actions;
+      const rawActionValues = (insight as { action_values?: unknown }).action_values;
+      const actions = Array.isArray(rawActions) ? rawActions : [];
+      const actionValues = Array.isArray(rawActionValues) ? rawActionValues : [];
+      const objective = (insight as { objective?: string }).objective || "UNKNOWN";
+
+      if (spend <= 0) continue;
+
+      const linkClickAction = actions.find((a: any) => a.action_type === "link_click");
+      const lpvAction = actions.find((a: any) => a.action_type === "landing_page_view");
+      const linkClicks = linkClickAction ? parseFloat(linkClickAction.value || "0") : 0;
+      const landingPageViews = lpvAction ? parseFloat(lpvAction.value || "0") : 0;
+
+      let revenue = 0;
+      for (const av of actionValues) {
+        if (av && typeof av === "object" &&
+          ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase"].includes(
+            (av as { action_type?: string }).action_type || "",
+          )) {
+          revenue += parseFloat(String((av as { value?: string }).value || "0"));
+        }
+      }
+
+      // Determine primary optimization goal from campaign objective
+      const primaryConfig = metaObjectiveToPrimary[objective];
+      let optimizationGoal = primaryConfig?.goal || objective;
+      let results = 0;
+
+      if (primaryConfig?.actionTypes) {
+        if (primaryConfig.actionTypes.includes("__reach__")) {
+          results = reach;
+        } else {
+          for (const actionType of primaryConfig.actionTypes) {
+            const action = actions.find((a: any) => a.action_type === actionType);
+            if (action) {
+              results = parseFloat(action.value || "0");
+              break;
+            }
           }
         }
       }
+
+      // Fallback to clicks if no primary results
+      if (results <= 0 && clicks > 0) {
+        results = clicks;
+        if (!primaryConfig) optimizationGoal = "CLICK";
+      }
+
+      if (results <= 0) continue;
+
+      // Attribute spend to PRIMARY goal only
+      const key = `${country}_${optimizationGoal}`;
+      if (!benchmarkMap.has(key)) {
+        benchmarkMap.set(key, {
+          market: country, optimization_goal: optimizationGoal,
+          total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
+          link_clicks: 0, landing_page_views: 0, revenue: 0,
+          campaign_count: 0, industry,
+        });
+      }
+
+      const benchmark = benchmarkMap.get(key)!;
+      benchmark.total_spend += spend;
+      benchmark.total_results += results;
+      benchmark.impressions += impressions;
+      benchmark.clicks += clicks;
+      benchmark.link_clicks += linkClicks;
+      benchmark.landing_page_views += landingPageViews;
+      benchmark.revenue += revenue;
+      benchmark.campaign_count += 1;
     }
 
-    // Fallback to clicks if no primary results
-    if (results <= 0 && clicks > 0) {
-      results = clicks;
-      if (!primaryConfig) optimizationGoal = "CLICK";
+    // Store benchmarks
+    let storedCount = 0;
+    for (const [key, benchmark] of benchmarkMap.entries()) {
+      const avgCostPerResult = benchmark.total_results > 0
+        ? benchmark.total_spend / benchmark.total_results
+        : null;
+
+      const { error } = await supabase
+        .from("campaign_performance_benchmarks")
+        .upsert({
+          user_id: userId,
+          platform: 'meta',
+          market: benchmark.market,
+          optimization_goal: benchmark.optimization_goal,
+          industry: benchmark.industry,
+          avg_cost_per_result: avgCostPerResult,
+          total_spend: benchmark.total_spend,
+          total_results: benchmark.total_results,
+          impressions: benchmark.impressions,
+          clicks: benchmark.clicks,
+          link_clicks: benchmark.link_clicks,
+          landing_page_views: benchmark.landing_page_views,
+          revenue: benchmark.revenue,
+          campaign_count: benchmark.campaign_count,
+          date_range_start: dateRangeStart,
+          date_range_end: dateRangeEnd,
+        }, {
+          onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
+        });
+
+      if (error) {
+        console.error(`[BENCHMARK] Error storing ${key}:`, error);
+      } else {
+        storedCount++;
+      }
     }
 
-    if (results <= 0) continue;
-
-    // Attribute spend to PRIMARY goal only
-    const key = `${country}_${optimizationGoal}`;
-    if (!benchmarkMap.has(key)) {
-      benchmarkMap.set(key, {
-        market: country, optimization_goal: optimizationGoal,
-        total_spend: 0, total_results: 0, impressions: 0, clicks: 0,
-        link_clicks: 0, landing_page_views: 0, revenue: 0,
-        campaign_count: 0, industry,
-      });
-    }
-
-    const benchmark = benchmarkMap.get(key)!;
-    benchmark.total_spend += spend;
-    benchmark.total_results += results;
-    benchmark.impressions += impressions;
-    benchmark.clicks += clicks;
-    benchmark.link_clicks += linkClicks;
-    benchmark.landing_page_views += landingPageViews;
-    benchmark.revenue += revenue;
-    benchmark.campaign_count += 1;
+    console.log(`[BENCHMARK] Month ${dateRangeStart}: ${storedCount} benchmarks stored`);
+    return storedCount;
+  } catch (e) {
+    console.error(`[BENCHMARK] Period ${dateRangeStart}–${dateRangeEnd} failed:`, e);
+    return 0;
   }
-
-  // Store benchmarks
-  let storedCount = 0;
-  for (const [key, benchmark] of benchmarkMap.entries()) {
-    const avgCostPerResult = benchmark.total_results > 0
-      ? benchmark.total_spend / benchmark.total_results
-      : null;
-
-    const { error } = await supabase
-      .from("campaign_performance_benchmarks")
-      .upsert({
-        user_id: userId,
-        platform: 'meta',
-        market: benchmark.market,
-        optimization_goal: benchmark.optimization_goal,
-        industry: benchmark.industry,
-        avg_cost_per_result: avgCostPerResult,
-        total_spend: benchmark.total_spend,
-        total_results: benchmark.total_results,
-        impressions: benchmark.impressions,
-        clicks: benchmark.clicks,
-        link_clicks: benchmark.link_clicks,
-        landing_page_views: benchmark.landing_page_views,
-        revenue: benchmark.revenue,
-        campaign_count: benchmark.campaign_count,
-        date_range_start: dateRangeStart,
-        date_range_end: dateRangeEnd,
-      }, {
-        onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
-      });
-
-    if (error) {
-      console.error(`[BENCHMARK] Error storing ${key}:`, error);
-    } else {
-      storedCount++;
-    }
-  }
-
-  console.log(`[BENCHMARK] Month ${dateRangeStart}: ${storedCount} benchmarks stored`);
-  return storedCount;
 }
 
 /**
@@ -637,27 +853,80 @@ async function syncGoogleAdsAssets(
   };
 
   try {
-    // Get user's active Google platform connection
-    const { data: platformData, error: platformError } = await supabase
-      .from("connected_platforms")
-      .select("id, access_token, refresh_token")
+    const cleanAccountId = accountId.replace("customers/", "").replace(/-/g, "");
+
+    const { data: googleAccountRow, error: gaLookupError } = await supabase
+      .from("google_ad_accounts")
+      .select("platform_id, manager_customer_id")
+      .eq("customer_id", cleanAccountId)
       .eq("user_id", user.id)
-      .eq("platform_type", "google")
-      .eq("is_active", true)
-      .limit(1)
       .maybeSingle();
+
+    if (gaLookupError) {
+      console.warn("[SYNC-ACCOUNT-ASSETS] google_ad_accounts lookup:", gaLookupError.message);
+    }
+
+    let platformData: { id: string; access_token: string | null; refresh_token: string | null } | null = null;
+    let platformError: { message?: string } | null = null;
+
+    if (googleAccountRow?.platform_id) {
+      const pinned = await supabase
+        .from("connected_platforms")
+        .select("id, access_token, refresh_token")
+        .eq("id", googleAccountRow.platform_id)
+        .eq("user_id", user.id)
+        .eq("platform_type", "google")
+        .eq("is_active", true)
+        .maybeSingle();
+      platformData = pinned.data ?? null;
+      platformError = pinned.error ?? null;
+      if (platformData) {
+        console.log(
+          `[SYNC-ACCOUNT-ASSETS] Using google_ad_accounts.platform_id=${platformData.id} for customer ${cleanAccountId}`,
+        );
+      } else {
+        console.warn(
+          `[SYNC-ACCOUNT-ASSETS] google_ad_accounts.platform_id=${googleAccountRow.platform_id} is not an active Google connection for this user; falling back to most recently updated connection.`,
+        );
+      }
+    }
+
+    if (!platformData) {
+      const fb = await supabase
+        .from("connected_platforms")
+        .select("id, access_token, refresh_token")
+        .eq("user_id", user.id)
+        .eq("platform_type", "google")
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      platformData = fb.data ?? null;
+      platformError = fb.error ?? null;
+    }
 
     if (platformError || !platformData) {
       console.error("[SYNC-ACCOUNT-ASSETS] Google platform lookup error:", platformError);
       throw new Error("No active Google Ads platform connection found");
     }
 
-    // Get access token from Vault with automatic refresh for Google
-    const accessToken = await getAccessTokenWithRefresh(supabase, platformData.id, platformData.access_token, "google");
-    
-    if (!accessToken) {
-      throw new Error("Failed to retrieve Google access token");
+    const tokenRes = await resolveGoogleAdsAccessToken(
+      supabase,
+      platformData.id,
+      platformData.access_token,
+    );
+    if (!tokenRes.ok) {
+      console.error(
+        "[SYNC-ACCOUNT-ASSETS] Google token resolution failed:",
+        tokenRes.message,
+        tokenRes.remediation,
+        { platformId: platformData.id, customerId: cleanAccountId },
+      );
+      throw new Error(
+        `Google Ads token: ${tokenRes.message} Remediation: ${tokenRes.remediation} (platformId=${platformData.id}, customerId=${cleanAccountId})`,
+      );
     }
+    const accessToken = tokenRes.accessToken;
 
     const syncResults = {
       conversionActions: 0,
@@ -666,25 +935,13 @@ async function syncGoogleAdsAssets(
     };
 
     const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
-    
-    // Resolve manager account ID from DB first, then env var, then fall back to client ID
-    const cleanAccountId_pre = accountId.replace("customers/", "").replace(/-/g, "");
-    const { data: googleAccountData } = await supabase
-      .from("google_ad_accounts")
-      .select("manager_customer_id")
-      .eq("customer_id", cleanAccountId_pre)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    
-    const managerAccountId = (googleAccountData?.manager_customer_id || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID") || "")?.replace(/-/g, "");
-    console.log(`[SYNC-ACCOUNT-ASSETS] Resolved login-customer-id: ${managerAccountId || cleanAccountId_pre} for customer ${cleanAccountId_pre}`);
-    
+
+    const managerAccountId = (googleAccountRow?.manager_customer_id || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID") || "")?.replace(/-/g, "");
+    console.log(`[SYNC-ACCOUNT-ASSETS] Resolved login-customer-id: ${managerAccountId || cleanAccountId} for customer ${cleanAccountId}`);
+
     if (!developerToken) {
       console.warn("[SYNC-ACCOUNT-ASSETS] Google Ads developer token not configured");
     }
-
-    // Clean account ID (remove 'customers/' prefix if present)
-    const cleanAccountId = accountId.replace("customers/", "").replace(/-/g, "");
 
     // 1. Sync conversion actions
     try {
@@ -841,14 +1098,24 @@ async function syncGoogleAdsAssets(
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
-  } catch (error: any) {
-    console.error("[SYNC-ACCOUNT-ASSETS] Google sync error:", error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[SYNC-ACCOUNT-ASSETS] Google sync error:", message, error);
+    const authFailure =
+      message === "No authorization header" ||
+      message === "Unauthorized";
+    const status = authFailure ? 401 : 200;
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        success: false,
+        error: message,
+        platform: "google",
+        ...(authFailure ? {} : { recoverable: true }),
+      }),
       {
-        status: 500,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 }

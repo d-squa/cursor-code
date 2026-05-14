@@ -186,16 +186,47 @@ export function MediaPlanEditor() {
     return Object.values(taxonomyValidation).reduce((sum, v) => sum + v.missingCount, 0);
   };
 
-  // Load team name for current user
+  // Load team name: prefer active workspace team (unique id); else oldest team this user owns.
+  // Use .limit(1) + array rows (never .single/.maybeSingle) so PostgREST never requests a single
+  // object for owner_id filters — multiple teams per owner would otherwise return 406 / PGRST116.
   useEffect(() => {
-    if (user) {
-      const loadTeamName = async () => {
-        const { data } = await supabase.from("teams").select("name").eq("owner_id", user.id).single();
-        if (data?.name) setTeamName(data.name);
-      };
-      loadTeamName();
-    }
-  }, [user]);
+    if (!user?.id) return;
+
+    const loadTeamName = async () => {
+      try {
+        if (activeWorkspaceId) {
+          const { data: rows, error } = await supabase
+            .from("teams")
+            .select("name")
+            .eq("id", activeWorkspaceId)
+            .limit(1);
+          if (error) {
+            console.warn("loadTeamName (active workspace):", error.message);
+          } else if (rows?.[0]?.name) {
+            setTeamName(rows[0].name);
+            return;
+          }
+        }
+
+        const { data: ownedRows, error } = await supabase
+          .from("teams")
+          .select("name")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        if (error) {
+          console.warn("loadTeamName (owned team):", error.message);
+          return;
+        }
+        if (ownedRows?.[0]?.name) setTeamName(ownedRows[0].name);
+      } catch (e) {
+        console.warn("loadTeamName:", e);
+      }
+    };
+
+    void loadTeamName();
+  }, [user?.id, activeWorkspaceId]);
 
   // Load clients for selection
   useEffect(() => {
