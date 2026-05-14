@@ -186,38 +186,48 @@ export function MediaPlanEditor() {
     return Object.values(taxonomyValidation).reduce((sum, v) => sum + v.missingCount, 0);
   };
 
-  // Load team name for current user
+  // Load team name: prefer active workspace team (unique id); else oldest team this user owns.
   useEffect(() => {
-    if (user) {
-      const loadTeamName = async () => {
-        // Direct REST + explicit Accept avoids PostgREST 406 from any client "single object" Accept headers.
-        const { data: auth } = await supabase.auth.getSession();
-        const token = auth.session?.access_token;
-        const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-        const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
-        if (!token || !url || !key || !user?.id) return;
+    if (!user?.id) return;
 
-        const qs = new URLSearchParams();
-        qs.set("select", "name");
-        qs.set("owner_id", `eq.${user.id}`);
-        qs.set("order", "created_at.asc");
-        qs.set("limit", "1");
+    const loadTeamName = async () => {
+      try {
+        if (activeWorkspaceId) {
+          const { data, error } = await supabase
+            .from("teams")
+            .select("name")
+            .eq("id", activeWorkspaceId)
+            .maybeSingle();
+          if (error) {
+            console.warn("loadTeamName (active workspace):", error.message);
+            return;
+          }
+          if (data?.name) {
+            setTeamName(data.name);
+            return;
+          }
+        }
 
-        const res = await fetch(`${url}/rest/v1/teams?${qs.toString()}`, {
-          headers: {
-            apikey: key,
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        });
-        if (!res.ok) return;
-        const rows = (await res.json()) as { name?: string }[];
-        const name = rows?.[0]?.name;
-        if (name) setTeamName(name);
-      };
-      loadTeamName();
-    }
-  }, [user]);
+        const { data, error } = await supabase
+          .from("teams")
+          .select("name")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          console.warn("loadTeamName (owned team):", error.message);
+          return;
+        }
+        if (data?.name) setTeamName(data.name);
+      } catch (e) {
+        console.warn("loadTeamName:", e);
+      }
+    };
+
+    void loadTeamName();
+  }, [user?.id, activeWorkspaceId]);
 
   // Load clients for selection
   useEffect(() => {
