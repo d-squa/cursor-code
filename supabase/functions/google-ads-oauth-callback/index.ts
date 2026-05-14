@@ -417,6 +417,26 @@ serve(async (req) => {
     await storePlatformToken(supabase, platformData.id, access_token, "access");
     if (refresh_token) {
       await storePlatformToken(supabase, platformData.id, refresh_token, "refresh");
+    } else {
+      console.warn(
+        `[${FUNCTION_NAME}] Google did not return a refresh_token in this response. ` +
+          "If you are reconnecting, any existing Vault refresh token is unchanged; if there was none, sync-account-assets will fail once the short-lived access token expires.",
+      );
+    }
+
+    const vaultProbe = await supabase.rpc("get_platform_token", {
+      platform_id: platformData.id,
+      token_type: "access",
+    });
+    if (vaultProbe.error) {
+      throw new Error(
+        `OAuth succeeded but get_platform_token failed when verifying Vault: ${vaultProbe.error.message}. Check store_platform_token, Vault, and that this function uses SUPABASE_SERVICE_ROLE_KEY.`,
+      );
+    }
+    if (!vaultProbe.data || String(vaultProbe.data).length === 0) {
+      throw new Error(
+        "OAuth succeeded but the access token is not readable from Vault immediately after store. Confirm store_platform_token writes to vault.secrets and the deployment uses the service role key.",
+      );
     }
 
     console.log(`[${FUNCTION_NAME}] ✓ Platform connected, ID: ${platformData.id}, ${accounts.length} accounts found`);
@@ -428,6 +448,10 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         platformId: platformData.id,
+        oauth: {
+          refreshTokenStored: !!refresh_token,
+          vaultAccessVerified: true,
+        },
         accounts: clientAccounts.map((acc) => ({
           id: acc.customer_id,
           name: acc.name,

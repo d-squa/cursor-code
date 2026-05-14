@@ -96,6 +96,113 @@ export async function getAccessToken(
   return null;
 }
 
+/** Result of resolving a Google Ads access token (Vault + refresh). */
+export type GoogleAdsTokenResolution =
+  | { ok: true; accessToken: string }
+  | { ok: false; message: string; remediation: string };
+
+/**
+ * Resolve Google Ads access token with Vault + optional DB fallback + refresh when near expiry.
+ * Returns structured errors so Edge Functions can surface fixable paths (vs generic "null token").
+ */
+export async function resolveGoogleAdsAccessToken(
+  supabase: any,
+  platformId: string,
+  fallbackToken?: string | null,
+): Promise<GoogleAdsTokenResolution> {
+  const accessRpc = await supabase.rpc("get_platform_token", {
+    platform_id: platformId,
+    token_type: "access",
+  });
+  if (accessRpc.error) {
+    console.error(
+      `[resolveGoogleAdsAccessToken] Vault RPC error for access (platform ${platformId}):`,
+      accessRpc.error.message,
+      accessRpc.error.code,
+    );
+    return {
+      ok: false,
+      message: `Vault RPC failed when reading Google access token: ${accessRpc.error.message}`,
+      remediation:
+        "Confirm get_platform_token exists, Vault is enabled, and this Edge Function uses SUPABASE_SERVICE_ROLE_KEY (store/get RPCs require service_role). Check Postgres logs for details.",
+    };
+  }
+
+  let accessToken: string | null =
+    typeof accessRpc.data === "string" && accessRpc.data.length > 0 ? accessRpc.data : null;
+  if (!accessToken && fallbackToken) {
+    console.log(
+      `[resolveGoogleAdsAccessToken] Using connected_platforms.access_token fallback for platform ${platformId}`,
+    );
+    accessToken = fallbackToken;
+  }
+
+  if (!accessToken) {
+    const refreshRpc = await supabase.rpc("get_platform_token", {
+      platform_id: platformId,
+      token_type: "refresh",
+    });
+    const hasRefresh =
+      !refreshRpc.error && typeof refreshRpc.data === "string" && refreshRpc.data.length > 0;
+    return {
+      ok: false,
+      message: hasRefresh
+        ? "No Google access token in Vault or DB, but a refresh token exists in Vault (inconsistent state)."
+        : "No Google access token in Vault and connected_platforms.access_token is empty.",
+      remediation: hasRefresh
+        ? "Reconnect Google Ads from Platform Connections, or re-run google-ads-oauth-callback for this platform id so access is stored again."
+        : "Complete Google Ads OAuth from Platform Connections (offline + consent). After google-ads-oauth-callback returns success, Vault must contain platform_access_token_<uuid>.",
+    };
+  }
+
+  const { data: platform } = await supabase
+    .from("connected_platforms")
+    .select("token_expires_at")
+    .eq("id", platformId)
+    .maybeSingle();
+
+  if (platform?.token_expires_at) {
+    const expiresAt = new Date(platform.token_expires_at);
+    const now = new Date();
+    if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
+      console.log(
+        `[resolveGoogleAdsAccessToken] Token expiring soon or expired for platform ${platformId}, attempting refresh...`,
+      );
+      const refreshedToken = await refreshGoogleToken(supabase, platformId);
+      if (refreshedToken) {
+        return { ok: true, accessToken: refreshedToken };
+      }
+
+      const refreshAgain = await supabase.rpc("get_platform_token", {
+        platform_id: platformId,
+        token_type: "refresh",
+      });
+      const noRefresh =
+        refreshAgain.error ||
+        typeof refreshAgain.data !== "string" ||
+        refreshAgain.data.length === 0;
+      if (noRefresh) {
+        return {
+          ok: false,
+          message:
+            "Google access token is expired or expiring and no refresh token is stored in Vault for this connection.",
+          remediation:
+            "Reconnect Google Ads with consent (app already sends access_type=offline and prompt=consent). Revoke the app in Google Account permissions if Google keeps omitting refresh_token.",
+        };
+      }
+      return {
+        ok: false,
+        message:
+          "Google access token is expired or expiring and token refresh failed (invalid refresh, revoked client, or missing GOOGLE_ADS_OAUTH_CLIENT_ID / GOOGLE_ADS_CLIENT_SECRET on the Edge runtime).",
+        remediation:
+          "Check Edge Function secrets match your Google Cloud OAuth client, inspect logs for 'Google token refresh failed', then reconnect Google Ads.",
+      };
+    }
+  }
+
+  return { ok: true, accessToken };
+}
+
 /**
  * Get access token with automatic refresh for Google OAuth tokens.
  * If the access token fails (expired), uses the refresh token to get a new one.
@@ -111,34 +218,14 @@ export async function getAccessTokenWithRefresh(
   fallbackToken?: string | null,
   platformType?: string
 ): Promise<string | null> {
-  // First try the regular access token
-  const accessToken = await getAccessToken(supabase, platformId, fallbackToken);
-  
-  if (!accessToken) {
-    return null;
+  if (platformType === "google") {
+    const r = await resolveGoogleAdsAccessToken(supabase, platformId, fallbackToken);
+    return r.ok ? r.accessToken : null;
   }
 
-  // For Google, check if we need to refresh
-  if (platformType === 'google') {
-    // Check token_expires_at from platform record
-    const { data: platform } = await supabase
-      .from('connected_platforms')
-      .select('token_expires_at')
-      .eq('id', platformId)
-      .single();
-
-    if (platform?.token_expires_at) {
-      const expiresAt = new Date(platform.token_expires_at);
-      const now = new Date();
-      // Refresh if expires within 5 minutes
-      if (expiresAt.getTime() - now.getTime() < 5 * 60 * 1000) {
-        console.log(`Token expiring soon or expired for platform ${platformId}, attempting refresh...`);
-        const refreshedToken = await refreshGoogleToken(supabase, platformId);
-        if (refreshedToken) {
-          return refreshedToken;
-        }
-      }
-    }
+  const accessToken = await getAccessToken(supabase, platformId, fallbackToken);
+  if (!accessToken) {
+    return null;
   }
 
   return accessToken;

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
-import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
+import { getAccessToken, resolveGoogleAdsAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +29,10 @@ function clientErrorStatus(message: string): number | null {
     m.includes("no active meta platform connection") ||
     m.includes("failed to retrieve access token") ||
     m.includes("failed to retrieve google access token") ||
+    m.includes("google ads token:") ||
+    m.includes("vault rpc failed when reading google access token") ||
+    m.includes("no google access token in vault") ||
+    m.includes("google access token is expired or expiring") ||
     m.includes("no active google ads platform connection") ||
     m.includes("missing supabase_url") ||
     m.includes("service_role_key")
@@ -810,27 +814,80 @@ async function syncGoogleAdsAssets(
   };
 
   try {
-    // Get user's active Google platform connection
-    const { data: platformData, error: platformError } = await supabase
-      .from("connected_platforms")
-      .select("id, access_token, refresh_token")
+    const cleanAccountId = accountId.replace("customers/", "").replace(/-/g, "");
+
+    const { data: googleAccountRow, error: gaLookupError } = await supabase
+      .from("google_ad_accounts")
+      .select("platform_id, manager_customer_id")
+      .eq("customer_id", cleanAccountId)
       .eq("user_id", user.id)
-      .eq("platform_type", "google")
-      .eq("is_active", true)
-      .limit(1)
       .maybeSingle();
+
+    if (gaLookupError) {
+      console.warn("[SYNC-ACCOUNT-ASSETS] google_ad_accounts lookup:", gaLookupError.message);
+    }
+
+    let platformData: { id: string; access_token: string | null; refresh_token: string | null } | null = null;
+    let platformError: { message?: string } | null = null;
+
+    if (googleAccountRow?.platform_id) {
+      const pinned = await supabase
+        .from("connected_platforms")
+        .select("id, access_token, refresh_token")
+        .eq("id", googleAccountRow.platform_id)
+        .eq("user_id", user.id)
+        .eq("platform_type", "google")
+        .eq("is_active", true)
+        .maybeSingle();
+      platformData = pinned.data ?? null;
+      platformError = pinned.error ?? null;
+      if (platformData) {
+        console.log(
+          `[SYNC-ACCOUNT-ASSETS] Using google_ad_accounts.platform_id=${platformData.id} for customer ${cleanAccountId}`,
+        );
+      } else {
+        console.warn(
+          `[SYNC-ACCOUNT-ASSETS] google_ad_accounts.platform_id=${googleAccountRow.platform_id} is not an active Google connection for this user; falling back to most recently updated connection.`,
+        );
+      }
+    }
+
+    if (!platformData) {
+      const fb = await supabase
+        .from("connected_platforms")
+        .select("id, access_token, refresh_token")
+        .eq("user_id", user.id)
+        .eq("platform_type", "google")
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      platformData = fb.data ?? null;
+      platformError = fb.error ?? null;
+    }
 
     if (platformError || !platformData) {
       console.error("[SYNC-ACCOUNT-ASSETS] Google platform lookup error:", platformError);
       throw new Error("No active Google Ads platform connection found");
     }
 
-    // Get access token from Vault with automatic refresh for Google
-    const accessToken = await getAccessTokenWithRefresh(supabase, platformData.id, platformData.access_token, "google");
-    
-    if (!accessToken) {
-      throw new Error("Failed to retrieve Google access token");
+    const tokenRes = await resolveGoogleAdsAccessToken(
+      supabase,
+      platformData.id,
+      platformData.access_token,
+    );
+    if (!tokenRes.ok) {
+      console.error(
+        "[SYNC-ACCOUNT-ASSETS] Google token resolution failed:",
+        tokenRes.message,
+        tokenRes.remediation,
+        { platformId: platformData.id, customerId: cleanAccountId },
+      );
+      throw new Error(
+        `Google Ads token: ${tokenRes.message} Remediation: ${tokenRes.remediation} (platformId=${platformData.id}, customerId=${cleanAccountId})`,
+      );
     }
+    const accessToken = tokenRes.accessToken;
 
     const syncResults = {
       conversionActions: 0,
@@ -839,25 +896,13 @@ async function syncGoogleAdsAssets(
     };
 
     const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN");
-    
-    // Resolve manager account ID from DB first, then env var, then fall back to client ID
-    const cleanAccountId_pre = accountId.replace("customers/", "").replace(/-/g, "");
-    const { data: googleAccountData } = await supabase
-      .from("google_ad_accounts")
-      .select("manager_customer_id")
-      .eq("customer_id", cleanAccountId_pre)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    
-    const managerAccountId = (googleAccountData?.manager_customer_id || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID") || "")?.replace(/-/g, "");
-    console.log(`[SYNC-ACCOUNT-ASSETS] Resolved login-customer-id: ${managerAccountId || cleanAccountId_pre} for customer ${cleanAccountId_pre}`);
-    
+
+    const managerAccountId = (googleAccountRow?.manager_customer_id || Deno.env.get("GOOGLE_ADS_MANAGER_ACCOUNT_ID") || "")?.replace(/-/g, "");
+    console.log(`[SYNC-ACCOUNT-ASSETS] Resolved login-customer-id: ${managerAccountId || cleanAccountId} for customer ${cleanAccountId}`);
+
     if (!developerToken) {
       console.warn("[SYNC-ACCOUNT-ASSETS] Google Ads developer token not configured");
     }
-
-    // Clean account ID (remove 'customers/' prefix if present)
-    const cleanAccountId = accountId.replace("customers/", "").replace(/-/g, "");
 
     // 1. Sync conversion actions
     try {
