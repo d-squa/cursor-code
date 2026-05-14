@@ -616,6 +616,9 @@ export function CampaignForecast({
 
   // Sync benchmarks for all selected ad accounts across platforms
   const syncBenchmarksForSelectedAccounts = async (): Promise<void> => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData.user?.id ?? null;
+
     // Extract unique account IDs from platforms
     const metaAccountIds = new Set<string>();
     const tiktokAdvertiserIds = new Set<string>();
@@ -643,39 +646,62 @@ export function CampaignForecast({
       }
     }
 
-    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size + googleAccountIds.size;
+    let googleIdsToSync = new Set(googleAccountIds);
+    if (googleIdsToSync.size > 0 && userId) {
+      const { data: googlePlatform } = await supabase
+        .from("connected_platforms")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("platform_type", "google")
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      if (!googlePlatform) {
+        console.warn(
+          "📊 Skipping Google benchmark sync: no active Google Ads connection (connect in Platform connections, then sync again).",
+        );
+        googleIdsToSync = new Set();
+      }
+    }
+
+    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size + googleIdsToSync.size;
     if (totalSyncs === 0) {
       console.log("📊 No ad accounts found in ActiPlan - skipping benchmark sync");
       return;
     }
 
-    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta, ${tiktokAdvertiserIds.size} TikTok, ${googleAccountIds.size} Google accounts...`);
+    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta, ${tiktokAdvertiserIds.size} TikTok, ${googleIdsToSync.size} Google accounts...`);
 
-    const syncPromises: Promise<any>[] = [];
+    const syncPromises: Promise<unknown>[] = [];
 
-    // Sync Meta accounts (per-account)
+    // Sync Meta accounts (per-account) — invoke returns { error } on HTTP errors; it does not throw.
     for (const accountId of metaAccountIds) {
       console.log(`  → Syncing Meta account: ${accountId}`);
       syncPromises.push(
-        supabase.functions.invoke('sync-account-assets', {
-          body: { accountId, platform: 'meta' }
-        }).catch(err => {
-          console.warn(`Failed to sync Meta account ${accountId}:`, err);
-          return null;
-        })
+        (async () => {
+          const { data, error } = await supabase.functions.invoke("sync-account-assets", {
+            body: { accountId, platform: "meta" },
+          });
+          if (error) {
+            console.warn(`Failed to sync Meta account ${accountId}:`, error.message ?? error, data);
+          }
+          return { data, error };
+        })(),
       );
     }
 
-    // Sync Google Ads accounts (per-account)
-    for (const accountId of googleAccountIds) {
+    for (const accountId of googleIdsToSync) {
       console.log(`  → Syncing Google Ads account: ${accountId}`);
       syncPromises.push(
-        supabase.functions.invoke('sync-account-assets', {
-          body: { accountId, platform: 'google' }
-        }).catch(err => {
-          console.warn(`Failed to sync Google account ${accountId}:`, err);
-          return null;
-        })
+        (async () => {
+          const { data, error } = await supabase.functions.invoke("sync-account-assets", {
+            body: { accountId, platform: "google" },
+          });
+          if (error) {
+            console.warn(`Failed to sync Google account ${accountId}:`, error.message ?? error, data);
+          }
+          return { data, error };
+        })(),
       );
     }
 
