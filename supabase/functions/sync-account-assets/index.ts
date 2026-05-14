@@ -61,6 +61,55 @@ async function deleteUserRowsInChunks(
   return null;
 }
 
+function isPostgresUniqueViolation(err: { code?: string; message?: string; details?: string } | null): boolean {
+  if (!err) return false;
+  const blob = `${err.code ?? ""} ${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
+  return (
+    err.code === "23505" ||
+    blob.includes("duplicate key") ||
+    blob.includes("already exists") ||
+    blob.includes("unique constraint")
+  );
+}
+
+/**
+ * DB unique keys are (user_id, page_id) and (user_id, instagram_account_id) — not scoped by ad_account_id.
+ * If pre-delete missed a row (RLS edge, URL length, race) or upsert degrades to INSERT, apply UPDATE by that key.
+ */
+async function updateMetaRowOnDuplicate(
+  supabase: any,
+  table: "meta_pages" | "meta_instagram_accounts",
+  row: Record<string, unknown>,
+): Promise<{ code?: string; message?: string } | null> {
+  const userId = String(row.user_id ?? "");
+  if (table === "meta_pages") {
+    const pageId = String(row.page_id ?? "");
+    const patch: Record<string, unknown> = {
+      page_name: row.page_name,
+      synced_at: row.synced_at,
+    };
+    if (row.ad_account_id !== undefined && row.ad_account_id !== null) {
+      patch.ad_account_id = row.ad_account_id;
+    }
+    const { error } = await supabase.from(table).update(patch).eq("user_id", userId).eq("page_id", pageId);
+    return error ?? null;
+  }
+  const igId = String(row.instagram_account_id ?? "");
+  const patch: Record<string, unknown> = {
+    username: row.username,
+    synced_at: row.synced_at,
+  };
+  if (row.ad_account_id !== undefined && row.ad_account_id !== null) {
+    patch.ad_account_id = row.ad_account_id;
+  }
+  const { error } = await supabase
+    .from(table)
+    .update(patch)
+    .eq("user_id", userId)
+    .eq("instagram_account_id", igId);
+  return error ?? null;
+}
+
 /** Chunked delete, then one-row upserts only (avoids multi-row insert/upsert 409 and noisy failed bulk requests). */
 async function upsertEachRow(
   supabase: any,
@@ -70,7 +119,14 @@ async function upsertEachRow(
 ): Promise<{ code?: string; message?: string } | null> {
   if (rows.length === 0) return null;
   for (const row of rows) {
-    const { error } = await supabase.from(table).upsert([row], { onConflict });
+    let { error } = await supabase.from(table).upsert([row], { onConflict });
+    if (error && isPostgresUniqueViolation(error)) {
+      console.warn(
+        `[SYNC-ACCOUNT-ASSETS] ${table} upsert hit unique conflict; updating existing row (key matches meta_pages_user_page_key / meta_instagram_accounts_user_account_key)`,
+        { page_id: row.page_id, instagram_account_id: row.instagram_account_id },
+      );
+      error = await updateMetaRowOnDuplicate(supabase, table, row);
+    }
     if (error) return error;
   }
   return null;
