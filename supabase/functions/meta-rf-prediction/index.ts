@@ -3,11 +3,134 @@ import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 import { getMetaPlatformCandidatesForAdAccount } from "../_shared/platform-connection-resolver.ts";
 import { resolveMetaLocales } from "../_shared/meta-locale.ts";
+import { fetchWithTimeout } from "../_shared/fetch-with-timeout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const RF_STATUS_FIELDS =
+  "id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,audience_size_lower_bound,external_minimum_budget,external_maximum_budget,external_minimum_reach,external_maximum_reach,external_minimum_impression,external_maximum_impression,prediction_progress,status,curve_budget_reach";
+
+function hasUsableRfMetrics(result: Record<string, unknown> | null): boolean {
+  if (!result) return false;
+  const nums = [
+    result.external_minimum_reach,
+    result.external_maximum_reach,
+    result.external_minimum_impression,
+    result.external_maximum_impression,
+    result.external_reach,
+    result.external_impression,
+  ];
+  if (nums.some((n) => typeof n === "number" && n > 0)) return true;
+  const curve = result.curve_budget_reach;
+  return Array.isArray(curve) && curve.length > 0;
+}
+
+function pickCurvePoint(curve: unknown[], budgetCents: number): Record<string, unknown> | null {
+  if (!Array.isArray(curve) || curve.length === 0) return null;
+  let best: Record<string, unknown> | null = null;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (const point of curve) {
+    if (!point || typeof point !== "object") continue;
+    const p = point as Record<string, unknown>;
+    const pointBudget = Number(p.budget ?? p.external_budget ?? 0);
+    const delta = Math.abs(pointBudget - budgetCents);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = p;
+    }
+  }
+  return best;
+}
+
+function buildForecastFromPrediction(
+  predictionResult: Record<string, unknown>,
+  body: Record<string, unknown>,
+  budgetCents: number,
+) {
+  const curvePoint = pickCurvePoint(
+    (predictionResult.curve_budget_reach as unknown[]) ?? [],
+    budgetCents,
+  );
+
+  let minReach = Number(predictionResult.external_minimum_reach ?? 0);
+  let maxReach = Number(predictionResult.external_maximum_reach ?? 0);
+  let minImpressions = Number(predictionResult.external_minimum_impression ?? 0);
+  let maxImpressions = Number(predictionResult.external_maximum_impression ?? 0);
+  let minBudget = Number(predictionResult.external_minimum_budget ?? 0);
+  let maxBudget = Number(predictionResult.external_maximum_budget ?? 0);
+
+  if (curvePoint) {
+    const curveReach = Number(curvePoint.reach ?? curvePoint.external_reach ?? 0);
+    const curveImpressions = Number(curvePoint.impression ?? curvePoint.external_impression ?? 0);
+    const curveBudget = Number(curvePoint.budget ?? curvePoint.external_budget ?? budgetCents);
+    if (curveReach > 0) {
+      minReach = maxReach = curveReach;
+    }
+    if (curveImpressions > 0) {
+      minImpressions = maxImpressions = curveImpressions;
+    }
+    if (curveBudget > 0) {
+      minBudget = maxBudget = curveBudget;
+    }
+  }
+
+  const directReach = Number(predictionResult.external_reach ?? 0);
+  const directImpressions = Number(predictionResult.external_impression ?? 0);
+  const directBudget = Number(predictionResult.external_budget ?? 0);
+  if (directReach > 0 && minReach === 0 && maxReach === 0) {
+    minReach = maxReach = directReach;
+  }
+  if (directImpressions > 0 && minImpressions === 0 && maxImpressions === 0) {
+    minImpressions = maxImpressions = directImpressions;
+  }
+  if (directBudget > 0 && minBudget === 0 && maxBudget === 0) {
+    minBudget = maxBudget = directBudget;
+  }
+
+  const medianReach = Math.round((minReach + maxReach) / 2);
+  const medianImpressions = Math.round((minImpressions + maxImpressions) / 2);
+  const medianBudget = (minBudget + maxBudget) / 2 / 100;
+  const audienceSizeLower = Number(predictionResult.audience_size_lower_bound ?? 0);
+  const audienceSizeUpper = Number(predictionResult.audience_size_upper_bound ?? 0);
+  const medianAudienceSize = Math.round((audienceSizeLower + audienceSizeUpper) / 2);
+  const resultFrequencyCap = Number(predictionResult.frequency_cap ?? 1);
+  const cpm = medianImpressions > 0 ? (medianBudget / medianImpressions) * 1000 : 0;
+
+  const ctr = Number(body.estimatedCTR ?? 0.009);
+  const conversionRate = Number(body.estimatedConversionRate ?? 0.02);
+  const clicks = Math.round(medianImpressions * ctr);
+  const conversions = Math.round(clicks * conversionRate);
+  const cpc = clicks > 0 ? medianBudget / clicks : 0;
+  const costPerConversion = conversions > 0 ? medianBudget / conversions : 0;
+  const strategyConfig = body.strategyConfig as Record<string, unknown> | undefined;
+
+  return {
+    audienceSize: medianAudienceSize,
+    reach: medianReach,
+    impressions: medianImpressions,
+    cpm: parseFloat(cpm.toFixed(2)),
+    budget: parseFloat((medianBudget || budgetCents / 100).toFixed(2)),
+    minimumBudget: parseFloat((minBudget / 100).toFixed(2)),
+    maximumBudget: parseFloat((maxBudget / 100).toFixed(2)),
+    frequencyCap: resultFrequencyCap,
+    rawMetrics: {
+      reachRange: { min: minReach, max: maxReach },
+      impressionsRange: { min: minImpressions, max: maxImpressions },
+      budgetRange: { min: minBudget / 100, max: maxBudget / 100 },
+      audienceSizeRange: { lower: audienceSizeLower, upper: audienceSizeUpper },
+    },
+    clicks,
+    ctr: parseFloat((ctr * 100).toFixed(2)),
+    cpc: parseFloat(cpc.toFixed(2)),
+    results: conversions,
+    resultType: strategyConfig?.metric || "conversions",
+    conversionRate: parseFloat((conversionRate * 100).toFixed(2)),
+    costPerResult: parseFloat(costPerConversion.toFixed(2)),
+  };
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -529,20 +652,28 @@ serve(async (req) => {
       );
     }
 
-    // Step 2: Poll for prediction status
-    // Predictions can take a few seconds to compute
+    // Step 2: Poll for prediction status (Meta can take 60s+ for large audiences)
     let attempts = 0;
-    let predictionResult = null;
-
-    const maxPollAttempts = 15;
-    const pollIntervalMs = 2000;
+    let predictionResult: Record<string, unknown> | null = null;
+    const maxPollAttempts = 45;
+    const pollIntervalMs = 1500;
 
     while (attempts < maxPollAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      if (attempts > 0) {
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      }
 
-      const statusResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,audience_size_lower_bound,external_minimum_budget,external_maximum_budget,external_minimum_reach,external_maximum_reach,external_minimum_impression,external_maximum_impression,prediction_progress,status,curve_budget_reach`,
-      );
+      const statusUrl =
+        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=${RF_STATUS_FIELDS}`;
+
+      let statusResponse: Response;
+      try {
+        statusResponse = await fetchWithTimeout(statusUrl, {}, 25_000);
+      } catch (pollError) {
+        console.error(`Status check timed out (attempt ${attempts + 1}):`, pollError);
+        attempts++;
+        continue;
+      }
 
       if (statusResponse.ok) {
         predictionResult = await statusResponse.json();
@@ -554,12 +685,10 @@ serve(async (req) => {
         });
 
         if (predictionResult.status === 1) {
-          // 1 = ready
           console.log("R&F prediction ready! Full result:", JSON.stringify(predictionResult, null, 2));
           break;
         }
 
-        // Status 12 = error, provide detailed diagnostics
         if (predictionResult.status === 12) {
           console.error("❌ R&F prediction failed with status 12");
           console.error("Full response:", JSON.stringify(predictionResult, null, 2));
@@ -597,107 +726,49 @@ serve(async (req) => {
       attempts++;
     }
 
-    if (!predictionResult || predictionResult.status !== 1) {
-      throw new Error("R&F prediction timed out or failed to complete");
+    const ready = predictionResult?.status === 1;
+    let resultForForecast: Record<string, unknown> | null = null;
+
+    if (ready && predictionResult) {
+      resultForForecast = predictionResult;
+    } else if (predictionResult && hasUsableRfMetrics(predictionResult)) {
+      resultForForecast = predictionResult;
+    } else if (hasUsableRfMetrics(predictionData)) {
+      console.warn("Polling incomplete; using metrics from create response");
+      resultForForecast = predictionData;
     }
 
-    // Step 3: Calculate median values from min/max metrics
-    // Meta R&F API returns min/max ranges - we calculate the median as (min + max) / 2
+    const partialUsable = Boolean(resultForForecast && !ready);
 
-    // Calculate median reach
-    const minReach = predictionResult.external_minimum_reach || 0;
-    const maxReach = predictionResult.external_maximum_reach || 0;
-    const medianReach = Math.round((minReach + maxReach) / 2);
+    if (!resultForForecast) {
+      const lastStatus = predictionResult?.status ?? "unknown";
+      const lastProgress = predictionResult?.prediction_progress ?? "?";
+      throw new Error(
+        `R&F prediction timed out (status=${lastStatus}, progress=${lastProgress}). Meta may still be computing — retry in a minute or the app will use reach-estimate fallback.`,
+      );
+    }
 
-    // Calculate median impressions
-    const minImpressions = predictionResult.external_minimum_impression || 0;
-    const maxImpressions = predictionResult.external_maximum_impression || 0;
-    const medianImpressions = Math.round((minImpressions + maxImpressions) / 2);
+    if (partialUsable) {
+      console.warn("Using partial R&F metrics before status=ready:", {
+        status: resultForForecast.status,
+        progress: resultForForecast.prediction_progress,
+      });
+    }
 
-    // Calculate median budget
-    const minBudget = predictionResult.external_minimum_budget || 0;
-    const maxBudget = predictionResult.external_maximum_budget || 0;
-    const medianBudget = (minBudget + maxBudget) / 2 / 100; // Convert cents to dollars
+    const forecast = buildForecastFromPrediction(resultForForecast, body, budgetCents);
+    console.log("✅ Final R&F forecast:", forecast);
 
-    // Get audience size
-    const audienceSizeLower = predictionResult.audience_size_lower_bound || 0;
-    const audienceSizeUpper = predictionResult.audience_size_upper_bound || 0;
-    const medianAudienceSize = Math.round((audienceSizeLower + audienceSizeUpper) / 2);
-
-    const resultFrequencyCap = predictionResult.frequency_cap || 1;
-
-    // Calculate CPM from median values: (budget / impressions) * 1000
-    const cpm = medianImpressions > 0 ? (medianBudget / medianImpressions) * 1000 : 0;
-
-    console.log("✅ MEDIAN CALCULATIONS FROM META R&F API:", {
-      id: predictionResult.id,
-      reach: {
-        min: minReach.toLocaleString(),
-        max: maxReach.toLocaleString(),
-        median: medianReach.toLocaleString(),
+    return new Response(
+      JSON.stringify({
+        forecast,
+        partial: partialUsable,
+        metaStatus: resultForForecast.status,
+        metaProgress: resultForForecast.prediction_progress,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
-      impressions: {
-        min: minImpressions.toLocaleString(),
-        max: maxImpressions.toLocaleString(),
-        median: medianImpressions.toLocaleString(),
-      },
-      budget: {
-        min: `$${(minBudget / 100).toLocaleString()}`,
-        max: `$${(maxBudget / 100).toLocaleString()}`,
-        median: `$${medianBudget.toLocaleString()}`,
-      },
-      audienceSize: {
-        lower: audienceSizeLower.toLocaleString(),
-        upper: audienceSizeUpper.toLocaleString(),
-        median: medianAudienceSize.toLocaleString(),
-      },
-      frequencyCap: resultFrequencyCap,
-      cpm: cpm.toFixed(2),
-    });
-
-    // Step 4: Calculate derived metrics (clicks, conversions) using industry benchmarks
-    const ctr = body.estimatedCTR || 0.009; // Use provided CTR or 0.9% default
-    const conversionRate = body.estimatedConversionRate || 0.02; // Use provided or 2% default
-
-    const clicks = Math.round(medianImpressions * ctr);
-    const conversions = Math.round(clicks * conversionRate);
-    const cpc = clicks > 0 ? medianBudget / clicks : 0;
-    const costPerConversion = conversions > 0 ? medianBudget / conversions : 0;
-
-    const forecast = {
-      // ✅ MEDIAN VALUES CALCULATED FROM META R&F API MIN/MAX:
-      audienceSize: medianAudienceSize,
-      reach: medianReach,
-      impressions: medianImpressions,
-      cpm: parseFloat(cpm.toFixed(2)),
-      budget: parseFloat(medianBudget.toFixed(2)),
-      minimumBudget: parseFloat((minBudget / 100).toFixed(2)),
-      maximumBudget: parseFloat((maxBudget / 100).toFixed(2)),
-      frequencyCap: resultFrequencyCap,
-
-      // Raw min/max values for reference
-      rawMetrics: {
-        reachRange: { min: minReach, max: maxReach },
-        impressionsRange: { min: minImpressions, max: maxImpressions },
-        budgetRange: { min: minBudget / 100, max: maxBudget / 100 },
-        audienceSizeRange: { lower: audienceSizeLower, upper: audienceSizeUpper },
-      },
-
-      // Estimated metrics (since R&F API doesn't provide these):
-      clicks,
-      ctr: parseFloat((ctr * 100).toFixed(2)),
-      cpc: parseFloat(cpc.toFixed(2)),
-      results: conversions,
-      resultType: body.strategyConfig?.metric || "conversions",
-      conversionRate: parseFloat((conversionRate * 100).toFixed(2)),
-      costPerResult: parseFloat(costPerConversion.toFixed(2)),
-    };
-
-    console.log("✅ Final R&F forecast (MEDIAN VALUES):", forecast);
-
-    return new Response(JSON.stringify({ forecast }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    );
   } catch (error: any) {
     console.error("Meta R&F prediction error:", error);
 

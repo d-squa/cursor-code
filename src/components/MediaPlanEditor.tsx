@@ -72,6 +72,11 @@ import { normalizeLanguageValues } from "@/utils/targetingOptions";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
+import {
+  BO_NUMBER_CONFLICT_MESSAGE,
+  findBoNumberConflict,
+  isBoNumberUniqueViolation,
+} from "@/utils/campaignBoNumber";
 import { CreativeMatchingDialog } from "@/components/creative/CreativeMatchingDialog";
 
 // Helper: map internal focus to funnel template key
@@ -1333,13 +1338,16 @@ export function MediaPlanEditor() {
           return;
         }
 
-        const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+        const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}));
 
-        await supabase
-          .from("campaigns")
-          .update({
+        const trimmedBo = boNumber.trim();
+        const boConflictId =
+          trimmedBo && savedCampaignId
+            ? await findBoNumberConflict(trimmedBo, savedCampaignId)
+            : null;
+
+        const updatePayload: Record<string, unknown> = {
             name: campaignName,
-            bo_number: boNumber.trim() || null,
             objective: genericConfig.strategyFocus || "conversions",
             total_budget: parseFloat(totalBudget) || 0,
             start_date: startDate || null,
@@ -1439,10 +1447,28 @@ export function MediaPlanEditor() {
               selectedClientId: selectedClientId,
               clientIndustry: clients.find((c) => c.id === selectedClientId)?.industry,
             } as any,
-          })
+        };
+
+        if (boConflictId) {
+          toast.error(BO_NUMBER_CONFLICT_MESSAGE, { id: "bo-number-conflict-autosave" });
+        } else {
+          updatePayload.bo_number = trimmedBo || null;
+        }
+
+        const { error: saveError } = await supabase
+          .from("campaigns")
+          .update(updatePayload)
           .eq("id", savedCampaignId);
 
-        console.log("Auto-saved draft");
+        if (saveError) {
+          if (isBoNumberUniqueViolation(saveError)) {
+            toast.error(BO_NUMBER_CONFLICT_MESSAGE, { id: "bo-number-conflict-autosave" });
+          } else {
+            throw saveError;
+          }
+        } else {
+          console.log("Auto-saved draft");
+        }
       } catch (error) {
         console.error("Error auto-saving:", error);
       }
@@ -1550,20 +1576,10 @@ export function MediaPlanEditor() {
     }
 
     // Check if BO number is unique within the same workspace
-    if (boNumber.trim() && activeWorkspaceId) {
-      let duplicateQuery = supabase
-        .from("campaigns")
-        .select("id")
-        .eq("bo_number", boNumber.trim())
-        .eq("team_id", activeWorkspaceId);
-      if (savedCampaignId) {
-        duplicateQuery = duplicateQuery.neq("id", savedCampaignId);
-      }
-      const { data: existingCampaign, error: duplicateError } = await duplicateQuery.maybeSingle();
-      if (duplicateError) {
-        console.error("BO number uniqueness check failed:", duplicateError);
-      } else if (existingCampaign) {
-        toast.error("BO number must be unique within your workspace. This number is already in use.");
+    if (boNumber.trim()) {
+      const conflictId = await findBoNumberConflict(boNumber, savedCampaignId);
+      if (conflictId) {
+        toast.error(BO_NUMBER_CONFLICT_MESSAGE);
         return;
       }
     }
@@ -1943,20 +1959,10 @@ export function MediaPlanEditor() {
     }
 
     // Check if BO number is unique within the same workspace (skip when BO is empty)
-    if (boNumber.trim() && activeWorkspaceId) {
-      let duplicateQuery = supabase
-        .from("campaigns")
-        .select("id")
-        .eq("bo_number", boNumber.trim())
-        .eq("team_id", activeWorkspaceId);
-      if (savedCampaignId) {
-        duplicateQuery = duplicateQuery.neq("id", savedCampaignId);
-      }
-      const { data: existingCampaign, error: duplicateError } = await duplicateQuery.maybeSingle();
-      if (duplicateError) {
-        console.error("BO number uniqueness check failed:", duplicateError);
-      } else if (existingCampaign) {
-        toast.error("BO number must be unique within your workspace. This number is already in use.");
+    if (boNumber.trim()) {
+      const conflictId = await findBoNumberConflict(boNumber, savedCampaignId);
+      if (conflictId) {
+        toast.error(BO_NUMBER_CONFLICT_MESSAGE);
         return null;
       }
     }
