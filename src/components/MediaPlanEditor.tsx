@@ -1338,7 +1338,7 @@ export function MediaPlanEditor() {
           return;
         }
 
-        const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}));
+        const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
         const trimmedBo = boNumber.trim();
         const boConflictId =
