@@ -2,33 +2,131 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import type { MediaPlanData } from './pdfGenerator';
 
+type ActiplanForecasts = NonNullable<MediaPlanData['actiplanForecasts']>;
+
+/** Normalize saved forecast JSON so export never hits undefined .map/.forEach. */
+function normalizeActiplanForExport(raw: unknown): ActiplanForecasts | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+
+  const a = raw as Record<string, unknown>;
+  const hasForecastShape =
+    a.totalBudget != null ||
+    a.platformDeliverables != null ||
+    a.marketDeliverables != null ||
+    Array.isArray(a.platforms);
+
+  if (!hasForecastShape) return undefined;
+
+  const platformDeliverables =
+    (a.platformDeliverables as ActiplanForecasts['platformDeliverables']) ??
+    (a.marketDeliverables as ActiplanForecasts['platformDeliverables']) ??
+    {};
+
+  const platforms = (Array.isArray(a.platforms) ? a.platforms : []).map((item) => {
+    const p = item as Record<string, unknown>;
+    const markets = (Array.isArray(p.markets) ? p.markets : []).map((m) => {
+      const market = m as Record<string, unknown>;
+      return {
+        ...market,
+        resultsByGoal: Array.isArray(market.resultsByGoal) ? market.resultsByGoal : [],
+        phases: Array.isArray(market.phases) ? market.phases : [],
+      };
+    });
+    return { ...p, markets };
+  });
+
+  return {
+    totalBudget: Number(a.totalBudget ?? 0),
+    totalAudienceSize: Number(a.totalAudienceSize ?? 0),
+    totalImpressions: Number(a.totalImpressions ?? 0),
+    totalReach: Number(a.totalReach ?? 0),
+    avgCPM: Number(a.avgCPM ?? 0),
+    frequency: Number(a.frequency ?? 0),
+    sov: Number(a.sov ?? 0),
+    platformDeliverables,
+    platforms,
+  } as ActiplanForecasts;
+}
+
+/** Build export payload from a saved campaign row (ActiPlans list, etc.). */
+export function buildMediaPlanDataFromCampaign(campaign: {
+  name: string;
+  total_budget?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  platforms?: unknown[] | null;
+  generic_config?: Record<string, unknown> | null;
+  forecast_data?: Record<string, unknown> | null;
+}): MediaPlanData {
+  const forecastData = (campaign.forecast_data ?? {}) as Record<string, unknown>;
+  const genericConfig = (campaign.generic_config ?? {}) as Record<string, unknown>;
+  const actiplan = normalizeActiplanForExport(
+    forecastData.actiplanForecast ?? forecastData.actiplanForecasts,
+  );
+
+  const platforms = (Array.isArray(campaign.platforms) ? campaign.platforms : []).map((raw) => {
+    const p = raw as Record<string, unknown>;
+    return {
+      ...p,
+      name: (p.name as string) ?? (p.id as string) ?? 'Unknown',
+      budgetPercentage: (p.budgetPercentage as number) ?? (p.budget_percentage as number) ?? 0,
+      markets: Array.isArray(p.markets) ? p.markets : [],
+    };
+  });
+
+  const selectedKeywords =
+    (genericConfig.selectedKeywords as MediaPlanData['selectedKeywords']) ??
+    ((genericConfig.basicTargeting as Record<string, unknown> | undefined)?.selectedKeywords as
+      | MediaPlanData['selectedKeywords']
+      | undefined) ??
+    (forecastData.selectedKeywords as MediaPlanData['selectedKeywords']) ??
+    [];
+
+  return {
+    name: campaign.name,
+    totalBudget: campaign.total_budget ?? 0,
+    startDate: campaign.start_date ?? new Date().toISOString(),
+    endDate: campaign.end_date ?? new Date().toISOString(),
+    platforms,
+    genericConfig,
+    forecasts: forecastData,
+    actiplanForecasts: actiplan,
+    selectedKeywords,
+  };
+}
+
 export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   const workbook = XLSX.utils.book_new();
+  const genericConfig = data.genericConfig ?? {};
+  const platforms = data.platforms ?? [];
+  const actiplanForecasts = data.actiplanForecasts
+    ? normalizeActiplanForExport(data.actiplanForecasts)
+    : undefined;
 
   // Sheet 1: Actiplan Deliverables Overview
-  if (data.actiplanForecasts) {
-    const actiplan = data.actiplanForecasts;
+  if (actiplanForecasts) {
+    const actiplan = actiplanForecasts;
 
     const overviewData = [
       ['Actiplan Deliverables', ''],
       ['Plan Name', data.name],
-      ['Total Budget', `$${actiplan.totalBudget.toLocaleString()}`],
+      ['Total Budget', `$${(actiplan.totalBudget ?? 0).toLocaleString()}`],
       ['Duration', `${format(new Date(data.startDate), 'MMM d, yyyy')} - ${format(new Date(data.endDate), 'MMM d, yyyy')}`],
-      ['Strategy', data.genericConfig.strategyFocus || 'Custom'],
+      ['Strategy', (genericConfig.strategyFocus as string) || 'Custom'],
       ['', ''],
       ['Total Audience Size', actiplan.totalAudienceSize],
       ['Total Impressions', actiplan.totalImpressions],
       ['Total Reach', actiplan.totalReach],
       ['Avg. CPM', actiplan.avgCPM],
       ['Frequency', actiplan.frequency],
-      ['SOV', `${actiplan.sov.toFixed(1)}%`],
+      ['SOV', `${(actiplan.sov ?? 0).toFixed(1)}%`],
     ];
 
     // Add platform deliverables
-    Object.entries(actiplan.platformDeliverables).forEach(([platformName, kpis]) => {
+    Object.entries(actiplan.platformDeliverables ?? {}).forEach(([platformName, kpis]) => {
       overviewData.push(['', '']);
       overviewData.push([`${platformName} Deliverables`, '']);
-      kpis.forEach((kpi) => {
+      (kpis ?? []).forEach((kpi) => {
         overviewData.push([kpi.kpi, kpi.result]);
       });
     });
@@ -39,12 +137,12 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   }
 
   // Sheet 2: Platform Forecasts
-  if (data.actiplanForecasts) {
+  if (actiplanForecasts) {
     const platformData: any[][] = [
       ['Platform', 'Budget', 'Audience Size', 'Impressions', 'Reach', 'CPM', 'Frequency', 'SOV']
     ];
 
-    data.actiplanForecasts.platforms.forEach((platform) => {
+    (actiplanForecasts.platforms ?? []).forEach((platform) => {
       platformData.push([
         platform.platformName,
         platform.totalBudget,
@@ -53,7 +151,7 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
         platform.totalReach,
         platform.avgCPM,
         platform.frequency,
-        `${platform.sov.toFixed(1)}%`
+        `${(platform.sov ?? 0).toFixed(1)}%`
       ]);
     });
 
@@ -66,13 +164,13 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   }
 
   // Sheet 3: Market Forecasts
-  if (data.actiplanForecasts) {
+  if (actiplanForecasts) {
     const marketData: any[][] = [
       ['Platform', 'Market', 'Budget', 'Audience Size', 'Impressions', 'Reach', 'CPM', 'Frequency', 'SOV']
     ];
 
-    data.actiplanForecasts.platforms.forEach((platform) => {
-      platform.markets.forEach((market) => {
+    (actiplanForecasts.platforms ?? []).forEach((platform) => {
+      (platform.markets ?? []).forEach((market) => {
         marketData.push([
           platform.platformName,
           market.marketName,
@@ -82,7 +180,7 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
           market.reach,
           market.cpm,
           market.frequency,
-          `${market.sov.toFixed(1)}%`
+          `${(market.sov ?? 0).toFixed(1)}%`
         ]);
       });
     });
@@ -96,21 +194,21 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   }
 
   // Sheet 4: Market KPI Results
-  if (data.actiplanForecasts) {
+  if (actiplanForecasts) {
     const kpiData: any[][] = [
       ['Platform', 'Market', 'KPI', 'Result', 'Cost per Result', 'Result Rate']
     ];
 
-    data.actiplanForecasts.platforms.forEach((platform) => {
-      platform.markets.forEach((market) => {
-        market.resultsByGoal.forEach((result) => {
+    (actiplanForecasts.platforms ?? []).forEach((platform) => {
+      (platform.markets ?? []).forEach((market) => {
+        (market.resultsByGoal ?? []).forEach((result) => {
           kpiData.push([
             platform.platformName,
             market.marketName,
             result.kpi,
             result.result,
             result.costPerResult,
-            `${result.resultRate.toFixed(2)}%`
+            `${(result.resultRate ?? 0).toFixed(2)}%`
           ]);
         });
       });
@@ -125,14 +223,14 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   }
 
   // Sheet 5: Phase Details
-  if (data.actiplanForecasts) {
+  if (actiplanForecasts) {
     const phaseData: any[][] = [
       ['Platform', 'Market', 'Phase', 'KPI', 'Start Date', 'End Date', 'Budget', 'Result', 'Cost per Result']
     ];
 
-    data.actiplanForecasts.platforms.forEach((platform) => {
-      platform.markets.forEach((market) => {
-        market.phases.forEach((phase) => {
+    (actiplanForecasts.platforms ?? []).forEach((platform) => {
+      (platform.markets ?? []).forEach((market) => {
+        (market.phases ?? []).forEach((phase) => {
           phaseData.push([
             platform.platformName,
             market.marketName,
@@ -161,12 +259,13 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
     ['Platform', 'Budget %', 'Budget ($)', 'Markets']
   ];
 
-  data.platforms.forEach((platform: any) => {
+  platforms.forEach((platform: any) => {
+    const markets = Array.isArray(platform.markets) ? platform.markets : [];
     platformData.push([
-      platform.name,
-      `${platform.budgetPercentage}%`,
-      data.totalBudget * platform.budgetPercentage / 100,
-      platform.markets.map((m: any) => m.name).join(', ')
+      platform.name ?? platform.id ?? 'Unknown',
+      `${platform.budgetPercentage ?? 0}%`,
+      (data.totalBudget * (platform.budgetPercentage ?? 0)) / 100,
+      markets.map((m: any) => m?.name ?? m?.id ?? '').filter(Boolean).join(', ')
     ]);
   });
 

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
 import { logApiRequest, logApiResponse } from "../_shared/api-logger.ts";
+import { syncTikTokAdvertiserDetails } from "../_shared/tiktok-advertiser-sync.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const FUNCTION_NAME = "tiktok-oauth-callback";
@@ -29,6 +30,7 @@ interface SyncProgress {
   errorMessage?: string;
   startedAt?: string;
   completedAt?: string;
+  lastProgressAt?: string;
   processedCounts?: {
     adAccounts?: number;
     pixels?: number;
@@ -36,195 +38,6 @@ interface SyncProgress {
     catalogs?: number;
     productSets?: number;
   };
-}
-
-// Background task to fetch advertiser details
-async function fetchAdvertiserDetailsBackground(
-  supabase: any,
-  platformId: string,
-  accessToken: string,
-  advertiserIds: string[],
-  tokenContext: "USER" | "ADVERTISER",
-  tiktokUserInfo: any
-) {
-  const accounts: any[] = [];
-  const businessCenters = new Map<string, any>();
-
-  const updateProgress = async (progress: Partial<SyncProgress>) => {
-    try {
-      const { data: current } = await supabase
-        .from("connected_platforms")
-        .select("metadata")
-        .eq("id", platformId)
-        .single();
-
-      const currentMetadata = current?.metadata || {};
-      
-      await supabase
-        .from("connected_platforms")
-        .update({
-          metadata: {
-            ...currentMetadata,
-            sync_progress: {
-              ...currentMetadata.sync_progress,
-              ...progress
-            }
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", platformId);
-    } catch (err) {
-      console.error("Failed to update progress:", err);
-    }
-  };
-
-  try {
-    await updateProgress({
-      status: 'syncing',
-      platform: 'tiktok',
-      totalSteps: advertiserIds.length,
-      currentStep: 0,
-      currentAssetType: 'advertisers',
-      startedAt: new Date().toISOString()
-    });
-
-    for (let i = 0; i < advertiserIds.length; i++) {
-      const advertiserId = advertiserIds[i];
-      
-      try {
-        const advertiserUrl = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`;
-        logApiRequest(advertiserUrl, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
-        
-        const advertiserResponse = await fetch(advertiserUrl, {
-          headers: { "Access-Token": accessToken },
-        });
-
-        const advertiserData = await advertiserResponse.json();
-        logApiResponse(advertiserUrl, advertiserData, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
-        
-        if (advertiserData.code === 0 && advertiserData.data?.list?.[0]) {
-          const advertiserInfo = advertiserData.data.list[0];
-          const bcId = advertiserInfo.owner_bc_id || advertiserInfo.bc_id;
-          
-          // Update progress with current advertiser name
-          await updateProgress({
-            currentStep: i + 1,
-            currentAssetName: advertiserInfo.name || `Advertiser ${advertiserId}`
-          });
-          
-          let businessCenterInfo = null;
-          
-          // Fetch business center details if bc_id is available and not cached
-          if (bcId && !businessCenters.has(bcId)) {
-            try {
-              const bcUrl = `https://business-api.tiktok.com/open_api/v1.3/bc/get/?bc_id=${bcId}`;
-              logApiRequest(bcUrl, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
-              
-              const bcResponse = await fetch(bcUrl, {
-                headers: { "Access-Token": accessToken },
-              });
-              
-              const bcData = await bcResponse.json();
-              logApiResponse(bcUrl, bcData, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
-              
-              if (bcData.code === 0 && bcData.data) {
-                businessCenterInfo = {
-                  bc_id: bcId,
-                  name: bcData.data.name || `Business Center ${bcId}`,
-                  role: bcData.data.role,
-                  status: bcData.data.status,
-                };
-                businessCenters.set(bcId, businessCenterInfo);
-                console.log(`Fetched business center: ${businessCenterInfo.name}`);
-              }
-            } catch (bcError) {
-              console.error(`Error fetching business center ${bcId}:`, bcError);
-            }
-          } else if (bcId) {
-            businessCenterInfo = businessCenters.get(bcId);
-          }
-          
-          accounts.push({
-            advertiser_id: advertiserId,
-            name: advertiserInfo.name || `Advertiser ${advertiserId}`,
-            currency: advertiserInfo.currency || "USD",
-            timezone: advertiserInfo.timezone || "UTC",
-            status: advertiserInfo.status || "ENABLE",
-            bc_id: bcId || null,
-            business_center: businessCenterInfo,
-          });
-        } else {
-          // Add with minimal info on failure
-          accounts.push({
-            advertiser_id: advertiserId,
-            name: `Advertiser ${advertiserId}`,
-            currency: "USD",
-            timezone: "UTC",
-            status: "UNKNOWN",
-            bc_id: null,
-            business_center: null,
-          });
-          await updateProgress({ currentStep: i + 1 });
-        }
-      } catch (error) {
-        console.error(`Error fetching advertiser ${advertiserId}:`, error);
-        accounts.push({
-          advertiser_id: advertiserId,
-          name: `Advertiser ${advertiserId}`,
-          currency: "USD",
-          timezone: "UTC",
-          status: "UNKNOWN",
-          bc_id: null,
-          business_center: null,
-        });
-        await updateProgress({ currentStep: i + 1 });
-      }
-    }
-
-    // Final update with all accounts
-    const { data: finalCurrent } = await supabase
-      .from("connected_platforms")
-      .select("metadata")
-      .eq("id", platformId)
-      .single();
-
-    const finalMetadata = finalCurrent?.metadata || {};
-
-    await supabase
-      .from("connected_platforms")
-      .update({
-        metadata: {
-          ...finalMetadata,
-          advertiser_ids: advertiserIds,
-          accounts,
-          business_centers: Array.from(businessCenters.values()),
-          token_context: tokenContext,
-          tiktok_user_info: tiktokUserInfo,
-          sync_progress: {
-            status: 'completed',
-            platform: 'tiktok',
-            totalSteps: advertiserIds.length,
-            currentStep: advertiserIds.length,
-            currentAssetType: 'advertisers',
-            completedAt: new Date().toISOString(),
-            processedCounts: {
-              adAccounts: accounts.length
-            }
-          }
-        },
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", platformId);
-
-    console.log(`Background sync completed for platform ${platformId}: ${accounts.length} accounts`);
-
-  } catch (error: any) {
-    console.error(`Background sync error for platform ${platformId}:`, error);
-    await updateProgress({
-      status: 'error',
-      errorMessage: error.message || "Failed to sync advertiser accounts"
-    });
-  }
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -420,26 +233,28 @@ const handler = async (req: Request): Promise<Response> => {
     if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
       // @ts-ignore
       EdgeRuntime.waitUntil(
-        fetchAdvertiserDetailsBackground(
+        syncTikTokAdvertiserDetails(
           supabase,
           resultPlatformId,
           access_token,
           advertiser_ids,
           tokenContext,
-          tiktokUserInfo
+          tiktokUserInfo,
+          FUNCTION_NAME,
         )
       );
       console.log("Background sync task started via EdgeRuntime.waitUntil");
     } else {
       // Fallback: run synchronously if EdgeRuntime not available (local dev)
       console.log("EdgeRuntime not available, running sync in foreground");
-      await fetchAdvertiserDetailsBackground(
+      await syncTikTokAdvertiserDetails(
         supabase,
         resultPlatformId,
         access_token,
         advertiser_ids,
         tokenContext,
-        tiktokUserInfo
+        tiktokUserInfo,
+        FUNCTION_NAME,
       );
     }
 

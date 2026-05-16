@@ -69,7 +69,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
+import { buildMediaPlanDataFromCampaign, downloadMediaPlanExcel } from "@/utils/excelGenerator";
 interface Campaign {
   id: string;
   name: string;
@@ -802,16 +802,15 @@ export default function ActiPlans() {
                       <DropdownMenuItem
                         onClick={() => {
                           try {
-                            const planData = {
+                            const planData = buildMediaPlanDataFromCampaign({
                               name: campaign.name,
-                              totalBudget: campaign.total_budget,
-                              startDate: campaign.start_date,
-                              endDate: campaign.end_date,
-                              platforms: campaign.platforms || [],
-                              genericConfig: (campaign as any).generic_config || {},
-                              forecasts: campaign.forecast_data,
-                              actiplanForecast: campaign.forecast_data?.actiplanForecast,
-                            };
+                              total_budget: campaign.total_budget,
+                              start_date: campaign.start_date,
+                              end_date: campaign.end_date,
+                              platforms: campaign.platforms,
+                              generic_config: (campaign as any).generic_config,
+                              forecast_data: campaign.forecast_data,
+                            });
                             downloadMediaPlanExcel(planData);
                             toast.success("Excel file downloaded successfully!");
                           } catch (error) {

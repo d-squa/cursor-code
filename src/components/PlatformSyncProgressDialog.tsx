@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 
 interface Props {
   open: boolean;
@@ -30,8 +31,11 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   'identities': 'Identities',
 };
 
+const STALE_SYNC_MS = 3 * 60 * 1000;
+
 export default function PlatformSyncProgressDialog({ open, onOpenChange, progress, platformId, onComplete }: Props) {
   const [isForceClosing, setIsForceClosing] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const { toast } = useToast();
   
   const percentage = progress 
@@ -41,6 +45,13 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
   const isComplete = progress?.status === 'completed';
   const isError = progress?.status === 'error';
   const isSyncing = progress?.status === 'syncing' || progress?.status === 'pending';
+
+  const lastProgressAt = progress?.lastProgressAt ? new Date(progress.lastProgressAt).getTime() : null;
+  const isStaleSync =
+    isSyncing &&
+    lastProgressAt !== null &&
+    !Number.isNaN(lastProgressAt) &&
+    Date.now() - lastProgressAt > STALE_SYNC_MS;
 
   // Auto-trigger onComplete when sync finishes
   useEffect(() => {
@@ -83,16 +94,52 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
     return parts.length > 0 ? parts.join(', ') : null;
   };
 
+  const handleRetrySync = async () => {
+    if (!platformId || progress?.platform !== "tiktok") return;
+
+    setIsRetrying(true);
+    try {
+      const { error } = await supabase.functions.invoke("sync-tiktok-advertisers", {
+        body: { platformId },
+      });
+      if (error) {
+        const detail = await getEdgeFunctionErrorMessage(error);
+        throw new Error(detail);
+      }
+      toast({
+        title: "Sync restarted",
+        description: "Fetching advertiser accounts in the background (batched for speed).",
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to restart sync";
+      toast({
+        variant: "destructive",
+        title: "Could not restart sync",
+        description: message,
+      });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const handleForceClose = async () => {
-    if (!platformId) return;
+    if (!platformId || !progress) return;
     
     setIsForceClosing(true);
     try {
-      // Update the sync status to error so it can be retried
+      const { data: current } = await supabase
+        .from("connected_platforms_safe")
+        .select("metadata")
+        .eq("id", platformId)
+        .single();
+
+      const existingMetadata = (current?.metadata as Record<string, unknown>) ?? {};
+
       const { error } = await supabase
         .from('connected_platforms')
         .update({
           metadata: {
+            ...existingMetadata,
             sync_progress: {
               status: 'error',
               errorMessage: 'Sync cancelled by user',
@@ -183,12 +230,43 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
                   <p className="mt-1">Last update: Step {progress.currentStep} - {progress.currentAssetType}</p>
                 </div>
               )}
+              {isSyncing && progress?.platform === "tiktok" && (isStaleSync || percentage >= 50) && (
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRetrySync}
+                    disabled={isRetrying}
+                  >
+                    {isRetrying ? "Restarting…" : "Retry advertiser sync (faster batch mode)"}
+                  </Button>
+                  {isStaleSync && (
+                    <p className="text-xs text-destructive">
+                      No progress update in 3+ minutes — the previous background job likely timed out.
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           )}
 
           {isError && progress?.errorMessage && (
             <Alert variant="destructive">
-              <AlertDescription>{progress.errorMessage}</AlertDescription>
+              <AlertDescription className="text-sm space-y-2">
+                <p>{progress.errorMessage}</p>
+                {progress.platform === "tiktok" && platformId && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleRetrySync}
+                    disabled={isRetrying}
+                  >
+                    {isRetrying ? "Restarting…" : "Retry advertiser sync"}
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

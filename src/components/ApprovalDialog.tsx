@@ -6,6 +6,8 @@ import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { fetchTeamMemberOptionsForCampaign } from "@/utils/teamMembers";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 interface ApprovalDialogProps {
   open: boolean;
@@ -26,71 +28,56 @@ export function ApprovalDialog({
   excelBase64,
   actiplanForecasts,
 }: ApprovalDialogProps) {
+  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
   const [sending, setSending] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [teamMembers, setTeamMembers] = useState<Array<{ value: string; label: string }>>([]);
   const [sendToWholeTeam, setSendToWholeTeam] = useState(false);
+  const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
+  const [assignedTeamName, setAssignedTeamName] = useState<string | null>(null);
+  const [switcherTeamName, setSwitcherTeamName] = useState<string | null>(null);
+  const [campaignTeamMismatch, setCampaignTeamMismatch] = useState(false);
 
-  // Load team members when dialog opens
+  const campaignId = planDetails?.campaignId as string | undefined;
+
+  // Recipients = Manage Your Team roster for campaigns.team_id (the team saved on this ActiPlan).
   useEffect(() => {
-    if (open) {
-      loadTeamMembers();
+    if (!open) {
+      setSelectedUsers([]);
+      setSendToWholeTeam(false);
+      return;
     }
-  }, [open]);
+
+    if (workspaceLoading && !campaignId) return;
+
+    if (!campaignId && !activeWorkspaceId) {
+      setTeamMembers([]);
+      setResolvedTeamId(null);
+      setAssignedTeamName(null);
+      setSwitcherTeamName(null);
+      setCampaignTeamMismatch(false);
+      return;
+    }
+
+    void loadTeamMembers();
+  }, [open, campaignId, activeWorkspaceId, workspaceLoading]);
 
   const loadTeamMembers = async () => {
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-
-      // Get user's teams through user_roles
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('team_id')
-        .eq('user_id', userData.user.id);
-
-      if (rolesError) throw rolesError;
-
-      if (!userRoles || userRoles.length === 0) {
-        setTeamMembers([]);
-        return;
-      }
-
-      const teamIds = userRoles.map(r => r.team_id).filter(Boolean);
-
-      // Get all members from these teams
-      const { data: allTeamMembers, error: membersError } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('team_id', teamIds)
-        .neq('user_id', userData.user.id); // Exclude current user
-
-      if (membersError) throw membersError;
-
-      if (!allTeamMembers || allTeamMembers.length === 0) {
-        setTeamMembers([]);
-        return;
-      }
-
-      const memberUserIds = [...new Set(allTeamMembers.map(m => m.user_id))];
-
-      // Get profiles for these users
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email, company_name')
-        .in('id', memberUserIds);
-
-      if (profilesError) throw profilesError;
-
-      const members = (profiles || []).map((member) => ({
-        value: member.email,
-        label: member.company_name || member.email,
-      }));
-
-      setTeamMembers(members);
+      const result = await fetchTeamMemberOptionsForCampaign(activeWorkspaceId, campaignId);
+      setTeamMembers(result.members);
+      setResolvedTeamId(result.teamId);
+      setAssignedTeamName(result.campaignTeamName ?? result.teamName);
+      setSwitcherTeamName(result.switcherTeamName);
+      setCampaignTeamMismatch(result.campaignTeamMismatch);
     } catch (error) {
-      console.error('Error loading team members:', error);
-      toast.error('Failed to load team members');
+      console.error("Error loading team members:", error);
+      toast.error("Failed to load team members");
+      setTeamMembers([]);
+      setResolvedTeamId(null);
+      setAssignedTeamName(null);
+      setSwitcherTeamName(null);
+      setCampaignTeamMismatch(false);
     }
   };
 
@@ -162,11 +149,24 @@ export function ApprovalDialog({
         <DialogHeader>
           <DialogTitle>Send for Approval</DialogTitle>
           <DialogDescription>
-            Select team members to send this media plan for approval. They will receive an email with full forecast data and PDF/Excel attachments.
+            Select members of this ActiPlan&apos;s workspace team to send for approval. They will receive an email with full forecast data and PDF/Excel attachments.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {assignedTeamName && (
+            <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
+              This ActiPlan is assigned to team{" "}
+              <span className="font-medium text-foreground">{assignedTeamName}</span>. Approval recipients come from that
+              team&apos;s roster (Settings → Manage Your Team).
+              {campaignTeamMismatch && switcherTeamName && (
+                <span className="block mt-1 text-amber-700 dark:text-amber-400">
+                  Your workspace switcher is on <span className="font-medium">{switcherTeamName}</span>, which does not
+                  match this ActiPlan. Select {assignedTeamName} in the switcher and save the plan to align them.
+                </span>
+              )}
+            </p>
+          )}
           {teamMembers.length > 0 ? (
             <>
               <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
@@ -205,7 +205,11 @@ export function ApprovalDialog({
           ) : (
             <div className="p-4 border rounded-lg bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
-                No team members found. Add team members in the Teams page to send approvals.
+                {workspaceLoading && !campaignId
+                  ? "Loading workspace team…"
+                  : !resolvedTeamId
+                    ? "Save this ActiPlan so it is linked to a workspace team."
+                    : `No other members on "${assignedTeamName ?? "this team"}" besides you. Invite them under Settings → Manage Your Team for that team.`}
               </p>
             </div>
           )}
