@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { fetchTeamMemberOptionsForCampaign } from "@/utils/teamMembers";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 interface ApprovalDialogProps {
   open: boolean;
@@ -27,15 +28,18 @@ export function ApprovalDialog({
   excelBase64,
   actiplanForecasts,
 }: ApprovalDialogProps) {
+  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
   const [sending, setSending] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [teamMembers, setTeamMembers] = useState<Array<{ value: string; label: string }>>([]);
   const [sendToWholeTeam, setSendToWholeTeam] = useState(false);
-  const [workspaceTeamId, setWorkspaceTeamId] = useState<string | null>(null);
+  const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
+  const [workspaceTeamName, setWorkspaceTeamName] = useState<string | null>(null);
+  const [campaignTeamMismatch, setCampaignTeamMismatch] = useState(false);
 
   const campaignId = planDetails?.campaignId as string | undefined;
 
-  // Load members for this ActiPlan's workspace team only (not all subscription teams)
+  // Recipients = Manage Your Team roster for the workspace switcher team (not campaign.team_id alone).
   useEffect(() => {
     if (!open) {
       setSelectedUsers([]);
@@ -43,27 +47,34 @@ export function ApprovalDialog({
       return;
     }
 
-    if (!campaignId) {
+    if (workspaceLoading) return;
+
+    if (!activeWorkspaceId) {
       setTeamMembers([]);
-      setWorkspaceTeamId(null);
+      setResolvedTeamId(null);
+      setWorkspaceTeamName(null);
+      setCampaignTeamMismatch(false);
       return;
     }
 
     void loadTeamMembers();
-  }, [open, campaignId]);
+  }, [open, campaignId, activeWorkspaceId, workspaceLoading]);
 
   const loadTeamMembers = async () => {
-    if (!campaignId) return;
-
     try {
-      const { members, teamId } = await fetchTeamMemberOptionsForCampaign(campaignId);
+      const { members, teamId, teamName, campaignTeamMismatch: mismatch } =
+        await fetchTeamMemberOptionsForCampaign(activeWorkspaceId, campaignId);
       setTeamMembers(members);
-      setWorkspaceTeamId(teamId);
+      setResolvedTeamId(teamId);
+      setWorkspaceTeamName(teamName);
+      setCampaignTeamMismatch(mismatch);
     } catch (error) {
       console.error("Error loading team members:", error);
       toast.error("Failed to load team members");
       setTeamMembers([]);
-      setWorkspaceTeamId(null);
+      setResolvedTeamId(null);
+      setWorkspaceTeamName(null);
+      setCampaignTeamMismatch(false);
     }
   };
 
@@ -140,6 +151,20 @@ export function ApprovalDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {workspaceTeamName && (
+            <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
+              Recipients match <span className="font-medium">Settings → Manage Your Team → {workspaceTeamName}</span>
+              {campaignTeamMismatch && (
+                <>
+                  {" "}
+                  <span className="text-amber-700 dark:text-amber-400">
+                    (this ActiPlan was saved under a different team; save again after selecting {workspaceTeamName} in the
+                    workspace switcher to align it).
+                  </span>
+                </>
+              )}
+            </p>
+          )}
           {teamMembers.length > 0 ? (
             <>
               <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
@@ -178,11 +203,11 @@ export function ApprovalDialog({
           ) : (
             <div className="p-4 border rounded-lg bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
-                {!campaignId
-                  ? "Save this ActiPlan first so it is linked to a workspace team."
-                  : !workspaceTeamId
-                    ? "This ActiPlan is not linked to a workspace team."
-                    : "No other members in this workspace team. Invite colleagues on the Teams page for this workspace."}
+                {workspaceLoading
+                  ? "Loading workspace team…"
+                  : !activeWorkspaceId
+                    ? "Select a workspace team in the switcher (top of the app), then try again."
+                    : `No other members on "${workspaceTeamName ?? "this team"}" besides you. Invite ActiPlanners on Settings → Manage Your Team for that team.`}
               </p>
             </div>
           )}

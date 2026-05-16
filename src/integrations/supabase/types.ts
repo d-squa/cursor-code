@@ -4818,6 +4818,10 @@ export type Database = {
         Args: { platform_id: string; token_type?: string }
         Returns: string
       }
+      get_team_display_name_for_ui: {
+        Args: { p_team_id?: string | null }
+        Returns: string
+      }
       get_user_highest_role: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -4844,6 +4848,14 @@ export type Database = {
           p_workspace_id: string;
         };
         Returns: number;
+      }
+      get_team_approval_recipients: {
+        Args: { p_team_id: string }
+        Returns: {
+          user_id: string
+          email: string
+          display_label: string
+        }[]
       }
       get_workspace_member_summaries: {
         Args: { p_workspace_id: string }
