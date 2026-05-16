@@ -6,6 +6,7 @@ import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { fetchTeamMemberOptionsForCampaign } from "@/utils/teamMembers";
 
 interface ApprovalDialogProps {
   open: boolean;
@@ -30,67 +31,39 @@ export function ApprovalDialog({
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [teamMembers, setTeamMembers] = useState<Array<{ value: string; label: string }>>([]);
   const [sendToWholeTeam, setSendToWholeTeam] = useState(false);
+  const [workspaceTeamId, setWorkspaceTeamId] = useState<string | null>(null);
 
-  // Load team members when dialog opens
+  const campaignId = planDetails?.campaignId as string | undefined;
+
+  // Load members for this ActiPlan's workspace team only (not all subscription teams)
   useEffect(() => {
-    if (open) {
-      loadTeamMembers();
+    if (!open) {
+      setSelectedUsers([]);
+      setSendToWholeTeam(false);
+      return;
     }
-  }, [open]);
+
+    if (!campaignId) {
+      setTeamMembers([]);
+      setWorkspaceTeamId(null);
+      return;
+    }
+
+    void loadTeamMembers();
+  }, [open, campaignId]);
 
   const loadTeamMembers = async () => {
+    if (!campaignId) return;
+
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-
-      // Get user's teams through user_roles
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('team_id')
-        .eq('user_id', userData.user.id);
-
-      if (rolesError) throw rolesError;
-
-      if (!userRoles || userRoles.length === 0) {
-        setTeamMembers([]);
-        return;
-      }
-
-      const teamIds = userRoles.map(r => r.team_id).filter(Boolean);
-
-      // Get all members from these teams
-      const { data: allTeamMembers, error: membersError } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('team_id', teamIds)
-        .neq('user_id', userData.user.id); // Exclude current user
-
-      if (membersError) throw membersError;
-
-      if (!allTeamMembers || allTeamMembers.length === 0) {
-        setTeamMembers([]);
-        return;
-      }
-
-      const memberUserIds = [...new Set(allTeamMembers.map(m => m.user_id))];
-
-      // Get profiles for these users
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email, company_name')
-        .in('id', memberUserIds);
-
-      if (profilesError) throw profilesError;
-
-      const members = (profiles || []).map((member) => ({
-        value: member.email,
-        label: member.company_name || member.email,
-      }));
-
+      const { members, teamId } = await fetchTeamMemberOptionsForCampaign(campaignId);
       setTeamMembers(members);
+      setWorkspaceTeamId(teamId);
     } catch (error) {
-      console.error('Error loading team members:', error);
-      toast.error('Failed to load team members');
+      console.error("Error loading team members:", error);
+      toast.error("Failed to load team members");
+      setTeamMembers([]);
+      setWorkspaceTeamId(null);
     }
   };
 
@@ -162,7 +135,7 @@ export function ApprovalDialog({
         <DialogHeader>
           <DialogTitle>Send for Approval</DialogTitle>
           <DialogDescription>
-            Select team members to send this media plan for approval. They will receive an email with full forecast data and PDF/Excel attachments.
+            Select members of this ActiPlan&apos;s workspace team to send for approval. They will receive an email with full forecast data and PDF/Excel attachments.
           </DialogDescription>
         </DialogHeader>
 
@@ -205,7 +178,11 @@ export function ApprovalDialog({
           ) : (
             <div className="p-4 border rounded-lg bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
-                No team members found. Add team members in the Teams page to send approvals.
+                {!campaignId
+                  ? "Save this ActiPlan first so it is linked to a workspace team."
+                  : !workspaceTeamId
+                    ? "This ActiPlan is not linked to a workspace team."
+                    : "No other members in this workspace team. Invite colleagues on the Teams page for this workspace."}
               </p>
             </div>
           )}
