@@ -869,6 +869,15 @@ export function CampaignForecast({
         
         if (uploadError) {
           console.error("Error uploading PDF:", uploadError);
+          const msg = uploadError.message?.toLowerCase() ?? "";
+          if (msg.includes("row-level security") || msg.includes("unauthorized")) {
+            toast.error(
+              "Could not save PDF to cloud storage. You may need access to this campaign's workspace, or storage policies may need updating.",
+              { duration: 6000 },
+            );
+          } else {
+            toast.error(`Could not save PDF: ${uploadError.message}`, { duration: 5000 });
+          }
         } else {
           // Update campaign with PDF URL
           await (supabase as any).from('campaigns')
