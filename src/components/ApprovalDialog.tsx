@@ -37,6 +37,7 @@ export function ApprovalDialog({
   const [assignedTeamName, setAssignedTeamName] = useState<string | null>(null);
   const [switcherTeamName, setSwitcherTeamName] = useState<string | null>(null);
   const [campaignTeamMismatch, setCampaignTeamMismatch] = useState(false);
+  const [assignedTeamId, setAssignedTeamId] = useState<string | null>(null);
 
   const campaignId = planDetails?.campaignId as string | undefined;
 
@@ -56,6 +57,7 @@ export function ApprovalDialog({
       setAssignedTeamName(null);
       setSwitcherTeamName(null);
       setCampaignTeamMismatch(false);
+      setAssignedTeamId(null);
       return;
     }
 
@@ -67,6 +69,7 @@ export function ApprovalDialog({
       const result = await fetchTeamMemberOptionsForCampaign(activeWorkspaceId, campaignId);
       setTeamMembers(result.members);
       setResolvedTeamId(result.teamId);
+      setAssignedTeamId(result.campaignTeamId ?? result.teamId);
       setAssignedTeamName(result.campaignTeamName ?? result.teamName);
       setSwitcherTeamName(result.switcherTeamName);
       setCampaignTeamMismatch(result.campaignTeamMismatch);
@@ -75,6 +78,7 @@ export function ApprovalDialog({
       toast.error("Failed to load team members");
       setTeamMembers([]);
       setResolvedTeamId(null);
+      setAssignedTeamId(null);
       setAssignedTeamName(null);
       setSwitcherTeamName(null);
       setCampaignTeamMismatch(false);
@@ -157,8 +161,17 @@ export function ApprovalDialog({
           {assignedTeamName && (
             <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
               This ActiPlan is assigned to team{" "}
-              <span className="font-medium text-foreground">{assignedTeamName}</span>. Approval recipients come from that
-              team&apos;s roster (Settings → Manage Your Team).
+              <span className="font-medium text-foreground">{assignedTeamName}</span>
+              {assignedTeamId && (
+                <span className="font-mono text-[10px] text-muted-foreground"> ({assignedTeamId.slice(0, 8)}…)</span>
+              )}
+              . Recipients are loaded only from <code className="text-[10px]">user_roles</code> on that team (same as
+              Manage Your Team).
+              {teamMembers.length > 0 && (
+                <span className="block mt-1">
+                  Listed: {teamMembers.map((m) => m.label).join(", ")}
+                </span>
+              )}
               {campaignTeamMismatch && switcherTeamName && (
                 <span className="block mt-1 text-amber-700 dark:text-amber-400">
                   Your workspace switcher is on <span className="font-medium">{switcherTeamName}</span>, which does not

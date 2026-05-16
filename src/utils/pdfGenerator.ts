@@ -248,12 +248,13 @@ export async function generateMediaPlanPDF(data: MediaPlanData): Promise<Blob> {
   yPos += 10;
 
   const platformData: any[] = [];
-  data.platforms.forEach((platform: any) => {
+  (data.platforms ?? []).forEach((platform: any) => {
+    const markets = Array.isArray(platform.markets) ? platform.markets : [];
     platformData.push([
-      platform.name,
-      `${platform.budgetPercentage}%`,
-      `$${(data.totalBudget * platform.budgetPercentage / 100).toLocaleString()}`,
-      platform.markets.map((m: any) => m.name).join(', ')
+      platform.name ?? platform.id ?? 'Unknown',
+      `${platform.budgetPercentage ?? 0}%`,
+      `$${(data.totalBudget * (platform.budgetPercentage ?? 0) / 100).toLocaleString()}`,
+      markets.map((m: any) => m?.name ?? m?.id ?? '').filter(Boolean).join(', ')
     ]);
   });
 

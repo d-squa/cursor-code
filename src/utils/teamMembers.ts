@@ -79,18 +79,46 @@ export async function fetchTeamRosterMatchingTeamsPage(teamId: string): Promise<
   });
 }
 
-/** Approval recipients: Teams-page roster minus the signed-in user. */
+/** Approval recipients: exact team roster via RPC (bypasses RLS/client drift). */
 export async function fetchTeamMemberOptionsForTeam(
   teamId: string,
 ): Promise<{ members: TeamMemberOption[]; teamId: string }> {
+  const { data: rpcRows, error: rpcError } = await supabase.rpc("get_team_approval_recipients", {
+    p_team_id: teamId,
+  });
+
+  if (!rpcError && rpcRows) {
+    const seen = new Set<string>();
+    const members: TeamMemberOption[] = [];
+    for (const row of rpcRows) {
+      const email = row.email?.trim();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      members.push({ value: email, label: row.display_label || email });
+    }
+    return { members, teamId };
+  }
+
+  if (rpcError) {
+    console.warn(
+      "[teamMembers] get_team_approval_recipients failed; using client roster. Apply migration 20260516190000.",
+      rpcError.message,
+    );
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const roster = await fetchTeamRosterMatchingTeamsPage(teamId);
-  const members = roster
-    .filter((row) => !user?.id || row.user_id !== user.id)
-    .map((row) => ({ value: row.email, label: row.label }));
+  const seen = new Set<string>();
+  const members: TeamMemberOption[] = [];
+  for (const row of roster) {
+    if (user?.id && row.user_id === user.id) continue;
+    if (!row.email || seen.has(row.email)) continue;
+    seen.add(row.email);
+    members.push({ value: row.email, label: row.label });
+  }
 
   return { members, teamId };
 }
