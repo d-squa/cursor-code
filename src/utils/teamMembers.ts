@@ -7,8 +7,15 @@ export type TeamMemberOption = {
 
 export type TeamMemberLoadResult = {
   members: TeamMemberOption[];
+  /** Team used for the recipient list */
   teamId: string | null;
   teamName: string | null;
+  /** Saved on campaigns.team_id */
+  campaignTeamId: string | null;
+  campaignTeamName: string | null;
+  /** Workspace switcher (teams.id) when it differs from campaign team */
+  switcherTeamId: string | null;
+  switcherTeamName: string | null;
   campaignTeamMismatch: boolean;
 };
 
@@ -17,6 +24,11 @@ type TeamRosterRow = {
   email: string;
   label: string;
 };
+
+async function loadTeamName(teamId: string): Promise<string | null> {
+  const { data } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle();
+  return data?.name ?? null;
+}
 
 /**
  * Same member set as Settings → Manage Your Team (Teams.tsx):
@@ -84,17 +96,23 @@ export async function fetchTeamMemberOptionsForTeam(
 }
 
 /**
- * Uses the workspace switcher team (teams.id) — not subscription-wide rosters.
- * Does not fall back to campaign.team_id when a workspace team is selected (fixes stale team_id).
+ * Approval recipients for an ActiPlan: always the team saved on the campaign row.
+ * The workspace switcher is shown only for mismatch warnings (not as the recipient source).
  */
 export async function fetchTeamMemberOptionsForCampaign(
   workspaceTeamId: string | null | undefined,
   campaignId?: string,
 ): Promise<TeamMemberLoadResult> {
-  const teamId = workspaceTeamId?.trim() || null;
-  let campaignTeamMismatch = false;
+  const switcherTeamId = workspaceTeamId?.trim() || null;
+  let switcherTeamName: string | null = null;
+  if (switcherTeamId) {
+    switcherTeamName = await loadTeamName(switcherTeamId);
+  }
 
-  if (campaignId && teamId) {
+  let campaignTeamId: string | null = null;
+  let campaignTeamName: string | null = null;
+
+  if (campaignId) {
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
       .select("team_id")
@@ -103,26 +121,41 @@ export async function fetchTeamMemberOptionsForCampaign(
 
     if (campaignError) throw campaignError;
 
-    if (campaign?.team_id && campaign.team_id !== teamId) {
-      campaignTeamMismatch = true;
-      console.warn(
-        "[teamMembers] ActiPlan team_id does not match workspace switcher; approval uses workspace team.",
-        { campaignTeamId: campaign.team_id, workspaceTeamId: teamId },
-      );
+    campaignTeamId = campaign?.team_id ?? null;
+    if (campaignTeamId) {
+      campaignTeamName = await loadTeamName(campaignTeamId);
     }
   }
 
+  const teamId = campaignTeamId ?? switcherTeamId;
+  const campaignTeamMismatch = Boolean(
+    campaignTeamId && switcherTeamId && campaignTeamId !== switcherTeamId,
+  );
+
   if (!teamId) {
-    return { members: [], teamId: null, teamName: null, campaignTeamMismatch: false };
+    return {
+      members: [],
+      teamId: null,
+      teamName: null,
+      campaignTeamId,
+      campaignTeamName,
+      switcherTeamId,
+      switcherTeamName,
+      campaignTeamMismatch: false,
+    };
   }
 
-  const { data: team } = await supabase.from("teams").select("name").eq("id", teamId).maybeSingle();
+  const teamName = campaignTeamName ?? switcherTeamName ?? (await loadTeamName(teamId));
   const { members } = await fetchTeamMemberOptionsForTeam(teamId);
 
   return {
     members,
     teamId,
-    teamName: team?.name ?? null,
+    teamName,
+    campaignTeamId,
+    campaignTeamName,
+    switcherTeamId,
+    switcherTeamName,
     campaignTeamMismatch,
   };
 }

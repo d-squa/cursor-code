@@ -34,12 +34,13 @@ export function ApprovalDialog({
   const [teamMembers, setTeamMembers] = useState<Array<{ value: string; label: string }>>([]);
   const [sendToWholeTeam, setSendToWholeTeam] = useState(false);
   const [resolvedTeamId, setResolvedTeamId] = useState<string | null>(null);
-  const [workspaceTeamName, setWorkspaceTeamName] = useState<string | null>(null);
+  const [assignedTeamName, setAssignedTeamName] = useState<string | null>(null);
+  const [switcherTeamName, setSwitcherTeamName] = useState<string | null>(null);
   const [campaignTeamMismatch, setCampaignTeamMismatch] = useState(false);
 
   const campaignId = planDetails?.campaignId as string | undefined;
 
-  // Recipients = Manage Your Team roster for the workspace switcher team (not campaign.team_id alone).
+  // Recipients = Manage Your Team roster for campaigns.team_id (the team saved on this ActiPlan).
   useEffect(() => {
     if (!open) {
       setSelectedUsers([]);
@@ -47,12 +48,13 @@ export function ApprovalDialog({
       return;
     }
 
-    if (workspaceLoading) return;
+    if (workspaceLoading && !campaignId) return;
 
-    if (!activeWorkspaceId) {
+    if (!campaignId && !activeWorkspaceId) {
       setTeamMembers([]);
       setResolvedTeamId(null);
-      setWorkspaceTeamName(null);
+      setAssignedTeamName(null);
+      setSwitcherTeamName(null);
       setCampaignTeamMismatch(false);
       return;
     }
@@ -62,18 +64,19 @@ export function ApprovalDialog({
 
   const loadTeamMembers = async () => {
     try {
-      const { members, teamId, teamName, campaignTeamMismatch: mismatch } =
-        await fetchTeamMemberOptionsForCampaign(activeWorkspaceId, campaignId);
-      setTeamMembers(members);
-      setResolvedTeamId(teamId);
-      setWorkspaceTeamName(teamName);
-      setCampaignTeamMismatch(mismatch);
+      const result = await fetchTeamMemberOptionsForCampaign(activeWorkspaceId, campaignId);
+      setTeamMembers(result.members);
+      setResolvedTeamId(result.teamId);
+      setAssignedTeamName(result.campaignTeamName ?? result.teamName);
+      setSwitcherTeamName(result.switcherTeamName);
+      setCampaignTeamMismatch(result.campaignTeamMismatch);
     } catch (error) {
       console.error("Error loading team members:", error);
       toast.error("Failed to load team members");
       setTeamMembers([]);
       setResolvedTeamId(null);
-      setWorkspaceTeamName(null);
+      setAssignedTeamName(null);
+      setSwitcherTeamName(null);
       setCampaignTeamMismatch(false);
     }
   };
@@ -151,17 +154,16 @@ export function ApprovalDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {workspaceTeamName && (
+          {assignedTeamName && (
             <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
-              Recipients match <span className="font-medium">Settings → Manage Your Team → {workspaceTeamName}</span>
-              {campaignTeamMismatch && (
-                <>
-                  {" "}
-                  <span className="text-amber-700 dark:text-amber-400">
-                    (this ActiPlan was saved under a different team; save again after selecting {workspaceTeamName} in the
-                    workspace switcher to align it).
-                  </span>
-                </>
+              This ActiPlan is assigned to team{" "}
+              <span className="font-medium text-foreground">{assignedTeamName}</span>. Approval recipients come from that
+              team&apos;s roster (Settings → Manage Your Team).
+              {campaignTeamMismatch && switcherTeamName && (
+                <span className="block mt-1 text-amber-700 dark:text-amber-400">
+                  Your workspace switcher is on <span className="font-medium">{switcherTeamName}</span>, which does not
+                  match this ActiPlan. Select {assignedTeamName} in the switcher and save the plan to align them.
+                </span>
               )}
             </p>
           )}
@@ -203,11 +205,11 @@ export function ApprovalDialog({
           ) : (
             <div className="p-4 border rounded-lg bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
-                {workspaceLoading
+                {workspaceLoading && !campaignId
                   ? "Loading workspace team…"
-                  : !activeWorkspaceId
-                    ? "Select a workspace team in the switcher (top of the app), then try again."
-                    : `No other members on "${workspaceTeamName ?? "this team"}" besides you. Invite ActiPlanners on Settings → Manage Your Team for that team.`}
+                  : !resolvedTeamId
+                    ? "Save this ActiPlan so it is linked to a workspace team."
+                    : `No other members on "${assignedTeamName ?? "this team"}" besides you. Invite them under Settings → Manage Your Team for that team.`}
               </p>
             </div>
           )}
