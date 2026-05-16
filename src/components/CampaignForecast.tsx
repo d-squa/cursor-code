@@ -30,6 +30,7 @@ import { buildSearchStrategyCampaignName, getEffectiveSearchKeywords, getSearchS
 import { ForecastOptionsDialog, ForecastOptions } from "./ForecastOptionsDialog";
 import { MarkupPreviewDialog, MarkupPreviewData } from "./MarkupPreviewDialog";
 import { Step5ForecastNav } from "./Step5ForecastNav";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
@@ -1014,7 +1015,14 @@ export function CampaignForecast({
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          const detail = await getEdgeFunctionErrorMessage(error);
+          throw new Error(detail);
+        }
+
+        if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+          throw new Error((data as { error: string }).error);
+        }
 
         // Capture debug info for timestamp display
         const startDateObj = new Date(campaignStartDate || startDate);
@@ -1227,20 +1235,29 @@ export function CampaignForecast({
         return tiktokForecastResult;
       }
       } catch (error: any) {
-        console.error(`${isMeta ? 'Meta' : 'TikTok'} forecast error:`, error);
+        const errorMessage = error?.message ?? "Unknown error";
+        console.error(`${isMeta ? 'Meta' : 'TikTok'} forecast error:`, errorMessage, error);
         
         // Check for specific error types
         if (isMeta) {
-          if (error?.message?.includes('INVALID_TOKEN')) {
-            toast.error('Meta access token is invalid or expired. Please update it in settings.', {
+          if (errorMessage.includes('INVALID_TOKEN')) {
+            toast.error('Meta access token is invalid or expired. Please reconnect Meta in Platform Connections.', {
               duration: 6000,
             });
-          } else if (error?.message?.includes('PERMISSION_ERROR')) {
-            toast.error('Meta API permission error. Please check your access token has ads_read permission.', {
-              duration: 5000,
+          } else if (errorMessage.includes('PERMISSION_ERROR')) {
+            toast.error('Meta API permission error. Reconnect Meta with ads_management and business_management access.', {
+              duration: 6000,
             });
+          } else if (
+            errorMessage.includes('Invalid Meta ad account') ||
+            errorMessage.includes('Meta platform connection not found') ||
+            errorMessage.includes('Meta access token not found')
+          ) {
+            toast.error(errorMessage, { duration: 7000 });
           } else {
-            toast.error('Meta R&F failed, trying standard reach estimates...');
+            toast.error(`Meta R&F unavailable: ${errorMessage}. Trying standard reach estimates...`, {
+              duration: 7000,
+            });
           }
         } else if (isTikTok) {
           toast.error(`TikTok forecast error: ${error?.message || 'Unknown error'}. Using fallback estimates...`, {

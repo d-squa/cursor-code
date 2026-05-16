@@ -71,6 +71,7 @@ import BulkBudgetTypeDialog from "./BulkBudgetTypeDialog";
 import { normalizeLanguageValues } from "@/utils/targetingOptions";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
+import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
 import { CreativeMatchingDialog } from "@/components/creative/CreativeMatchingDialog";
 
 // Helper: map internal focus to funnel template key
@@ -186,40 +187,21 @@ export function MediaPlanEditor() {
     return Object.values(taxonomyValidation).reduce((sum, v) => sum + v.missingCount, 0);
   };
 
-  // Load team name: prefer active workspace team (unique id); else oldest team this user owns.
-  // Use .limit(1) + array rows (never .single/.maybeSingle) so PostgREST never requests a single
-  // object for owner_id filters — multiple teams per owner would otherwise return 406 / PGRST116.
+  // Team label for taxonomy: use SECURITY DEFINER RPC so we never hit PostgREST PGRST116
+  // (e.g. old bundles calling teams?select=name&owner_id=eq... with object+json Accept).
   useEffect(() => {
     if (!user?.id) return;
 
     const loadTeamName = async () => {
       try {
-        if (activeWorkspaceId) {
-          const { data: rows, error } = await supabase
-            .from("teams")
-            .select("name")
-            .eq("id", activeWorkspaceId)
-            .limit(1);
-          if (error) {
-            console.warn("loadTeamName (active workspace):", error.message);
-          } else if (rows?.[0]?.name) {
-            setTeamName(rows[0].name);
-            return;
-          }
-        }
-
-        const { data: ownedRows, error } = await supabase
-          .from("teams")
-          .select("name")
-          .eq("owner_id", user.id)
-          .order("created_at", { ascending: true })
-          .limit(1);
-
+        const { data: name, error } = await supabase.rpc("get_team_display_name_for_ui", {
+          p_team_id: activeWorkspaceId ?? null,
+        });
         if (error) {
-          console.warn("loadTeamName (owned team):", error.message);
+          console.warn("loadTeamName (get_team_display_name_for_ui):", error.message);
           return;
         }
-        if (ownedRows?.[0]?.name) setTeamName(ownedRows[0].name);
+        if (name) setTeamName(name);
       } catch (e) {
         console.warn("loadTeamName:", e);
       }
@@ -1569,15 +1551,18 @@ export function MediaPlanEditor() {
 
     // Check if BO number is unique within the same workspace
     if (boNumber.trim() && activeWorkspaceId) {
-      const { data: existingCampaign } = await supabase
+      let duplicateQuery = supabase
         .from("campaigns")
         .select("id")
         .eq("bo_number", boNumber.trim())
-        .eq("team_id", activeWorkspaceId)
-        .neq("id", savedCampaignId || "")
-        .single();
-
-      if (existingCampaign) {
+        .eq("team_id", activeWorkspaceId);
+      if (savedCampaignId) {
+        duplicateQuery = duplicateQuery.neq("id", savedCampaignId);
+      }
+      const { data: existingCampaign, error: duplicateError } = await duplicateQuery.maybeSingle();
+      if (duplicateError) {
+        console.error("BO number uniqueness check failed:", duplicateError);
+      } else if (existingCampaign) {
         toast.error("BO number must be unique within your workspace. This number is already in use.");
         return;
       }
@@ -1607,7 +1592,7 @@ export function MediaPlanEditor() {
           user_id: user.id,
           team_id: activeWorkspaceId || null,
           name: campaignName,
-          bo_number: boNumber.trim(),
+          bo_number: boNumber.trim() || null,
           objective: genericConfig.strategyFocus || "conversions",
           total_budget: parseFloat(totalBudget) || 0,
           start_date: startDate || null,
@@ -1672,13 +1657,13 @@ export function MediaPlanEditor() {
 
       if (error) throw error;
 
-      // Log creation to history
-      await (supabase as any).from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user.id,
+      await logCampaignHistoryEntry({
+        campaignId: campaign.id,
+        userId: user.id,
         action: "created",
-        new_status: "draft",
-      } as any);
+        changeType: "status_change",
+        description: "Campaign created with status draft",
+      });
 
       toast.success("ActiPlan saved as draft successfully!");
 
@@ -1957,17 +1942,20 @@ export function MediaPlanEditor() {
       return null;
     }
 
-    // Check if BO number is unique within the same workspace
-    if (activeWorkspaceId) {
-      const { data: existingCampaign } = await supabase
+    // Check if BO number is unique within the same workspace (skip when BO is empty)
+    if (boNumber.trim() && activeWorkspaceId) {
+      let duplicateQuery = supabase
         .from("campaigns")
         .select("id")
         .eq("bo_number", boNumber.trim())
-        .eq("team_id", activeWorkspaceId)
-        .neq("id", savedCampaignId || "")
-        .single();
-
-      if (existingCampaign) {
+        .eq("team_id", activeWorkspaceId);
+      if (savedCampaignId) {
+        duplicateQuery = duplicateQuery.neq("id", savedCampaignId);
+      }
+      const { data: existingCampaign, error: duplicateError } = await duplicateQuery.maybeSingle();
+      if (duplicateError) {
+        console.error("BO number uniqueness check failed:", duplicateError);
+      } else if (existingCampaign) {
         toast.error("BO number must be unique within your workspace. This number is already in use.");
         return null;
       }
@@ -1990,7 +1978,7 @@ export function MediaPlanEditor() {
           user_id: user.id,
           team_id: activeWorkspaceId || null,
           name: campaignName,
-          bo_number: boNumber.trim(),
+          bo_number: boNumber.trim() || null,
           objective: genericConfig.strategyFocus || "conversions",
           total_budget: parseFloat(totalBudget) || 0,
           start_date: startDate || null,
@@ -2074,12 +2062,13 @@ export function MediaPlanEditor() {
 
       if (error) throw error;
 
-      await (supabase as any).from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user.id,
+      await logCampaignHistoryEntry({
+        campaignId: campaign.id,
+        userId: user.id,
         action: "created",
-        new_status: "draft",
-      } as any);
+        changeType: "status_change",
+        description: "Campaign created with status draft",
+      });
 
       setSavedCampaignId(campaign.id);
       localStorage.setItem("draftCampaignId", campaign.id);

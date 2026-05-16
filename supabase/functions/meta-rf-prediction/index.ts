@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 import { getMetaPlatformCandidatesForAdAccount } from "../_shared/platform-connection-resolver.ts";
+import { resolveMetaLocales } from "../_shared/meta-locale.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -321,7 +322,7 @@ serve(async (req) => {
 
     // Add devices if specified (omit if "all" devices selected)
     if (body.devices && Array.isArray(body.devices) && body.devices.length > 0 && !body.devices.includes("all")) {
-      targetSpec.user_device = body.devices;
+      targetSpec.device_platforms = body.devices;
     }
 
     // Add OS if specified (omit if "all" OS selected)
@@ -329,9 +330,21 @@ serve(async (req) => {
       targetSpec.user_os = body.os;
     }
 
-    // Add languages if specified (omit if "all" languages selected)
-    if (body.languages && Array.isArray(body.languages) && body.languages.length > 0 && !body.languages.includes("all")) {
-      targetSpec.locales = body.languages;
+    // Add languages if specified — Meta expects numeric locale IDs, not ISO codes
+    const metaLocales = resolveMetaLocales(body.languages);
+    if (metaLocales.length > 0) {
+      targetSpec.locales = metaLocales;
+      console.log("Language targeting:", {
+        input: body.languages,
+        locales: metaLocales,
+      });
+    } else if (
+      body.languages &&
+      Array.isArray(body.languages) &&
+      body.languages.length > 0 &&
+      !body.languages.includes("all")
+    ) {
+      console.warn("No valid Meta locale IDs resolved from languages; omitting locale targeting:", body.languages);
     }
 
     // Add detailed targeting if specified (interests, behaviors, demographics)
@@ -475,34 +488,26 @@ serve(async (req) => {
         // ignore JSON parse failure
       }
 
-      // No retry logic - keep placement parameters as hardcoded
-      // Handle specific error codes (after optional retry)
-      if (!createResponse.ok) {
-        const finalErrorText = errorData ? JSON.stringify(errorData) : errorText;
-
+      const finalData = errorData ?? (() => {
         try {
-          const finalData = errorData || JSON.parse(errorText);
-
-          if (finalData.error?.code === 190) {
-            throw new Error("INVALID_TOKEN: Meta access token is invalid or expired.");
-          }
-
-          if (finalData.error?.code === 200) {
-            throw new Error(
-              "PERMISSION_ERROR: Meta access token does not have required permissions. Need ads_management and business_management scopes for R&F predictions.",
-            );
-          }
-        } catch (e) {
-          if (
-            e instanceof Error &&
-            (e.message.startsWith("R&F_") || e.message.startsWith("INVALID_") || e.message.startsWith("PERMISSION_"))
-          ) {
-            throw e;
-          }
+          return JSON.parse(errorText);
+        } catch {
+          return null;
         }
+      })();
 
-        throw new Error(`R&F prediction creation failed: ${finalErrorText}`);
+      if (finalData?.error?.code === 190) {
+        throw new Error("INVALID_TOKEN: Meta access token is invalid or expired.");
       }
+
+      if (finalData?.error?.code === 200) {
+        throw new Error(
+          "PERMISSION_ERROR: Meta access token does not have required permissions. Need ads_management and business_management scopes for R&F predictions.",
+        );
+      }
+
+      const finalErrorText = finalData ? JSON.stringify(finalData) : errorText;
+      throw new Error(`R&F prediction creation failed: ${finalErrorText}`);
     }
 
     const predictionData = await createResponse.json();
@@ -529,8 +534,11 @@ serve(async (req) => {
     let attempts = 0;
     let predictionResult = null;
 
-    while (attempts < 20) {
-      await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3s between checks
+    const maxPollAttempts = 15;
+    const pollIntervalMs = 2000;
+
+    while (attempts < maxPollAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
 
       const statusResponse = await fetch(
         `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,audience_size_lower_bound,external_minimum_budget,external_maximum_budget,external_minimum_reach,external_maximum_reach,external_minimum_impression,external_maximum_impression,prediction_progress,status,curve_budget_reach`,
@@ -693,14 +701,28 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("Meta R&F prediction error:", error);
 
+    const message = error?.message ?? "Unknown error";
+    let status = 500;
+    if (message.includes("INVALID_TOKEN") || message.includes("Invalid authentication")) {
+      status = 401;
+    } else if (
+      message.includes("required") ||
+      message.includes("Invalid country") ||
+      message.includes("Invalid Meta ad account") ||
+      message.includes("Budget must be") ||
+      message.includes("No markets")
+    ) {
+      status = 400;
+    }
+
     return new Response(
       JSON.stringify({
-        error: error.message,
+        error: message,
         details:
           "Reach & Frequency predictions require: (1) Ad account with RESERVED buying_type access, (2) Access token with ads_management + business_management scopes, (3) App in Live mode",
       }),
       {
-        status: 500,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

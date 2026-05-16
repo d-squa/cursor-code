@@ -11,6 +11,7 @@ export interface PlatformSyncProgress {
   errorMessage?: string;
   startedAt?: string;
   completedAt?: string;
+  lastProgressAt?: string;
   // Detailed counts
   processedCounts?: {
     adAccounts?: number;
