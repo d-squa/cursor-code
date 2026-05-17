@@ -1341,9 +1341,10 @@ export function MediaPlanEditor() {
         const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
         const trimmedBo = boNumber.trim();
+        const teamIdForBo = loadedCampaignTeamId ?? activeWorkspaceId;
         const boConflictId =
-          trimmedBo && savedCampaignId
-            ? await findBoNumberConflict(trimmedBo, savedCampaignId)
+          trimmedBo && savedCampaignId && teamIdForBo
+            ? await findBoNumberConflict(trimmedBo, savedCampaignId, teamIdForBo)
             : null;
 
         const updatePayload: Record<string, unknown> = {
@@ -1576,8 +1577,9 @@ export function MediaPlanEditor() {
     }
 
     // Check if BO number is unique within the same workspace
-    if (boNumber.trim()) {
-      const conflictId = await findBoNumberConflict(boNumber, savedCampaignId);
+    const teamIdForBo = loadedCampaignTeamId ?? activeWorkspaceId;
+    if (boNumber.trim() && teamIdForBo) {
+      const conflictId = await findBoNumberConflict(boNumber, savedCampaignId, teamIdForBo);
       if (conflictId) {
         toast.error(BO_NUMBER_CONFLICT_MESSAGE);
         return;
@@ -1959,8 +1961,9 @@ export function MediaPlanEditor() {
     }
 
     // Check if BO number is unique within the same workspace (skip when BO is empty)
-    if (boNumber.trim()) {
-      const conflictId = await findBoNumberConflict(boNumber, savedCampaignId);
+    const teamIdForBo = loadedCampaignTeamId ?? activeWorkspaceId;
+    if (boNumber.trim() && teamIdForBo) {
+      const conflictId = await findBoNumberConflict(boNumber, savedCampaignId, teamIdForBo);
       if (conflictId) {
         toast.error(BO_NUMBER_CONFLICT_MESSAGE);
         return null;

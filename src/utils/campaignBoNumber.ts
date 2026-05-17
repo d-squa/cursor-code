@@ -1,17 +1,23 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export const BO_NUMBER_CONFLICT_MESSAGE =
-  "This BO number is already used by another campaign. Choose a different number or clear the field.";
+  "BO number must be unique within your workspace. This number is already in use on another ActiPlan here.";
 
-/** Returns another campaign id that already uses this BO number, if any. */
+/** Returns another campaign id in the same team that already uses this BO number, if any. */
 export async function findBoNumberConflict(
   boNumber: string,
   excludeCampaignId?: string | null,
+  teamId?: string | null,
 ): Promise<string | null> {
   const trimmed = boNumber.trim();
-  if (!trimmed) return null;
+  if (!trimmed || !teamId) return null;
 
-  let query = supabase.from("campaigns").select("id").eq("bo_number", trimmed);
+  let query = supabase
+    .from("campaigns")
+    .select("id")
+    .eq("bo_number", trimmed)
+    .eq("team_id", teamId);
+
   if (excludeCampaignId) {
     query = query.neq("id", excludeCampaignId);
   }
@@ -30,5 +36,10 @@ export function isBoNumberUniqueViolation(error: unknown): boolean {
   const e = error as { code?: string; message?: string };
   if (e.code === "23505") return true;
   const blob = `${e.code ?? ""} ${e.message ?? ""}`.toLowerCase();
-  return blob.includes("23505") || blob.includes("campaigns_bo_number");
+  return (
+    blob.includes("23505") ||
+    blob.includes("campaigns_bo_number") ||
+    blob.includes("campaigns_team_id_bo_number_key") ||
+    blob.includes("campaigns_bo_number_no_team_key")
+  );
 }
