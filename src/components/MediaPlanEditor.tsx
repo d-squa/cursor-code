@@ -72,6 +72,8 @@ import { normalizeLanguageValues } from "@/utils/targetingOptions";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
+import { useCampaignEditPermission } from "@/hooks/useCampaignEditPermission";
+import { CampaignEditProvider } from "@/contexts/CampaignEditContext";
 import {
   BO_NUMBER_CONFLICT_MESSAGE,
   findBoNumberConflict,
@@ -124,7 +126,38 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [loadedCampaignTeamId, setLoadedCampaignTeamId] = useState<string | null>(null);
+  const [loadedCampaignCreatorId, setLoadedCampaignCreatorId] = useState<string | null>(null);
+  const [loadedCampaignStatus, setLoadedCampaignStatus] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+
+  const extensionModeActive = useMemo(() => {
+    const urlParams = new URLSearchParams(location.search);
+    return urlParams.get("mode") === "extend";
+  }, [location.search]);
+
+  const {
+    capabilities,
+    loading: editPermLoading,
+    canEditInEditor,
+    lockPlanFoundation,
+    isViewer,
+    isCollaborator,
+  } = useCampaignEditPermission({
+    campaignId: savedCampaignId,
+    campaignTeamId: loadedCampaignTeamId,
+    campaignCreatorId: loadedCampaignCreatorId,
+    campaignStatus: loadedCampaignStatus,
+    extensionMode: extensionModeActive,
+  });
+
+  const isReadOnly = !editPermLoading && !canEditInEditor;
+
+  useEffect(() => {
+    if (lockPlanFoundation && extensionModeActive && currentStep < 3) {
+      setCurrentStep(3);
+    }
+  }, [lockPlanFoundation, extensionModeActive, currentStep]);
   const lastCampaignIdRef = useRef<string | null>(null);
   // Track whether client selection was an explicit user action (not hydration)
   const clientSelectionIsUserAction = useRef<boolean>(false);
@@ -910,6 +943,9 @@ export function MediaPlanEditor() {
 
   const hydrateFromCampaign = (c: any) => {
     try {
+      setLoadedCampaignTeamId(c.team_id ?? null);
+      setLoadedCampaignCreatorId(c.user_id ?? null);
+      setLoadedCampaignStatus(c.status ?? null);
       setCampaignName(c.name || "");
       setBoNumber(c.bo_number || "");
       setTotalBudget(String(c.total_budget ?? ""));
@@ -1035,6 +1071,9 @@ export function MediaPlanEditor() {
       setEndDate("");
       setPlatformsWithMarkets([]);
       setSavedCampaignId(null);
+      setLoadedCampaignTeamId(null);
+      setLoadedCampaignCreatorId(null);
+      setLoadedCampaignStatus(null);
       setGenericConfig({
         strategy: "auto-detect",
         strategyFocus: "auto",
@@ -1318,6 +1357,9 @@ export function MediaPlanEditor() {
       console.log("⏸️ Auto-save skipped (not hydrated yet)");
       return;
     }
+    if (!canEditInEditor || editPermLoading) {
+      return;
+    }
 
     console.log("⏰ Auto-save triggered");
 
@@ -1485,6 +1527,8 @@ export function MediaPlanEditor() {
     genericConfig,
     basicTargeting,
     savedCampaignId,
+    canEditInEditor,
+    editPermLoading,
     user,
     isHydrated,
     selectedClientId,
@@ -1570,6 +1614,10 @@ export function MediaPlanEditor() {
   };
 
   const handleLaunch = async () => {
+    if (!capabilities.canEditPlan) {
+      toast.error("You do not have permission to save this ActiPlan.");
+      return;
+    }
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
       return;
@@ -1949,6 +1997,14 @@ export function MediaPlanEditor() {
   ]);
 
   const saveCampaignDraft = async () => {
+    if (!canEditInEditor) {
+      toast.error(
+        isCollaborator
+          ? "Use Extend Campaign (QC) on approved plans to add phases or markets — budget and strategy stay locked."
+          : "You have view-only access to this ActiPlan.",
+      );
+      return null;
+    }
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
       return null;
@@ -2087,6 +2143,7 @@ export function MediaPlanEditor() {
   };
 
   const ensureDraft = async () => {
+    if (!canEditInEditor || editPermLoading) return;
     // Prevent concurrent draft creation - this fixes the race condition
     // where multiple field changes trigger multiple INSERTs before the first completes
     if (savedCampaignId || draftCreationInProgressRef.current) {
@@ -2334,7 +2391,50 @@ export function MediaPlanEditor() {
   };
 
   return (
+    <CampaignEditProvider
+      value={{
+        canEdit: canEditInEditor,
+        isViewer,
+        loading: editPermLoading,
+      }}
+    >
+    <fieldset disabled={isReadOnly} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
     <div className="space-y-6">
+      {isReadOnly && isViewer && (
+        <Alert className="border-muted-foreground/30 bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            You have <span className="font-medium">viewer</span> access on this team. This ActiPlan is
+            read-only — you can review it but cannot change budgets, targeting, or other settings.
+          </AlertDescription>
+        </Alert>
+      )}
+      {isCollaborator && isReadOnly && !isViewer && (
+        <Alert className="border-muted-foreground/30 bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-medium">QC (Collaborator):</span> use{" "}
+            <span className="font-medium">Extend Campaign (QC)</span> from ActiPlans on approved or live
+            plans to add phases or markets. Budget, dates, and strategy stay locked. You can also use Mesh
+            Creatives and QC actions (modification requests, activity log).
+          </AlertDescription>
+        </Alert>
+      )}
+      {lockPlanFoundation && canEditInEditor && (
+        <Alert className="border-primary/30 bg-primary/5">
+          <ShieldAlert className="h-4 w-4 text-primary" />
+          <AlertDescription>
+            Activation budget and dates are locked for your role. You can add new platforms, markets, and
+            phases only — not change the original plan foundation.
+          </AlertDescription>
+        </Alert>
+      )}
+      {isReadOnly && !isViewer && !isCollaborator && (
+        <Alert className="border-muted-foreground/30 bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>This ActiPlan is read-only for your account.</AlertDescription>
+        </Alert>
+      )}
       {/* Extension Mode Banner */}
       {extensionMode.isExtensionMode && (
         <Alert className="border-primary/50 bg-primary/5">
@@ -2356,7 +2456,7 @@ export function MediaPlanEditor() {
               <CardTitle>Step 1: Activation Details</CardTitle>
               <CardDescription>Define your activation's core parameters</CardDescription>
             </div>
-            {currentStep > 1 && (
+            {currentStep > 1 && !lockPlanFoundation && (
               <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
                 Edit
               </Button>
@@ -2365,6 +2465,7 @@ export function MediaPlanEditor() {
         </CardHeader>
         {currentStep === 1 ? (
           <CardContent className="space-y-6">
+            <fieldset disabled={lockPlanFoundation} className="border-0 p-0 m-0 min-w-0 space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Activation Name</Label>
@@ -2594,6 +2695,7 @@ export function MediaPlanEditor() {
                 </span>
               </div>
             </div>
+            </fieldset>
           </CardContent>
         )}
       </Card>
@@ -3759,7 +3861,9 @@ export function MediaPlanEditor() {
           tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
+          readOnly={isReadOnly || !capabilities.canSendForApproval}
           onBudgetOptimize={(newPlatforms) => {
+            if (isReadOnly) return;
             setPlatformsWithMarkets(newPlatforms);
           }}
         />
@@ -3817,5 +3921,7 @@ export function MediaPlanEditor() {
         campaignName={campaignName}
       />
     </div>
+    </fieldset>
+    </CampaignEditProvider>
   );
 }

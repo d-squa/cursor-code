@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
-import { getAccessToken, resolveGoogleAdsAccessToken } from "../_shared/vault-helper.ts";
+import {
+  getAccessToken,
+  resolveGoogleAdsAccessToken,
+  type GoogleAdsTokenResolution,
+} from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,6 +48,17 @@ function isPostgresUniqueViolation(err: { code?: string; message?: string; detai
     blob.includes("already exists") ||
     blob.includes("unique constraint")
   );
+}
+
+/** PostgREST often maps duplicate key to HTTP 409; some clients omit PG code `23505` on the error object. */
+function isMetaSocialRowConflict(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  if (isPostgresUniqueViolation(err as { code?: string; message?: string; details?: string })) return true;
+  const e = err as Record<string, unknown>;
+  const status = e.status ?? e.statusCode;
+  if (status === 409 || status === "409") return true;
+  if (e.code === 409 || e.code === "409") return true;
+  return false;
 }
 
 /**
@@ -93,8 +108,8 @@ async function upsertEachRow(
 ): Promise<{ code?: string; message?: string } | null> {
   if (rows.length === 0) return null;
   for (const row of rows) {
-    let { error } = await supabase.from(table).upsert([row], { onConflict });
-    if (error && isPostgresUniqueViolation(error)) {
+    let { error } = await supabase.from(table).upsert(row, { onConflict });
+    if (error && isMetaSocialRowConflict(error)) {
       console.warn(
         `[SYNC-ACCOUNT-ASSETS] ${table} upsert hit unique conflict; updating existing row (key matches meta_pages_user_page_key / meta_instagram_accounts_user_account_key)`,
         { page_id: row.page_id, instagram_account_id: row.instagram_account_id },
@@ -866,67 +881,100 @@ async function syncGoogleAdsAssets(
       console.warn("[SYNC-ACCOUNT-ASSETS] google_ad_accounts lookup:", gaLookupError.message);
     }
 
-    let platformData: { id: string; access_token: string | null; refresh_token: string | null } | null = null;
-    let platformError: { message?: string } | null = null;
+    // After re-OAuth, a NEW connected_platforms row often holds Vault tokens while
+    // google_ad_accounts.platform_id still points at an old row (empty Vault / revoked refresh).
+    const candidateRows: { id: string; access_token: string | null }[] = [];
+    const seen = new Set<string>();
+    const pushCandidate = (row: { id: string; access_token: string | null } | null | undefined) => {
+      if (!row?.id || seen.has(row.id)) return;
+      seen.add(row.id);
+      candidateRows.push({ id: row.id, access_token: row.access_token ?? null });
+    };
 
     if (googleAccountRow?.platform_id) {
-      const pinned = await supabase
+      const { data: pinRow, error: pinErr } = await supabase
         .from("connected_platforms")
-        .select("id, access_token, refresh_token")
+        .select("id, access_token")
         .eq("id", googleAccountRow.platform_id)
         .eq("user_id", user.id)
         .eq("platform_type", "google")
-        .eq("is_active", true)
         .maybeSingle();
-      platformData = pinned.data ?? null;
-      platformError = pinned.error ?? null;
-      if (platformData) {
+      if (pinErr) {
+        console.warn("[SYNC-ACCOUNT-ASSETS] Pinned Google platform lookup:", pinErr.message);
+      } else if (pinRow) {
+        pushCandidate(pinRow);
         console.log(
-          `[SYNC-ACCOUNT-ASSETS] Using google_ad_accounts.platform_id=${platformData.id} for customer ${cleanAccountId}`,
-        );
-      } else {
-        console.warn(
-          `[SYNC-ACCOUNT-ASSETS] google_ad_accounts.platform_id=${googleAccountRow.platform_id} is not an active Google connection for this user; falling back to most recently updated connection.`,
+          `[SYNC-ACCOUNT-ASSETS] Candidate (pinned google_ad_accounts.platform_id): ${pinRow.id} for customer ${cleanAccountId}`,
         );
       }
     }
 
-    if (!platformData) {
-      const fb = await supabase
-        .from("connected_platforms")
-        .select("id, access_token, refresh_token")
-        .eq("user_id", user.id)
-        .eq("platform_type", "google")
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      platformData = fb.data ?? null;
-      platformError = fb.error ?? null;
+    const { data: activeGoogle, error: activeErr } = await supabase
+      .from("connected_platforms")
+      .select("id, access_token")
+      .eq("user_id", user.id)
+      .eq("platform_type", "google")
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false });
+    if (activeErr) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Active Google connections query:", activeErr.message);
     }
+    for (const r of activeGoogle || []) pushCandidate(r);
 
-    if (platformError || !platformData) {
-      console.error("[SYNC-ACCOUNT-ASSETS] Google platform lookup error:", platformError);
+    if (candidateRows.length === 0) {
       throw new Error("No active Google Ads platform connection found");
     }
 
-    const tokenRes = await resolveGoogleAdsAccessToken(
-      supabase,
-      platformData.id,
-      platformData.access_token,
-    );
-    if (!tokenRes.ok) {
-      console.error(
-        "[SYNC-ACCOUNT-ASSETS] Google token resolution failed:",
+    let lastTokenRes: GoogleAdsTokenResolution = {
+      ok: false,
+      message: "No Google token candidates were tried",
+      remediation: "Connect Google Ads from Platform connections, then sync again.",
+    };
+    let platformData: { id: string; access_token: string | null } | null = null;
+    let accessToken: string | null = null;
+
+    for (const row of candidateRows) {
+      const tokenRes = await resolveGoogleAdsAccessToken(supabase, row.id, row.access_token);
+      lastTokenRes = tokenRes;
+      if (tokenRes.ok) {
+        platformData = row;
+        accessToken = tokenRes.accessToken;
+        if (googleAccountRow?.platform_id && googleAccountRow.platform_id !== row.id) {
+          const { error: healErr } = await supabase
+            .from("google_ad_accounts")
+            .update({ platform_id: row.id })
+            .eq("customer_id", cleanAccountId)
+            .eq("user_id", user.id);
+          if (healErr) {
+            console.warn(
+              "[SYNC-ACCOUNT-ASSETS] Could not repoint google_ad_accounts.platform_id:",
+              healErr.message,
+            );
+          } else {
+            console.log(
+              `[SYNC-ACCOUNT-ASSETS] Repointed google_ad_accounts.platform_id ${googleAccountRow.platform_id} → ${row.id} for customer ${cleanAccountId}`,
+            );
+          }
+        }
+        break;
+      }
+      console.warn(
+        `[SYNC-ACCOUNT-ASSETS] Google token resolution failed for platform ${row.id}:`,
         tokenRes.message,
-        tokenRes.remediation,
-        { platformId: platformData.id, customerId: cleanAccountId },
-      );
-      throw new Error(
-        `Google Ads token: ${tokenRes.message} Remediation: ${tokenRes.remediation} (platformId=${platformData.id}, customerId=${cleanAccountId})`,
       );
     }
-    const accessToken = tokenRes.accessToken;
+
+    if (!platformData || !accessToken) {
+      console.error(
+        "[SYNC-ACCOUNT-ASSETS] Google token exhausted all platform candidates;",
+        lastTokenRes.message,
+        lastTokenRes.remediation,
+        { customerId: cleanAccountId, triedPlatformIds: candidateRows.map((c) => c.id) },
+      );
+      throw new Error(
+        `Google Ads token: ${lastTokenRes.message} Remediation: ${lastTokenRes.remediation} (triedPlatformIds=${candidateRows.map((c) => c.id).join(",")}, customerId=${cleanAccountId})`,
+      );
+    }
 
     const syncResults = {
       conversionActions: 0,

@@ -100,6 +100,8 @@ interface CampaignForecastProps {
   onBack: () => void;
   onFinalize: () => void;
   onBudgetOptimize?: (newPlatforms: PlatformWithMarkets[]) => void;
+  /** View-only (e.g. team viewer role): no saves, forecast refresh, or approval actions. */
+  readOnly?: boolean;
 }
 
 interface ForecastMetrics {
@@ -238,6 +240,7 @@ export function CampaignForecast({
   onBack,
   onFinalize,
   onBudgetOptimize,
+  readOnly = false,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
   const { isSampleMode } = useSampleMode();
@@ -583,6 +586,7 @@ export function CampaignForecast({
   // Auto-save forecast data when it changes
   useEffect(() => {
     const saveForecastData = async () => {
+      if (readOnly) return;
       if (!campaignId || Object.keys(forecasts).length === 0) return;
 
       try {
@@ -613,7 +617,7 @@ export function CampaignForecast({
     };
 
     saveForecastData();
-  }, [forecasts, actiplanForecast, campaignId]);
+  }, [forecasts, actiplanForecast, campaignId, readOnly]);
 
   // Sync benchmarks for all selected ad accounts across platforms
   const syncBenchmarksForSelectedAccounts = async (): Promise<void> => {
@@ -2719,7 +2723,7 @@ export function CampaignForecast({
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {!isSampleMode && !loading && Object.keys(forecasts).length === 0 && (
+            {!readOnly && !isSampleMode && !loading && Object.keys(forecasts).length === 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
@@ -2734,7 +2738,7 @@ export function CampaignForecast({
                 )}
               </Button>
             )}
-            {!isSampleMode && !loading && Object.keys(forecasts).length > 0 && (
+            {!readOnly && !isSampleMode && !loading && Object.keys(forecasts).length > 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} variant="outline" disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
@@ -2878,6 +2882,7 @@ export function CampaignForecast({
                 </DropdownMenuContent>
               </DropdownMenu>
             </LockedFeatureButton>
+            {!readOnly && (
             <LockedFeatureButton feature="request_modifications">
               <Button 
                 variant="outline" 
@@ -2888,6 +2893,7 @@ export function CampaignForecast({
                 Send for Approval
               </Button>
             </LockedFeatureButton>
+            )}
             <Button 
               variant="outline"
               onClick={() => navigate(`/app/creatives?campaignId=${campaignId}`)} 
@@ -2896,6 +2902,7 @@ export function CampaignForecast({
               <Wand2 className="h-4 w-4 mr-2" />
               Mesh Ads
             </Button>
+            {!readOnly && (
             <Button 
               variant="gradient" 
               onClick={handleGoToLaunchStatus} 
@@ -2904,9 +2911,12 @@ export function CampaignForecast({
               <Rocket className="h-4 w-4 mr-2" />
               Launch Campaign
             </Button>
+            )}
+            {!readOnly && (
             <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
               Save Draft
             </Button>
+            )}
           </div>
         </div>
 

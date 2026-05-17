@@ -17,7 +17,6 @@ import {
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -49,6 +48,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { formatTeamRoleLabel } from "@/utils/campaignPermissions";
+import {
+  SelectedRoleHint,
+  SubscriptionRoleSelectItems,
+} from "@/components/roles/RoleSelectItems";
+
+const SUBSCRIPTION_INVITE_ROLES = ["admin", "campaign_manager", "member", "viewer"] as const;
+const SUBSCRIPTION_EDIT_ROLES = [
+  "admin",
+  "campaign_manager",
+  "member",
+  "viewer",
+  "collaborator",
+] as const;
 
 /** PostgREST may return smallints as string or wrap scalars; NaN must not count as success. */
 function parseRpcInt(v: unknown): number {
@@ -102,7 +115,7 @@ function strongestAppRole(roles: Set<string>): string {
 }
 
 function formatRoleLabel(role: string): string {
-  return role.replace(/_/g, " ");
+  return formatTeamRoleLabel(role);
 }
 
 /** Client-side roster when RPC is missing; mirrors subscription roster + team labels. */
@@ -905,10 +918,11 @@ export default function UserManagement() {
             {billingWorkspaceId ? (
               <>
                 Manage everyone who can access this subscription and their{" "}
-                <span className="font-medium text-foreground">subscription role</span>. You can manage all subscription
-                users regardless of which teams they are assigned to. Team membership and team roles are configured
-                under <span className="font-medium text-foreground">Manage Your Team</span> and do not change
-                subscription roles shown here.
+                <span className="font-medium text-foreground">subscription role</span> (account access). Team
+                membership and <span className="font-medium text-foreground">team roles</span> (what they can do on each
+                team&apos;s ActiPlans — build, QC, view-only) are configured under{" "}
+                <span className="font-medium text-foreground">Manage Your Team</span>. Changing a subscription role here
+                does not change team roles.
               </>
             ) : (
               <>
@@ -956,13 +970,11 @@ export default function UserManagement() {
                     <SelectTrigger className="text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:line-clamp-none">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
+                    <SelectContent className="max-w-[min(100vw-2rem,380px)]">
+                      <SubscriptionRoleSelectItems roles={SUBSCRIPTION_INVITE_ROLES} />
                     </SelectContent>
                   </Select>
+                  <SelectedRoleHint role={inviteRole} scope="subscription" />
                 </div>
 
                 <Button 
@@ -1101,12 +1113,8 @@ export default function UserManagement() {
                         >
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
-                          <SelectItem value="collaborator">Collaborator</SelectItem>
-                          <SelectItem value="member">Member</SelectItem>
-                          <SelectItem value="viewer">Viewer</SelectItem>
+                        <SelectContent className="max-w-[min(100vw-2rem,380px)]">
+                          <SubscriptionRoleSelectItems roles={SUBSCRIPTION_EDIT_ROLES} />
                         </SelectContent>
                       </Select>
                     ) : userItem.role ? (

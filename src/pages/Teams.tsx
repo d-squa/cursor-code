@@ -28,6 +28,8 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { FeatureGate } from "@/components/FeatureGate";
 import { getMaxTeamsForTier } from "@/config/subscriptionTiers";
 import type { Tables, Enums } from "@/integrations/supabase/types";
+import { formatTeamRoleLabel } from "@/utils/campaignPermissions";
+import { TeamRoleSelectItems } from "@/components/roles/RoleSelectItems";
 
 type Team = Tables<"teams">;
 type AppRole = Enums<"app_role">;
@@ -63,7 +65,7 @@ function strongestAppRole(roles: Set<string>): string {
 }
 
 function formatRoleLabel(role: string): string {
-  return role.replace(/_/g, " ");
+  return formatTeamRoleLabel(role);
 }
 
 export default function Teams() {
@@ -605,12 +607,16 @@ export default function Teams() {
                             <SelectTrigger className="h-auto min-h-10 w-full min-w-[200px] max-w-[min(100%,260px)] justify-between gap-2 py-2 text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:whitespace-normal [&>span]:break-words [&>span]:leading-snug [&>span]:line-clamp-none">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
-                              <SelectItem value="viewer">Viewer</SelectItem>
-                              <SelectItem value="collaborator">Collaborator</SelectItem>
-                              <SelectItem value="member">Member</SelectItem>
+                            <SelectContent className="max-w-[min(100vw-2rem,380px)]">
+                              <TeamRoleSelectItems
+                                roles={[
+                                  "admin",
+                                  "campaign_manager",
+                                  "member",
+                                  "collaborator",
+                                  "viewer",
+                                ]}
+                              />
                             </SelectContent>
                           </Select>
                         )}

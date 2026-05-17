@@ -106,5 +106,6 @@ export const TEAM_ASSIGNABLE_ROLES: Enums<"app_role">[] = [
 ];
 
 export function formatSubscriptionRoleLabel(role: string): string {
+  if (role === "collaborator") return "QC (Collaborator)";
   return role.replace(/_/g, " ");
 }
