@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -10,9 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,12 +26,6 @@ import type { Enums } from "@/integrations/supabase/types";
 
 type AppRole = Enums<"app_role">;
 
-type AssignRow = {
-  member: SubscriptionMember;
-  selected: boolean;
-  role: AppRole | "";
-};
-
 type AssignTeamMembersDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,6 +36,13 @@ type AssignTeamMembersDialogProps = {
   onAssigned: () => void;
 };
 
+function memberOptionLabel(member: SubscriptionMember): string {
+  const company = member.company_name?.trim();
+  const teams =
+    member.team_names.length > 0 ? ` · ${member.team_names.join(", ")}` : "";
+  return company ? `${member.email} (${company})${teams}` : `${member.email}${teams}`;
+}
+
 export function AssignTeamMembersDialog({
   open,
   onOpenChange,
@@ -52,7 +52,8 @@ export function AssignTeamMembersDialog({
   existingMemberUserIds,
   onAssigned,
 }: AssignTeamMembersDialogProps) {
-  const [rows, setRows] = useState<AssignRow[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [rolesByUserId, setRolesByUserId] = useState<Record<string, AppRole | "">>({});
   const [submitting, setSubmitting] = useState(false);
 
   const existingSet = useMemo(() => new Set(existingMemberUserIds), [existingMemberUserIds]);
@@ -68,41 +69,50 @@ export function AssignTeamMembersDialog({
     [subscriptionMembers, existingSet],
   );
 
+  const membersById = useMemo(
+    () => new Map(availableMembers.map((m) => [m.id, m])),
+    [availableMembers],
+  );
+
+  const multiSelectOptions = useMemo(
+    () =>
+      availableMembers.map((m) => ({
+        value: m.id,
+        label: memberOptionLabel(m),
+      })),
+    [availableMembers],
+  );
+
   useEffect(() => {
     if (!open) {
-      setRows([]);
-      return;
+      setSelectedUserIds([]);
+      setRolesByUserId({});
     }
-    setRows(
-      availableMembers.map((member) => ({
-        member,
-        selected: false,
-        role: "",
-      })),
-    );
-  }, [open, availableMembers]);
+  }, [open]);
 
-  const selectedRows = rows.filter((r) => r.selected);
+  useEffect(() => {
+    setRolesByUserId((prev) => {
+      const next: Record<string, AppRole | ""> = {};
+      selectedUserIds.forEach((id) => {
+        next[id] = prev[id] ?? "";
+      });
+      return next;
+    });
+  }, [selectedUserIds]);
+
+  const selectedMembers = selectedUserIds
+    .map((id) => membersById.get(id))
+    .filter((m): m is SubscriptionMember => !!m);
+
   const allSelectedHaveRoles =
-    selectedRows.length > 0 && selectedRows.every((r) => r.role && TEAM_ASSIGNABLE_ROLES.includes(r.role as AppRole));
+    selectedUserIds.length > 0 &&
+    selectedUserIds.every(
+      (id) => rolesByUserId[id] && TEAM_ASSIGNABLE_ROLES.includes(rolesByUserId[id] as AppRole),
+    );
   const canSubmit = allSelectedHaveRoles && !submitting;
 
-  const toggleSelected = (userId: string, selected: boolean) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.member.id === userId
-          ? {
-              ...r,
-              selected,
-              role: selected ? r.role : "",
-            }
-          : r,
-      ),
-    );
-  };
-
   const setRole = (userId: string, role: AppRole) => {
-    setRows((prev) => prev.map((r) => (r.member.id === userId ? { ...r, role } : r)));
+    setRolesByUserId((prev) => ({ ...prev, [userId]: role }));
   };
 
   const handleAssign = async () => {
@@ -110,18 +120,18 @@ export function AssignTeamMembersDialog({
 
     setSubmitting(true);
     try {
-      const payload = selectedRows.map((r) => ({
-        user_id: r.member.id,
+      const payload = selectedUserIds.map((user_id) => ({
+        user_id,
         team_id: teamId,
-        role: r.role as AppRole,
+        role: rolesByUserId[user_id] as AppRole,
       }));
 
-      const { error } = await supabase.from("user_roles").insert(payload);
-      if (error) {
-        if (error.code === "23505") {
+      const { error: insertError } = await supabase.from("user_roles").insert(payload);
+      if (insertError) {
+        if (insertError.code === "23505") {
           throw new Error("One or more users are already on this team.");
         }
-        throw error;
+        throw insertError;
       }
 
       toast.success(
@@ -141,11 +151,11 @@ export function AssignTeamMembersDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Assign team members</DialogTitle>
+          <DialogTitle>Add team members</DialogTitle>
           <DialogDescription>
-            Choose users from your subscription roster and set their role on{" "}
-            <span className="font-medium text-foreground">{teamName}</span>. This does not send email
-            invitations — it adds existing subscription users to the team.
+            Select users from your subscription roster and set their role on{" "}
+            <span className="font-medium text-foreground">{teamName}</span>. Users must already
+            exist under Settings → Subscription Users.
           </DialogDescription>
         </DialogHeader>
 
@@ -166,59 +176,19 @@ export function AssignTeamMembersDialog({
         ) : availableMembers.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">
             Everyone on this subscription is already on {teamName}, or there are no subscription users
-            yet. Invite users under Settings → Subscription Users, then assign them here.
+            yet. Add users under Settings → Subscription Users, then assign them here.
           </p>
         ) : (
-          <ScrollArea className="max-h-[min(360px,50vh)] pr-3">
-            <div className="space-y-3">
-              {rows.map((row) => (
-                <div
-                  key={row.member.id}
-                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Checkbox
-                      id={`assign-${row.member.id}`}
-                      checked={row.selected}
-                      onCheckedChange={(checked) => toggleSelected(row.member.id, checked === true)}
-                    />
-                    <label htmlFor={`assign-${row.member.id}`} className="min-w-0 cursor-pointer space-y-0.5">
-                      <p className="text-sm font-medium truncate">{row.member.email}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {row.member.company_name || "—"}
-                        {row.member.team_names.length > 0 && (
-                          <> · Teams: {row.member.team_names.join(", ")}</>
-                        )}
-                      </p>
-                      <Badge variant="outline" className="text-[10px] font-normal">
-                        Subscription: {formatSubscriptionRoleLabel(row.member.subscription_role)}
-                      </Badge>
-                    </label>
-                  </div>
-                  {row.selected && (
-                    <div className="sm:w-44 shrink-0 space-y-1">
-                      <Label className="text-xs">Team role</Label>
-                      <Select
-                        value={row.role || undefined}
-                        onValueChange={(value) => setRole(row.member.id, value as AppRole)}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TEAM_ASSIGNABLE_ROLES.map((role) => (
-                            <SelectItem key={role} value={role}>
-                              {formatSubscriptionRoleLabel(role)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
+          <div className="space-y-4">
+            <AssignFormBody
+              multiSelectOptions={multiSelectOptions}
+              selectedUserIds={selectedUserIds}
+              onSelectedUserIdsChange={setSelectedUserIds}
+              selectedMembers={selectedMembers}
+              rolesByUserId={rolesByUserId}
+              onRoleChange={setRole}
+            />
+          </div>
         )}
 
         <DialogFooter>
@@ -232,11 +202,123 @@ export function AssignTeamMembersDialog({
                 Assigning…
               </>
             ) : (
-              `Assign${selectedRows.length > 0 ? ` (${selectedRows.length})` : ""}`
+              `Assign${selectedUserIds.length > 0 ? ` (${selectedUserIds.length})` : ""}`
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AssignFormBody({
+  multiSelectOptions,
+  selectedUserIds,
+  onSelectedUserIdsChange,
+  selectedMembers,
+  rolesByUserId,
+  onRoleChange,
+}: {
+  multiSelectOptions: { value: string; label: string }[];
+  selectedUserIds: string[];
+  onSelectedUserIdsChange: (ids: string[]) => void;
+  selectedMembers: SubscriptionMember[];
+  rolesByUserId: Record<string, AppRole | "">;
+  onRoleChange: (userId: string, role: AppRole) => void;
+}) {
+  return (
+    <>
+      <div className="space-y-2">
+        <Label>Subscription users</Label>
+        <MultiSelect
+          options={multiSelectOptions}
+          value={selectedUserIds}
+          onChange={onSelectedUserIdsChange}
+          placeholder="Select subscription users…"
+          emptyText="No subscription users available"
+        />
+        <p className="text-xs text-muted-foreground">
+          Search and pick from everyone on this subscription who is not already on the team.
+        </p>
+      </div>
+
+      {selectedMembers.length > 0 && (
+        <RoleAssignmentList
+          members={selectedMembers}
+          rolesByUserId={rolesByUserId}
+          onRoleChange={onRoleChange}
+        />
+      )}
+    </>
+  );
+}
+
+function RoleAssignmentList({
+  members,
+  rolesByUserId,
+  onRoleChange,
+}: {
+  members: SubscriptionMember[];
+  rolesByUserId: Record<string, AppRole | "">;
+  onRoleChange: (userId: string, role: AppRole) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border p-3">
+      <Label className="text-xs text-muted-foreground">Team role for each user</Label>
+      {members.map((member) => (
+        <div
+          key={member.id}
+          className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <MemberSummary member={member} />
+          <TeamRoleSelect
+            memberId={member.id}
+            value={rolesByUserId[member.id]}
+            onRoleChange={onRoleChange}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MemberSummary({ member }: { member: SubscriptionMember }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-medium truncate">{member.email}</p>
+      <Badge variant="outline" className="mt-1 text-[10px] font-normal">
+        Subscription: {formatSubscriptionRoleLabel(member.subscription_role)}
+      </Badge>
+    </div>
+  );
+}
+
+function TeamRoleSelect({
+  memberId,
+  value,
+  onRoleChange,
+}: {
+  memberId: string;
+  value: AppRole | "";
+  onRoleChange: (userId: string, role: AppRole) => void;
+}) {
+  return (
+    <div className="sm:w-44 shrink-0">
+      <Select
+        value={value || undefined}
+        onValueChange={(role) => onRoleChange(memberId, role as AppRole)}
+      >
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder="Team role" />
+        </SelectTrigger>
+        <SelectContent>
+          {TEAM_ASSIGNABLE_ROLES.map((role) => (
+            <SelectItem key={role} value={role}>
+              {formatSubscriptionRoleLabel(role)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
