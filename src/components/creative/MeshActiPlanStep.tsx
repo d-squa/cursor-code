@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Layers, ArrowRight, CheckCircle2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWorkspace } from '@/hooks/useWorkspace';
+import { useSampleMode } from '@/contexts/SampleModeContext';
 
 interface Campaign {
   id: string;
@@ -33,6 +35,8 @@ export function MeshActiPlanStep({
   selectedPlatform,
 }: MeshActiPlanStepProps) {
   const { user } = useAuth();
+  const { activeWorkspaceId } = useWorkspace();
+  const { isSampleMode } = useSampleMode();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [localCampaignId, setLocalCampaignId] = useState(selectedCampaignId || initialCampaignId || '');
@@ -46,10 +50,17 @@ export function MeshActiPlanStep({
 
     const loadCampaigns = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('campaigns')
         .select('id, name, status, platforms')
+        .eq('is_sample', isSampleMode)
         .order('updated_at', { ascending: false });
+
+      if (activeWorkspaceId) {
+        query = query.eq('team_id', activeWorkspaceId);
+      }
+
+      const { data, error } = await query;
 
       if (!error && data) {
         const parsed = data.map(c => ({
@@ -62,20 +73,32 @@ export function MeshActiPlanStep({
         }));
         setCampaigns(parsed);
 
-        // If initial campaign ID provided, auto-select it
+        setLocalCampaignId((prev) => {
+          if (prev && !parsed.some((c) => c.id === prev)) {
+            setAvailablePlatforms([]);
+            return '';
+          }
+          return prev;
+        });
+
+        // If initial campaign ID provided, auto-select only when visible for current sample mode
         if (initialCampaignId) {
-          const campaign = parsed.find(c => c.id === initialCampaignId);
+          const campaign = parsed.find((c) => c.id === initialCampaignId);
           if (campaign) {
             setLocalCampaignId(campaign.id);
             handleCampaignChange(campaign.id, parsed);
           }
         }
+      } else {
+        setCampaigns([]);
+        setLocalCampaignId('');
+        setAvailablePlatforms([]);
       }
       setIsLoading(false);
     };
 
     loadCampaigns();
-  }, [user, initialCampaignId]);
+  }, [user, initialCampaignId, isSampleMode, activeWorkspaceId]);
 
   // Check for existing assignments when campaign changes
   useEffect(() => {

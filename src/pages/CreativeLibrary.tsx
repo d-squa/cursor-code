@@ -18,6 +18,7 @@ import type { Creative, CreativeFilters, Platform } from '@/types/creative';
 import { toast } from 'sonner';
 import { generateSampleTaxonomyStructure } from '@/utils/creativeValidation';
 import { supabase } from '@/integrations/supabase/client';
+import { useSampleMode } from '@/contexts/SampleModeContext';
 import { useAuth } from '@/hooks/useAuth';
 import { BugReportDialog } from '@/components/BugReportDialog';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
@@ -34,6 +35,7 @@ interface Campaign {
 
 export default function CreativeLibrary() {
   const { user, signOut } = useAuth();
+  const { isSampleMode } = useSampleMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialTab = searchParams.get('tab') || 'library';
@@ -114,6 +116,7 @@ export default function CreativeLibrary() {
           .from('campaigns')
           .select('id, name, status')
           .eq('user_id', user.id)
+          .eq('is_sample', isSampleMode)
           .order('updated_at', { ascending: false });
 
         if (error) throw error;
@@ -126,7 +129,7 @@ export default function CreativeLibrary() {
     };
 
     loadCampaigns();
-  }, [user?.id, shouldFetchCampaigns]);
+  }, [user?.id, shouldFetchCampaigns, isSampleMode]);
   
   // Re-hydrate platform assets selection from URL on mount or when campaigns load
   useEffect(() => {

@@ -13,6 +13,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, LayoutGrid, Image, Video, CheckCircle2, Layers, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useSampleMode } from '@/contexts/SampleModeContext';
+import { useWorkspace } from '@/hooks/useWorkspace';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreativeMatching, UICreativeMatch, DigestedAsset, CampaignStructure } from '@/hooks/useCreativeMatching';
 import { CreativeMatchCard } from './CreativeMatchCard';
@@ -35,6 +37,8 @@ interface CampaignOption {
 
 export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initialCampaignId, campaignName: initialCampaignName }: CreativeMatchingDialogProps) {
   const { user } = useAuth();
+  const { activeWorkspaceId } = useWorkspace();
+  const { isSampleMode } = useSampleMode();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'platform' | 'upload'>('library');
@@ -70,18 +74,22 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   useEffect(() => {
     if (open && !initialCampaignId && !selectedCampaignId && user) {
       setIsLoadingCampaigns(true);
-      supabase
+      let query = supabase
         .from('campaigns')
         .select('id, name, status')
-        .order('updated_at', { ascending: false })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setCampaigns(data);
-          }
-          setIsLoadingCampaigns(false);
-        });
+        .eq('is_sample', isSampleMode)
+        .order('updated_at', { ascending: false });
+      if (activeWorkspaceId) {
+        query = query.eq('team_id', activeWorkspaceId);
+      }
+      query.then(({ data, error }) => {
+        if (!error && data) {
+          setCampaigns(data);
+        }
+        setIsLoadingCampaigns(false);
+      });
     }
-  }, [open, initialCampaignId, selectedCampaignId, user]);
+  }, [open, initialCampaignId, selectedCampaignId, user, isSampleMode, activeWorkspaceId]);
 
   // Load library creatives when dialog opens
   useEffect(() => {
