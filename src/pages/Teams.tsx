@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import { getMaxTeamsForTier } from "@/config/subscriptionTiers";
 import type { Tables, Enums } from "@/integrations/supabase/types";
 import { formatTeamRoleLabel } from "@/utils/campaignPermissions";
 import { TeamRoleSelectItems } from "@/components/roles/RoleSelectItems";
+import { cn } from "@/lib/utils";
 
 type Team = Tables<"teams">;
 type AppRole = Enums<"app_role">;
@@ -160,6 +161,12 @@ export default function Teams() {
       return data as Team[];
     },
   });
+
+  useEffect(() => {
+    if (!teams?.length) return;
+    if (selectedTeam && teams.some((t) => t.id === selectedTeam.id)) return;
+    setSelectedTeam(teams[0]);
+  }, [teams, selectedTeam]);
 
   // Fetch team members for selected team
   const { data: teamMembers } = useQuery({
@@ -439,9 +446,9 @@ export default function Teams() {
 
   return (
     <FeatureGate feature="team_management">
-    <div className="container mx-auto p-8 max-w-7xl">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Teams Management</h1>
+    <div className="w-full min-w-0 space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Teams Management</h1>
         {canManageWorkspaceTeams ? (
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
@@ -486,63 +493,92 @@ export default function Teams() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] gap-4 lg:gap-6 items-start">
         {/* Teams List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Teams</CardTitle>
+        <Card className="lg:max-w-[16rem]">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-base">Teams</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {teams?.map((team) => (
-                <Card key={team.id} className="cursor-pointer hover:bg-accent" onClick={() => setSelectedTeam(team)}>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg">{team.name}</h3>
-                        <p className="text-sm text-muted-foreground">{team.description}</p>
-                      </div>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="space-y-1.5 max-h-[min(70vh,32rem)] overflow-y-auto">
+              {teams?.map((team) => {
+                const isSelected = selectedTeam?.id === team.id;
+                return (
+                  <div
+                    key={team.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedTeam(team)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedTeam(team);
+                      }
+                    }}
+                    className={cn(
+                      "w-full rounded-md border px-2.5 py-2 text-left transition-colors cursor-pointer",
+                      "hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      isSelected && "border-primary bg-primary/5 ring-1 ring-primary/20",
+                    )}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span
+                        className="font-medium text-sm truncate flex-1 min-w-0"
+                        title={team.name}
+                      >
+                        {team.name}
+                      </span>
                       {canManageWorkspaceTeams ? (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTeam(team);
-                            setNewTeam({ name: team.name, description: team.description || "" });
-                            setIsEditDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Are you sure you want to delete this team?")) {
-                              deleteTeam.mutate(team.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                        <div className="flex shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTeam(team);
+                              setNewTeam({ name: team.name, description: team.description || "" });
+                              setIsEditDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm("Are you sure you want to delete this team?")) {
+                                deleteTeam.mutate(team.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       ) : null}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    {team.description ? (
+                      <p
+                        className="text-xs text-muted-foreground line-clamp-1 mt-0.5"
+                        title={team.description}
+                      >
+                        {team.description}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
 
         {/* Team Members */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>
+        <Card className="min-w-0">
+          <CardHeader className="py-3 px-4 space-y-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base truncate min-w-0">
                 {selectedTeam ? `${selectedTeam.name} Members` : "Select a team"}
               </CardTitle>
               {selectedTeam && (
@@ -570,8 +606,9 @@ export default function Teams() {
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4 pt-0 min-w-0">
             {selectedTeam ? (
+              <div className="overflow-x-auto -mx-1 px-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -604,7 +641,7 @@ export default function Teams() {
                               });
                             }}
                           >
-                            <SelectTrigger className="h-auto min-h-10 w-full min-w-[200px] max-w-[min(100%,260px)] justify-between gap-2 py-2 text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:whitespace-normal [&>span]:break-words [&>span]:leading-snug [&>span]:line-clamp-none">
+                            <SelectTrigger className="h-9 w-[min(100%,11rem)] min-w-0 justify-between gap-1 py-1.5 text-left text-sm [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:line-clamp-none">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-w-[min(100vw-2rem,380px)]">
@@ -639,6 +676,7 @@ export default function Teams() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             ) : (
               <p className="text-muted-foreground text-center py-8">
                 Select a team to view its members
