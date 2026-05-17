@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
+import { AssignTeamMembersDialog } from "@/components/teams/AssignTeamMembersDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -73,10 +74,9 @@ export default function Teams() {
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [newTeam, setNewTeam] = useState({ name: "", description: "" });
-  const [inviteData, setInviteData] = useState({ email: "", role: "member" });
   const [teamRoleChangeConfirm, setTeamRoleChangeConfirm] = useState<{
     targetUserId: string;
     email: string;
@@ -349,47 +349,16 @@ export default function Teams() {
     },
   });
 
-  // Invite user mutation
-  const inviteUser = useMutation({
-    mutationFn: async (data: { email: string; role: string; teamId: string }) => {
-      if (myTeamRolePending) throw new Error("Still loading workspace permissions");
-      if (myTeamRole !== "owner" && myTeamRole !== "admin") {
-        throw new Error("Only workspace owners and admins can invite team members");
-      }
-      const target = teams?.find((t) => t.id === data.teamId) ?? selectedTeam;
-      if (!target) throw new Error("Team not found");
-      // Find user by email
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", data.email)
-        .maybeSingle();
-      
-      if (profileError || !profile) throw new Error("ActiPlanner not found");
-      
-      // Add user to team with role
-      const { error } = await supabase
-        .from("user_roles")
-        .insert([{
-          user_id: profile.id,
-          role: data.role as AppRole,
-          team_id: data.teamId,
-        }]);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["team-members"] });
-      setIsInviteDialogOpen(false);
-      setInviteData({ email: "", role: "member" });
-      toast.success("ActiPlanner invited successfully");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to invite ActiPlanner");
-    },
-  });
+  const existingMemberUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    (teamMembers ?? []).forEach((m) => {
+      if (m.user_id) ids.add(m.user_id);
+    });
+    if (selectedTeam?.owner_id) ids.add(selectedTeam.owner_id);
+    return [...ids];
+  }, [teamMembers, selectedTeam?.owner_id]);
 
-  // Remove team member (RPC — direct DELETE is often blocked by RLS for billing owners without a row on this team)
+  // Remove team member (RPC â€” direct DELETE is often blocked by RLS for billing owners without a row on this team)
   const removeMember = useMutation({
     mutationFn: async (targetUserId: string) => {
       if (!selectedTeam?.id) throw new Error("No team selected");
@@ -424,7 +393,7 @@ export default function Teams() {
     },
   });
 
-  // Update member role (RPC — direct UPDATE is often blocked by RLS)
+  // Update member role (RPC â€” direct UPDATE is often blocked by RLS)
   const updateMemberRole = useMutation({
     mutationFn: async (data: { targetUserId: string; newRole: AppRole }) => {
       if (!selectedTeam?.id) throw new Error("No team selected");
@@ -575,56 +544,27 @@ export default function Teams() {
                 {selectedTeam ? `${selectedTeam.name} Members` : "Select a team"}
               </CardTitle>
               {selectedTeam && (
-                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" disabled={!canManageWorkspaceTeams}>
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Invite
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent aria-describedby={undefined}>
-                    <DialogHeader>
-                      <DialogTitle>Invite ActiPlanner to Team</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div>
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={inviteData.email}
-                          onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-                          placeholder="actiplanner@example.com"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="role">Role</Label>
-                        <Select
-                          value={inviteData.role}
-                          onValueChange={(value) => setInviteData({ ...inviteData, role: value })}
-                        >
-                          <SelectTrigger className="text-left [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:line-clamp-none">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="collaborator">Collaborator</SelectItem>
-                            <SelectItem value="member">Member</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        onClick={() => inviteUser.mutate({ ...inviteData, teamId: selectedTeam.id })}
-                        disabled={!inviteData.email}
-                        className="w-full"
-                      >
-                        Invite ActiPlanner
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <>
+                  <Button
+                    size="sm"
+                    disabled={!canManageWorkspaceTeams}
+                    onClick={() => setIsAssignDialogOpen(true)}
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Assign member
+                  </Button>
+                  <AssignTeamMembersDialog
+                    open={isAssignDialogOpen}
+                    onOpenChange={setIsAssignDialogOpen}
+                    teamId={selectedTeam.id}
+                    teamName={selectedTeam.name}
+                    billingWorkspaceId={billingWorkspaceId}
+                    existingMemberUserIds={existingMemberUserIds}
+                    onAssigned={() => {
+                      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+                    }}
+                  />
+                </>
               )}
             </div>
           </CardHeader>
