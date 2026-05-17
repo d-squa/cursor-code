@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useSampleMode } from '@/contexts/SampleModeContext';
 
 export type MeshStep = 'actiplan' | 'source' | 'mesh' | 'content' | 'complete';
 export type CreativeSource = 'upload' | 'page_assets' | 'ad_account_assets';
@@ -63,6 +64,7 @@ interface UseCreativeMeshProgressReturn {
 
 export function useCreativeMeshProgress(initialCampaignId?: string): UseCreativeMeshProgressReturn {
   const { user } = useAuth();
+  const { isSampleMode } = useSampleMode();
   const [progress, setProgress] = useState<MeshProgress | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -94,7 +96,7 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
     if (initialCampaignId && user) {
       loadProgress(initialCampaignId);
     }
-  }, [initialCampaignId, user]);
+  }, [initialCampaignId, user, isSampleMode]);
 
   const selectActiPlan = useCallback((campaignId: string, campaignName: string, platforms: string[]) => {
     const normalizedPlatforms = platforms.map(p => {
@@ -223,12 +225,18 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
     try {
       const { data, error } = await supabase
         .from('campaigns')
-        .select('id, name, platforms, generic_config')
+        .select('id, name, platforms, generic_config, is_sample')
         .eq('id', campaignId)
         .single();
 
       if (error) {
         console.error('Failed to load mesh progress:', error);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!!data.is_sample !== isSampleMode) {
+        setProgress(null);
         setIsLoading(false);
         return;
       }
@@ -259,7 +267,7 @@ export function useCreativeMeshProgress(initialCampaignId?: string): UseCreative
     } finally {
       setIsLoading(false);
     }
-  }, [user, selectActiPlan]);
+  }, [user, selectActiPlan, isSampleMode]);
 
   return {
     progress,

@@ -484,10 +484,14 @@ export default function InsightsRecommendations() {
 
   // Filter campaigns based on platform selection (for non-cross-platform tiers)
   const filteredCampaigns = useMemo(() => {
-    // In Sample Mode, restrict to the seeded tour campaign(s) only
+    // Match ActiPlans: sample mode shows tour rows only; real mode hides them
     let base = campaigns;
     if (isSampleMode) {
-      base = campaigns.filter(c => (c as any).is_sample === true || /Q4 Holiday Campaign/i.test(c.name));
+      base = campaigns.filter(
+        (c) => (c as { is_sample?: boolean }).is_sample === true || /Q4 Holiday Campaign/i.test(c.name),
+      );
+    } else {
+      base = campaigns.filter((c) => !(c as { is_sample?: boolean }).is_sample);
     }
 
     if (canAccessCrossPlatform) return base;
