@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import {
+  assertUserCanAccessTeam,
+  assertUserCanUsePlatform,
+  teamScopedPlatformFields,
+} from "../_shared/team-access.ts";
 import { logApiRequest, logApiResponse } from "../_shared/api-logger.ts";
 import { syncTikTokAdvertiserDetails } from "../_shared/tiktok-advertiser-sync.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
@@ -83,7 +88,13 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
-    const { code, platformType, redirectUri, platformId } = parseResult.data;
+    const { code, platformType, redirectUri, platformId, teamId } = parseResult.data;
+
+    if (teamId) {
+      await assertUserCanAccessTeam(supabase, user.id, teamId);
+    }
+
+    const teamFields = teamScopedPlatformFields(teamId ?? undefined);
 
     const tiktokAppId = Deno.env.get("TIKTOK_APP_ID");
     const tiktokAppSecret = Deno.env.get("TIKTOK_APP_SECRET");
@@ -176,6 +187,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     // If reconnecting existing platform
     if (platformId) {
+      const { data: existingPlatform, error: existingError } = await supabase
+        .from("connected_platforms")
+        .select("user_id, team_id")
+        .eq("id", platformId)
+        .single();
+
+      if (existingError || !existingPlatform) {
+        throw new Error("Platform connection not found");
+      }
+
+      await assertUserCanUsePlatform(supabase, user.id, existingPlatform);
+      const reconnectTeamId = teamId ?? existingPlatform.team_id ?? undefined;
+
       console.log(`Reconnecting platform ${platformId}, starting background sync for ${advertiser_ids.length} advertisers`);
       
       const { error: updateError } = await supabase
@@ -188,10 +212,10 @@ const handler = async (req: Request): Promise<Response> => {
             sync_progress: initialSyncProgress,
             token_context: tokenContext,
             tiktok_user_info: tiktokUserInfo,
-          }
+          },
+          ...teamScopedPlatformFields(reconnectTeamId),
         })
-        .eq("id", platformId)
-        .eq("user_id", user.id);
+        .eq("id", platformId);
 
       if (updateError) throw updateError;
 
@@ -215,7 +239,8 @@ const handler = async (req: Request): Promise<Response> => {
             sync_progress: initialSyncProgress,
             token_context: tokenContext,
             tiktok_user_info: tiktokUserInfo,
-          }
+          },
+          ...teamFields,
         })
         .select()
         .single();

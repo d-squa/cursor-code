@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import {
+  assertUserCanAccessTeam,
+  assertUserCanUsePlatform,
+  teamScopedPlatformFields,
+} from "../_shared/team-access.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const FUNCTION_NAME = "google-ads-oauth-callback";
@@ -15,6 +20,7 @@ const oauthInputSchema = z.object({
   code: z.string().min(1).max(2000),
   redirectUri: z.string().url(),
   platformId: z.string().uuid().optional().nullable(),
+  teamId: z.string().uuid().optional().nullable(),
 });
 
 // Google Ads API version
@@ -283,8 +289,14 @@ serve(async (req) => {
       });
     }
 
-    const { code, redirectUri, platformId } = parseResult.data;
+    const { code, redirectUri, platformId, teamId } = parseResult.data;
     const isReconnection = !!platformId;
+
+    if (teamId) {
+      await assertUserCanAccessTeam(supabase, user.id, teamId);
+    }
+
+    const teamFields = teamScopedPlatformFields(teamId ?? undefined);
 
     // Get Google OAuth credentials
     const clientId = Deno.env.get("GOOGLE_ADS_OAUTH_CLIENT_ID")?.trim();
@@ -372,6 +384,19 @@ serve(async (req) => {
     };
 
     if (isReconnection) {
+      const { data: existingPlatform, error: existingError } = await supabase
+        .from("connected_platforms")
+        .select("user_id, team_id")
+        .eq("id", platformId)
+        .single();
+
+      if (existingError || !existingPlatform) {
+        throw new Error("Platform connection not found");
+      }
+
+      await assertUserCanUsePlatform(supabase, user.id, existingPlatform);
+      const reconnectTeamId = teamId ?? existingPlatform.team_id ?? undefined;
+
       console.log(`[${FUNCTION_NAME}] Reconnecting existing platform: ${platformId}`);
       const { data: updatedPlatform, error: updateError } = await supabase
         .from("connected_platforms")
@@ -380,9 +405,9 @@ serve(async (req) => {
           token_expires_at: tokenExpiresAt,
           metadata,
           updated_at: new Date().toISOString(),
+          ...teamScopedPlatformFields(reconnectTeamId),
         })
         .eq("id", platformId)
-        .eq("user_id", user.id)
         .select()
         .single();
 
@@ -402,6 +427,7 @@ serve(async (req) => {
           is_active: true,
           token_expires_at: tokenExpiresAt,
           metadata,
+          ...teamFields,
         })
         .select()
         .single();

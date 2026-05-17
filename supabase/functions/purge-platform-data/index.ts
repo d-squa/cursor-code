@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { assertUserCanManagePlatform } from "../_shared/team-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,14 +36,15 @@ serve(async (req) => {
     // First, get the platform details to know which platform we're dealing with
     const { data: platform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("platform_type")
+      .select("platform_type, user_id, team_id")
       .eq("id", connectedPlatformId)
-      .eq("user_id", user.id)
       .single();
 
     if (platformError || !platform) {
       throw new Error("Platform not found or unauthorized");
     }
+
+    await assertUserCanManagePlatform(supabase, user.id, platform);
 
     console.log("Platform type to purge:", platform.platform_type);
 
