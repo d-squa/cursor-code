@@ -367,8 +367,9 @@ export default function PlatformConnections() {
       const platformsQuery: any = (supabase as any)
         .from("connected_platforms")
         .select(
-          "id, user_id, platform_type, platform_name, ad_account_id, ad_account_name, business_manager_id, metadata, is_active, token_expires_at, created_at, updated_at, is_sample",
+          "id, user_id, team_id, platform_type, platform_name, ad_account_id, ad_account_name, business_manager_id, metadata, is_active, token_expires_at, created_at, updated_at, is_sample",
         )
+        .eq("team_id", activeWorkspaceId)
         .eq("is_active", true)
         .eq("is_sample", sampleFlag)
         .order("created_at", { ascending: false });
@@ -471,6 +472,11 @@ export default function PlatformConnections() {
     skipLimitCheck = false,
   ) => {
     // Check limits before allowing new platform connections (not reconnects)
+    if (!activeWorkspaceId) {
+      toast.error("Select a workspace before connecting a platform");
+      return;
+    }
+
     if (!platformId && !skipLimitCheck && (platformType === "meta" || platformType === "tiktok")) {
       const platform = platformType as "meta" | "tiktok";
       const limits = adAccountLimits[platform];
@@ -501,6 +507,10 @@ export default function PlatformConnections() {
     // Always clear reconnection state for fresh connections
     sessionStorage.removeItem("reconnecting_platform_id");
     sessionStorage.removeItem("reconnecting_platform_type");
+
+    if (activeWorkspaceId) {
+      sessionStorage.setItem("oauth_team_id", activeWorkspaceId);
+    }
 
     if (platformType === "meta") {
       try {
@@ -908,6 +918,10 @@ export default function PlatformConnections() {
                   ? "snapchat-oauth-callback"
                   : "meta-oauth-callback";
 
+          const oauthTeamId =
+            activeWorkspaceId || sessionStorage.getItem("oauth_team_id") || undefined;
+          sessionStorage.removeItem("oauth_team_id");
+
           console.log("OAuth callback - calling function:", callbackFunction);
 
           // Only include platformId if it's a valid string (not null/undefined)
@@ -917,6 +931,7 @@ export default function PlatformConnections() {
               platformType: state,
               redirectUri,
               ...(platformId ? { platformId } : {}),
+              ...(oauthTeamId ? { teamId: oauthTeamId } : {}),
             },
           });
 
@@ -978,7 +993,7 @@ export default function PlatformConnections() {
     if (user) {
       handleOAuthCallback();
     }
-  }, [user, triggerAdLibraryOAuth]);
+  }, [user, activeWorkspaceId, triggerAdLibraryOAuth]);
 
   const handleSyncAccountAssets = async (account: MetaAdAccount, skipClientCheck = false) => {
     // If account has no client linked, prompt user to link first (for benchmark features)

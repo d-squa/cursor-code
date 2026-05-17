@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import {
+  assertUserCanAccessTeam,
+  assertUserCanUsePlatform,
+  teamScopedPlatformFields,
+} from "../_shared/team-access.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const FUNCTION_NAME = "snapchat-oauth-callback";
@@ -14,6 +19,7 @@ const oauthInputSchema = z.object({
   code: z.string().min(1).max(2000),
   redirectUri: z.string().optional().nullable(),
   platformId: z.string().uuid().optional().nullable(),
+  teamId: z.string().uuid().optional().nullable(),
 });
 
 interface SnapchatOrganization {
@@ -256,7 +262,13 @@ const handler = async (req: Request): Promise<Response> => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { code, redirectUri, platformId } = parseResult.data;
+    const { code, redirectUri, platformId, teamId } = parseResult.data;
+
+    if (teamId) {
+      await assertUserCanAccessTeam(supabase, user.id, teamId);
+    }
+
+    const teamFields = teamScopedPlatformFields(teamId ?? undefined);
 
     const snapchatClientId = Deno.env.get("SNAPCHAT_CLIENT_ID");
     const snapchatClientSecret = Deno.env.get("SNAPCHAT_CLIENT_SECRET");
@@ -312,6 +324,19 @@ const handler = async (req: Request): Promise<Response> => {
     let resultPlatformId: string;
 
     if (platformId) {
+      const { data: existingPlatform, error: existingError } = await supabase
+        .from("connected_platforms")
+        .select("user_id, team_id")
+        .eq("id", platformId)
+        .single();
+
+      if (existingError || !existingPlatform) {
+        throw new Error("Platform connection not found");
+      }
+
+      await assertUserCanUsePlatform(supabase, user.id, existingPlatform);
+      const reconnectTeamId = teamId ?? existingPlatform.team_id ?? undefined;
+
       // Reconnecting existing platform
       console.log(`Reconnecting Snapchat platform ${platformId}`);
 
@@ -324,9 +349,9 @@ const handler = async (req: Request): Promise<Response> => {
           metadata: {
             sync_progress: initialSyncProgress,
           },
+          ...teamScopedPlatformFields(reconnectTeamId),
         })
-        .eq("id", platformId)
-        .eq("user_id", user.id);
+        .eq("id", platformId);
 
       if (updateError) throw updateError;
 
@@ -352,6 +377,7 @@ const handler = async (req: Request): Promise<Response> => {
           metadata: {
             sync_progress: initialSyncProgress,
           },
+          ...teamFields,
         })
         .select()
         .single();

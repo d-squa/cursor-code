@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import {
+  assertUserCanAccessTeam,
+  assertUserCanUsePlatform,
+  teamScopedPlatformFields,
+} from "../_shared/team-access.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
@@ -13,7 +18,8 @@ const oauthInputSchema = z.object({
   code: z.string().min(1).max(2000),
   platformType: z.literal("meta"),
   redirectUri: z.string().url(),
-  platformId: z.string().uuid().nullish() // Allow null, undefined, or valid UUID
+  platformId: z.string().uuid().nullish(), // Allow null, undefined, or valid UUID
+  teamId: z.string().uuid().nullish(),
 });
 
 serve(async (req) => {
@@ -51,9 +57,14 @@ serve(async (req) => {
         }
       );
     }
-    const { code, platformType, redirectUri, platformId } = parseResult.data;
+    const { code, platformType, redirectUri, platformId, teamId } = parseResult.data;
+
+    if (teamId) {
+      await assertUserCanAccessTeam(supabase, user.id, teamId);
+    }
 
     const isReconnection = !!platformId;
+    const teamFields = teamScopedPlatformFields(teamId ?? undefined);
 
     // Exchange code for access token
     const clientId = Deno.env.get("META_APP_ID");
@@ -223,6 +234,19 @@ serve(async (req) => {
     let platformData;
 
     if (isReconnection) {
+      const { data: existingPlatform, error: existingError } = await supabase
+        .from("connected_platforms")
+        .select("user_id, team_id")
+        .eq("id", platformId)
+        .single();
+
+      if (existingError || !existingPlatform) {
+        throw new Error("Platform connection not found");
+      }
+
+      await assertUserCanUsePlatform(supabase, user.id, existingPlatform);
+      const reconnectTeamId = teamId ?? existingPlatform.team_id ?? undefined;
+
       // Update existing platform connection
       console.log(`Reconnecting existing platform: ${platformId}`);
       const { data: updatedPlatform, error: updateError } = await supabase
@@ -232,9 +256,9 @@ serve(async (req) => {
           business_manager_id: selectedBmId,
           metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
           updated_at: new Date().toISOString(),
+          ...teamScopedPlatformFields(reconnectTeamId),
         })
         .eq("id", platformId)
-        .eq("user_id", user.id)
         .select()
         .single();
 
@@ -263,6 +287,7 @@ serve(async (req) => {
           is_active: true,
           business_manager_id: selectedBmId,
           metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
+          ...teamFields,
         })
         .select()
         .single();

@@ -762,15 +762,31 @@ serve(async (req) => {
     // Get the platform connection
     const { data: platform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("id, platform_type, access_token, metadata")
+      .select("id, platform_type, access_token, metadata, user_id, team_id")
       .eq("id", platformId)
-      .eq("user_id", user.id)
       .eq("is_active", true)
       .single();
 
     if (platformError || !platform) {
       console.error("Platform lookup error:", platformError);
       throw new Error("Platform connection not found or inactive");
+    }
+
+    const platformOwnedByUser = platform.user_id === user.id;
+    const platformOnTeam = platform.team_id === teamId;
+    if (!platformOwnedByUser && !platformOnTeam) {
+      throw new Error("Platform connection not found or inactive");
+    }
+
+    if (!platform.team_id || platform.team_id !== teamId) {
+      const { error: teamLinkError } = await supabase
+        .from("connected_platforms")
+        .update({ team_id: teamId, updated_at: new Date().toISOString() })
+        .eq("id", platformId);
+
+      if (teamLinkError) {
+        console.error("Failed to link platform to team:", teamLinkError);
+      }
     }
 
     console.log(`Platform type: ${platform.platform_type}`);
