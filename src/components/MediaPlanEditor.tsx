@@ -2670,6 +2670,7 @@ export function MediaPlanEditor() {
                 Next: Targeting
               </Button>
             </div>
+            </fieldset>
           </CardContent>
         ) : (
           <CardContent className="py-4">
@@ -2695,7 +2696,6 @@ export function MediaPlanEditor() {
                 </span>
               </div>
             </div>
-            </fieldset>
           </CardContent>
         )}
       </Card>
