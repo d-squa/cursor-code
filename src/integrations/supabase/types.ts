@@ -646,6 +646,8 @@ export type Database = {
           description: string | null
           id: string
           is_sample: boolean
+          new_status: string | null
+          old_status: string | null
           user_id: string
         }
         Insert: {
@@ -656,6 +658,8 @@ export type Database = {
           description?: string | null
           id?: string
           is_sample?: boolean
+          new_status?: string | null
+          old_status?: string | null
           user_id: string
         }
         Update: {
@@ -666,6 +670,8 @@ export type Database = {
           description?: string | null
           id?: string
           is_sample?: boolean
+          new_status?: string | null
+          old_status?: string | null
           user_id?: string
         }
         Relationships: [

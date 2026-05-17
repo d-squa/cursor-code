@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { buildMediaPlanDataFromCampaign, downloadMediaPlanExcel } from "@/utils/excelGenerator";
+import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
 interface Campaign {
   id: string;
   name: string;
@@ -227,7 +228,7 @@ export default function ActiPlans() {
           .from("campaign_change_history")
           .select("campaign_id, action, created_at, user_id")
           .in("campaign_id", campaignIds)
-          .in("action", ["approved", "rejected", "pushed_to_dsp"])
+          .in("action", ["approved", "rejected", "sent_for_approval", "pushed_to_dsp"])
           .order("created_at", { ascending: false });
 
         // Group by campaign_id and keep only the latest
@@ -334,13 +335,14 @@ export default function ActiPlans() {
 
       if (updateError) throw updateError;
 
-      // Log to history
-      await supabase.from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user?.id,
+      await logCampaignHistoryEntry({
+        campaignId: campaign.id,
+        userId: user?.id,
         action: "approved",
-        change_type: "status_change",
-        description: `Status changed from ${campaign.status} to approved`,
+        changeType: "status_change",
+        description: "ActiPlan approved",
+        oldStatus: campaign.status,
+        newStatus: "approved",
       });
 
       // Send notification email
@@ -372,12 +374,14 @@ export default function ActiPlans() {
 
       if (updateError) throw updateError;
 
-      await supabase.from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user?.id,
+      await logCampaignHistoryEntry({
+        campaignId: campaign.id,
+        userId: user?.id,
         action: "rejected",
-        change_type: "status_change",
-        description: `Status changed from ${campaign.status} to rejected`,
+        changeType: "status_change",
+        description: "ActiPlan rejected",
+        oldStatus: campaign.status,
+        newStatus: "rejected",
       });
 
       await supabase.functions.invoke("send-approval-notification", {

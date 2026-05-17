@@ -6,6 +6,8 @@ interface CampaignHistoryEntryInput {
   action: string;
   changeType?: string | null;
   description?: string | null;
+  oldStatus?: string | null;
+  newStatus?: string | null;
 }
 
 interface CampaignActivityEntryInput {
@@ -26,16 +28,22 @@ export async function logCampaignHistoryEntry({
   action,
   changeType,
   description,
+  oldStatus,
+  newStatus,
 }: CampaignHistoryEntryInput) {
   if (!campaignId || !userId) return;
 
-  const { error } = await supabase.from("campaign_change_history").insert({
+  const row: Record<string, unknown> = {
     campaign_id: campaignId,
     user_id: userId,
     action,
     change_type: changeType ?? null,
     description: description ?? null,
-  });
+  };
+  if (oldStatus != null) row.old_status = oldStatus;
+  if (newStatus != null) row.new_status = newStatus;
+
+  const { error } = await supabase.from("campaign_change_history").insert(row as any);
 
   if (error) {
     console.error("Failed to log campaign history entry:", error);

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { fetchTeamMemberOptionsForCampaign } from "@/utils/teamMembers";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
 
 interface ApprovalDialogProps {
   open: boolean;
@@ -37,7 +38,6 @@ export function ApprovalDialog({
   const [assignedTeamName, setAssignedTeamName] = useState<string | null>(null);
   const [switcherTeamName, setSwitcherTeamName] = useState<string | null>(null);
   const [campaignTeamMismatch, setCampaignTeamMismatch] = useState(false);
-  const [assignedTeamId, setAssignedTeamId] = useState<string | null>(null);
 
   const campaignId = planDetails?.campaignId as string | undefined;
 
@@ -57,7 +57,6 @@ export function ApprovalDialog({
       setAssignedTeamName(null);
       setSwitcherTeamName(null);
       setCampaignTeamMismatch(false);
-      setAssignedTeamId(null);
       return;
     }
 
@@ -69,7 +68,6 @@ export function ApprovalDialog({
       const result = await fetchTeamMemberOptionsForCampaign(activeWorkspaceId, campaignId);
       setTeamMembers(result.members);
       setResolvedTeamId(result.teamId);
-      setAssignedTeamId(result.campaignTeamId ?? result.teamId);
       setAssignedTeamName(result.campaignTeamName ?? result.teamName);
       setSwitcherTeamName(result.switcherTeamName);
       setCampaignTeamMismatch(result.campaignTeamMismatch);
@@ -78,7 +76,6 @@ export function ApprovalDialog({
       toast.error("Failed to load team members");
       setTeamMembers([]);
       setResolvedTeamId(null);
-      setAssignedTeamId(null);
       setAssignedTeamName(null);
       setSwitcherTeamName(null);
       setCampaignTeamMismatch(false);
@@ -105,16 +102,24 @@ export function ApprovalDialog({
         .single();
 
       const senderName = profile?.company_name || profile?.email || 'Media Planning Team';
+      const userId = userData.user?.id;
 
-      // Update campaign status to awaiting_approval if planDetails has campaignId
+      let previousStatus: string | null = null;
       if (planDetails.campaignId) {
+        const { data: campaignRow } = await supabase
+          .from("campaigns")
+          .select("status")
+          .eq("id", planDetails.campaignId)
+          .maybeSingle();
+        previousStatus = campaignRow?.status ?? null;
+
         const { error: updateError } = await supabase
-          .from('campaigns')
-          .update({ status: 'awaiting_approval' })
-          .eq('id', planDetails.campaignId);
+          .from("campaigns")
+          .update({ status: "awaiting_approval" })
+          .eq("id", planDetails.campaignId);
 
         if (updateError) {
-          console.error('Error updating campaign status:', updateError);
+          console.error("Error updating campaign status:", updateError);
         }
       }
 
@@ -134,6 +139,18 @@ export function ApprovalDialog({
       });
 
       if (error) throw error;
+
+      if (planDetails.campaignId && userId) {
+        await logCampaignHistoryEntry({
+          campaignId: planDetails.campaignId,
+          userId,
+          action: "sent_for_approval",
+          changeType: "status_change",
+          description: `Sent for approval to ${recipients.length} recipient(s)`,
+          oldStatus: previousStatus,
+          newStatus: "awaiting_approval",
+        });
+      }
 
       toast.success(`Approval request sent to ${recipients.length} recipient(s)`);
       onOpenChange(false);
@@ -159,23 +176,20 @@ export function ApprovalDialog({
 
         <div className="space-y-4 py-4">
           {assignedTeamName && (
-            <p className="text-xs text-muted-foreground rounded-md border bg-muted/40 px-3 py-2">
-              This ActiPlan is assigned to team{" "}
-              <span className="font-medium text-foreground">{assignedTeamName}</span>
-              {assignedTeamId && (
-                <span className="font-mono text-[10px] text-muted-foreground"> ({assignedTeamId.slice(0, 8)}…)</span>
-              )}
-              . Recipients are loaded only from <code className="text-[10px]">user_roles</code> on that team (same as
-              Manage Your Team).
+            <p className="text-sm text-muted-foreground rounded-md border bg-muted/40 px-3 py-2 leading-relaxed">
+              You can send this plan to other members of{" "}
+              <span className="font-medium text-foreground">{assignedTeamName}</span> — the same people listed under
+              Settings → Manage Your Team for that workspace.
               {teamMembers.length > 0 && (
-                <span className="block mt-1">
-                  Listed: {teamMembers.map((m) => m.label).join(", ")}
+                <span className="block mt-2 text-foreground">
+                  Available to notify: {teamMembers.map((m) => m.label).join(", ")}
                 </span>
               )}
               {campaignTeamMismatch && switcherTeamName && (
-                <span className="block mt-1 text-amber-700 dark:text-amber-400">
-                  Your workspace switcher is on <span className="font-medium">{switcherTeamName}</span>, which does not
-                  match this ActiPlan. Select {assignedTeamName} in the switcher and save the plan to align them.
+                <span className="block mt-2 text-amber-700 dark:text-amber-400">
+                  Your workspace switcher is set to <span className="font-medium">{switcherTeamName}</span>, but this
+                  ActiPlan belongs to {assignedTeamName}. Switch to {assignedTeamName} and save the plan if you want
+                  everything to stay in sync.
                 </span>
               )}
             </p>
