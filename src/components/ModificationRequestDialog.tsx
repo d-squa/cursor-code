@@ -81,7 +81,7 @@ export function ModificationRequestDialog({
     if (open && (notifyType === "specific" || teamMembers.length === 0)) {
       loadTeamMembers();
     }
-  }, [open, notifyType]);
+  }, [open, notifyType, user?.id]);
 
   const loadCampaignDetails = async () => {
     try {
@@ -166,6 +166,11 @@ export function ModificationRequestDialog({
   }, [selectedPlatform, marketSplits]);
 
   const loadTeamMembers = async () => {
+    if (!user?.id) {
+      setTeamMembers([]);
+      return;
+    }
+
     setLoadingMembers(true);
     try {
       // Get the campaign's team
@@ -180,28 +185,28 @@ export function ModificationRequestDialog({
         return;
       }
 
-      // Get all team members from the campaign's team
-      const { data: members } = await supabase
+      const { data: members, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .eq("team_id", campaign.team_id)
-        .neq("user_id", user?.id); // Exclude current user
+        .neq("user_id", user.id);
+
+      if (rolesError) throw rolesError;
 
       if (!members || members.length === 0) {
         setTeamMembers([]);
         return;
       }
 
-      // Get profiles for the team members
-      const userIds = members.map((m: any) => m.user_id);
+      const userIds = members.map((m) => m.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, email")
         .in("id", userIds);
 
       if (profiles) {
-        const enrichedMembers = members.map((m: any) => {
-          const profile = profiles.find((p: any) => p.id === m.user_id);
+        const enrichedMembers = members.map((m) => {
+          const profile = profiles.find((p) => p.id === m.user_id);
           return {
             id: m.user_id,
             email: profile?.email || "Unknown",
