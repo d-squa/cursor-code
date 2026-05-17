@@ -30,7 +30,6 @@ import { getMaxTeamsForTier } from "@/config/subscriptionTiers";
 import type { Tables, Enums } from "@/integrations/supabase/types";
 import { formatTeamRoleLabel } from "@/utils/campaignPermissions";
 import { TeamRoleSelectItems } from "@/components/roles/RoleSelectItems";
-import { cn } from "@/lib/utils";
 
 type Team = Tables<"teams">;
 type AppRole = Enums<"app_role">;
@@ -493,94 +492,69 @@ export default function Teams() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)] gap-4 lg:gap-6 items-start">
-        {/* Teams List */}
-        <Card className="lg:max-w-[16rem]">
-          <CardHeader className="py-3 px-4">
-            <CardTitle className="text-base">Teams</CardTitle>
-          </CardHeader>
-          <CardContent className="px-3 pb-3 pt-0">
-            <div className="space-y-1.5 max-h-[min(70vh,32rem)] overflow-y-auto">
-              {teams?.map((team) => {
-                const isSelected = selectedTeam?.id === team.id;
-                return (
-                  <div
-                    key={team.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedTeam(team)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedTeam(team);
-                      }
-                    }}
-                    className={cn(
-                      "w-full rounded-md border px-2.5 py-2 text-left transition-colors cursor-pointer",
-                      "hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      isSelected && "border-primary bg-primary/5 ring-1 ring-primary/20",
-                    )}
-                  >
-                    <div className="flex items-center gap-1 min-w-0">
-                      <span
-                        className="font-medium text-sm truncate flex-1 min-w-0"
-                        title={team.name}
-                      >
-                        {team.name}
-                      </span>
-                      {canManageWorkspaceTeams ? (
-                        <div className="flex shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTeam(team);
-                              setNewTeam({ name: team.name, description: team.description || "" });
-                              setIsEditDialogOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm("Are you sure you want to delete this team?")) {
-                                deleteTeam.mutate(team.id);
-                              }
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                    {team.description ? (
-                      <p
-                        className="text-xs text-muted-foreground line-clamp-1 mt-0.5"
-                        title={team.description}
-                      >
-                        {team.description}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
+      <div className="flex flex-col gap-4 min-w-0">
+        <div className="flex flex-wrap items-end gap-2 min-w-0">
+          <div className="flex-1 min-w-[12rem] max-w-md space-y-1.5">
+            <Label htmlFor="team-picker" className="text-sm text-muted-foreground">
+              Team
+            </Label>
+            <Select
+              value={selectedTeam?.id ?? ""}
+              onValueChange={(teamId) => {
+                const team = teams?.find((t) => t.id === teamId);
+                if (team) setSelectedTeam(team);
+              }}
+              disabled={!teams?.length}
+            >
+              <SelectTrigger id="team-picker" className="w-full">
+                <SelectValue placeholder={teams?.length ? "Select a team" : "No teams yet"} />
+              </SelectTrigger>
+              <SelectContent>
+                {teams?.map((team) => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedTeam && canManageWorkspaceTeams ? (
+            <div className="flex shrink-0 gap-1 pb-0.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                aria-label="Edit team"
+                onClick={() => {
+                  setNewTeam({ name: selectedTeam.name, description: selectedTeam.description || "" });
+                  setIsEditDialogOpen(true);
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                aria-label="Delete team"
+                onClick={() => {
+                  if (confirm("Are you sure you want to delete this team?")) {
+                    deleteTeam.mutate(selectedTeam.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          ) : null}
+        </div>
 
-        {/* Team Members */}
-        <Card className="min-w-0">
+        <Card className="min-w-0 w-full">
           <CardHeader className="py-3 px-4 space-y-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-base truncate min-w-0">
-                {selectedTeam ? `${selectedTeam.name} Members` : "Select a team"}
-              </CardTitle>
+              <CardTitle className="text-base truncate min-w-0">Members</CardTitle>
               {selectedTeam && (
                 <>
                   <Button
