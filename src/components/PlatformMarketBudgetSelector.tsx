@@ -24,7 +24,11 @@ import {
   ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
   calculateMarketBudgetEur,
   calculatePlatformBudgetEur,
-  minPlatformBudgetPercentage,
+  clampBudgetPercentage,
+  minMarketBudgetEurForPhases,
+  minMarketBudgetPercentage,
+  minPlatformBudgetEurForPhases,
+  minPlatformBudgetPercentageForPhases,
 } from "@/utils/actiplanBudgetMinimums";
 
 interface PlatformMarketBudgetSelectorProps {
@@ -51,10 +55,6 @@ const AVAILABLE_PLATFORMS = [
 ];
 
 const NONE_OPTION = "__none__";
-
-function isBelowActiPlanMinimum(amountEur: number): boolean {
-  return amountEur > 0 && amountEur < ACTIPLAN_MIN_ENTITY_BUDGET_EUR;
-}
 
 export function PlatformMarketBudgetSelector({ 
   platforms, 
@@ -1130,9 +1130,10 @@ export function PlatformMarketBudgetSelector({
       if (!platform.id || platform.budgetPercentage <= 0) continue;
 
       const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
-      if (isBelowActiPlanMinimum(platformBudgetEur)) {
-        toast.error(`Minimum platform budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
-          description: `${platform.name}: €${platformBudgetEur.toFixed(2)} at ${platform.budgetPercentage.toFixed(1)}% of total.`,
+      const minPlatformEur = minPlatformBudgetEurForPhases(platform);
+      if (platformBudgetEur < minPlatformEur) {
+        toast.error(`Minimum platform budget is €${minPlatformEur.toFixed(0)}`, {
+          description: `${platform.name}: €${platformBudgetEur.toFixed(2)} at ${platform.budgetPercentage.toFixed(1)}% of total (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase across markets).`,
         });
         return false;
       }
@@ -1143,9 +1144,10 @@ export function PlatformMarketBudgetSelector({
           platform.budgetPercentage,
           market.budgetPercentage ?? 100,
         );
-        if (isBelowActiPlanMinimum(marketBudgetEur)) {
-          toast.error(`Minimum market budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
-            description: `${platform.name} · ${market.name}: €${marketBudgetEur.toFixed(2)}.`,
+        const minMarketEur = minMarketBudgetEurForPhases(market.phases);
+        if (marketBudgetEur < minMarketEur) {
+          toast.error(`Minimum market budget is €${minMarketEur.toFixed(0)}`, {
+            description: `${platform.name} · ${market.name}: €${marketBudgetEur.toFixed(2)} (${market.phases?.length || 1} phase(s) × €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}).`,
           });
           return false;
         }
@@ -1155,18 +1157,15 @@ export function PlatformMarketBudgetSelector({
   };
 
   const updatePlatformBudget = (index: number, percentage: number) => {
-    const newPercentage = Math.max(0, Math.min(100, percentage));
     const currentPlatform = platforms[index];
+    const minPct =
+      currentPlatform.id && totalBudget > 0
+        ? minPlatformBudgetPercentageForPhases(totalBudget, currentPlatform)
+        : 0;
+    let newPercentage = clampBudgetPercentage(percentage, minPct, 100);
 
-    if (currentPlatform.id && newPercentage > 0) {
-      const proposedBudget = calculatePlatformBudgetEur(totalBudget, newPercentage);
-      if (isBelowActiPlanMinimum(proposedBudget)) {
-        const minPct = minPlatformBudgetPercentage(totalBudget);
-        toast.error(`Minimum platform budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
-          description: `${currentPlatform.name} needs at least ${minPct.toFixed(2)}% (€${proposedBudget.toFixed(2)} proposed).`,
-        });
-        return;
-      }
+    if (currentPlatform.id && newPercentage > 0 && newPercentage < minPct) {
+      newPercentage = minPct;
     }
 
     let nextPlatforms: PlatformWithMarkets[];
@@ -1317,18 +1316,16 @@ export function PlatformMarketBudgetSelector({
   };
 
   const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
-    const newPercentage = Math.max(0, Math.min(100, percentage));
     const platform = platforms[platformIndex];
     const currentMarket = platform?.markets.find((m) => m.id === marketId);
+    const minPct =
+      platform?.id && currentMarket && totalBudget > 0
+        ? minMarketBudgetPercentage(totalBudget, platform.budgetPercentage, currentMarket.phases)
+        : 0;
+    let newPercentage = clampBudgetPercentage(percentage, minPct, 100);
 
-    if (platform?.id && currentMarket && newPercentage > 0) {
-      const proposedBudget = calculateMarketBudgetEur(totalBudget, platform.budgetPercentage, newPercentage);
-      if (isBelowActiPlanMinimum(proposedBudget)) {
-        toast.error(`Minimum market budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
-          description: `${platform.name} · ${currentMarket.name}: €${proposedBudget.toFixed(2)} proposed.`,
-        });
-        return;
-      }
+    if (platform?.id && currentMarket && newPercentage > 0 && newPercentage < minPct) {
+      newPercentage = minPct;
     }
 
     let nextPlatforms: PlatformWithMarkets[];
@@ -1563,7 +1560,7 @@ export function PlatformMarketBudgetSelector({
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-16 text-xs text-center"
-                              min={minPlatformBudgetPercentage(totalBudget)}
+                              min={minPlatformBudgetPercentageForPhases(totalBudget, platform)}
                               max="100"
                               step="0.1"
                             />
@@ -1579,20 +1576,23 @@ export function PlatformMarketBudgetSelector({
                                 const amount = parseFloat(e.target.value) || 0;
                                 if (totalBudget > 0) {
                                   const percentage = (amount / totalBudget) * 100;
-                                  updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
+                                  updatePlatformBudget(platformIndex, percentage);
                                 }
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-24 text-xs"
-                              min={ACTIPLAN_MIN_ENTITY_BUDGET_EUR}
+                              min={Math.round(minPlatformBudgetEurForPhases(platform))}
                             />
                           </div>
                           {/* Always visible slider */}
                           <div className="w-48" onClick={(e) => e.stopPropagation()}>
                             <Slider
-                              value={[platform.budgetPercentage]}
+                              value={[Math.max(
+                                platform.budgetPercentage,
+                                minPlatformBudgetPercentageForPhases(totalBudget, platform),
+                              )]}
                               onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
-                              min={minPlatformBudgetPercentage(totalBudget)}
+                              min={minPlatformBudgetPercentageForPhases(totalBudget, platform)}
                               max={100}
                               step={0.5}
                               className="w-full"
@@ -1652,6 +1652,16 @@ export function PlatformMarketBudgetSelector({
                 <CollapsibleContent>
                   {platform.id && (
                     <div className="px-4 pb-4 space-y-4">
+                      {(() => {
+                        const minPlatformEur = minPlatformBudgetEurForPhases(platform);
+                        const currentPlatformEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
+                        if (currentPlatformEur >= minPlatformEur) return null;
+                        return (
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            This platform needs at least €{minPlatformEur.toFixed(0)} (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase). Increase platform or total budget.
+                          </p>
+                        );
+                      })()}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm">Markets</Label>
@@ -1681,6 +1691,12 @@ export function PlatformMarketBudgetSelector({
 
                       {platform.markets.map((market) => {
                         const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
+                        const marketMinPct = minMarketBudgetPercentage(
+                          totalBudget,
+                          platform.budgetPercentage,
+                          market.phases,
+                        );
+                        const marketMinEur = minMarketBudgetEurForPhases(market.phases);
 
                         return (
                           <Collapsible
@@ -1730,7 +1746,7 @@ export function PlatformMarketBudgetSelector({
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-14 text-xs text-center"
-                                        min="0"
+                                        min={marketMinPct}
                                         max="100"
                                         step="0.1"
                                       />
@@ -1747,20 +1763,20 @@ export function PlatformMarketBudgetSelector({
                                           const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
                                           if (platformBudget > 0) {
                                             const percentage = (amount / platformBudget) * 100;
-                                            updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                            updateMarketBudget(platformIndex, market.id, percentage);
                                           }
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-20 text-xs"
-                                        min="0"
+                                        min={Math.round(marketMinEur)}
                                       />
                                     </div>
                                     {/* Always visible slider */}
                                     <div className="w-40" onClick={(e) => e.stopPropagation()}>
                                       <Slider
-                                        value={[market.budgetPercentage]}
+                                        value={[Math.max(market.budgetPercentage, marketMinPct)]}
                                         onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
-                                        min={0}
+                                        min={marketMinPct}
                                         max={100}
                                         step={0.5}
                                         className="w-full"
@@ -3057,10 +3073,10 @@ export function PlatformMarketBudgetSelector({
                                 </Badge>
                               </div>
                               <Slider
-                                value={[market.budgetPercentage]}
+                                value={[Math.max(market.budgetPercentage, marketMinPct)]}
                                 onValueCommit={([value]) => handleBudgetSliderChange(platformIndex, market.id, value)}
                                 onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
-                                min={0}
+                                min={marketMinPct}
                                 max={100}
                                 step={0.5}
                                 className="w-full"
@@ -3073,7 +3089,7 @@ export function PlatformMarketBudgetSelector({
                                     value={market.budgetPercentage.toFixed(1)}
                                     onChange={(e) => updateMarketBudget(platformIndex, market.id, parseFloat(e.target.value) || 0)}
                                     className="h-7 text-xs"
-                                    min="0"
+                                    min={marketMinPct}
                                     max="100"
                                     step="0.1"
                                   />
@@ -3088,11 +3104,11 @@ export function PlatformMarketBudgetSelector({
                                       const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
                                       if (platformBudget > 0) {
                                         const percentage = (amount / platformBudget) * 100;
-                                        updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                        updateMarketBudget(platformIndex, market.id, percentage);
                                       }
                                     }}
                                     className="h-7 text-xs"
-                                    min="0"
+                                    min={Math.round(marketMinEur)}
                                   />
                                 </div>
                               </div>

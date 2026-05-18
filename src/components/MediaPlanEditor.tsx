@@ -2570,7 +2570,7 @@ export function MediaPlanEditor() {
               />
               <p className="text-xs text-muted-foreground">
                 Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} total. Each platform, market, phase, campaign, and ad set must
-                receive at least €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after budget splits.
+                receive at least €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after splits (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} × number of phases per market).
               </p>
               {step1BudgetViolations.length > 0 && (
                 <Alert variant="destructive">

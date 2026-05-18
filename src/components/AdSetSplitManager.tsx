@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
   calculateAdSetBudgetEur,
+  clampBudgetPercentage,
+  minAdSetBudgetPercentage,
 } from "@/utils/actiplanBudgetMinimums";
 import { toast } from "sonner";
 
@@ -1206,11 +1208,17 @@ export function AdSetSplitManager({
                     <Label className="text-xs text-muted-foreground">Budget %</Label>
                     <div className="flex items-center gap-2">
                       <Slider
-                        value={[adSet.budgetPercentage]}
+                        value={[Math.max(
+                          adSet.budgetPercentage,
+                          phaseBudgetEur ? minAdSetBudgetPercentage(phaseBudgetEur) : 0,
+                        )]}
                         onValueChange={([value]) => {
-                          if (!validateAdSetBudgetPercentage(value, adSet.name)) return;
-                          updateAdSet(adSet.id, { budgetPercentage: value });
+                          const minPct = phaseBudgetEur ? minAdSetBudgetPercentage(phaseBudgetEur) : 0;
+                          const clamped = clampBudgetPercentage(value, minPct);
+                          if (!validateAdSetBudgetPercentage(clamped, adSet.name)) return;
+                          updateAdSet(adSet.id, { budgetPercentage: clamped });
                         }}
+                        min={phaseBudgetEur ? minAdSetBudgetPercentage(phaseBudgetEur) : 0}
                         max={100}
                         step={1}
                         className="flex-1"

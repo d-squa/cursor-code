@@ -17,8 +17,14 @@ import {
   ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
   calculateAdSetBudgetEur,
   calculatePhaseBudgetEur,
+  clampBudgetPercentage,
+  getEffectivePhaseCount,
+  minBudgetEurForPhaseCount,
+  minMarketBudgetEurForPhases,
+  minPhaseBudgetPercentage,
 } from "@/utils/actiplanBudgetMinimums";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
+import { toast } from "sonner";
 import { platformAdFormats } from "@/utils/adFormats";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -234,6 +240,13 @@ export function PhaseScheduler({
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
   const prevSignalRef = useRef(0);
+
+  const phaseCount = getEffectivePhaseCount(phases);
+  const minMarketBudgetEur = minMarketBudgetEurForPhases(phases);
+  const minPhasePct =
+    marketBudget && marketBudget > 0 ? minPhaseBudgetPercentage(marketBudget) : 0;
+  const marketBudgetBelowPhaseFloor =
+    Boolean(marketBudget && marketBudget > 0 && marketBudget < minMarketBudgetEur);
 
   // Handle expand/collapse signal from parent
   useEffect(() => {
@@ -1301,7 +1314,14 @@ export function PhaseScheduler({
       budgetPercentage: 0,
       ...defaultPublisherConfig,
     };
-    commitManualPhaseStructureChange([...phases, newPhase]);
+    const nextPhases = [...phases, newPhase];
+    commitManualPhaseStructureChange(nextPhases);
+    const requiredMarket = minBudgetEurForPhaseCount(nextPhases.length);
+    if (marketBudget && marketBudget > 0 && marketBudget < requiredMarket) {
+      toast.error(`Market budget too low for ${nextPhases.length} phases`, {
+        description: `Allocate at least €${requiredMarket} to this market (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase).`,
+      });
+    }
   };
 
   const removePhase = (phaseId: string) => {
@@ -1327,16 +1347,21 @@ export function PhaseScheduler({
 
   const updatePhaseBudget = (phaseId: string, budget: number) => {
     const phase = phases.find((p) => p.id === phaseId);
+    const clampedBudget =
+      marketBudget && marketBudget > 0
+        ? clampBudgetPercentage(budget, minPhaseBudgetPercentage(marketBudget))
+        : clampBudgetPercentage(budget, 0);
+
     if (phase && marketBudget && marketBudget > 0) {
-      const phaseBudgetEur = calculatePhaseBudgetEur(marketBudget, budget);
+      const phaseBudgetEur = calculatePhaseBudgetEur(marketBudget, clampedBudget);
       if (phaseBudgetEur > 0 && phaseBudgetEur < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
         toast.error(`Phase budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
-          description: `${phase.name}: €${phaseBudgetEur.toFixed(2)} at ${budget}% of market budget.`,
+          description: `${phase.name}: €${phaseBudgetEur.toFixed(2)} at ${clampedBudget}% of market budget.`,
         });
         return;
       }
     }
-    onPhasesChange(phases.map((p) => (p.id === phaseId ? { ...p, budgetPercentage: budget } : p)));
+    onPhasesChange(phases.map((p) => (p.id === phaseId ? { ...p, budgetPercentage: clampedBudget } : p)));
   };
 
   const snapToPreviousPhase = (phaseId: string) => {
@@ -1365,8 +1390,11 @@ export function PhaseScheduler({
 
   const updateBudgetValue = (phaseId: string, value: string) => {
     const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+    const minPct = minPhasePct;
+    if (!isNaN(numValue) && numValue >= minPct && numValue <= 100) {
       updatePhaseBudget(phaseId, numValue);
+    } else if (!isNaN(numValue) && numValue < minPct) {
+      updatePhaseBudget(phaseId, minPct);
     }
   };
 
@@ -1494,6 +1522,14 @@ export function PhaseScheduler({
         <p className="text-xs text-muted-foreground mt-1">
           {format(campaignStart, "MMM d, yyyy")} - {format(campaignEnd, "MMM d, yyyy")} ({totalDays + 1} days)
         </p>
+        {marketBudgetBelowPhaseFloor && (
+          <Alert className="mt-2 py-2">
+            <AlertDescription className="text-xs">
+              {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least €{minMarketBudgetEur.toFixed(0)} on this market
+              (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} each). Current market budget: €{marketBudget?.toFixed(0)}. Increase market or platform budget in step 1.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       <CardContent>
         <div
@@ -1600,7 +1636,7 @@ export function PhaseScheduler({
                           onBlur={() => setEditingBudget(null)}
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-6 w-16 text-xs px-1 py-0"
-                          min="0"
+                          min={minPhasePct}
                           max="100"
                           autoFocus
                         />
@@ -1784,7 +1820,7 @@ export function PhaseScheduler({
                           onBlur={() => setEditingBudget(null)}
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-5 w-16 text-xs px-1 py-0"
-                          min="0"
+                          min={minPhasePct}
                           max="100"
                           autoFocus
                         />
