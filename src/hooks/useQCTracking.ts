@@ -91,6 +91,14 @@ const normalizeTrackingEntityType = (entityType: string | null | undefined) => {
   return normalized;
 };
 
+/** Matches DB UNIQUE(campaign_id, platform, dsp_entity_id, entity_type). */
+const buildDbUniqueKey = (seed: Pick<TrackingSeed, "platform" | "entity_type" | "dsp_entity_id">) =>
+  [
+    normalizeTrackingPlatform(seed.platform),
+    normalizeTrackingEntityType(seed.entity_type),
+    seed.dsp_entity_id ?? "",
+  ].join("::");
+
 const buildTrackingKey = (seed: TrackingSeed) => {
   const normalizedEntityType = normalizeTrackingEntityType(seed.entity_type);
 
@@ -272,18 +280,14 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
       if (assignmentsRes.error) throw assignmentsRes.error;
 
       const campaign = campaignRes.data;
-      const existingKeys = new Set(
+      const existingDbKeys = new Set(
         (existingTrackingRes.data || []).map((item) =>
-          buildTrackingKey({
+          buildDbUniqueKey({
             platform: item.platform,
-            market: item.market,
-            phase_name: item.phase_name,
             entity_type: item.entity_type,
-            entity_name: item.entity_name,
-            ad_set_name: item.ad_set_name,
             dsp_entity_id: item.dsp_entity_id,
-          })
-        )
+          }),
+        ),
       );
       const candidateSeeds = new Map<string, TrackingSeed>();
 
@@ -297,7 +301,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           ad_set_name: null,
           dsp_entity_id: launchStatus.dsp_entity_id,
         };
-        candidateSeeds.set(buildTrackingKey(seed), seed);
+        candidateSeeds.set(buildDbUniqueKey(seed), seed);
       }
 
       for (const assignment of assignmentsRes.data || []) {
@@ -310,17 +314,17 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
           ad_set_name: assignment.ad_set_name,
           dsp_entity_id: assignment.id,
         };
-        candidateSeeds.set(buildTrackingKey(seed), seed);
+        candidateSeeds.set(buildDbUniqueKey(seed), seed);
       }
 
       const newEntries: QCTrackingInsert[] = Array.from(candidateSeeds.entries())
-        .filter(([key]) => !existingKeys.has(key))
+        .filter(([dbKey]) => !existingDbKeys.has(dbKey))
         .map(([, seed]) => ({
           campaign_id: campaignId,
-          platform: seed.platform,
+          platform: normalizeTrackingPlatform(seed.platform),
           market: seed.market,
           phase_name: seed.phase_name,
-          entity_type: seed.entity_type,
+          entity_type: normalizeTrackingEntityType(seed.entity_type),
           entity_name: seed.entity_name,
           ad_set_name: seed.ad_set_name,
           dsp_entity_id: seed.dsp_entity_id,
@@ -331,8 +335,11 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         }));
 
       if (newEntries.length > 0) {
-        const { error: insertError } = await supabase.from("qc_tracking").insert(newEntries);
-        if (insertError) throw insertError;
+        const { error: insertError } = await supabase.from("qc_tracking").upsert(newEntries, {
+          onConflict: "campaign_id,platform,dsp_entity_id,entity_type",
+          ignoreDuplicates: true,
+        });
+        if (insertError && insertError.code !== "23505") throw insertError;
       }
 
       await fetchData(true);

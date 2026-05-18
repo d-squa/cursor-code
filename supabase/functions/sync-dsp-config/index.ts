@@ -7,6 +7,30 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isMissingTableError(error: { code?: string; message?: string } | null, tableName: string): boolean {
+  if (!error) return false;
+  const message = String(error.message || "").toLowerCase();
+  return (
+    error.code === "PGRST205" ||
+    message.includes(`public.${tableName}`) ||
+    message.includes(`'${tableName}'`)
+  );
+}
+
+function missingTableResponse(tableName: string, migrationHint: string): Response {
+  return new Response(
+    JSON.stringify({
+      error: `Database table public.${tableName} is missing. Apply migration ${migrationHint} in Supabase SQL Editor, then retry.`,
+      code: "SCHEMA_MISSING",
+      table: tableName,
+    }),
+    {
+      status: 503,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    },
+  );
+}
+
 interface ConfigChange {
   campaign_id: string;
   platform: string;
@@ -417,6 +441,9 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("campaign_id", campaignId);
 
     if (existingChangesError) {
+      if (isMissingTableError(existingChangesError, "dsp_config_changes")) {
+        return missingTableResponse("dsp_config_changes", "20260518160000_ensure_dsp_config_changes_table.sql");
+      }
       throw existingChangesError;
     }
 
@@ -670,6 +697,9 @@ const handler = async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("DSP config sync error:", error);
+    if (isMissingTableError(error, "dsp_config_changes")) {
+      return missingTableResponse("dsp_config_changes", "20260518160000_ensure_dsp_config_changes_table.sql");
+    }
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },

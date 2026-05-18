@@ -1934,47 +1934,82 @@ class GoogleAdsAdapter implements PlatformAdapter {
       if (!campaignResp.ok) {
         const errText = await campaignResp.text();
 
-        const shouldFallbackFromVideo =
-          requestedChannelType === "VIDEO" &&
-          errText.includes("MUTATE_NOT_ALLOWED") &&
-          errText.includes("\"VIDEO\"");
+        const shouldRetryBiddingStrategy =
+          errText.includes("OPERATION_NOT_PERMITTED_FOR_CONTEXT") &&
+          /target_cpm|target_cpv|target_roas|manual_cpc|maximize_clicks/i.test(errText);
 
-        if (!shouldFallbackFromVideo) {
-          console.error("Google Ads campaign creation failed:", errText);
-          return { success: false, campaignId: "", platform: "google", error: `Campaign creation failed: ${errText}` };
+        if (shouldRetryBiddingStrategy) {
+          const safeStrategyName = this.normalizeCampaignBiddingStrategy(
+            requestedChannelType,
+            "MAXIMIZE_CONVERSIONS",
+          );
+          const safeBiddingStrategy = this.sanitizeCampaignBiddingConfig(
+            this.buildBiddingStrategy(safeStrategyName, params.metadata?.bidAmount),
+          );
+
+          console.warn(
+            `⚠️ Google Ads rejected bidding fields for ${requestedChannelType}; retrying with ${safeStrategyName}`,
+          );
+
+          campaignResp = await fetch(campaignUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              operations: [buildCampaignOperation(requestedChannelType, safeBiddingStrategy)],
+            }),
+          });
+
+          if (campaignResp.ok) {
+            finalBiddingStrategy = safeBiddingStrategy;
+          }
         }
 
-        console.warn("⚠️ VIDEO campaign mutate not allowed for this account, retrying with DEMAND_GEN fallback");
-        finalChannelType = "DEMAND_GEN";
-
-        const fallbackRequestedStrategy = params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS";
-        const fallbackStrategyName = this.normalizeCampaignBiddingStrategy(
-          finalChannelType,
-          fallbackRequestedStrategy === "TARGET_CPM" ? "MAXIMIZE_CLICKS" : fallbackRequestedStrategy,
-        );
-        finalBiddingStrategy = this.sanitizeCampaignBiddingConfig(
-          this.buildBiddingStrategy(fallbackStrategyName, params.metadata?.bidAmount),
-        );
-
-        console.log(
-          `📊 Google Ads fallback bidding normalization: requested=${fallbackRequestedStrategy}, effective=${fallbackStrategyName}, channel=${finalChannelType}, fields=${Object.keys(finalBiddingStrategy).join(",")}`,
-        );
-
-        campaignResp = await fetch(campaignUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ operations: [buildCampaignOperation(finalChannelType, finalBiddingStrategy)] }),
-        });
-
         if (!campaignResp.ok) {
-          const fallbackErrText = await campaignResp.text();
-          console.error("Google Ads campaign creation failed after VIDEO fallback:", fallbackErrText);
-          return {
-            success: false,
-            campaignId: "",
-            platform: "google",
-            error: `Campaign creation failed: ${fallbackErrText}`,
-          };
+          const retryErrText = await campaignResp.text();
+          const errTextAfterRetry = retryErrText || errText;
+
+          const shouldFallbackFromVideo =
+            requestedChannelType === "VIDEO" &&
+            errTextAfterRetry.includes("MUTATE_NOT_ALLOWED") &&
+            errTextAfterRetry.includes("\"VIDEO\"");
+
+          if (!shouldFallbackFromVideo) {
+            console.error("Google Ads campaign creation failed:", errTextAfterRetry);
+            return { success: false, campaignId: "", platform: "google", error: `Campaign creation failed: ${errTextAfterRetry}` };
+          }
+
+          console.warn("⚠️ VIDEO campaign mutate not allowed for this account, retrying with DEMAND_GEN fallback");
+          finalChannelType = "DEMAND_GEN";
+
+          const fallbackRequestedStrategy = params.metadata?.biddingStrategy || "MAXIMIZE_CONVERSIONS";
+          const fallbackStrategyName = this.normalizeCampaignBiddingStrategy(
+            finalChannelType,
+            fallbackRequestedStrategy === "TARGET_CPM" ? "MAXIMIZE_CLICKS" : fallbackRequestedStrategy,
+          );
+          finalBiddingStrategy = this.sanitizeCampaignBiddingConfig(
+            this.buildBiddingStrategy(fallbackStrategyName, params.metadata?.bidAmount),
+          );
+
+          console.log(
+            `📊 Google Ads fallback bidding normalization: requested=${fallbackRequestedStrategy}, effective=${fallbackStrategyName}, channel=${finalChannelType}, fields=${Object.keys(finalBiddingStrategy).join(",")}`,
+          );
+
+          campaignResp = await fetch(campaignUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ operations: [buildCampaignOperation(finalChannelType, finalBiddingStrategy)] }),
+          });
+
+          if (!campaignResp.ok) {
+            const fallbackErrText = await campaignResp.text();
+            console.error("Google Ads campaign creation failed after VIDEO fallback:", fallbackErrText);
+            return {
+              success: false,
+              campaignId: "",
+              platform: "google",
+              error: `Campaign creation failed: ${fallbackErrText}`,
+            };
+          }
         }
       }
 
@@ -2767,27 +2802,68 @@ class GoogleAdsAdapter implements PlatformAdapter {
     }
   }
 
-  private normalizeCampaignBiddingStrategy(channelType: string, strategy: string): string {
-    const normalizedChannelType = (channelType || "").toUpperCase();
-    const normalizedStrategy = (strategy || "MAXIMIZE_CONVERSIONS").toUpperCase();
+  private normalizeGoogleBidStrategyToken(strategy: string): string {
+    const upper = (strategy || "MAXIMIZE_CONVERSIONS").trim().toUpperCase().replace(/[\s-]+/g, "_");
+    const aliases: Record<string, string> = {
+      TARGET_CPM: "TARGET_CPM",
+      TARGET_CPV: "TARGET_CPV",
+      TARGET_CPA: "TARGET_CPA",
+      TARGET_ROAS: "TARGET_ROAS",
+      MAXIMIZE_CONVERSIONS: "MAXIMIZE_CONVERSIONS",
+      MAXIMIZE_CONVERSION_VALUE: "MAXIMIZE_CONVERSION_VALUE",
+      MAXIMIZE_CLICKS: "MAXIMIZE_CLICKS",
+      MANUAL_CPC: "MANUAL_CPC",
+      MAXIMUM_CPC: "MANUAL_CPC",
+      TARGET_IMPRESSION_SHARE: "TARGET_IMPRESSION_SHARE",
+      CPM: "TARGET_CPM",
+      VIEWABLE_IMPRESSIONS: "TARGET_CPM",
+      VIEWABLE_CPM: "TARGET_CPM",
+    };
+    return aliases[upper] || upper;
+  }
 
-    const unsupportedByChannel: Record<string, Set<string>> = {
-      PERFORMANCE_MAX: new Set(["MAXIMIZE_CLICKS", "TARGET_CPM", "MANUAL_CPC", "TARGET_IMPRESSION_SHARE"]),
-      SHOPPING: new Set(["MAXIMIZE_CLICKS", "TARGET_CPM", "TARGET_IMPRESSION_SHARE"]),
+  private normalizeCampaignBiddingStrategy(channelType: string, strategy: string): string {
+    const normalizedChannelType = (channelType || "SEARCH").toUpperCase();
+    let normalizedStrategy = this.normalizeGoogleBidStrategyToken(strategy);
+
+    const allowedByChannel: Record<string, Set<string>> = {
+      SEARCH: new Set([
+        "MAXIMIZE_CONVERSIONS",
+        "MAXIMIZE_CONVERSION_VALUE",
+        "TARGET_CPA",
+        "TARGET_ROAS",
+        "MANUAL_CPC",
+        "MAXIMIZE_CLICKS",
+        "TARGET_IMPRESSION_SHARE",
+      ]),
+      SHOPPING: new Set([
+        "MAXIMIZE_CONVERSIONS",
+        "MAXIMIZE_CONVERSION_VALUE",
+        "TARGET_CPA",
+        "TARGET_ROAS",
+        "MANUAL_CPC",
+        "MAXIMIZE_CLICKS",
+      ]),
+      PERFORMANCE_MAX: new Set(["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS"]),
+      DEMAND_GEN: new Set(["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "MAXIMIZE_CLICKS"]),
+      DISPLAY: new Set(["MAXIMIZE_CONVERSIONS", "TARGET_CPA", "MAXIMIZE_CLICKS", "TARGET_IMPRESSION_SHARE"]),
+      VIDEO: new Set(["TARGET_CPM", "TARGET_CPV", "MAXIMIZE_CONVERSIONS", "TARGET_CPA"]),
+      MULTI_CHANNEL: new Set(["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS"]),
     };
 
-    if (unsupportedByChannel[normalizedChannelType]?.has(normalizedStrategy)) {
+    const allowed = allowedByChannel[normalizedChannelType];
+    const defaultForChannel = normalizedChannelType === "VIDEO" ? "MAXIMIZE_CONVERSIONS" : "MAXIMIZE_CONVERSIONS";
+
+    if (allowed && !allowed.has(normalizedStrategy)) {
       console.warn(
-        `⚠️ Unsupported Google Ads bidding strategy ${normalizedStrategy} for ${normalizedChannelType}; falling back to MAXIMIZE_CONVERSIONS`,
+        `⚠️ Unsupported Google Ads bidding strategy ${normalizedStrategy} for ${normalizedChannelType}; falling back to ${defaultForChannel}`,
       );
-      return "MAXIMIZE_CONVERSIONS";
+      normalizedStrategy = defaultForChannel;
     }
 
     // TARGET_ROAS cannot be set on a brand-new campaign — Google requires conversion-value history
     // (OPERATION_NOT_PERMITTED_FOR_CONTEXT on target_roas at campaign create). Fall back to
     // MAXIMIZE_CONVERSION_VALUE which optimizes for the same goal and is permitted at creation.
-    // The user can manually convert to Target ROAS in Google Ads UI once the campaign accumulates
-    // conversion-value data.
     if (normalizedStrategy === "TARGET_ROAS") {
       console.warn(
         `⚠️ TARGET_ROAS not permitted at campaign creation (requires conversion-value history); falling back to MAXIMIZE_CONVERSION_VALUE for ${normalizedChannelType}`,

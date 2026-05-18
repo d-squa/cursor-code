@@ -13,6 +13,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  calculateAdSetBudgetEur,
+  calculatePhaseBudgetEur,
+} from "@/utils/actiplanBudgetMinimums";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { platformAdFormats } from "@/utils/adFormats";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -1321,7 +1326,17 @@ export function PhaseScheduler({
   };
 
   const updatePhaseBudget = (phaseId: string, budget: number) => {
-    onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, budgetPercentage: budget } : p));
+    const phase = phases.find((p) => p.id === phaseId);
+    if (phase && marketBudget && marketBudget > 0) {
+      const phaseBudgetEur = calculatePhaseBudgetEur(marketBudget, budget);
+      if (phaseBudgetEur > 0 && phaseBudgetEur < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
+        toast.error(`Phase budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+          description: `${phase.name}: €${phaseBudgetEur.toFixed(2)} at ${budget}% of market budget.`,
+        });
+        return;
+      }
+    }
+    onPhasesChange(phases.map((p) => (p.id === phaseId ? { ...p, budgetPercentage: budget } : p)));
   };
 
   const snapToPreviousPhase = (phaseId: string) => {
@@ -3544,6 +3559,11 @@ export function PhaseScheduler({
                                   platformName={platformName}
                                   platformId={platformId || 'meta'}
                                   phaseName={phase.name}
+                                  phaseBudgetEur={
+                                    marketBudget
+                                      ? calculatePhaseBudgetEur(marketBudget, phase.budgetPercentage)
+                                      : undefined
+                                  }
                                   useCBO={phase.useCBO ?? basicTargeting?.defaultAdSetSplitUseCBO}
                                   onAdSetsChange={(adSets) => {
                                     // If inheriting, first copy to phase then update

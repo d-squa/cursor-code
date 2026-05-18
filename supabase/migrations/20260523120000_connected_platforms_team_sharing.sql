@@ -134,6 +134,11 @@ DROP POLICY IF EXISTS "Users can view their own connected platforms" ON public.c
 DROP POLICY IF EXISTS "Users can create their own connected platforms" ON public.connected_platforms;
 DROP POLICY IF EXISTS "Users can update their own connected platforms" ON public.connected_platforms;
 DROP POLICY IF EXISTS "Users can delete their own connected platforms" ON public.connected_platforms;
+-- Idempotent: allow re-run after partial apply or manual SQL editor run
+DROP POLICY IF EXISTS "Users can view team connected platforms" ON public.connected_platforms;
+DROP POLICY IF EXISTS "Users can create team connected platforms" ON public.connected_platforms;
+DROP POLICY IF EXISTS "Users can update team connected platforms" ON public.connected_platforms;
+DROP POLICY IF EXISTS "Users can delete team connected platforms" ON public.connected_platforms;
 
 CREATE POLICY "Users can view team connected platforms"
 ON public.connected_platforms
@@ -179,6 +184,10 @@ DROP POLICY IF EXISTS "Users can view their platform accounts" ON public.platfor
 DROP POLICY IF EXISTS "Users can create their platform accounts" ON public.platform_accounts;
 DROP POLICY IF EXISTS "Users can delete their platform accounts" ON public.platform_accounts;
 DROP POLICY IF EXISTS "Users can update their platform accounts" ON public.platform_accounts;
+DROP POLICY IF EXISTS "Users can view team platform accounts" ON public.platform_accounts;
+DROP POLICY IF EXISTS "Users can create team platform accounts" ON public.platform_accounts;
+DROP POLICY IF EXISTS "Users can update team platform accounts" ON public.platform_accounts;
+DROP POLICY IF EXISTS "Users can delete team platform accounts" ON public.platform_accounts;
 
 CREATE POLICY "Users can view team platform accounts"
 ON public.platform_accounts

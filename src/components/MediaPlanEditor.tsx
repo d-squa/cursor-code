@@ -79,6 +79,12 @@ import {
   findBoNumberConflict,
   isBoNumberUniqueViolation,
 } from "@/utils/campaignBoNumber";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  formatBudgetViolationsSummary,
+  getActiPlanBudgetValidationInputFromEditorState,
+  validateActiPlanBudgets,
+} from "@/utils/actiplanBudgetMinimums";
 import { CreativeMatchingDialog } from "@/components/creative/CreativeMatchingDialog";
 
 // Helper: map internal focus to funnel template key
@@ -1536,10 +1542,51 @@ export function MediaPlanEditor() {
     clients,
   ]);
 
+  const collectBudgetViolations = (options?: { onlyEnabledPlatforms?: boolean; skipEmptyPlatformIds?: boolean }) =>
+    validateActiPlanBudgets(
+      getActiPlanBudgetValidationInputFromEditorState({
+        totalBudget,
+        startDate,
+        endDate,
+        platformsWithMarkets,
+        basicTargeting,
+        onlyEnabledPlatforms: options?.onlyEnabledPlatforms,
+        skipEmptyPlatformIds: options?.skipEmptyPlatformIds,
+      }),
+    );
+
+  const ensureBudgetMinimums = (options?: { onlyEnabledPlatforms?: boolean; skipEmptyPlatformIds?: boolean }) => {
+    const violations = collectBudgetViolations(options);
+    if (violations.length === 0) return true;
+    toast.error("Budget below €50 minimum", {
+      description: formatBudgetViolationsSummary(violations),
+      duration: 10000,
+    });
+    return false;
+  };
+
+  const step1BudgetViolations = useMemo(
+    () => collectBudgetViolations({ skipEmptyPlatformIds: true }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [totalBudget, startDate, endDate, platformsWithMarkets, basicTargeting],
+  );
+
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every((p) => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every((p) => p.markets.length > 0);
-    return !!(campaignName.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
+    const total = parseFloat(totalBudget) || 0;
+    const activationBudgetOk = total >= ACTIPLAN_MIN_ENTITY_BUDGET_EUR;
+    const noActivationViolation = !step1BudgetViolations.some((v) => v.level === "activation");
+    return !!(
+      campaignName.trim() &&
+      totalBudget &&
+      startDate &&
+      endDate &&
+      allPlatformsSelected &&
+      allHaveMarkets &&
+      activationBudgetOk &&
+      noActivationViolation
+    );
   };
 
   const isStrategyComplete = () => {
@@ -1632,6 +1679,10 @@ export function MediaPlanEditor() {
         toast.error(BO_NUMBER_CONFLICT_MESSAGE);
         return;
       }
+    }
+
+    if (!ensureBudgetMinimums({ onlyEnabledPlatforms: true })) {
+      return;
     }
 
     setSaving(true);
@@ -2013,6 +2064,10 @@ export function MediaPlanEditor() {
     }
 
     if (!validateBudgetTypes()) {
+      return null;
+    }
+
+    if (!ensureBudgetMinimums({ skipEmptyPlatformIds: true })) {
       return null;
     }
 
@@ -2508,9 +2563,22 @@ export function MediaPlanEditor() {
                   setTotalBudget(e.target.value);
                   ensureDraft();
                 }}
-                placeholder="Enter total budget"
+                placeholder={`Minimum €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`}
+                min={ACTIPLAN_MIN_ENTITY_BUDGET_EUR}
+                step="0.01"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} total. Each campaign and ad set must receive at least €
+                {ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after platform, market, and phase splits.
+              </p>
+              {step1BudgetViolations.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertDescription className="text-xs whitespace-pre-line">
+                    {formatBudgetViolationsSummary(step1BudgetViolations, 4)}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -2665,6 +2733,9 @@ export function MediaPlanEditor() {
             <div className="flex justify-end pt-4">
               <Button
                 onClick={async () => {
+                  if (!isSampleMode && !ensureBudgetMinimums({ skipEmptyPlatformIds: true })) {
+                    return;
+                  }
                   await ensureDraft();
                   setCurrentStep(2);
                 }}
@@ -3757,6 +3828,9 @@ export function MediaPlanEditor() {
                     }
                     await applyBudgetTypeDefaultsIfAvailable();
                     if (!validateBudgetTypes()) {
+                      return;
+                    }
+                    if (!ensureBudgetMinimums({ onlyEnabledPlatforms: true })) {
                       return;
                     }
                     // Check taxonomy validation before proceeding

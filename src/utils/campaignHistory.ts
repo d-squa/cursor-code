@@ -1,5 +1,34 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** Must stay in sync with activity_logs_action_type_check (see migrations). */
+export const ACTIVITY_LOG_ACTION_TYPES = [
+  "budget_adjustment",
+  "targeting_change",
+  "creative_update",
+  "campaign_pause_resume",
+  "pause_resume",
+  "audience_update",
+  "bid_change",
+  "schedule_modification",
+  "landing_page_change",
+  "ad_copy_change",
+  "placement_update",
+  "conversion_setup",
+  "reporting_delivery",
+  "setup_mistake",
+  "note",
+  "other",
+  "campaign_shell_push",
+  "creative_push",
+  "qc_transition",
+  "qc_check_completed",
+  "qc_check_reopened",
+  "qc_bulk_check_completed",
+  "qc_bulk_check_reopened",
+] as const;
+
+const ALLOWED_ACTIVITY_ACTION_TYPES = new Set<string>(ACTIVITY_LOG_ACTION_TYPES);
+
 interface CampaignHistoryEntryInput {
   campaignId: string;
   userId?: string | null;
@@ -63,10 +92,19 @@ export async function logCampaignActivity({
 }: CampaignActivityEntryInput) {
   if (!campaignId || !userId) return;
 
+  const normalizedActionType = ALLOWED_ACTIVITY_ACTION_TYPES.has(actionType)
+    ? actionType
+    : "other";
+  if (normalizedActionType !== actionType) {
+    console.warn(
+      `activity_logs: unknown action_type "${actionType}", logging as "other"`,
+    );
+  }
+
   const payload: Record<string, unknown> = {
     campaign_id: campaignId,
     user_id: userId,
-    action_type: actionType,
+    action_type: normalizedActionType,
     title,
     description: description ?? null,
     metadata: metadata ?? {},

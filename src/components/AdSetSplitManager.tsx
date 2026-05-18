@@ -15,6 +15,11 @@ import { getPlacementsForSelection } from "@/utils/placements";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  calculateAdSetBudgetEur,
+} from "@/utils/actiplanBudgetMinimums";
+import { toast } from "sonner";
 
 interface AdSetSplitManagerProps {
   dimension: AdSetSplitDimension;
@@ -41,6 +46,8 @@ interface AdSetSplitManagerProps {
   // Cross-exclude for audience_selection
   autoCrossExclude?: boolean;
   onAutoCrossExcludeChange?: (enabled: boolean) => void;
+  /** Absolute phase budget (EUR) for validating ad set minimum allocations. */
+  phaseBudgetEur?: number;
 }
 
 const DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
@@ -247,6 +254,7 @@ export function AdSetSplitManager({
   currentDevices,
   autoCrossExclude = true,
   onAutoCrossExcludeChange,
+  phaseBudgetEur,
 }: AdSetSplitManagerProps) {
   // State for cross-exclude (default true for audience_selection)
   const [localAutoCrossExclude, setLocalAutoCrossExclude] = useState(autoCrossExclude);
@@ -540,8 +548,31 @@ export function AdSetSplitManager({
     }
   };
 
+  const validateAdSetBudgetPercentage = (budgetPercentage: number, adSetName: string): boolean => {
+    if (!phaseBudgetEur || phaseBudgetEur <= 0) return true;
+    const adSetBudgetEur = calculateAdSetBudgetEur(phaseBudgetEur, budgetPercentage);
+    if (adSetBudgetEur > 0 && adSetBudgetEur < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
+      toast.error(`Ad set budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+        description: `${adSetName}: €${adSetBudgetEur.toFixed(2)} at ${budgetPercentage}% of phase budget.`,
+      });
+      return false;
+    }
+    return true;
+  };
+
   // Update ad set with auto-taxonomy name regeneration
   const updateAdSet = (id: string, updates: Partial<AdSetConfig>) => {
+    if (updates.budgetPercentage !== undefined) {
+      const target = adSets.find((as) => as.id === id);
+      if (
+        !validateAdSetBudgetPercentage(
+          updates.budgetPercentage,
+          updates.name || target?.name || "Ad set",
+        )
+      ) {
+        return;
+      }
+    }
     onAdSetsChange(adSets.map(as => {
       if (as.id === id) {
         const updated = { ...as, ...updates };
@@ -1176,7 +1207,10 @@ export function AdSetSplitManager({
                     <div className="flex items-center gap-2">
                       <Slider
                         value={[adSet.budgetPercentage]}
-                        onValueChange={([value]) => updateAdSet(adSet.id, { budgetPercentage: value })}
+                        onValueChange={([value]) => {
+                          if (!validateAdSetBudgetPercentage(value, adSet.name)) return;
+                          updateAdSet(adSet.id, { budgetPercentage: value });
+                        }}
                         max={100}
                         step={1}
                         className="flex-1"

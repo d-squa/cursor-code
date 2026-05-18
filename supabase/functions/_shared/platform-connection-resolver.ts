@@ -1,4 +1,6 @@
-import { getAccessToken } from "./vault-helper.ts";
+import { getAccessToken, getAccessTokenWithRefresh } from "./vault-helper.ts";
+
+export type PlatformConnectionType = "meta" | "tiktok" | "google";
 
 interface ConnectedPlatformRecord {
   id: string;
@@ -159,6 +161,141 @@ async function getActivePlatformConnections(
   }
 
   return dedupePlatforms(data ?? []);
+}
+
+export function resolvePlatformConnectionType(platformName: string): PlatformConnectionType | null {
+  const normalized = String(platformName || "").toLowerCase();
+  if (normalized.includes("meta") || normalized.includes("facebook") || normalized.includes("instagram")) {
+    return "meta";
+  }
+  if (normalized.includes("tiktok")) {
+    return "tiktok";
+  }
+  if (normalized.includes("google")) {
+    return "google";
+  }
+  return null;
+}
+
+export function inferAccountExternalIdFromMarkets(
+  platformType: PlatformConnectionType,
+  markets: Record<string, unknown>,
+): string | undefined {
+  for (const market of Object.values(markets ?? {})) {
+    const marketRecord = market as Record<string, unknown>;
+    if (platformType === "meta") {
+      const accountId = marketRecord.adAccountId ?? marketRecord.ad_account_id;
+      if (accountId) return String(accountId);
+    }
+    if (platformType === "tiktok") {
+      const advertiserId = marketRecord.advertiserId ?? marketRecord.advertiser_id ?? marketRecord.ad_account_id;
+      if (advertiserId) return String(advertiserId);
+    }
+    if (platformType === "google") {
+      const customerId = marketRecord.googleCustomerId ?? marketRecord.adAccountId ?? marketRecord.ad_account_id;
+      if (customerId) return String(customerId).replace(/-/g, "");
+    }
+  }
+  return undefined;
+}
+
+async function loadPlatformCandidates(
+  supabase: any,
+  userId: string,
+  platformType: PlatformConnectionType,
+  accountExternalId: string | undefined,
+  campaignTeamId?: string | null,
+): Promise<ConnectedPlatformRecord[]> {
+  if (platformType === "meta") {
+    return getMetaPlatformCandidatesForAdAccount(supabase, userId, accountExternalId, campaignTeamId);
+  }
+  if (platformType === "tiktok") {
+    return getTikTokPlatformCandidatesForAdvertiser(
+      supabase,
+      userId,
+      accountExternalId ?? "",
+      campaignTeamId,
+    );
+  }
+  return getGooglePlatformCandidatesForCustomer(
+    supabase,
+    userId,
+    accountExternalId ?? "",
+    campaignTeamId,
+  );
+}
+
+/** Pick the first connected_platforms row that has a readable Vault (or legacy) access token. */
+export async function resolveConnectedPlatformWithAccessToken(
+  supabase: any,
+  params: {
+    userId: string;
+    platformType: PlatformConnectionType;
+    campaignTeamId?: string | null;
+    accountExternalId?: string;
+    /** User performing the push (admin/collaborator) — may access team-scoped tokens the owner cannot. */
+    additionalUserId?: string;
+    /** Rows already loaded (owner/user/team); tried after ranked resolver candidates. */
+    extraCandidates?: ConnectedPlatformRecord[];
+  },
+): Promise<(ConnectedPlatformRecord & { access_token: string }) | null> {
+  const seen = new Set<string>();
+  const candidates: ConnectedPlatformRecord[] = [];
+
+  const addCandidates = (batch: ConnectedPlatformRecord[]) => {
+    for (const row of batch) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        candidates.push(row);
+      }
+    }
+  };
+
+  const userIds = [params.userId];
+  if (params.additionalUserId && params.additionalUserId !== params.userId) {
+    userIds.push(params.additionalUserId);
+  }
+
+  for (const uid of userIds) {
+    addCandidates(
+      await loadPlatformCandidates(
+        supabase,
+        uid,
+        params.platformType,
+        params.accountExternalId,
+        params.campaignTeamId,
+      ),
+    );
+  }
+
+  if (params.extraCandidates?.length) {
+    const platformType = params.platformType;
+    addCandidates(
+      params.extraCandidates.filter((row) => {
+        const rowType = String((row as ConnectedPlatformRecord & { platform_type?: string }).platform_type || "")
+          .toLowerCase();
+        return rowType === platformType;
+      }),
+    );
+  }
+
+  for (const candidate of candidates) {
+    const accessToken = params.platformType === "google"
+      ? await getAccessTokenWithRefresh(supabase, candidate.id, candidate.access_token, "google")
+      : await getAccessToken(supabase, candidate.id, candidate.access_token);
+
+    if (accessToken) {
+      console.log(
+        `Resolved ${params.platformType} access token via connected_platforms.id=${candidate.id} (team_id=${candidate.team_id ?? "none"}, user_id=${candidate.user_id ?? "none"})`,
+      );
+      return { ...candidate, access_token: accessToken };
+    }
+  }
+
+  console.warn(
+    `No ${params.platformType} access token among ${candidates.length} candidate connection(s) for user(s) ${userIds.join(", ")}`,
+  );
+  return null;
 }
 
 export async function resolveHasActivePlatformToken(

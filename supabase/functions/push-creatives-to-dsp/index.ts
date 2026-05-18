@@ -3,7 +3,10 @@ import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
 import { createApiLogger } from "../_shared/api-logger.ts";
-import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
+import {
+  resolveConnectedPlatformWithAccessToken,
+  type PlatformConnectionType,
+} from "../_shared/platform-connection-resolver.ts";
 import { getPlatformAdapter } from "../_shared/platform-adapter.ts";
 
 const FUNCTION_NAME = "push-creatives-to-dsp";
@@ -1570,12 +1573,44 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`[push-creatives] Created new job ${jobId} with ${totalAssignments} pending assignments`);
     }
 
-    // Connected platforms are stored on the campaign owner
-    const { data: platforms, error: platformsError } = await supabase
+    // Connected platforms: campaign owner, pushing user, and workspace team
+    const campaignOwnerId = campaign.user_id;
+    let platforms: any[] = [];
+
+    const { data: ownerPlatforms, error: ownerPlatformsError } = await supabase
       .from("connected_platforms")
       .select("*")
-      .eq("user_id", campaign.user_id);
-    if (platformsError) throw platformsError;
+      .eq("user_id", campaignOwnerId)
+      .eq("is_active", true);
+    if (ownerPlatformsError) throw ownerPlatformsError;
+    if (ownerPlatforms?.length) platforms = ownerPlatforms;
+
+    if (platforms.length === 0 && userId !== campaignOwnerId) {
+      const { data: userPlatforms, error: userPlatformsError } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("is_active", true);
+      if (userPlatformsError) throw userPlatformsError;
+      if (userPlatforms?.length) platforms = userPlatforms;
+    }
+
+    if (campaign.team_id) {
+      const { data: teamPlatforms, error: teamPlatformsError } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .eq("team_id", campaign.team_id)
+        .eq("is_active", true);
+      if (teamPlatformsError) throw teamPlatformsError;
+      if (teamPlatforms?.length) {
+        const existingIds = new Set(platforms.map((p: { id: string }) => p.id));
+        for (const teamPlatform of teamPlatforms) {
+          if (!existingIds.has(teamPlatform.id)) {
+            platforms.push(teamPlatform);
+          }
+        }
+      }
+    }
 
     const { data: adsetStatuses, error: statusError } = await supabase
       .from("campaign_launch_status")
@@ -1647,8 +1682,6 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      let platformRow = (platforms || []).find((p: any) => String(p.platform_type).toLowerCase() === platformKey);
-
       if (platformKey === "google") {
         const { data: marketAssignments } = await supabase
           .from("creative_assignments")
@@ -1664,35 +1697,36 @@ const handler = async (req: Request): Promise<Response> => {
         if (!hasMatchingMarketAssignments) {
           continue;
         }
-
-        const googleCustomerCandidates = [
-          resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name),
-        ].filter(Boolean) as string[];
-
-        for (const candidate of googleCustomerCandidates) {
-          const googlePlatformCandidates = await getGooglePlatformCandidatesForCustomer(supabase, campaign.user_id, candidate);
-          if (googlePlatformCandidates.length > 0) {
-            platformRow = googlePlatformCandidates[0] as any;
-            break;
-          }
-        }
       }
 
-      if (!platformRow) {
-        results.push({
-          platform: entry.platform,
-          market: entry.market,
-          phase: entry.phase_name,
-          success: false,
-          error: "Platform not connected",
-        });
-        continue;
+      const { market: entryMarket } = findMarketAndPhaseConfig(
+        campaign,
+        platformKey,
+        entry.market,
+        entry.phase_name,
+      );
+
+      let accountExternalId: string | undefined;
+      if (platformKey === "google") {
+        accountExternalId = resolveGoogleCustomerIdFromCampaign(campaign, entry.market, entry.phase_name) ?? undefined;
+      } else if (platformKey === "meta") {
+        const metaAccountId = entryMarket?.adAccountId ?? entryMarket?.ad_account_id;
+        if (metaAccountId) accountExternalId = String(metaAccountId);
+      } else if (platformKey === "tiktok") {
+        const advertiserId = entryMarket?.advertiserId ?? entryMarket?.advertiser_id ?? entryMarket?.ad_account_id;
+        if (advertiserId) accountExternalId = String(advertiserId);
       }
 
-      const accessToken = platformKey === "google"
-        ? await getAccessTokenWithRefresh(supabase, platformRow.id, platformRow.access_token, "google")
-        : await getAccessToken(supabase, platformRow.id, platformRow.access_token);
-      if (!accessToken) {
+      const resolvedPlatform = await resolveConnectedPlatformWithAccessToken(supabase, {
+        userId: campaignOwnerId,
+        additionalUserId: userId,
+        platformType: platformKey as PlatformConnectionType,
+        campaignTeamId: campaign.team_id,
+        accountExternalId,
+        extraCandidates: platforms,
+      });
+
+      if (!resolvedPlatform) {
         results.push({
           platform: entry.platform,
           market: entry.market,
@@ -1703,7 +1737,7 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      const platform = { ...platformRow, access_token: accessToken };
+      const platform = resolvedPlatform;
       const { market, phase } = findMarketAndPhaseConfig(campaign, platformKey, entry.market, entry.phase_name);
       const resolvedAdSetConfigs = platformKey === "meta"
         ? getEffectiveAdSetConfigs(campaign, platformKey, market, phase)
