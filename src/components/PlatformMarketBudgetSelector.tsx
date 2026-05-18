@@ -20,6 +20,12 @@ import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPl
 import { translateAdFormats } from "@/utils/adFormats";
 import { useSampleMode } from "@/contexts/SampleModeContext";
 import { PlatformMarketNav } from "./PlatformMarketNav";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  calculateMarketBudgetEur,
+  calculatePlatformBudgetEur,
+  minPlatformBudgetPercentage,
+} from "@/utils/actiplanBudgetMinimums";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -45,6 +51,10 @@ const AVAILABLE_PLATFORMS = [
 ];
 
 const NONE_OPTION = "__none__";
+
+function isBelowActiPlanMinimum(amountEur: number): boolean {
+  return amountEur > 0 && amountEur < ACTIPLAN_MIN_ENTITY_BUDGET_EUR;
+}
 
 export function PlatformMarketBudgetSelector({ 
   platforms, 
@@ -1115,51 +1125,86 @@ export function PlatformMarketBudgetSelector({
     setPlatforms([...platforms, newPlatform]);
   };
 
+  const validateBudgetAllocations = (nextPlatforms: PlatformWithMarkets[]): boolean => {
+    for (const platform of nextPlatforms) {
+      if (!platform.id || platform.budgetPercentage <= 0) continue;
+
+      const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
+      if (isBelowActiPlanMinimum(platformBudgetEur)) {
+        toast.error(`Minimum platform budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+          description: `${platform.name}: €${platformBudgetEur.toFixed(2)} at ${platform.budgetPercentage.toFixed(1)}% of total.`,
+        });
+        return false;
+      }
+
+      for (const market of platform.markets) {
+        const marketBudgetEur = calculateMarketBudgetEur(
+          totalBudget,
+          platform.budgetPercentage,
+          market.budgetPercentage ?? 100,
+        );
+        if (isBelowActiPlanMinimum(marketBudgetEur)) {
+          toast.error(`Minimum market budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+            description: `${platform.name} · ${market.name}: €${marketBudgetEur.toFixed(2)}.`,
+          });
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
   const updatePlatformBudget = (index: number, percentage: number) => {
     const newPercentage = Math.max(0, Math.min(100, percentage));
-    
+    const currentPlatform = platforms[index];
+
+    if (currentPlatform.id && newPercentage > 0) {
+      const proposedBudget = calculatePlatformBudgetEur(totalBudget, newPercentage);
+      if (isBelowActiPlanMinimum(proposedBudget)) {
+        const minPct = minPlatformBudgetPercentage(totalBudget);
+        toast.error(`Minimum platform budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+          description: `${currentPlatform.name} needs at least ${minPct.toFixed(2)}% (€${proposedBudget.toFixed(2)} proposed).`,
+        });
+        return;
+      }
+    }
+
+    let nextPlatforms: PlatformWithMarkets[];
+
     if (budgetLocked && platforms.length > 1) {
-      // Calculate the difference and redistribute to other non-fixed platforms proportionally
-      const currentPlatform = platforms[index];
       const diff = newPercentage - currentPlatform.budgetPercentage;
-      
-      // Get total budget of other non-fixed platforms
       const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !fixedPlatforms[i]);
       const otherNonFixedTotalBudget = otherNonFixedPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
-      
-      setPlatforms(
-        platforms.map((p, i) => {
-          if (i === index) {
-            return { ...p, budgetPercentage: newPercentage };
-          }
-          
-          // Skip fixed platforms - they don't change
-          if (fixedPlatforms[i]) {
-            return p;
-          }
-          
-          // Redistribute proportionally among other non-fixed platforms
-          if (otherNonFixedTotalBudget > 0) {
-            const proportion = p.budgetPercentage / otherNonFixedTotalBudget;
-            const adjustment = diff * proportion;
-            return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - adjustment) };
-          } else if (otherNonFixedPlatforms.length > 0) {
-            // If other non-fixed platforms have 0 budget, distribute equally among them
-            const equalShare = diff / otherNonFixedPlatforms.length;
-            return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - equalShare) };
-          }
+
+      nextPlatforms = platforms.map((p, i) => {
+        if (i === index) {
+          return { ...p, budgetPercentage: newPercentage };
+        }
+        if (fixedPlatforms[i]) {
           return p;
-        })
-      );
+        }
+        if (otherNonFixedTotalBudget > 0) {
+          const proportion = p.budgetPercentage / otherNonFixedTotalBudget;
+          const adjustment = diff * proportion;
+          return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - adjustment) };
+        }
+        if (otherNonFixedPlatforms.length > 0) {
+          const equalShare = diff / otherNonFixedPlatforms.length;
+          return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - equalShare) };
+        }
+        return p;
+      });
     } else {
-      setPlatforms(
-        platforms.map((p, i) => 
-          i === index 
-            ? { ...p, budgetPercentage: newPercentage }
-            : p
-        )
+      nextPlatforms = platforms.map((p, i) =>
+        i === index ? { ...p, budgetPercentage: newPercentage } : p,
       );
     }
+
+    if (!validateBudgetAllocations(nextPlatforms)) {
+      return;
+    }
+
+    setPlatforms(nextPlatforms);
   };
 
   const addMarket = (index: number) => {
@@ -1273,59 +1318,68 @@ export function PlatformMarketBudgetSelector({
 
   const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
     const newPercentage = Math.max(0, Math.min(100, percentage));
-    
-    setPlatforms(
-      platforms.map((p, i) => {
+    const platform = platforms[platformIndex];
+    const currentMarket = platform?.markets.find((m) => m.id === marketId);
+
+    if (platform?.id && currentMarket && newPercentage > 0) {
+      const proposedBudget = calculateMarketBudgetEur(totalBudget, platform.budgetPercentage, newPercentage);
+      if (isBelowActiPlanMinimum(proposedBudget)) {
+        toast.error(`Minimum market budget is €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+          description: `${platform.name} · ${currentMarket.name}: €${proposedBudget.toFixed(2)} proposed.`,
+        });
+        return;
+      }
+    }
+
+    let nextPlatforms: PlatformWithMarkets[];
+
+    if (budgetLocked && platform.markets.length > 1) {
+      const diff = newPercentage - (currentMarket?.budgetPercentage ?? 0);
+      const otherNonFixedMarkets = platform.markets.filter((m) => m.id !== marketId && !fixedMarkets[m.id]);
+      const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+
+      nextPlatforms = platforms.map((p, i) => {
         if (i !== platformIndex) return p;
-        
-        const currentMarket = p.markets.find(m => m.id === marketId);
-        if (!currentMarket) return p;
-        
-        if (budgetLocked && p.markets.length > 1) {
-          // Calculate the difference and redistribute to other non-fixed markets proportionally
-          const diff = newPercentage - currentMarket.budgetPercentage;
-          
-          // Get non-fixed markets (excluding the one being changed)
-          const otherNonFixedMarkets = p.markets.filter(m => m.id !== marketId && !fixedMarkets[m.id]);
-          const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-          
-          return {
-            ...p,
-            markets: p.markets.map(m => {
-              if (m.id === marketId) {
-                return { ...m, budgetPercentage: newPercentage };
-              }
-              
-              // Skip fixed markets - they don't change
-              if (fixedMarkets[m.id]) {
-                return m;
-              }
-              
-              // Redistribute proportionally among other non-fixed markets
-              if (otherNonFixedTotalBudget > 0) {
-                const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
-                const adjustment = diff * proportion;
-                return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - adjustment) };
-              } else if (otherNonFixedMarkets.length > 0) {
-                // If other non-fixed markets have 0 budget, distribute equally among them
-                const equalShare = diff / otherNonFixedMarkets.length;
-                return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - equalShare) };
-              }
+        return {
+          ...p,
+          markets: p.markets.map((m) => {
+            if (m.id === marketId) {
+              return { ...m, budgetPercentage: newPercentage };
+            }
+            if (fixedMarkets[m.id]) {
               return m;
-            })
-          };
-        } else {
-          return {
-            ...p,
-            markets: p.markets.map(m => 
-              m.id === marketId 
-                ? { ...m, budgetPercentage: newPercentage }
-                : m
-            )
-          };
-        }
-      })
-    );
+            }
+            if (otherNonFixedTotalBudget > 0) {
+              const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
+              const adjustment = diff * proportion;
+              return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - adjustment) };
+            }
+            if (otherNonFixedMarkets.length > 0) {
+              const equalShare = diff / otherNonFixedMarkets.length;
+              return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - equalShare) };
+            }
+            return m;
+          }),
+        };
+      });
+    } else {
+      nextPlatforms = platforms.map((p, i) =>
+        i === platformIndex
+          ? {
+              ...p,
+              markets: p.markets.map((m) =>
+                m.id === marketId ? { ...m, budgetPercentage: newPercentage } : m,
+              ),
+            }
+          : p,
+      );
+    }
+
+    if (!validateBudgetAllocations(nextPlatforms)) {
+      return;
+    }
+
+    setPlatforms(nextPlatforms);
   };
 
   const handleBudgetSliderChange = (platformIndex: number, marketId: string, percentage: number) => {
@@ -1509,7 +1563,7 @@ export function PlatformMarketBudgetSelector({
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-16 text-xs text-center"
-                              min="0"
+                              min={minPlatformBudgetPercentage(totalBudget)}
                               max="100"
                               step="0.1"
                             />
@@ -1519,7 +1573,7 @@ export function PlatformMarketBudgetSelector({
                             <span className="text-xs text-muted-foreground">$</span>
                             <Input
                               type="number"
-                              value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
+                              value={Math.round(calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage))}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 const amount = parseFloat(e.target.value) || 0;
@@ -1530,7 +1584,7 @@ export function PlatformMarketBudgetSelector({
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-24 text-xs"
-                              min="0"
+                              min={ACTIPLAN_MIN_ENTITY_BUDGET_EUR}
                             />
                           </div>
                           {/* Always visible slider */}
@@ -1538,7 +1592,7 @@ export function PlatformMarketBudgetSelector({
                             <Slider
                               value={[platform.budgetPercentage]}
                               onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
-                              min={0}
+                              min={minPlatformBudgetPercentage(totalBudget)}
                               max={100}
                               step={0.5}
                               className="w-full"

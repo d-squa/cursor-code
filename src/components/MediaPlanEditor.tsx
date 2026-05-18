@@ -1576,7 +1576,7 @@ export function MediaPlanEditor() {
     const allHaveMarkets = platformsWithMarkets.every((p) => p.markets.length > 0);
     const total = parseFloat(totalBudget) || 0;
     const activationBudgetOk = total >= ACTIPLAN_MIN_ENTITY_BUDGET_EUR;
-    const noActivationViolation = !step1BudgetViolations.some((v) => v.level === "activation");
+    const noBudgetViolations = step1BudgetViolations.length === 0;
     return !!(
       campaignName.trim() &&
       totalBudget &&
@@ -1585,7 +1585,7 @@ export function MediaPlanEditor() {
       allPlatformsSelected &&
       allHaveMarkets &&
       activationBudgetOk &&
-      noActivationViolation
+      noBudgetViolations
     );
   };
 
@@ -2569,8 +2569,8 @@ export function MediaPlanEditor() {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} total. Each campaign and ad set must receive at least €
-                {ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after platform, market, and phase splits.
+                Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} total. Each platform, market, phase, campaign, and ad set must
+                receive at least €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after budget splits.
               </p>
               {step1BudgetViolations.length > 0 && (
                 <Alert variant="destructive">

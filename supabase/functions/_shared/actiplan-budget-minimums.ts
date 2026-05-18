@@ -89,6 +89,18 @@ export function validateActiPlanBudgetsForPush(
   const defaultAdSetsPerPlatform = (genericConfig.defaultAdSetsPerPlatform ||
     {}) as Record<string, unknown[]>;
 
+  const platformBudgetEur = calculateMarketBudgetEur(totalBudget, platformBudgetPct, 100);
+
+  if (platformId && platformBudgetPct > 0 && isBelowActiPlanMinimumBudget(platformBudgetEur)) {
+    pushActiPlanError(errors, {
+      platform: platformName,
+      market: "",
+      phase: "",
+      message: formatMinimumBudgetMessage(`Platform "${platformName}"`, platformBudgetEur),
+      fieldPath: "step1",
+    });
+  }
+
   for (const [marketCode, marketRaw] of Object.entries(markets)) {
     const market = marketRaw as Record<string, unknown>;
     const marketName = String(market.name || marketCode);
@@ -97,6 +109,16 @@ export function validateActiPlanBudgetsForPush(
       platformBudgetPct,
       Number(market.budgetPercentage) || 100,
     );
+
+    if (platformId && marketBudgetEur > 0 && isBelowActiPlanMinimumBudget(marketBudgetEur)) {
+      pushActiPlanError(errors, {
+        platform: platformName,
+        market: marketName,
+        phase: "",
+        message: formatMinimumBudgetMessage(`Market "${marketName}"`, marketBudgetEur),
+        fieldPath: "step1",
+      });
+    }
     const phases = (Array.isArray(market.phases) && market.phases.length > 0)
       ? market.phases as Record<string, unknown>[]
       : [{ name: "Default", budgetPercentage: 100 }];
