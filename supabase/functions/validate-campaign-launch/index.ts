@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
-import { getAccessToken } from "../_shared/vault-helper.ts";
+import { resolveHasActivePlatformToken } from "../_shared/platform-connection-resolver.ts";
 import { buildSearchStrategyCampaigns, getEffectiveSearchKeywords, isSearchPhaseLike } from "../_shared/search-strategy-campaigns.ts";
 
 const corsHeaders = {
@@ -333,6 +333,26 @@ const handler = async (req: Request): Promise<Response> => {
       canAccess = (roleRows?.length || 0) > 0;
     }
 
+    if (!canAccess && campaign.team_id) {
+      const { data: teamRow } = await supabase
+        .from("teams")
+        .select("owner_id, workspace_id")
+        .eq("id", campaign.team_id)
+        .maybeSingle();
+
+      if (teamRow?.owner_id === user.id) {
+        canAccess = true;
+      } else if (teamRow?.workspace_id) {
+        const { data: subMember } = await supabase
+          .from("workspace_subscription_members")
+          .select("user_id")
+          .eq("workspace_id", teamRow.workspace_id)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        canAccess = !!subMember;
+      }
+    }
+
     if (!canAccess) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
@@ -342,46 +362,6 @@ const handler = async (req: Request): Promise<Response> => {
         },
       );
     }
-
-    // Get connected platforms - check campaign owner first, then current user, then team-scoped
-    let { data: platforms } = await supabase
-      .from("connected_platforms")
-      .select("*")
-      .eq("user_id", campaignOwnerId)
-      .eq("is_active", true);
-
-    // If campaign owner has no platforms and current user is different, check current user's connections
-    if ((!platforms || platforms.length === 0) && user.id !== campaignOwnerId) {
-      console.log(`No platforms found for campaign owner ${campaignOwnerId}, checking current user ${user.id}`);
-      const { data: userPlatforms } = await supabase
-        .from("connected_platforms")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      if (userPlatforms && userPlatforms.length > 0) {
-        platforms = userPlatforms;
-      }
-    }
-
-    // Also check team-scoped connections if campaign has a team
-    if (campaign.team_id) {
-      const { data: teamPlatforms } = await supabase
-        .from("connected_platforms")
-        .select("*")
-        .eq("team_id", campaign.team_id)
-        .eq("is_active", true);
-      if (teamPlatforms && teamPlatforms.length > 0) {
-        // Merge team platforms (avoid duplicates by id)
-        const existingIds = new Set((platforms || []).map((p: any) => p.id));
-        for (const tp of teamPlatforms) {
-          if (!existingIds.has(tp.id)) {
-            platforms = [...(platforms || []), tp];
-          }
-        }
-      }
-    }
-
-    console.log(`Found ${platforms?.length || 0} connected platforms for validation`);
 
     const result: ValidationResult = {
       valid: true,
@@ -407,26 +387,37 @@ const handler = async (req: Request): Promise<Response> => {
       
       const platformName = campaignPlatform.name;
       const platformBudgetPct = campaignPlatform.budgetPercentage || 100;
-      
-      const connectedPlatform = platforms?.find(p => 
-        p.platform_type.toLowerCase() === platformName.toLowerCase() || 
-        (platformName.includes('Meta') && p.platform_type === 'meta') ||
-        (platformName.toLowerCase().includes('tiktok') && p.platform_type === 'tiktok')
-      );
-
-      // Check access token from Vault (with fallback to database column)
-      let hasAccessToken = false;
-      if (connectedPlatform) {
-        const vaultToken = await getAccessToken(supabase, connectedPlatform.id, connectedPlatform.access_token);
-        hasAccessToken = !!vaultToken;
-        console.log(`Processing platform: ${platformName}, connected: true, hasAccessToken: ${hasAccessToken}`);
-      } else {
-        console.log(`Processing platform: ${platformName}, connected: false`);
-      }
+      const isMetaPlatform = platformName.includes("Meta") || platformName.includes("Facebook");
+      const isTikTokPlatform = platformName.toLowerCase().includes("tiktok");
 
       for (const market of (markets as any[])) {
         const marketBudgetPct = market.budgetPercentage || 100;
         const calculatedBudget = calculateBudget(totalBudget, platformBudgetPct, marketBudgetPct);
+
+        let hasAccessToken = false;
+        if (isMetaPlatform) {
+          const adAccountId = market.adAccountId || market.ad_account_id;
+          hasAccessToken = await resolveHasActivePlatformToken(
+            supabase,
+            user.id,
+            "meta",
+            adAccountId ? String(adAccountId) : undefined,
+            campaign.team_id,
+          );
+        } else if (isTikTokPlatform) {
+          const advertiserId = market.adAccountId || market.tiktokAdvertiserId || market.advertiser_id;
+          hasAccessToken = await resolveHasActivePlatformToken(
+            supabase,
+            user.id,
+            "tiktok",
+            advertiserId ? String(advertiserId) : undefined,
+            campaign.team_id,
+          );
+        }
+
+        console.log(
+          `Market ${market.name} (${platformName}): hasAccessToken=${hasAccessToken}, team_id=${campaign.team_id ?? "none"}`,
+        );
         
         console.log(`Market ${market.name}: budgetPct=${marketBudgetPct}, calculated budget=€${calculatedBudget.toFixed(2)}`);
         
@@ -445,9 +436,9 @@ const handler = async (req: Request): Promise<Response> => {
           
           let validationErrors: ValidationError[] = [];
           
-          if (platformName.includes('Meta') || platformName.includes('Facebook')) {
+          if (isMetaPlatform) {
             validationErrors = validateMetaCampaign(campaign, market, phase, hasAccessToken, phaseBudget, entityPhaseName);
-          } else if (platformName.toLowerCase().includes('tiktok')) {
+          } else if (isTikTokPlatform) {
             validationErrors = validateTikTokCampaign(campaign, market, phase, hasAccessToken, phaseBudget, entityPhaseName);
           } else {
             // Unsupported platform warning
