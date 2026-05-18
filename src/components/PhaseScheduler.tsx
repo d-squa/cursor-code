@@ -1335,7 +1335,7 @@ export function PhaseScheduler({
 
   const addPhase = () => {
     if (marketConfigLocked) {
-      toast.info("This market is live in the DSP — add phases on unpublished markets only.", {
+      toast.info("This market is locked — add phases only on new or unpublished markets.", {
         id: "dsp-market-locked",
       });
       return;
@@ -1378,6 +1378,7 @@ export function PhaseScheduler({
   };
 
   const updatePhaseName = (phaseId: string, name: string) => {
+    if (!assertPhaseEditable(phaseId)) return;
     onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, name } : p));
     setEditingName(null);
   };
@@ -1632,9 +1633,15 @@ export function PhaseScheduler({
                 {/* Start handle */}
                 <div
                   data-handle="start"
-                  className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-current opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
-                  onMouseDown={(e) => handleDragStart(phase.id, 'start', e)}
-                  onTouchStart={(e) => handleDragStart(phase.id, 'start', e)}
+                  className={`absolute left-0 top-0 bottom-0 w-4 bg-current opacity-50 transition-opacity touch-none ${
+                    phaseDspLocked ? "cursor-not-allowed opacity-30" : "cursor-ew-resize hover:opacity-100 active:opacity-100"
+                  }`}
+                  onMouseDown={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "start", e);
+                  }}
+                  onTouchStart={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "start", e);
+                  }}
                 >
                   <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
@@ -1785,9 +1792,15 @@ export function PhaseScheduler({
                 {/* End handle */}
                 <div
                   data-handle="end"
-                  className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-current opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
-                  onMouseDown={(e) => handleDragStart(phase.id, 'end', e)}
-                  onTouchStart={(e) => handleDragStart(phase.id, 'end', e)}
+                  className={`absolute right-0 top-0 bottom-0 w-4 bg-current opacity-50 transition-opacity touch-none ${
+                    phaseDspLocked ? "cursor-not-allowed opacity-30" : "cursor-ew-resize hover:opacity-100 active:opacity-100"
+                  }`}
+                  onMouseDown={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "end", e);
+                  }}
+                  onTouchStart={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "end", e);
+                  }}
                 >
                   <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>

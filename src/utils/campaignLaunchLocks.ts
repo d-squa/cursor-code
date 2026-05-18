@@ -1,5 +1,6 @@
 import type { Market, PlatformWithMarkets } from "@/types/mediaplan";
 import { detectPlatformType } from "@/utils/objectiveOptimizationMapping";
+import { MARKET_OPTIONS } from "@/utils/markets";
 
 export const LAUNCH_LOCKED_STATUSES = ["pushed_to_dsp", "live"] as const;
 
@@ -24,6 +25,41 @@ export function isLaunchStatusLocked(status: string): boolean {
 
 export function marketLockKey(platformId: string, marketName: string): string {
   return `${platformId}::${marketName}`;
+}
+
+/** Normalize market codes/labels so launch_status rows match plan builder market.name. */
+export function normalizeMarketCode(raw: string): string {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return "";
+  const upper = trimmed.toUpperCase();
+  const byValue = MARKET_OPTIONS.find((m) => m.value.toUpperCase() === upper);
+  if (byValue) return byValue.value;
+  const byLabel = MARKET_OPTIONS.find((m) => m.label.toLowerCase() === trimmed.toLowerCase());
+  if (byLabel) return byLabel.value;
+  return trimmed;
+}
+
+export function marketKeysEquivalent(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const na = normalizeMarketCode(a);
+  const nb = normalizeMarketCode(b);
+  return na === nb || a.toLowerCase() === b.toLowerCase();
+}
+
+function normalizePhaseName(raw: string): string {
+  return (raw || "").trim().toLowerCase();
+}
+
+export function phaseNamesEquivalent(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return normalizePhaseName(a) === normalizePhaseName(b);
+}
+
+function platformIdsMatch(planPlatformId: string, launchPlatformId: string): boolean {
+  return planPlatformIdVariants(planPlatformId).some((id) =>
+    planPlatformIdVariants(launchPlatformId).includes(id),
+  );
 }
 
 /** Stable key for extension-mode market locks when market.id is missing. */
@@ -55,8 +91,12 @@ function registerPlatformMarketLock(
   marketName: string,
 ): void {
   if (!marketName) return;
+  const normalized = normalizeMarketCode(marketName);
   for (const id of planPlatformIdVariants(platformId)) {
     lockedMarketKeys.add(marketLockKey(id, marketName));
+    if (normalized && normalized !== marketName) {
+      lockedMarketKeys.add(marketLockKey(id, normalized));
+    }
   }
 }
 
@@ -73,8 +113,9 @@ function registerPhaseLock(
 }
 
 function hasMarketLockKey(scope: LaunchLockScope, platformId: string, marketName: string): boolean {
+  const candidates = new Set<string>([marketName, normalizeMarketCode(marketName)].filter(Boolean));
   return planPlatformIdVariants(platformId).some((id) =>
-    scope.lockedMarketKeys.has(marketLockKey(id, marketName)),
+    [...candidates].some((name) => scope.lockedMarketKeys.has(marketLockKey(id, name))),
   );
 }
 
@@ -84,8 +125,21 @@ function hasPhaseLockKey(
   marketName: string,
   phaseName: string,
 ): boolean {
+  const marketCandidates = new Set<string>([marketName, normalizeMarketCode(marketName)].filter(Boolean));
   return planPlatformIdVariants(platformId).some((id) =>
-    scope.lockedPhaseKeys.has(phaseLockKey(id, marketName, phaseName)),
+    [...marketCandidates].some((market) => {
+      const direct = scope.lockedPhaseKeys.has(phaseLockKey(id, market, phaseName));
+      if (direct) return true;
+      for (const key of scope.lockedPhaseKeys) {
+        const parts = key.split("::");
+        if (parts.length !== 3) continue;
+        const [kPlatform, kMarket, kPhase] = parts;
+        if (!planPlatformIdVariants(platformId).includes(kPlatform)) continue;
+        if (!marketKeysEquivalent(kMarket, market)) continue;
+        if (phaseNamesEquivalent(kPhase, phaseName)) return true;
+      }
+      return false;
+    }),
   );
 }
 
@@ -155,6 +209,32 @@ export function buildLaunchLockScopeForPlan(
   platforms: PlatformWithMarkets[],
 ): LaunchLockScope {
   const base = buildLaunchLockScope(entries);
+
+  for (const entry of entries) {
+    if (!isLaunchStatusLocked(entry.status)) continue;
+    const launchPlatformId = resolveLaunchPlatformId(entry.platform);
+    if (!launchPlatformId || !entry.market) continue;
+
+    for (const platform of platforms) {
+      if (!platform.id || !platformIdsMatch(platform.id, launchPlatformId)) continue;
+      for (const market of platform.markets || []) {
+        if (!marketKeysEquivalent(entry.market, market.name)) continue;
+        registerPlatformMarketLock(base.lockedMarketKeys, launchPlatformId, market.name);
+        if (entry.phase_name) {
+          const planPhase = (market.phases || []).find((ph) =>
+            phaseNamesEquivalent(ph.name, entry.phase_name || ""),
+          );
+          registerPhaseLock(
+            base.lockedPhaseKeys,
+            launchPlatformId,
+            market.name,
+            planPhase?.name || entry.phase_name,
+          );
+        }
+      }
+    }
+  }
+
   const lockedPlatformIds = resolveLockedPlatformIds(platforms, base.lockedMarketKeys);
   return { ...base, lockedPlatformIds };
 }

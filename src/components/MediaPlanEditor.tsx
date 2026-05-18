@@ -59,7 +59,7 @@ import { useActiplanTimeTracking } from "@/hooks/useActiplanTimeTracking";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
-import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
+import { PlatformWithMarkets, FunnelStage, type Market, type Phase } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { Badge } from "@/components/ui/badge";
@@ -272,6 +272,60 @@ export function MediaPlanEditor() {
       setCurrentStep(3);
     }
   }, [lockPlanFoundation, extensionModeActive, currentStep]);
+
+  const isExtensionOriginalMarket = useCallback(
+    (platformId: string, market: Market) => {
+      if (!extensionModeActive && !extensionMode.isExtensionMode) return false;
+      const marketKey = extensionMarketLockKey(platformId, market);
+      return (
+        extensionMode.isOriginalMarket(market.id) ||
+        extensionMode.isOriginalMarket(marketKey) ||
+        (extensionHydratedLockIds?.marketIds.has(marketKey) ?? false) ||
+        (market.id ? (extensionHydratedLockIds?.marketIds.has(market.id) ?? false) : false)
+      );
+    },
+    [
+      extensionModeActive,
+      extensionMode.isExtensionMode,
+      extensionMode.isOriginalMarket,
+      extensionHydratedLockIds,
+    ],
+  );
+
+  const isExtensionOriginalPhase = useCallback(
+    (phaseId: string) => {
+      if (!extensionModeActive && !extensionMode.isExtensionMode) return false;
+      return extensionMode.isOriginalPhase(phaseId);
+    },
+    [extensionModeActive, extensionMode.isExtensionMode, extensionMode.isOriginalPhase],
+  );
+
+  const isMarketConfigLockedForEditor = useCallback(
+    (platformId: string, market: Market) =>
+      launchLocks.isMarketBudgetLocked(platformId, market.name) ||
+      isExtensionOriginalMarket(platformId, market),
+    [launchLocks, isExtensionOriginalMarket],
+  );
+
+  const isPhaseConfigLockedForEditor = useCallback(
+    (platformId: string, market: Market, phase: Phase) =>
+      launchLocks.isPhaseConfigLocked(platformId, market.name, phase.name) ||
+      isExtensionOriginalPhase(phase.id),
+    [launchLocks, isExtensionOriginalPhase],
+  );
+
+  const isPlatformConfigLockedForEditor = useCallback(
+    (platformId: string, markets: Market[]) =>
+      launchLocks.isPlatformBudgetLocked(platformId, markets) ||
+      (extensionModeActive && extensionMode.isOriginalPlatform(platformId)) ||
+      (extensionHydratedLockIds?.platformIds.has(platformId) ?? false),
+    [
+      launchLocks,
+      extensionModeActive,
+      extensionMode.isOriginalPlatform,
+      extensionHydratedLockIds,
+    ],
+  );
   const lastCampaignIdRef = useRef<string | null>(null);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
@@ -3302,16 +3356,12 @@ export function MediaPlanEditor() {
                         }
                         marketConfigLocked={
                           singlePlatform?.id
-                            ? launchLocks.isMarketBudgetLocked(singlePlatform.id, singleMarket.name)
+                            ? isMarketConfigLockedForEditor(singlePlatform.id, singleMarket)
                             : false
                         }
                         isPhaseConfigLocked={(phase) =>
                           singlePlatform?.id
-                            ? launchLocks.isPhaseConfigLocked(
-                                singlePlatform.id,
-                                singleMarket.name,
-                                phase.name,
-                              )
+                            ? isPhaseConfigLockedForEditor(singlePlatform.id, singleMarket, phase)
                             : false
                         }
                         activationContext={{
@@ -3429,7 +3479,7 @@ export function MediaPlanEditor() {
                                 <Button variant="ghost" className="flex-1 justify-between p-4 hover:bg-accent">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold text-lg">{platform.name}</span>
-                                    {extensionMode.isExtensionMode && extensionMode.isOriginalPlatform(platform.id) && (
+                                    {isPlatformConfigLockedForEditor(platform.id, platform.markets) && (
                                       <Badge variant="outline" className="text-xs gap-1">
                                         <Lock className="h-3 w-3" />
                                         Locked
@@ -3502,8 +3552,8 @@ export function MediaPlanEditor() {
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
                                           <div className="flex items-center gap-2">
                                             <h4 className="font-medium">{getMarketLabel(market.name)}</h4>
-                                            {extensionMode.isExtensionMode &&
-                                              extensionMode.isOriginalMarket(market.id) && (
+                                            {platform.id &&
+                                              isMarketConfigLockedForEditor(platform.id, market) && (
                                                 <Badge variant="outline" className="text-xs gap-1">
                                                   <Lock className="h-3 w-3" />
                                                   Locked
@@ -3780,16 +3830,12 @@ export function MediaPlanEditor() {
                                             }
                                             marketConfigLocked={
                                               platform.id
-                                                ? launchLocks.isMarketBudgetLocked(platform.id, market.name)
+                                                ? isMarketConfigLockedForEditor(platform.id, market)
                                                 : false
                                             }
                                             isPhaseConfigLocked={(phase) =>
                                               platform.id
-                                                ? launchLocks.isPhaseConfigLocked(
-                                                    platform.id,
-                                                    market.name,
-                                                    phase.name,
-                                                  )
+                                                ? isPhaseConfigLockedForEditor(platform.id, market, phase)
                                                 : false
                                             }
                                             activationContext={{
