@@ -167,6 +167,8 @@ export function MediaPlanEditor() {
 
   const isReadOnly = !editPermLoading && !canEditInEditor;
 
+  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
+
   const launchLocks = useCampaignLaunchLocks(savedCampaignId ?? undefined, platformsWithMarkets);
 
   const setPlatformsWithLaunchGuards = useCallback(
@@ -185,8 +187,6 @@ export function MediaPlanEditor() {
     }
   }, [lockPlanFoundation, extensionModeActive, currentStep]);
   const lastCampaignIdRef = useRef<string | null>(null);
-  // Track whether client selection was an explicit user action (not hydration)
-  const clientSelectionIsUserAction = useRef<boolean>(false);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
@@ -208,7 +208,6 @@ export function MediaPlanEditor() {
       lookalikeAudience: "",
     },
   });
-  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
 
   // Guard: skip the next generic→market phase sync (prevents circular clobber of budgetType, etc.)
@@ -290,31 +289,26 @@ export function MediaPlanEditor() {
     }
   }, [user]);
 
-  // Auto-populate when client is selected (and required fields are filled)
-  useEffect(() => {
-    console.log("🔍 Client selection effect triggered", {
-      selectedClientId,
-      hasBudget: !!totalBudget,
-      hasStartDate: !!startDate,
-      hasEndDate: !!endDate,
-      isHydrated,
-    });
-
-    if (selectedClientId && totalBudget && startDate && endDate && isHydrated && clientSelectionIsUserAction.current) {
-      console.log("✅ All conditions met, auto-populating from client...");
-      autoPopulateFromClient();
-      clientSelectionIsUserAction.current = false;
-    } else if (selectedClientId && clientSelectionIsUserAction.current && (!totalBudget || !startDate || !endDate)) {
-      console.log("⚠️ Client selected but missing required fields");
-      toast.error("Please fill in budget, start date, and end date first");
+  const autoPopulateFromClient = useCallback(async () => {
+    if (!selectedClientId) {
+      toast.error("Select a client first");
+      return;
     }
-  }, [selectedClientId, totalBudget, startDate, endDate, isHydrated]);
+    if (!totalBudget || !startDate || !endDate) {
+      toast.error("Please fill in budget, start date, and end date first");
+      return;
+    }
+    if (!isHydrated) return;
 
-  const autoPopulateFromClient = async () => {
+    if (launchLocks.scope.lockedMarketKeys.size > 0) {
+      toast.error("Cannot apply client defaults while part of this ActiPlan is live in the DSP.");
+      return;
+    }
+
     const selectedClient = clients.find((c) => c.id === selectedClientId) as any;
     if (!selectedClient) return;
 
-    console.log("🔄 Auto-populating from client:", selectedClient);
+    console.log("🔄 Applying client defaults:", selectedClient);
 
     const clientPlatforms = Array.isArray(selectedClient.platforms) ? selectedClient.platforms : [];
     const clientMarkets = Array.isArray(selectedClient.markets) ? selectedClient.markets : [];
@@ -328,19 +322,20 @@ export function MediaPlanEditor() {
       ? normalizeLanguageValues(selectedClient.default_languages)
       : [];
 
-    const clientTargetingDefaults: UnifiedTargetingConfig = {
-      ageMin: selectedClient.default_age_min ?? 18,
-      ageMax: selectedClient.default_age_max ?? 65,
-      genders: selectedClient.default_gender ? [selectedClient.default_gender] : ["all"],
-      devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
-      languages: normalizedLanguages,
-      os: [],
-      selectedItems: basicTargeting.selectedItems || [], // Preserve any existing selected items
-    };
-
-    console.log("🎯 Setting basicTargeting from client defaults:", clientTargetingDefaults);
-    setBasicTargeting(clientTargetingDefaults);
-    localStorage.setItem("basicTargeting", JSON.stringify(clientTargetingDefaults));
+    console.log("🎯 Applying basicTargeting from client defaults");
+    setBasicTargeting((prev) => {
+      const next = {
+        ageMin: selectedClient.default_age_min ?? 18,
+        ageMax: selectedClient.default_age_max ?? 65,
+        genders: selectedClient.default_gender ? [selectedClient.default_gender] : ["all"],
+        devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
+        languages: normalizedLanguages,
+        os: [] as string[],
+        selectedItems: prev.selectedItems || [],
+      };
+      localStorage.setItem("basicTargeting", JSON.stringify(next));
+      return next;
+    });
 
     // Platform name normalization mapping
     const platformMapping: Record<string, string> = {
@@ -601,22 +596,31 @@ export function MediaPlanEditor() {
     }, 0);
 
     const total = parseFloat(totalBudget) || 0;
-    setPlatformsWithMarkets(
-      total > 0 ? (enforceActiPlanBudgetFloors(newPlatforms, total) as PlatformWithMarkets[]) : newPlatforms,
-    );
+    const nextPlatforms =
+      total > 0 ? (enforceActiPlanBudgetFloors(newPlatforms, total) as PlatformWithMarkets[]) : newPlatforms;
+    setPlatformsWithLaunchGuards(nextPlatforms);
 
     if (totalAutoMarkets > 0) {
       toast.success(
-        `Auto-populated ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`,
+        `Applied ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`,
         { duration: 5000 },
       );
     } else {
       toast.success(
-        `Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`,
+        `Applied ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`,
         { duration: 5000 },
       );
     }
-  };
+  }, [
+    selectedClientId,
+    totalBudget,
+    startDate,
+    endDate,
+    isHydrated,
+    clients,
+    launchLocks.scope.lockedMarketKeys.size,
+    setPlatformsWithLaunchGuards,
+  ]);
 
   // Unified targeting (Step 2)
   const [basicTargeting, setBasicTargeting] = useState<UnifiedTargetingConfig>({ selectedItems: [] });
@@ -2641,7 +2645,6 @@ export function MediaPlanEditor() {
                     navigate("/app/settings/accounts");
                     return;
                   }
-                  clientSelectionIsUserAction.current = true;
                   setSelectedClientId(value || "");
                   ensureDraft();
                 }}
@@ -2713,14 +2716,7 @@ export function MediaPlanEditor() {
                  size="sm"
                  disabled={!selectedClientId || !totalBudget || !startDate || !endDate}
                  onClick={() => {
-                   clientSelectionIsUserAction.current = true;
-                   // Re-trigger by setting same client id
-                   const currentClient = selectedClientId;
-                   setSelectedClientId("");
-                   setTimeout(() => {
-                     clientSelectionIsUserAction.current = true;
-                     setSelectedClientId(currentClient || "");
-                   }, 0);
+                   void autoPopulateFromClient();
                  }}
                  className="shrink-0"
                >
@@ -2728,7 +2724,7 @@ export function MediaPlanEditor() {
                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Selecting a client will auto-populate platforms, markets, and ad account defaults
+                Link a client to this ActiPlan, then click Apply Defaults to load platforms, markets, and ad account defaults. Changing the client alone does not overwrite your plan.
               </p>
             </div>
 
