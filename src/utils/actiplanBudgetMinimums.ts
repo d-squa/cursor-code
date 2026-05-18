@@ -118,6 +118,82 @@ export function clampBudgetPercentage(value: number, minPct: number, maxPct = 10
   return Math.max(minPct, Math.min(maxPct, value));
 }
 
+export const ACTIPLAN_BUDGET_SLIDER_STEP = 0.5;
+
+/** Round minimum % up to slider step so 0.5% steps cannot sit below the € floor. */
+export function ceilBudgetPercentageToSliderStep(percentage: number, step = ACTIPLAN_BUDGET_SLIDER_STEP): number {
+  if (!Number.isFinite(percentage) || percentage <= 0) return 0;
+  if (!step || step <= 0) return percentage;
+  return Math.min(100, Math.ceil(percentage / step) * step);
+}
+
+export function clampPercentageToMinimumEur(
+  percentage: number,
+  parentBudgetEur: number,
+  minimumEur: number,
+  step = ACTIPLAN_BUDGET_SLIDER_STEP,
+): number {
+  if (!parentBudgetEur || parentBudgetEur <= 0 || percentage <= 0) return percentage;
+  const minPct = ceilBudgetPercentageToSliderStep(
+    minPercentageForBudgetEur(parentBudgetEur, minimumEur),
+    step,
+  );
+  return clampBudgetPercentage(percentage, minPct);
+}
+
+/** Apply €50 (× phases) floors to every allocated platform and market share. */
+export function enforceActiPlanBudgetFloors(
+  platforms: Array<{
+    id?: string;
+    budgetPercentage?: number;
+    markets?: Array<{ budgetPercentage?: number; phases?: Phase[] }>;
+  }>,
+  totalBudgetEur: number,
+  step = ACTIPLAN_BUDGET_SLIDER_STEP,
+): Array<{
+  id?: string;
+  budgetPercentage?: number;
+  markets?: Array<{ budgetPercentage?: number; phases?: Phase[] }>;
+}> {
+  if (!totalBudgetEur || totalBudgetEur <= 0) return platforms;
+
+  return platforms.map((platform) => {
+    if (!platform.id) return platform;
+
+    const minPlatformEur = minPlatformBudgetEurForPhases(platform);
+    const minPlatformPct = ceilBudgetPercentageToSliderStep(
+      minPlatformBudgetPercentage(totalBudgetEur, minPlatformEur),
+      step,
+    );
+
+    let platformPct = platform.budgetPercentage ?? 0;
+    if (platformPct > 0) {
+      platformPct = clampBudgetPercentage(platformPct, minPlatformPct);
+    }
+
+    const markets = (platform.markets ?? []).map((market) => {
+      const marketPct = market.budgetPercentage ?? 0;
+      if (marketPct <= 0) return market;
+
+      const minMarketEur = minMarketBudgetEurForPhases(market.phases);
+      const minMarketPct = ceilBudgetPercentageToSliderStep(
+        minPercentageForBudgetEur(
+          calculatePlatformBudgetEur(totalBudgetEur, platformPct),
+          minMarketEur,
+        ),
+        step,
+      );
+
+      return {
+        ...market,
+        budgetPercentage: clampBudgetPercentage(marketPct, minMarketPct),
+      };
+    });
+
+    return { ...platform, budgetPercentage: platformPct, markets };
+  });
+}
+
 /** Lowest platform EUR so every market can fund its phases at €50 each. */
 export function minPlatformBudgetEurForPhases(platform: {
   markets: Array<{ budgetPercentage?: number; phases?: Phase[] }>;

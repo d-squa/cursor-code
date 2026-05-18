@@ -91,12 +91,16 @@ const normalizeTrackingEntityType = (entityType: string | null | undefined) => {
   return normalized;
 };
 
-/** Matches DB UNIQUE(campaign_id, platform, dsp_entity_id, entity_type). */
-const buildDbUniqueKey = (seed: Pick<TrackingSeed, "platform" | "entity_type" | "dsp_entity_id">) =>
+/** Matches qc_tracking_entity_scope_unique (campaign + platform + type + dsp id + market + phase). */
+const buildDbUniqueKey = (
+  seed: Pick<TrackingSeed, "platform" | "entity_type" | "dsp_entity_id" | "market" | "phase_name">,
+) =>
   [
     normalizeTrackingPlatform(seed.platform),
     normalizeTrackingEntityType(seed.entity_type),
     seed.dsp_entity_id ?? "",
+    normalizeKeyPart(seed.market),
+    normalizeKeyPart(seed.phase_name),
   ].join("::");
 
 const buildTrackingKey = (seed: TrackingSeed) => {
@@ -286,6 +290,8 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
             platform: item.platform,
             entity_type: item.entity_type,
             dsp_entity_id: item.dsp_entity_id,
+            market: item.market,
+            phase_name: item.phase_name,
           }),
         ),
       );
@@ -335,10 +341,7 @@ export function useQCTracking({ campaignId, enabled = true }: UseQCTrackingOptio
         }));
 
       if (newEntries.length > 0) {
-        const { error: insertError } = await supabase.from("qc_tracking").upsert(newEntries, {
-          onConflict: "campaign_id,platform,dsp_entity_id,entity_type",
-          ignoreDuplicates: true,
-        });
+        const { error: insertError } = await supabase.from("qc_tracking").insert(newEntries);
         if (insertError && insertError.code !== "23505") throw insertError;
       }
 

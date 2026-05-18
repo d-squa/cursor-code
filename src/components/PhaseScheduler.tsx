@@ -14,10 +14,13 @@ import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
 import {
+  ACTIPLAN_BUDGET_SLIDER_STEP,
   ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
   calculateAdSetBudgetEur,
   calculatePhaseBudgetEur,
+  ceilBudgetPercentageToSliderStep,
   clampBudgetPercentage,
+  clampPercentageToMinimumEur,
   getEffectivePhaseCount,
   minBudgetEurForPhaseCount,
   minMarketBudgetEurForPhases,
@@ -244,7 +247,12 @@ export function PhaseScheduler({
   const phaseCount = getEffectivePhaseCount(phases);
   const minMarketBudgetEur = minMarketBudgetEurForPhases(phases);
   const minPhasePct =
-    marketBudget && marketBudget > 0 ? minPhaseBudgetPercentage(marketBudget) : 0;
+    marketBudget && marketBudget > 0
+      ? ceilBudgetPercentageToSliderStep(
+          minPhaseBudgetPercentage(marketBudget),
+          ACTIPLAN_BUDGET_SLIDER_STEP,
+        )
+      : 0;
   const marketBudgetBelowPhaseFloor =
     Boolean(marketBudget && marketBudget > 0 && marketBudget < minMarketBudgetEur);
 
@@ -1346,21 +1354,15 @@ export function PhaseScheduler({
   };
 
   const updatePhaseBudget = (phaseId: string, budget: number) => {
-    const phase = phases.find((p) => p.id === phaseId);
     const clampedBudget =
-      marketBudget && marketBudget > 0
-        ? clampBudgetPercentage(budget, minPhaseBudgetPercentage(marketBudget))
+      marketBudget && marketBudget > 0 && budget > 0
+        ? clampPercentageToMinimumEur(
+            budget,
+            marketBudget,
+            ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+            ACTIPLAN_BUDGET_SLIDER_STEP,
+          )
         : clampBudgetPercentage(budget, 0);
-
-    if (phase && marketBudget && marketBudget > 0) {
-      const phaseBudgetEur = calculatePhaseBudgetEur(marketBudget, clampedBudget);
-      if (phaseBudgetEur > 0 && phaseBudgetEur < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
-        toast.error(`Phase budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
-          description: `${phase.name}: €${phaseBudgetEur.toFixed(2)} at ${clampedBudget}% of market budget.`,
-        });
-        return;
-      }
-    }
     onPhasesChange(phases.map((p) => (p.id === phaseId ? { ...p, budgetPercentage: clampedBudget } : p)));
   };
 
