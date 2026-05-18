@@ -109,6 +109,15 @@ export function useCampaignLaunchLocks(
         { campaignId, campaignStatus, entryCount: entries.length },
       );
     }
+    if (import.meta.env.DEV && entries.length > 0) {
+      console.log("[launch-locks]", {
+        campaignId,
+        liveRows: entries.filter((e) => isLaunchStatusLocked(e.status)).length,
+        lockedMarkets: [...built.lockedMarketKeys],
+        lockedPhases: [...built.lockedPhaseKeys],
+        lockedPlatforms: [...built.lockedPlatformIds],
+      });
+    }
     return built;
   }, [entries, platforms, campaignId, campaignStatus]);
 

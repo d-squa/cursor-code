@@ -227,9 +227,15 @@ export function MediaPlanEditor() {
             if (!platform.id || !isExtensionOriginalPlatform(platform.id)) return platform;
             const prevPlatform = prevPlatformById.get(platform.id);
             if (!prevPlatform) return platform;
+            const platformDspLocked = launchLocks.isPlatformBudgetLocked(
+              platform.id,
+              platform.markets,
+            );
             return {
               ...platform,
-              budgetPercentage: prevPlatform.budgetPercentage,
+              budgetPercentage: platformDspLocked
+                ? prevPlatform.budgetPercentage
+                : platform.budgetPercentage,
               markets: platform.markets.map((market) => {
                 const marketKey = platform.id
                   ? extensionMarketLockKey(platform.id, market)
@@ -239,12 +245,19 @@ export function MediaPlanEditor() {
                   (marketKey ? extensionMode.isOriginalMarket(marketKey) : false) ||
                   (marketKey ? (extensionHydratedLockIds?.marketIds.has(marketKey) ?? false) : false);
                 if (!isExtensionOriginalMarket) return market;
+                const marketDspLocked = launchLocks.isMarketBudgetLocked(platform.id, market.name);
                 const prevMarket = prevPlatform.markets.find(
                   (m) =>
                     m.id === market.id ||
                     (platform.id && extensionMarketLockKey(platform.id, m) === marketKey),
                 );
-                return prevMarket ? { ...market, budgetPercentage: prevMarket.budgetPercentage } : market;
+                if (!prevMarket) return market;
+                return {
+                  ...market,
+                  budgetPercentage: marketDspLocked
+                    ? prevMarket.budgetPercentage
+                    : market.budgetPercentage,
+                };
               }),
             };
           });
@@ -264,6 +277,8 @@ export function MediaPlanEditor() {
       extensionMode.isOriginalPlatform,
       extensionMode.isOriginalMarket,
       extensionHydratedLockIds,
+      launchLocks.isPlatformBudgetLocked,
+      launchLocks.isMarketBudgetLocked,
     ],
   );
 
@@ -273,58 +288,23 @@ export function MediaPlanEditor() {
     }
   }, [lockPlanFoundation, extensionModeActive, currentStep]);
 
-  const isExtensionOriginalMarket = useCallback(
-    (platformId: string, market: Market) => {
-      if (!extensionModeActive && !extensionMode.isExtensionMode) return false;
-      const marketKey = extensionMarketLockKey(platformId, market);
-      return (
-        extensionMode.isOriginalMarket(market.id) ||
-        extensionMode.isOriginalMarket(marketKey) ||
-        (extensionHydratedLockIds?.marketIds.has(marketKey) ?? false) ||
-        (market.id ? (extensionHydratedLockIds?.marketIds.has(market.id) ?? false) : false)
-      );
-    },
-    [
-      extensionModeActive,
-      extensionMode.isExtensionMode,
-      extensionMode.isOriginalMarket,
-      extensionHydratedLockIds,
-    ],
-  );
-
-  const isExtensionOriginalPhase = useCallback(
-    (phaseId: string) => {
-      if (!extensionModeActive && !extensionMode.isExtensionMode) return false;
-      return extensionMode.isOriginalPhase(phaseId);
-    },
-    [extensionModeActive, extensionMode.isExtensionMode, extensionMode.isOriginalPhase],
-  );
-
+  /** Step 3 / phase config: DSP-live slices only (not extension-original). */
   const isMarketConfigLockedForEditor = useCallback(
     (platformId: string, market: Market) =>
-      launchLocks.isMarketBudgetLocked(platformId, market.name) ||
-      isExtensionOriginalMarket(platformId, market),
-    [launchLocks, isExtensionOriginalMarket],
+      launchLocks.isMarketBudgetLocked(platformId, market.name),
+    [launchLocks],
   );
 
   const isPhaseConfigLockedForEditor = useCallback(
     (platformId: string, market: Market, phase: Phase) =>
-      launchLocks.isPhaseConfigLocked(platformId, market.name, phase.name) ||
-      isExtensionOriginalPhase(phase.id),
-    [launchLocks, isExtensionOriginalPhase],
+      launchLocks.isPhaseConfigLocked(platformId, market.name, phase.name),
+    [launchLocks],
   );
 
-  const isPlatformConfigLockedForEditor = useCallback(
+  const isPlatformLiveInDsp = useCallback(
     (platformId: string, markets: Market[]) =>
-      launchLocks.isPlatformBudgetLocked(platformId, markets) ||
-      (extensionModeActive && extensionMode.isOriginalPlatform(platformId)) ||
-      (extensionHydratedLockIds?.platformIds.has(platformId) ?? false),
-    [
-      launchLocks,
-      extensionModeActive,
-      extensionMode.isOriginalPlatform,
-      extensionHydratedLockIds,
-    ],
+      launchLocks.isPlatformBudgetLocked(platformId, markets),
+    [launchLocks],
   );
   const lastCampaignIdRef = useRef<string | null>(null);
   // Mutex to prevent concurrent draft creation (race condition fix)
@@ -2618,9 +2598,9 @@ export function MediaPlanEditor() {
           <AlertDescription className="text-sm leading-relaxed">
             {launchLocks.hasPartialPush ? (
               <>
-                Some platforms or markets are already live in the DSP. Step 2 unified targeting and live phases are
-                locked. Reallocate budget only among unpublished items, or use Override targeting on individual
-                unpublished phases in Step 3.
+                Some platforms or markets are already live in the DSP. Live phases are locked on Step 3. You can
+                still edit Step 2 targeting; pushed phases keep their own settings unless you use per-phase override
+                on unpublished slices. Reallocate budget only among unpublished items on Step 1.
               </>
             ) : (
               <>
@@ -2930,10 +2910,9 @@ export function MediaPlanEditor() {
           {currentStep === 2 ? (
             <CardContent>
               <UnifiedTargeting
-                readOnly={launchLocks.isUnifiedTargetingLocked}
+                readOnly={false}
                 targeting={basicTargeting}
                 onUpdate={(targeting) => {
-                  if (launchLocks.isUnifiedTargetingLocked) return;
                   console.log("📋 Received targeting update from BasicTargeting:", targeting);
                   setBasicTargeting(targeting);
                   // localStorage is already handled in UnifiedTargeting component
@@ -3479,10 +3458,10 @@ export function MediaPlanEditor() {
                                 <Button variant="ghost" className="flex-1 justify-between p-4 hover:bg-accent">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold text-lg">{platform.name}</span>
-                                    {isPlatformConfigLockedForEditor(platform.id, platform.markets) && (
-                                      <Badge variant="outline" className="text-xs gap-1">
+                                    {isPlatformLiveInDsp(platform.id, platform.markets) && (
+                                      <Badge variant="outline" className="text-xs gap-1 border-amber-500/50 text-amber-800 dark:text-amber-300">
                                         <Lock className="h-3 w-3" />
-                                        Locked
+                                        Live in DSP
                                       </Badge>
                                     )}
                                   </div>
@@ -3553,10 +3532,10 @@ export function MediaPlanEditor() {
                                           <div className="flex items-center gap-2">
                                             <h4 className="font-medium">{getMarketLabel(market.name)}</h4>
                                             {platform.id &&
-                                              isMarketConfigLockedForEditor(platform.id, market) && (
-                                                <Badge variant="outline" className="text-xs gap-1">
+                                              launchLocks.isMarketBudgetLocked(platform.id, market.name) && (
+                                                <Badge variant="outline" className="text-xs gap-1 border-amber-500/50 text-amber-800 dark:text-amber-300">
                                                   <Lock className="h-3 w-3" />
-                                                  Locked
+                                                  Live in DSP
                                                 </Badge>
                                               )}
                                             <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />

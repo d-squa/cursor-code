@@ -199,7 +199,7 @@ export function PlatformMarketBudgetSelector({
 
   const platformBudgetLockTitle = (platform: PlatformWithMarkets) => {
     if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) {
-      return "Live in DSP — budget locked";
+      return "Live in DSP — budget cannot change";
     }
     if (
       inExtensionMode &&
@@ -207,7 +207,17 @@ export function PlatformMarketBudgetSelector({
       (extensionMode.isOriginalPlatform(platform.id) ||
         (extensionHydratedLockIds?.platformIds.has(platform.id) ?? false))
     ) {
-      return "Original plan platform — locked in extension mode";
+      return "Original plan platform — budget locked in extension mode";
+    }
+    return "Budget locked";
+  };
+
+  const marketBudgetLockTitle = (platform: PlatformWithMarkets, market: Market) => {
+    if (platform.id && isMarketBudgetLocked?.(platform.id, market.name)) {
+      return "Live in DSP — budget cannot change";
+    }
+    if (marketIsBudgetLocked(platform, market)) {
+      return "Original plan market — budget locked in extension mode";
     }
     return "Budget locked";
   };

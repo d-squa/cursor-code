@@ -62,6 +62,20 @@ function platformIdsMatch(planPlatformId: string, launchPlatformId: string): boo
   );
 }
 
+/** Match launch_status.market to a plan market row (name, country code, or countries[]). */
+export function planMarketMatchesLaunchMarket(
+  market: Market,
+  launchMarket: string,
+): boolean {
+  if (!launchMarket) return false;
+  if (marketKeysEquivalent(launchMarket, market.name)) return true;
+  const countries = (market as { countries?: string[] }).countries;
+  if (Array.isArray(countries)) {
+    return countries.some((code) => marketKeysEquivalent(launchMarket, code));
+  }
+  return false;
+}
+
 /** Stable key for extension-mode market locks when market.id is missing. */
 export function extensionMarketLockKey(
   platformId: string,
@@ -218,7 +232,7 @@ export function buildLaunchLockScopeForPlan(
     for (const platform of platforms) {
       if (!platform.id || !platformIdsMatch(platform.id, launchPlatformId)) continue;
       for (const market of platform.markets || []) {
-        if (!marketKeysEquivalent(entry.market, market.name)) continue;
+        if (!planMarketMatchesLaunchMarket(market, entry.market)) continue;
         registerPlatformMarketLock(base.lockedMarketKeys, launchPlatformId, market.name);
         if (entry.phase_name) {
           const planPhase = (market.phases || []).find((ph) =>

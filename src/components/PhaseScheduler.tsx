@@ -2189,7 +2189,13 @@ export function PhaseScheduler({
 
                   <CollapsibleContent>
                     <fieldset disabled={phaseDspLocked} className="border-0 p-0 m-0 min-w-0">
-                    <div className="p-4 pt-0 space-y-4 border-t">
+                    <div
+                      className={`p-4 pt-0 space-y-4 border-t ${
+                        phaseDspLocked
+                          ? "pointer-events-none select-none opacity-60 [&_[role=combobox]]:pointer-events-none"
+                          : ""
+                      }`}
+                    >
                       {phaseDspLocked && (
                         <Alert className="py-2 border-amber-500/40 bg-amber-500/10">
                           <AlertDescription className="text-xs flex items-center gap-2">
