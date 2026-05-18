@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,8 @@ import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPl
 import { translateAdFormats } from "@/utils/adFormats";
 import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
 import { useCampaignEditPermission } from "@/hooks/useCampaignEditPermission";
+import { useCampaignLaunchLocks } from "@/hooks/useCampaignLaunchLocks";
+import { filterPlatformsForBudgetValidation } from "@/utils/campaignLaunchLocks";
 import { CampaignEditProvider } from "@/contexts/CampaignEditContext";
 import {
   BO_NUMBER_CONFLICT_MESSAGE,
@@ -164,6 +166,18 @@ export function MediaPlanEditor() {
   });
 
   const isReadOnly = !editPermLoading && !canEditInEditor;
+
+  const launchLocks = useCampaignLaunchLocks(savedCampaignId ?? undefined, platformsWithMarkets);
+
+  const setPlatformsWithLaunchGuards = useCallback(
+    (updater: SetStateAction<PlatformWithMarkets[]>) => {
+      setPlatformsWithMarkets((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        return launchLocks.applyFrozenBudgets(next);
+      });
+    },
+    [launchLocks.applyFrozenBudgets],
+  );
 
   useEffect(() => {
     if (lockPlanFoundation && extensionModeActive && currentStep < 3) {
@@ -1377,12 +1391,16 @@ export function MediaPlanEditor() {
       if (!isHydrated) return false;
       if (!canEditInEditor || editPermLoading) return false;
 
+      const platformsToPersist = launchLocks.applyFrozenBudgets(platformsWithMarkets);
       const budgetViolations = validateActiPlanBudgets(
         getActiPlanBudgetValidationInputFromEditorState({
           totalBudget,
           startDate,
           endDate,
-          platformsWithMarkets,
+          platformsWithMarkets: filterPlatformsForBudgetValidation(
+            platformsToPersist,
+            launchLocks.scope,
+          ),
           basicTargeting,
           skipEmptyPlatformIds: true,
         }),
@@ -1397,7 +1415,7 @@ export function MediaPlanEditor() {
         return false;
       }
 
-      const selectedPlatforms = getSelectedPlatformsWithMarkets(platformsWithMarkets);
+      const selectedPlatforms = getSelectedPlatformsWithMarkets(platformsToPersist);
       if (selectedPlatforms.length === 0) return false;
       const hasAnyMarkets = selectedPlatforms.some((p) => (p.markets?.length || 0) > 0);
       if (!hasAnyMarkets) return false;
@@ -1406,7 +1424,7 @@ export function MediaPlanEditor() {
       persistInFlightRef.current = true;
 
       try {
-        const budgetAllocation = buildBudgetAllocationFromPlatforms(platformsWithMarkets);
+        const budgetAllocation = buildBudgetAllocationFromPlatforms(platformsToPersist);
         const trimmedBo = boNumber.trim();
         const teamIdForBo = loadedCampaignTeamId ?? activeWorkspaceId;
         const boConflictId =
@@ -1423,7 +1441,7 @@ export function MediaPlanEditor() {
           platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
           budget_allocation: budgetAllocation,
           updated_at: new Date().toISOString(),
-          market_splits: buildMarketSplitsFromPlatforms(platformsWithMarkets),
+          market_splits: buildMarketSplitsFromPlatforms(platformsToPersist),
           generic_config: {
             strategy: genericConfig.strategy,
             strategyFocus: genericConfig.strategyFocus,
@@ -1491,6 +1509,8 @@ export function MediaPlanEditor() {
       clients,
       loadedCampaignTeamId,
       activeWorkspaceId,
+      launchLocks.applyFrozenBudgets,
+      launchLocks.scope,
     ],
   );
 
@@ -1559,7 +1579,10 @@ export function MediaPlanEditor() {
         totalBudget,
         startDate,
         endDate,
-        platformsWithMarkets,
+        platformsWithMarkets: filterPlatformsForBudgetValidation(
+          platformsWithMarkets,
+          launchLocks.scope,
+        ),
         basicTargeting,
         onlyEnabledPlatforms: options?.onlyEnabledPlatforms,
         skipEmptyPlatformIds: options?.skipEmptyPlatformIds,
@@ -2179,6 +2202,16 @@ export function MediaPlanEditor() {
     }
   };
 
+  /** Flush step-1 budgets to DB before leaving the plan builder (ensureDraft alone skips when campaign exists). */
+  const persistPlanBeforeStepChange = useCallback(async () => {
+    if (!canEditInEditor || editPermLoading) return;
+    if (savedCampaignId) {
+      await persistCampaignDraft({ silent: true });
+      return;
+    }
+    await ensureDraft();
+  }, [savedCampaignId, canEditInEditor, editPermLoading, persistCampaignDraft]);
+
   const getAvailablePlatforms = () => {
     const allPlatforms = [
       { id: "meta", name: "Meta" },
@@ -2468,6 +2501,24 @@ export function MediaPlanEditor() {
           </AlertDescription>
         </Alert>
       )}
+      {!launchLocks.loading && launchLocks.scope.lockedMarketKeys.size > 0 && (
+        <Alert className="border-amber-500/40 bg-amber-500/10">
+          <Lock className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+          <AlertDescription className="text-sm leading-relaxed">
+            {launchLocks.hasPartialPush ? (
+              <>
+                Some platforms or markets are already live in the DSP. Their budgets and step 3 settings are locked so
+                planned numbers stay aligned with what was pushed. You can still edit and reallocate budget only among
+                items that have not gone live.
+              </>
+            ) : (
+              <>
+                This ActiPlan is live in the DSP. Budgets and configuration for pushed items are locked.
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Step 1: Activation Details */}
       <Card>
@@ -2684,8 +2735,10 @@ export function MediaPlanEditor() {
             <div className="pt-4">
               <PlatformMarketBudgetSelector
                 platforms={platformsWithMarkets}
-                setPlatforms={setPlatformsWithMarkets}
+                setPlatforms={setPlatformsWithLaunchGuards}
                 totalBudget={parseFloat(totalBudget) || 0}
+                isPlatformBudgetLocked={launchLocks.isPlatformBudgetLocked}
+                isMarketBudgetLocked={launchLocks.isMarketBudgetLocked}
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
                 setTotalBudget={setTotalBudget}
@@ -2704,7 +2757,7 @@ export function MediaPlanEditor() {
                   if (!ensureBudgetMinimums({ skipEmptyPlatformIds: true })) {
                     return;
                   }
-                  await ensureDraft();
+                  await persistPlanBeforeStepChange();
                   setCurrentStep(2);
                 }}
                 disabled={!isActivationDetailsComplete()}
@@ -2869,8 +2922,8 @@ export function MediaPlanEditor() {
                       }
                     }
 
+                    await persistPlanBeforeStepChange();
                     setCurrentStep(3);
-                    await ensureDraft();
                   }}
                   disabled={step1BudgetViolations.length > 0}
                 >
@@ -3182,6 +3235,20 @@ export function MediaPlanEditor() {
                           parseFloat(totalBudget || "0") *
                           ((singlePlatform?.budgetPercentage || 0) / 100) *
                           ((singleMarket.budgetPercentage || 0) / 100)
+                        }
+                        dspConfigLocked={
+                          singlePlatform?.id
+                            ? launchLocks.isMarketBudgetLocked(singlePlatform.id, singleMarket.name)
+                            : false
+                        }
+                        isPhaseBudgetLocked={(phase) =>
+                          singlePlatform?.id
+                            ? launchLocks.isPhaseBudgetLocked(
+                                singlePlatform.id,
+                                singleMarket.name,
+                                phase.name,
+                              )
+                            : false
                         }
                         activationContext={{
                           activationName: campaignName,
@@ -3647,6 +3714,20 @@ export function MediaPlanEditor() {
                                               ((platform.budgetPercentage || 0) / 100) *
                                               ((market.budgetPercentage || 0) / 100)
                                             }
+                                            dspConfigLocked={
+                                              platform.id
+                                                ? launchLocks.isMarketBudgetLocked(platform.id, market.name)
+                                                : false
+                                            }
+                                            isPhaseBudgetLocked={(phase) =>
+                                              platform.id
+                                                ? launchLocks.isPhaseBudgetLocked(
+                                                    platform.id,
+                                                    market.name,
+                                                    phase.name,
+                                                  )
+                                                : false
+                                            }
                                             activationContext={{
                                               activationName: campaignName,
                                               boNumber: boNumber,
@@ -3821,7 +3902,7 @@ export function MediaPlanEditor() {
                       );
                       return;
                     }
-                    await ensureDraft();
+                    await persistPlanBeforeStepChange();
                     setCurrentStep(4);
                   }}
                   disabled={
@@ -3945,9 +4026,7 @@ export function MediaPlanEditor() {
             setPlatformsWithMarkets(floored);
             void persistCampaignDraft({ silent: true });
           }}
-          onBeforeForecastRefresh={() => {
-            void persistCampaignDraft({ silent: true });
-          }}
+          onBeforeForecastRefresh={() => persistPlanBeforeStepChange()}
         />
       )}
 

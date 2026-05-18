@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff, RefreshCw } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff, RefreshCw, Lock } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -51,6 +51,10 @@ interface PlatformMarketBudgetSelectorProps {
   selectedClientId?: string;
   /** Shown above platform rows when allocations violate €50 minimum rules. */
   budgetViolationsSummary?: string;
+  /** DSP-live platform — budget cannot change (partial push). */
+  isPlatformBudgetLocked?: (platformId: string, markets: Market[]) => boolean;
+  /** DSP-live market — budget cannot change (partial push). */
+  isMarketBudgetLocked?: (platformId: string, marketName: string) => boolean;
 }
 
 const AVAILABLE_PLATFORMS = [
@@ -77,6 +81,8 @@ export function PlatformMarketBudgetSelector({
   setTotalBudget,
   selectedClientId,
   budgetViolationsSummary,
+  isPlatformBudgetLocked,
+  isMarketBudgetLocked,
 }: PlatformMarketBudgetSelectorProps) {
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
@@ -146,7 +152,19 @@ export function PlatformMarketBudgetSelector({
   // Fixed budget state - items that are fixed don't change when others are adjusted
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
-  
+
+  const platformIsLaunchLocked = (platform: PlatformWithMarkets) =>
+    Boolean(platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets));
+
+  const marketIsLaunchLocked = (platform: PlatformWithMarkets, market: Market) =>
+    Boolean(platform.id && isMarketBudgetLocked?.(platform.id, market.name));
+
+  const platformIsFixed = (index: number) =>
+    Boolean(fixedPlatforms[index] || platformIsLaunchLocked(platforms[index]));
+
+  const marketIsFixed = (platform: PlatformWithMarkets, market: Market) =>
+    Boolean(fixedMarkets[market.id] || marketIsLaunchLocked(platform, market));
+
   const togglePlatformFixed = (index: number) => {
     setFixedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
   };
@@ -1110,6 +1128,7 @@ export function PlatformMarketBudgetSelector({
   const validateBudgetAllocations = (nextPlatforms: PlatformWithMarkets[]): boolean => {
     for (const platform of nextPlatforms) {
       if (!platform.id || platform.budgetPercentage <= 0) continue;
+      if (platformIsLaunchLocked(platform)) continue;
 
       const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
       const minPlatformEur = minPlatformBudgetEurForPhases(platform);
@@ -1121,6 +1140,8 @@ export function PlatformMarketBudgetSelector({
       }
 
       for (const market of platform.markets) {
+        if (marketIsLaunchLocked(platform, market)) continue;
+
         const marketBudgetEur = calculateMarketBudgetEur(
           totalBudget,
           platform.budgetPercentage,
@@ -1237,6 +1258,10 @@ export function PlatformMarketBudgetSelector({
 
   const updatePlatformBudget = (index: number, percentage: number) => {
     const currentPlatform = platforms[index];
+    if (platformIsLaunchLocked(currentPlatform)) {
+      toast.info("This platform is live in the DSP — budget is locked.", { id: "dsp-budget-locked" });
+      return;
+    }
     const minPlatformEur = currentPlatform.id ? minPlatformBudgetEurForPhases(currentPlatform) : 0;
     let newPercentage =
       currentPlatform.id && totalBudget > 0 && percentage > 0
@@ -1247,14 +1272,14 @@ export function PlatformMarketBudgetSelector({
 
     if (budgetLocked && platforms.length > 1) {
       const diff = newPercentage - currentPlatform.budgetPercentage;
-      const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !fixedPlatforms[i]);
+      const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !platformIsFixed(i));
       const otherNonFixedTotalBudget = otherNonFixedPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
 
       nextPlatforms = platforms.map((p, i) => {
         if (i === index) {
           return { ...p, budgetPercentage: newPercentage };
         }
-        if (fixedPlatforms[i]) {
+        if (platformIsFixed(i)) {
           return p;
         }
         const floorPct = p.id && totalBudget > 0
@@ -1395,6 +1420,10 @@ export function PlatformMarketBudgetSelector({
   const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
     const platform = platforms[platformIndex];
     const currentMarket = platform?.markets.find((m) => m.id === marketId);
+    if (currentMarket && marketIsLaunchLocked(platform, currentMarket)) {
+      toast.info("This market is live in the DSP — budget is locked.", { id: "dsp-budget-locked" });
+      return;
+    }
     const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform?.budgetPercentage ?? 0);
     const minMarketEur = currentMarket ? minMarketBudgetEurForPhases(currentMarket.phases) : 0;
     let newPercentage =
@@ -1406,7 +1435,7 @@ export function PlatformMarketBudgetSelector({
 
     if (budgetLocked && platform.markets.length > 1) {
       const diff = newPercentage - (currentMarket?.budgetPercentage ?? 0);
-      const otherNonFixedMarkets = platform.markets.filter((m) => m.id !== marketId && !fixedMarkets[m.id]);
+      const otherNonFixedMarkets = platform.markets.filter((m) => m.id !== marketId && !marketIsFixed(platform, m));
       const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
 
       nextPlatforms = platforms.map((p, i) => {
@@ -1417,7 +1446,7 @@ export function PlatformMarketBudgetSelector({
             if (m.id === marketId) {
               return { ...m, budgetPercentage: newPercentage };
             }
-            if (fixedMarkets[m.id]) {
+            if (marketIsFixed(platform, m)) {
               return m;
             }
             const floorPct =
@@ -1592,7 +1621,8 @@ export function PlatformMarketBudgetSelector({
         <div className="space-y-4">
           {platforms.map((platform, platformIndex) => {
             const availablePlatforms = getAvailablePlatforms(platform.id);
-            
+            const platformLaunchLocked = platformIsLaunchLocked(platform);
+
             return (
               <Collapsible
                 key={platformIndex}
@@ -1647,6 +1677,7 @@ export function PlatformMarketBudgetSelector({
                               min={minPlatformSliderPct(platform)}
                               max="100"
                               step="0.1"
+                              disabled={platformLaunchLocked}
                             />
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
@@ -1667,6 +1698,7 @@ export function PlatformMarketBudgetSelector({
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-24 text-xs"
                               min={Math.round(minPlatformBudgetEurForPhases(platform))}
+                              disabled={platformLaunchLocked}
                             />
                           </div>
                           {/* Always visible slider */}
@@ -1679,9 +1711,17 @@ export function PlatformMarketBudgetSelector({
                               max={100}
                               step={ACTIPLAN_BUDGET_SLIDER_STEP}
                               className="w-full"
+                              disabled={platformLaunchLocked}
                             />
                           </div>
-                          {/* Fixed budget toggle for platform */}
+                          {platformLaunchLocked ? (
+                            <span
+                              title="Live in DSP — budget locked"
+                              className="inline-flex h-7 w-7 items-center justify-center"
+                            >
+                              <Lock className="h-3 w-3 text-muted-foreground" />
+                            </span>
+                          ) : (
                           <Button
                             type="button"
                             variant={fixedPlatforms[platformIndex] ? "secondary" : "ghost"}
@@ -1699,6 +1739,7 @@ export function PlatformMarketBudgetSelector({
                               <PinOff className="h-3 w-3" />
                             )}
                           </Button>
+                          )}
                         </div>
                       )}
                     </div>

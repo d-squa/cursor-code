@@ -201,6 +201,10 @@ interface PhaseSchedulerProps {
   phaseExpandSignal?: { action: 'expand' | 'collapse'; target?: string; counter: number };
   // Taxonomy validation callback - reports if all custom fields are complete
   onTaxonomyValidationChange?: (isComplete: boolean, totalMissing: number) => void;
+  /** Market is live in DSP — block all phase/config edits. */
+  dspConfigLocked?: boolean;
+  /** Individual phase live in DSP — phase budget locked. */
+  isPhaseBudgetLocked?: (phase: Phase) => boolean;
 }
 
 interface DraggingState {
@@ -233,6 +237,8 @@ export function PhaseScheduler({
   activationContext,
   onTaxonomyValidationChange,
   phaseExpandSignal,
+  dspConfigLocked = false,
+  isPhaseBudgetLocked,
 }: PhaseSchedulerProps) {
   const extensionMode = useExtensionModeOptional();
   const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
@@ -1354,6 +1360,11 @@ export function PhaseScheduler({
   };
 
   const updatePhaseBudget = (phaseId: string, budget: number) => {
+    const phaseRow = phases.find((p) => p.id === phaseId);
+    if (dspConfigLocked || (phaseRow && isPhaseBudgetLocked?.(phaseRow))) {
+      toast.info("This phase is live in the DSP — budget is locked.", { id: "dsp-phase-budget-locked" });
+      return;
+    }
     const clampedBudget =
       marketBudget && marketBudget > 0 && budget > 0
         ? clampPercentageToMinimumEur(
@@ -1516,7 +1527,7 @@ export function PhaseScheduler({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Phase Timeline</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={addPhase}>
+          <Button type="button" variant="outline" size="sm" onClick={addPhase} disabled={dspConfigLocked}>
             <Plus className="h-3 w-3 mr-1" />
             Add Phase
           </Button>
@@ -1524,7 +1535,15 @@ export function PhaseScheduler({
         <p className="text-xs text-muted-foreground mt-1">
           {format(campaignStart, "MMM d, yyyy")} - {format(campaignEnd, "MMM d, yyyy")} ({totalDays + 1} days)
         </p>
-        {marketBudgetBelowPhaseFloor && (
+        {dspConfigLocked && (
+          <Alert className="mt-2 py-2 border-amber-500/40 bg-amber-500/10">
+            <AlertDescription className="text-xs flex items-center gap-2">
+              <Lock className="h-3 w-3 shrink-0" />
+              This market is live in the DSP. Phase settings and budgets are read-only.
+            </AlertDescription>
+          </Alert>
+        )}
+        {marketBudgetBelowPhaseFloor && !dspConfigLocked && (
           <Alert className="mt-2 py-2">
             <AlertDescription className="text-xs">
               {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least €{minMarketBudgetEur.toFixed(0)} on this market
@@ -1534,6 +1553,7 @@ export function PhaseScheduler({
         )}
       </CardHeader>
       <CardContent>
+        <fieldset disabled={dspConfigLocked} className="border-0 p-0 m-0 min-w-0">
         <div
           ref={containerRef}
           className="relative h-48 bg-muted/30 rounded-lg border touch-none"
@@ -3652,6 +3672,7 @@ export function PhaseScheduler({
             </div>
           )}
         </div>
+        </fieldset>
       </CardContent>
 
       {/* Budget Type Apply Dialog */}

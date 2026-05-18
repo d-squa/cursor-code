@@ -85,3 +85,38 @@ export function buildMarketSplitsFromPlatforms(platformsWithMarkets: PlatformWit
     {} as Record<string, ReturnType<typeof mapMarketForCampaignPersist>[]>,
   );
 }
+
+/** Stable key for whether step-1 budget splits still match a saved forecast snapshot. */
+export function buildPlanBudgetFingerprint(
+  totalBudget: number,
+  platformsWithMarkets: PlatformWithMarkets[],
+): string {
+  const selected = getSelectedPlatformsWithMarkets(platformsWithMarkets);
+  return JSON.stringify({
+    t: Math.round((totalBudget || 0) * 100) / 100,
+    p: selected
+      .map((p) => ({
+        id: p.id,
+        bp: Math.round((p.budgetPercentage || 0) * 10) / 10,
+        m: (p.markets || []).map((m) => ({
+          id: m.id,
+          bp: Math.round((m.budgetPercentage || 0) * 10) / 10,
+          pc: m.phases?.length ?? 0,
+        })),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  });
+}
+
+/** True when current plan builder budgets match a stored forecast version snapshot. */
+export function planBudgetMatchesSnapshot(
+  currentTotalBudget: number,
+  currentPlatforms: PlatformWithMarkets[],
+  snapshotPlatforms: unknown,
+  snapshotTotalBudget?: number | null,
+): boolean {
+  if (!snapshotPlatforms || !Array.isArray(snapshotPlatforms)) return false;
+  const currentFp = buildPlanBudgetFingerprint(currentTotalBudget, currentPlatforms);
+  const snapshotFp = buildPlanBudgetFingerprint(snapshotTotalBudget ?? currentTotalBudget, snapshotPlatforms as PlatformWithMarkets[]);
+  return currentFp === snapshotFp;
+}
