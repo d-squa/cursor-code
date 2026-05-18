@@ -175,10 +175,15 @@ export function MediaPlanEditor() {
     (updater: SetStateAction<PlatformWithMarkets[]>) => {
       setPlatformsWithMarkets((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
-        return launchLocks.applyFrozenBudgets(next);
+        const total = parseFloat(totalBudget) || 0;
+        const floored =
+          total > 0
+            ? (enforceActiPlanBudgetFloors(next, total) as PlatformWithMarkets[])
+            : next;
+        return launchLocks.applyFrozenBudgets(floored);
       });
     },
-    [launchLocks.applyFrozenBudgets],
+    [launchLocks.applyFrozenBudgets, totalBudget],
   );
 
   useEffect(() => {
@@ -2572,7 +2577,7 @@ export function MediaPlanEditor() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="budget">Total Activation Budget ($) *</Label>
+              <Label htmlFor="budget">Total Activation Budget (€) *</Label>
               <Input
                 id="budget"
                 type="number"
@@ -2580,6 +2585,15 @@ export function MediaPlanEditor() {
                 onChange={(e) => {
                   setTotalBudget(e.target.value);
                   ensureDraft();
+                }}
+                onBlur={() => {
+                  const n = parseFloat(totalBudget) || 0;
+                  if (n > 0 && n < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
+                    setTotalBudget(String(ACTIPLAN_MIN_ENTITY_BUDGET_EUR));
+                    toast.info(
+                      `Total activation budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}.`,
+                    );
+                  }
                 }}
                 placeholder={`Minimum €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`}
                 min={ACTIPLAN_MIN_ENTITY_BUDGET_EUR}

@@ -34,6 +34,53 @@ export function resolveLaunchPlatformId(platformLabel: string): string | null {
   return detectPlatformType(platformLabel);
 }
 
+/** Plan builder may use google vs google_ads; launch rows use display names — match all aliases. */
+export function planPlatformIdVariants(platformId: string): string[] {
+  const lower = platformId.toLowerCase();
+  if (lower === "google" || lower === "google_ads") return ["google", "google_ads"];
+  return [platformId];
+}
+
+function registerPlatformMarketLock(
+  lockedMarketKeys: Set<string>,
+  platformId: string,
+  marketName: string,
+): void {
+  if (!marketName) return;
+  for (const id of planPlatformIdVariants(platformId)) {
+    lockedMarketKeys.add(marketLockKey(id, marketName));
+  }
+}
+
+function registerPhaseLock(
+  lockedPhaseKeys: Set<string>,
+  platformId: string,
+  marketName: string,
+  phaseName: string,
+): void {
+  if (!marketName || !phaseName) return;
+  for (const id of planPlatformIdVariants(platformId)) {
+    lockedPhaseKeys.add(phaseLockKey(id, marketName, phaseName));
+  }
+}
+
+function hasMarketLockKey(scope: LaunchLockScope, platformId: string, marketName: string): boolean {
+  return planPlatformIdVariants(platformId).some((id) =>
+    scope.lockedMarketKeys.has(marketLockKey(id, marketName)),
+  );
+}
+
+function hasPhaseLockKey(
+  scope: LaunchLockScope,
+  platformId: string,
+  marketName: string,
+  phaseName: string,
+): boolean {
+  return planPlatformIdVariants(platformId).some((id) =>
+    scope.lockedPhaseKeys.has(phaseLockKey(id, marketName, phaseName)),
+  );
+}
+
 export function buildLaunchLockScope(entries: LaunchStatusRow[]): LaunchLockScope {
   const lockedMarketKeys = new Set<string>();
   const lockedPhaseKeys = new Set<string>();
@@ -46,9 +93,9 @@ export function buildLaunchLockScope(entries: LaunchStatusRow[]): LaunchLockScop
 
     if (isLaunchStatusLocked(entry.status)) {
       hasLocked = true;
-      lockedMarketKeys.add(marketLockKey(platformId, entry.market));
+      registerPlatformMarketLock(lockedMarketKeys, platformId, entry.market);
       if (entry.phase_name) {
-        lockedPhaseKeys.add(phaseLockKey(platformId, entry.market, entry.phase_name));
+        registerPhaseLock(lockedPhaseKeys, platformId, entry.market, entry.phase_name);
       }
     } else if (
       ["push_failed", "validation_error", "ready_for_push", "pending_validation", "pushing"].includes(
@@ -67,23 +114,28 @@ export function buildLaunchLockScope(entries: LaunchStatusRow[]): LaunchLockScop
   };
 }
 
-/** Platform row locked when every configured market on that platform is live in the DSP. */
+/** Platform row locked when any market on that platform is live (platform % shifts live EUR). */
 export function resolveLockedPlatformIds(
   platforms: PlatformWithMarkets[],
   lockedMarketKeys: Set<string>,
 ): Set<string> {
   const lockedPlatformIds = new Set<string>();
+  const scope: LaunchLockScope = {
+    lockedPlatformIds,
+    lockedMarketKeys,
+    lockedPhaseKeys: new Set(),
+    hasPartialPush: false,
+  };
 
   for (const platform of platforms) {
     if (!platform.id) continue;
-    const markets = platform.markets || [];
-    if (markets.length === 0) continue;
-
-    const allMarketsLocked = markets.every((market) =>
-      lockedMarketKeys.has(marketLockKey(platform.id, market.name)),
+    const hasLockedMarket = (platform.markets || []).some((market) =>
+      hasMarketLockKey(scope, platform.id, market.name),
     );
-    if (allMarketsLocked) {
-      lockedPlatformIds.add(platform.id);
+    if (hasLockedMarket) {
+      for (const id of planPlatformIdVariants(platform.id)) {
+        lockedPlatformIds.add(id);
+      }
     }
   }
 
@@ -105,14 +157,15 @@ export function isPlatformBudgetLocked(
   scope: LaunchLockScope,
 ): boolean {
   if (!platformId) return false;
-  if (scope.lockedPlatformIds.has(platformId)) return true;
-  if (markets.length === 0) return false;
-  return markets.every((market) => scope.lockedMarketKeys.has(marketLockKey(platformId, market.name)));
+  if (planPlatformIdVariants(platformId).some((id) => scope.lockedPlatformIds.has(id))) {
+    return true;
+  }
+  return (markets || []).some((market) => isMarketBudgetLocked(platformId, market.name, scope));
 }
 
 export function isMarketBudgetLocked(platformId: string, marketName: string, scope: LaunchLockScope): boolean {
-  if (!platformId) return false;
-  return scope.lockedMarketKeys.has(marketLockKey(platformId, marketName));
+  if (!platformId || !marketName) return false;
+  return hasMarketLockKey(scope, platformId, marketName);
 }
 
 export function isPhaseBudgetLocked(
@@ -132,8 +185,8 @@ export function isPhaseConfigLocked(
   scope: LaunchLockScope,
 ): boolean {
   if (!platformId) return false;
-  if (scope.lockedMarketKeys.has(marketLockKey(platformId, marketName))) return true;
-  if (phaseName && scope.lockedPhaseKeys.has(phaseLockKey(platformId, marketName, phaseName))) {
+  if (isMarketBudgetLocked(platformId, marketName, scope)) return true;
+  if (phaseName && hasPhaseLockKey(scope, platformId, marketName, phaseName)) {
     return true;
   }
   return false;
@@ -143,14 +196,12 @@ export function hasDspLivePlanLocks(scope: LaunchLockScope): boolean {
   return scope.lockedMarketKeys.size > 0 || scope.lockedPhaseKeys.size > 0;
 }
 
-/** Re-apply frozen budget % for DSP-live slices so autosave cannot drift plan numbers. */
-/** Platforms/markets still editable for €50 validation (excludes DSP-live slices). */
+/** €50 validation runs only on unpublished markets (DSP-live slices excluded). */
 export function filterPlatformsForBudgetValidation(
   platforms: PlatformWithMarkets[],
   scope: LaunchLockScope,
 ): PlatformWithMarkets[] {
   return platforms
-    .filter((platform) => !isPlatformBudgetLocked(platform.id, platform.markets, scope))
     .map((platform) => ({
       ...platform,
       markets: (platform.markets || []).filter(

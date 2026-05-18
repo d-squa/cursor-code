@@ -1163,15 +1163,13 @@ export function PlatformMarketBudgetSelector({
   };
 
   const commitPlatforms = (nextPlatforms: PlatformWithMarkets[]): boolean => {
-    let next = nextPlatforms;
-    if (totalBudget > 0) {
-      next = enforceActiPlanBudgetFloors(next, totalBudget) as PlatformWithMarkets[];
-    }
-    if (!validateBudgetAllocations(next)) {
-      return false;
-    }
+    const next =
+      totalBudget > 0
+        ? (enforceActiPlanBudgetFloors(nextPlatforms, totalBudget) as PlatformWithMarkets[])
+        : nextPlatforms;
+    const valid = validateBudgetAllocations(next);
     setPlatforms(next);
-    return true;
+    return valid;
   };
 
   const budgetLockNormalizeSkipRef = useRef<string | null>(null);
@@ -1682,10 +1680,15 @@ export function PlatformMarketBudgetSelector({
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">$</span>
+                            <span className="text-xs text-muted-foreground">€</span>
                             <Input
                               type="number"
-                              value={Math.round(calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage))}
+                              value={Math.round(
+                                calculatePlatformBudgetEur(
+                                  totalBudget,
+                                  Math.max(platform.budgetPercentage, minPlatformSliderPct(platform)),
+                                ),
+                              )}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 const minEur = Math.round(minPlatformBudgetEurForPhases(platform));
@@ -1814,9 +1817,15 @@ export function PlatformMarketBudgetSelector({
                         </div>
 
                       {platform.markets.map((market) => {
-                        const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
                         const marketMinPct = minMarketSliderPct(platform, market);
                         const marketMinEur = minMarketBudgetEurForPhases(market.phases);
+                        const effectiveMarketPct = Math.max(market.budgetPercentage, marketMinPct);
+                        const marketBudget = calculateMarketBudgetEur(
+                          totalBudget,
+                          platform.budgetPercentage,
+                          effectiveMarketPct,
+                        );
+                        const marketLaunchLocked = marketIsLaunchLocked(platform, market);
 
                         return (
                           <Collapsible
@@ -1869,11 +1878,12 @@ export function PlatformMarketBudgetSelector({
                                         min={marketMinPct}
                                         max="100"
                                         step="0.1"
+                                        disabled={marketLaunchLocked}
                                       />
                                       <span className="text-xs text-muted-foreground">%</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">$</span>
+                                      <span className="text-xs text-muted-foreground">€</span>
                                       <Input
                                         type="number"
                                         value={Math.round(marketBudget)}
@@ -1881,7 +1891,10 @@ export function PlatformMarketBudgetSelector({
                                           e.stopPropagation();
                                           const minEur = Math.round(marketMinEur);
                                           const amount = Math.max(minEur, parseFloat(e.target.value) || 0);
-                                          const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+                                          const platformBudget = calculatePlatformBudgetEur(
+                                            totalBudget,
+                                            platform.budgetPercentage,
+                                          );
                                           if (platformBudget > 0) {
                                             const percentage = (amount / platformBudget) * 100;
                                             updateMarketBudget(platformIndex, market.id, percentage);
@@ -1890,6 +1903,7 @@ export function PlatformMarketBudgetSelector({
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-20 text-xs"
                                         min={Math.round(marketMinEur)}
+                                        disabled={marketLaunchLocked}
                                       />
                                     </div>
                                     {/* Always visible slider */}
@@ -1902,9 +1916,17 @@ export function PlatformMarketBudgetSelector({
                                         max={100}
                                         step={ACTIPLAN_BUDGET_SLIDER_STEP}
                                         className="w-full"
+                                        disabled={marketLaunchLocked}
                                       />
                                     </div>
-                                    {/* Fixed budget toggle for market */}
+                                    {marketLaunchLocked ? (
+                                      <span
+                                        title="Live in DSP — budget locked"
+                                        className="inline-flex h-6 w-6 items-center justify-center"
+                                      >
+                                        <Lock className="h-3 w-3 text-muted-foreground" />
+                                      </span>
+                                    ) : (
                                     <Button
                                       type="button"
                                       variant={fixedMarkets[market.id] ? "secondary" : "ghost"}
@@ -1922,6 +1944,7 @@ export function PlatformMarketBudgetSelector({
                                         <PinOff className="h-3 w-3" />
                                       )}
                                     </Button>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1">
