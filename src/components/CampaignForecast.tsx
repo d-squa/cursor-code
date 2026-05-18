@@ -100,6 +100,8 @@ interface CampaignForecastProps {
   onBack: () => void;
   onFinalize: () => void;
   onBudgetOptimize?: (newPlatforms: PlatformWithMarkets[]) => void;
+  /** Persist plan state before refreshing forecasts so budget splits are not lost. */
+  onBeforeForecastRefresh?: () => void | Promise<void>;
   /** View-only (e.g. team viewer role): no saves, forecast refresh, or approval actions. */
   readOnly?: boolean;
 }
@@ -240,6 +242,7 @@ export function CampaignForecast({
   onBack,
   onFinalize,
   onBudgetOptimize,
+  onBeforeForecastRefresh,
   readOnly = false,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
@@ -1588,6 +1591,10 @@ export function CampaignForecast({
   };
 
   const handleFetchForecasts = async (options?: ForecastOptions) => {
+    if (!readOnly) {
+      await onBeforeForecastRefresh?.();
+    }
+
     setLoading(true);
     setHasExistingForecast(false);
     

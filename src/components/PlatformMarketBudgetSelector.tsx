@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
@@ -48,6 +49,8 @@ interface PlatformMarketBudgetSelectorProps {
   setEndDate?: (date: string) => void;
   setTotalBudget?: (budget: string) => void;
   selectedClientId?: string;
+  /** Shown above platform rows when allocations violate €50 minimum rules. */
+  budgetViolationsSummary?: string;
 }
 
 const AVAILABLE_PLATFORMS = [
@@ -72,7 +75,8 @@ export function PlatformMarketBudgetSelector({
   setStartDate,
   setEndDate,
   setTotalBudget,
-  selectedClientId
+  selectedClientId,
+  budgetViolationsSummary,
 }: PlatformMarketBudgetSelectorProps) {
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
@@ -121,51 +125,6 @@ export function PlatformMarketBudgetSelector({
   // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
   const [budgetLocked, setBudgetLocked] = useState(false);
   
-  // When budget lock is enabled, normalize all platforms and their markets to 100% if they exceed it
-  useEffect(() => {
-    if (!budgetLocked) return;
-    
-    // Check if platform totals exceed 100%
-    const totalPlatformBudget = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
-    
-    if (totalPlatformBudget > 100) {
-      // Normalize platform budgets proportionally to 100%
-      const normalizedPlatforms = platforms.map(p => ({
-        ...p,
-        budgetPercentage: totalPlatformBudget > 0 
-          ? (p.budgetPercentage / totalPlatformBudget) * 100 
-          : 100 / platforms.length,
-      }));
-      
-      setPlatforms(normalizedPlatforms);
-    }
-    
-    // Also check each platform's markets
-    const platformsNeedingMarketNormalization = platforms.filter(p => {
-      const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-      return totalMarketBudget > 100;
-    });
-    
-    if (platformsNeedingMarketNormalization.length > 0) {
-      setPlatforms(prev => prev.map(p => {
-        const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-        
-        if (totalMarketBudget > 100) {
-          return {
-            ...p,
-            markets: p.markets.map(m => ({
-              ...m,
-              budgetPercentage: totalMarketBudget > 0 
-                ? (m.budgetPercentage / totalMarketBudget) * 100 
-                : 100 / p.markets.length,
-            })),
-          };
-        }
-        return p;
-      }));
-    }
-  }, [budgetLocked]);
-
   // Re-apply €50 (× phase count) floors when total budget changes so stored % never lags behind slider display.
   useEffect(() => {
     if (totalBudget <= 0) return;
@@ -1182,6 +1141,83 @@ export function PlatformMarketBudgetSelector({
     return true;
   };
 
+  const commitPlatforms = (nextPlatforms: PlatformWithMarkets[]): boolean => {
+    let next = nextPlatforms;
+    if (totalBudget > 0) {
+      next = enforceActiPlanBudgetFloors(next, totalBudget) as PlatformWithMarkets[];
+    }
+    if (!validateBudgetAllocations(next)) {
+      return false;
+    }
+    setPlatforms(next);
+    return true;
+  };
+
+  const budgetLockNormalizeSkipRef = useRef<string | null>(null);
+
+  // When budget lock is enabled, normalize to 100% then re-apply €50 floors (cannot bypass validation).
+  useEffect(() => {
+    if (!budgetLocked) {
+      budgetLockNormalizeSkipRef.current = null;
+      return;
+    }
+
+    let next = platforms;
+    const totalPlatformBudget = next.reduce((sum, p) => sum + p.budgetPercentage, 0);
+
+    if (totalPlatformBudget > 100) {
+      next = next.map((p) => ({
+        ...p,
+        budgetPercentage:
+          totalPlatformBudget > 0
+            ? (p.budgetPercentage / totalPlatformBudget) * 100
+            : 100 / next.length,
+      }));
+    }
+
+    next = next.map((p) => {
+      const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+      if (totalMarketBudget <= 100) return p;
+      return {
+        ...p,
+        markets: p.markets.map((m) => ({
+          ...m,
+          budgetPercentage:
+            totalMarketBudget > 0
+              ? (m.budgetPercentage / totalMarketBudget) * 100
+              : 100 / p.markets.length,
+        })),
+      };
+    });
+
+    const unchanged =
+      next.length === platforms.length &&
+      next.every((p, i) => {
+        const prev = platforms[i];
+        if ((p.budgetPercentage ?? 0) !== (prev.budgetPercentage ?? 0)) return false;
+        return (p.markets ?? []).every(
+          (m, j) => (m.budgetPercentage ?? 0) === (prev.markets?.[j]?.budgetPercentage ?? 0),
+        );
+      });
+    if (!unchanged) {
+      const fingerprint = JSON.stringify(
+        next.map((p) => [
+          p.budgetPercentage,
+          ...(p.markets ?? []).map((m) => m.budgetPercentage),
+        ]),
+      );
+      if (budgetLockNormalizeSkipRef.current === fingerprint) {
+        return;
+      }
+      if (!commitPlatforms(next)) {
+        budgetLockNormalizeSkipRef.current = fingerprint;
+      } else {
+        budgetLockNormalizeSkipRef.current = null;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgetLocked, platforms, totalBudget]);
+
   const minPlatformSliderPct = (platform: PlatformWithMarkets) =>
     platform.id && totalBudget > 0
       ? ceilBudgetPercentageToSliderStep(
@@ -1244,9 +1280,7 @@ export function PlatformMarketBudgetSelector({
       );
     }
 
-    nextPlatforms = enforceActiPlanBudgetFloors(nextPlatforms, totalBudget) as PlatformWithMarkets[];
-    validateBudgetAllocations(nextPlatforms);
-    setPlatforms(nextPlatforms);
+    commitPlatforms(nextPlatforms);
   };
 
   const addMarket = (index: number) => {
@@ -1419,9 +1453,7 @@ export function PlatformMarketBudgetSelector({
       );
     }
 
-    nextPlatforms = enforceActiPlanBudgetFloors(nextPlatforms, totalBudget) as PlatformWithMarkets[];
-    validateBudgetAllocations(nextPlatforms);
-    setPlatforms(nextPlatforms);
+    commitPlatforms(nextPlatforms);
   };
 
   const handleBudgetSliderChange = (platformIndex: number, marketId: string, percentage: number) => {
@@ -1535,6 +1567,13 @@ export function PlatformMarketBudgetSelector({
               Add Platform
             </Button>
           </div>
+          {budgetViolationsSummary ? (
+            <Alert variant="destructive" className="mt-3">
+              <AlertDescription className="text-xs whitespace-pre-line">
+                {budgetViolationsSummary}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {getConnectedPlatformTypes().size === 0 && (
             <div className="flex items-center gap-2 mt-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
               <span>⚠️</span>
