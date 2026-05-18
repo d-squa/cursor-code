@@ -169,21 +169,51 @@ export function MediaPlanEditor() {
 
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
 
-  const launchLocks = useCampaignLaunchLocks(savedCampaignId ?? undefined, platformsWithMarkets);
+  const launchLocks = useCampaignLaunchLocks(
+    savedCampaignId ?? undefined,
+    platformsWithMarkets,
+    loadedCampaignStatus,
+  );
 
   const setPlatformsWithLaunchGuards = useCallback(
     (updater: SetStateAction<PlatformWithMarkets[]>) => {
       setPlatformsWithMarkets((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
         const total = parseFloat(totalBudget) || 0;
+        let merged = next;
+
+        if (extensionMode.isExtensionMode) {
+          const prevPlatformById = new Map(prev.filter((p) => p.id).map((p) => [p.id, p]));
+          merged = next.map((platform) => {
+            if (!platform.id || !extensionMode.isOriginalPlatform(platform.id)) return platform;
+            const prevPlatform = prevPlatformById.get(platform.id);
+            if (!prevPlatform) return platform;
+            return {
+              ...platform,
+              budgetPercentage: prevPlatform.budgetPercentage,
+              markets: platform.markets.map((market) => {
+                if (!extensionMode.isOriginalMarket(market.id)) return market;
+                const prevMarket = prevPlatform.markets.find((m) => m.id === market.id);
+                return prevMarket ? { ...market, budgetPercentage: prevMarket.budgetPercentage } : market;
+              }),
+            };
+          });
+        }
+
         const floored =
           total > 0
-            ? (enforceActiPlanBudgetFloors(next, total) as PlatformWithMarkets[])
-            : next;
+            ? (enforceActiPlanBudgetFloors(merged, total) as PlatformWithMarkets[])
+            : merged;
         return launchLocks.applyFrozenBudgets(floored);
       });
     },
-    [launchLocks.applyFrozenBudgets, totalBudget],
+    [
+      launchLocks.applyFrozenBudgets,
+      totalBudget,
+      extensionMode.isExtensionMode,
+      extensionMode.isOriginalPlatform,
+      extensionMode.isOriginalMarket,
+    ],
   );
 
   useEffect(() => {
@@ -2502,11 +2532,10 @@ export function MediaPlanEditor() {
       {extensionMode.isExtensionMode && (
         <Alert className="border-primary/50 bg-primary/5">
           <ShieldAlert className="h-4 w-4 text-primary" />
-          <AlertDescription className="flex items-center gap-2">
-            <span className="font-medium">Extension Mode:</span>
-            <span className="text-muted-foreground">
-              Existing campaign structure is locked. You can duplicate items or add new platforms, markets, and phases.
-            </span>
+          <AlertDescription className="text-sm leading-relaxed">
+            <span className="font-medium">Extension Mode:</span>{" "}
+            Original platforms and markets keep their budgets (amber padlock on Step 1). You can add new platforms,
+            markets, and phases and allocate budget only to those new items.
           </AlertDescription>
         </Alert>
       )}

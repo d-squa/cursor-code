@@ -20,6 +20,7 @@ import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { useSampleMode } from "@/contexts/SampleModeContext";
+import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import { PlatformMarketNav } from "./PlatformMarketNav";
 import {
   ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
@@ -84,6 +85,7 @@ export function PlatformMarketBudgetSelector({
   isPlatformBudgetLocked,
   isMarketBudgetLocked,
 }: PlatformMarketBudgetSelectorProps) {
+  const extensionMode = useExtensionModeOptional();
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<any[]>([]);
@@ -153,17 +155,36 @@ export function PlatformMarketBudgetSelector({
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
 
-  const platformIsLaunchLocked = (platform: PlatformWithMarkets) =>
-    Boolean(platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets));
+  /** DSP-live and extension-mode original slices cannot change budget %. */
+  const platformIsBudgetLocked = (platform: PlatformWithMarkets) => {
+    if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) return true;
+    if (extensionMode.isExtensionMode && platform.id && extensionMode.isOriginalPlatform(platform.id)) {
+      return true;
+    }
+    return false;
+  };
 
-  const marketIsLaunchLocked = (platform: PlatformWithMarkets, market: Market) =>
-    Boolean(platform.id && isMarketBudgetLocked?.(platform.id, market.name));
+  const marketIsBudgetLocked = (platform: PlatformWithMarkets, market: Market) => {
+    if (platform.id && isMarketBudgetLocked?.(platform.id, market.name)) return true;
+    if (extensionMode.isExtensionMode && extensionMode.isOriginalMarket(market.id)) return true;
+    return false;
+  };
+
+  const platformBudgetLockTitle = (platform: PlatformWithMarkets) => {
+    if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) {
+      return "Live in DSP — budget locked";
+    }
+    if (extensionMode.isExtensionMode && platform.id && extensionMode.isOriginalPlatform(platform.id)) {
+      return "Original plan platform — locked in extension mode";
+    }
+    return "Budget locked";
+  };
 
   const platformIsFixed = (index: number) =>
-    Boolean(fixedPlatforms[index] || platformIsLaunchLocked(platforms[index]));
+    Boolean(fixedPlatforms[index] || platformIsBudgetLocked(platforms[index]));
 
   const marketIsFixed = (platform: PlatformWithMarkets, market: Market) =>
-    Boolean(fixedMarkets[market.id] || marketIsLaunchLocked(platform, market));
+    Boolean(fixedMarkets[market.id] || marketIsBudgetLocked(platform, market));
 
   const togglePlatformFixed = (index: number) => {
     setFixedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
@@ -1128,7 +1149,7 @@ export function PlatformMarketBudgetSelector({
   const validateBudgetAllocations = (nextPlatforms: PlatformWithMarkets[]): boolean => {
     for (const platform of nextPlatforms) {
       if (!platform.id || platform.budgetPercentage <= 0) continue;
-      if (platformIsLaunchLocked(platform)) continue;
+      if (platformIsBudgetLocked(platform)) continue;
 
       const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
       const minPlatformEur = minPlatformBudgetEurForPhases(platform);
@@ -1140,7 +1161,7 @@ export function PlatformMarketBudgetSelector({
       }
 
       for (const market of platform.markets) {
-        if (marketIsLaunchLocked(platform, market)) continue;
+        if (marketIsBudgetLocked(platform, market)) continue;
 
         const marketBudgetEur = calculateMarketBudgetEur(
           totalBudget,
@@ -1256,8 +1277,8 @@ export function PlatformMarketBudgetSelector({
 
   const updatePlatformBudget = (index: number, percentage: number) => {
     const currentPlatform = platforms[index];
-    if (platformIsLaunchLocked(currentPlatform)) {
-      toast.info("This platform is live in the DSP — budget is locked.", { id: "dsp-budget-locked" });
+    if (platformIsBudgetLocked(currentPlatform)) {
+      toast.info(platformBudgetLockTitle(currentPlatform), { id: "dsp-budget-locked" });
       return;
     }
     const minPlatformEur = currentPlatform.id ? minPlatformBudgetEurForPhases(currentPlatform) : 0;
@@ -1418,8 +1439,13 @@ export function PlatformMarketBudgetSelector({
   const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
     const platform = platforms[platformIndex];
     const currentMarket = platform?.markets.find((m) => m.id === marketId);
-    if (currentMarket && marketIsLaunchLocked(platform, currentMarket)) {
-      toast.info("This market is live in the DSP — budget is locked.", { id: "dsp-budget-locked" });
+    if (currentMarket && marketIsBudgetLocked(platform, currentMarket)) {
+      toast.info(
+        platform.id && isMarketBudgetLocked?.(platform.id, currentMarket.name)
+          ? "This market is live in the DSP — budget is locked."
+          : "Original plan market — locked in extension mode",
+        { id: "dsp-budget-locked" },
+      );
       return;
     }
     const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform?.budgetPercentage ?? 0);
@@ -1594,6 +1620,20 @@ export function PlatformMarketBudgetSelector({
               Add Platform
             </Button>
           </div>
+          <Alert className="mt-3 border-muted-foreground/25 bg-muted/30">
+            <AlertDescription className="text-xs leading-relaxed">
+              Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per platform, market, and phase after splits. Amounts below that
+              show a red warning and block Next.
+            </AlertDescription>
+          </Alert>
+          {extensionMode.isExtensionMode && extensionMode.originalSnapshot ? (
+            <Alert className="mt-3 border-amber-500/40 bg-amber-500/10">
+              <AlertDescription className="text-xs leading-relaxed text-amber-900 dark:text-amber-100">
+                Extension mode: budgets for original platforms and markets are locked (padlock icon). Add new
+                platforms or markets to allocate unpublished budget only.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {budgetViolationsSummary ? (
             <Alert variant="destructive" className="mt-3">
               <AlertDescription className="text-xs whitespace-pre-line">
@@ -1619,7 +1659,7 @@ export function PlatformMarketBudgetSelector({
         <div className="space-y-4">
           {platforms.map((platform, platformIndex) => {
             const availablePlatforms = getAvailablePlatforms(platform.id);
-            const platformLaunchLocked = platformIsLaunchLocked(platform);
+            const platformLaunchLocked = platformIsBudgetLocked(platform);
 
             return (
               <Collapsible
@@ -1719,10 +1759,10 @@ export function PlatformMarketBudgetSelector({
                           </div>
                           {platformLaunchLocked ? (
                             <span
-                              title="Live in DSP — budget locked"
+                              title={platformBudgetLockTitle(platform)}
                               className="inline-flex h-7 w-7 items-center justify-center"
                             >
-                              <Lock className="h-3 w-3 text-muted-foreground" />
+                              <Lock className="h-3 w-3 text-amber-700 dark:text-amber-400" />
                             </span>
                           ) : (
                           <Button
@@ -1825,7 +1865,7 @@ export function PlatformMarketBudgetSelector({
                           platform.budgetPercentage,
                           effectiveMarketPct,
                         );
-                        const marketLaunchLocked = marketIsLaunchLocked(platform, market);
+                        const marketLaunchLocked = marketIsBudgetLocked(platform, market);
 
                         return (
                           <Collapsible
@@ -1921,10 +1961,14 @@ export function PlatformMarketBudgetSelector({
                                     </div>
                                     {marketLaunchLocked ? (
                                       <span
-                                        title="Live in DSP — budget locked"
+                                        title={
+                                          platform.id && isMarketBudgetLocked?.(platform.id, market.name)
+                                            ? "Live in DSP — budget locked"
+                                            : "Original plan market — locked in extension mode"
+                                        }
                                         className="inline-flex h-6 w-6 items-center justify-center"
                                       >
-                                        <Lock className="h-3 w-3 text-muted-foreground" />
+                                        <Lock className="h-3 w-3 text-amber-700 dark:text-amber-400" />
                                       </span>
                                     ) : (
                                     <Button

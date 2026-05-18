@@ -8,6 +8,7 @@ import {
   hasDspLivePlanLocks,
   isPhaseBudgetLocked,
   isPhaseConfigLocked,
+  isLaunchStatusLocked,
   isPlatformBudgetLocked,
   marketLockKey,
   type LaunchLockScope,
@@ -21,9 +22,12 @@ const EMPTY_SCOPE: LaunchLockScope = {
   hasPartialPush: false,
 };
 
+const DSP_LIVE_CAMPAIGN_STATUSES = ["partially_pushed", "pushed_to_dsp", "live"] as const;
+
 export function useCampaignLaunchLocks(
   campaignId: string | undefined,
   platforms: PlatformWithMarkets[],
+  campaignStatus?: string | null,
 ) {
   const [entries, setEntries] = useState<LaunchStatusRow[]>([]);
   const [loading, setLoading] = useState(Boolean(campaignId));
@@ -90,10 +94,23 @@ export function useCampaignLaunchLocks(
     };
   }, [campaignId, load]);
 
-  const scope = useMemo(
-    () => (entries.length > 0 ? buildLaunchLockScopeForPlan(entries, platforms) : EMPTY_SCOPE),
-    [entries, platforms],
-  );
+  const scope = useMemo(() => {
+    if (entries.length === 0) return EMPTY_SCOPE;
+    const built = buildLaunchLockScopeForPlan(entries, platforms);
+    const hasLiveRows = entries.some((e) => isLaunchStatusLocked(e.status));
+    if (
+      hasLiveRows &&
+      built.lockedMarketKeys.size === 0 &&
+      campaignStatus &&
+      DSP_LIVE_CAMPAIGN_STATUSES.includes(campaignStatus as (typeof DSP_LIVE_CAMPAIGN_STATUSES)[number])
+    ) {
+      console.warn(
+        "campaign_launch_status has live rows but no plan markets matched — check platform/market names on the ActiPlan.",
+        { campaignId, campaignStatus, entryCount: entries.length },
+      );
+    }
+    return built;
+  }, [entries, platforms, campaignId, campaignStatus]);
 
   const frozenBudgetSnapshots = useMemo(() => {
     const platformPctById: Record<string, number> = {};
