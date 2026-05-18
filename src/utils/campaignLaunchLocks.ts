@@ -121,8 +121,26 @@ export function isPhaseBudgetLocked(
   phaseName: string,
   scope: LaunchLockScope,
 ): boolean {
-  if (!platformId || !phaseName) return false;
-  return scope.lockedPhaseKeys.has(phaseLockKey(platformId, marketName, phaseName));
+  return isPhaseConfigLocked(platformId, marketName, phaseName, scope);
+}
+
+/** Phase or its whole market is live in the DSP — no edits (use per-phase override on unpublished phases only). */
+export function isPhaseConfigLocked(
+  platformId: string,
+  marketName: string,
+  phaseName: string,
+  scope: LaunchLockScope,
+): boolean {
+  if (!platformId) return false;
+  if (scope.lockedMarketKeys.has(marketLockKey(platformId, marketName))) return true;
+  if (phaseName && scope.lockedPhaseKeys.has(phaseLockKey(platformId, marketName, phaseName))) {
+    return true;
+  }
+  return false;
+}
+
+export function hasDspLivePlanLocks(scope: LaunchLockScope): boolean {
+  return scope.lockedMarketKeys.size > 0 || scope.lockedPhaseKeys.size > 0;
 }
 
 /** Re-apply frozen budget % for DSP-live slices so autosave cannot drift plan numbers. */

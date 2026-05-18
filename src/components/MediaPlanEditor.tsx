@@ -2507,9 +2507,9 @@ export function MediaPlanEditor() {
           <AlertDescription className="text-sm leading-relaxed">
             {launchLocks.hasPartialPush ? (
               <>
-                Some platforms or markets are already live in the DSP. Their budgets and step 3 settings are locked so
-                planned numbers stay aligned with what was pushed. You can still edit and reallocate budget only among
-                items that have not gone live.
+                Some platforms or markets are already live in the DSP. Step 2 unified targeting and live phases are
+                locked. Reallocate budget only among unpublished items, or use Override targeting on individual
+                unpublished phases in Step 3.
               </>
             ) : (
               <>
@@ -2814,8 +2814,10 @@ export function MediaPlanEditor() {
           {currentStep === 2 ? (
             <CardContent>
               <UnifiedTargeting
+                readOnly={launchLocks.isUnifiedTargetingLocked}
                 targeting={basicTargeting}
                 onUpdate={(targeting) => {
+                  if (launchLocks.isUnifiedTargetingLocked) return;
                   console.log("📋 Received targeting update from BasicTargeting:", targeting);
                   setBasicTargeting(targeting);
                   // localStorage is already handled in UnifiedTargeting component
@@ -3236,14 +3238,14 @@ export function MediaPlanEditor() {
                           ((singlePlatform?.budgetPercentage || 0) / 100) *
                           ((singleMarket.budgetPercentage || 0) / 100)
                         }
-                        dspConfigLocked={
+                        marketConfigLocked={
                           singlePlatform?.id
                             ? launchLocks.isMarketBudgetLocked(singlePlatform.id, singleMarket.name)
                             : false
                         }
-                        isPhaseBudgetLocked={(phase) =>
+                        isPhaseConfigLocked={(phase) =>
                           singlePlatform?.id
-                            ? launchLocks.isPhaseBudgetLocked(
+                            ? launchLocks.isPhaseConfigLocked(
                                 singlePlatform.id,
                                 singleMarket.name,
                                 phase.name,
@@ -3714,14 +3716,14 @@ export function MediaPlanEditor() {
                                               ((platform.budgetPercentage || 0) / 100) *
                                               ((market.budgetPercentage || 0) / 100)
                                             }
-                                            dspConfigLocked={
+                                            marketConfigLocked={
                                               platform.id
                                                 ? launchLocks.isMarketBudgetLocked(platform.id, market.name)
                                                 : false
                                             }
-                                            isPhaseBudgetLocked={(phase) =>
+                                            isPhaseConfigLocked={(phase) =>
                                               platform.id
-                                                ? launchLocks.isPhaseBudgetLocked(
+                                                ? launchLocks.isPhaseConfigLocked(
                                                     platform.id,
                                                     market.name,
                                                     phase.name,

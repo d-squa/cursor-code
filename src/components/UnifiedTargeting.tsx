@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -125,6 +126,8 @@ interface UnifiedTargetingProps {
   markets?: MarketInfo[];
   googleMarkets?: MarketInfo[];
   tiktokMarkets?: MarketInfo[];
+  /** DSP-live plan — global Step 2 targeting is read-only; use per-phase override on unpublished phases. */
+  readOnly?: boolean;
 }
 
 export function UnifiedTargeting({ 
@@ -143,6 +146,7 @@ export function UnifiedTargeting({
   markets,
   googleMarkets,
   tiktokMarkets,
+  readOnly = false,
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -150,6 +154,18 @@ export function UnifiedTargeting({
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok' | 'google'>('all');
   const { isSampleMode } = useSampleMode();
   const sampleSeededRef = useRef(false);
+
+  const persistToLocalStorage = (updated: UnifiedTargetingConfig) => {
+    if (!skipLocalStorage) {
+      localStorage.setItem("basicTargeting", JSON.stringify(updated));
+    }
+  };
+
+  const applyTargetingUpdate = (updated: UnifiedTargetingConfig) => {
+    if (readOnly) return;
+    onUpdate(updated);
+    persistToLocalStorage(updated);
+  };
 
   // Auto-prefill targeting & keywords when in Sample Mode (only if currently empty)
   useEffect(() => {
@@ -166,8 +182,7 @@ export function UnifiedTargeting({
       selectedKeywords: hasKeywords ? targeting.selectedKeywords : SAMPLE_KEYWORDS,
     };
     sampleSeededRef.current = true;
-    onUpdate(updated);
-    persistToLocalStorage(updated);
+    applyTargetingUpdate(updated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSampleMode]);
   
@@ -195,17 +210,9 @@ export function UnifiedTargeting({
   // Ensure selectedItems is always an array
   const selectedItems = Array.isArray(targeting.selectedItems) ? targeting.selectedItems : [];
 
-  // Helper to persist to localStorage only for Step 2 basic targeting, not phase overrides
-  const persistToLocalStorage = (updated: UnifiedTargetingConfig) => {
-    if (!skipLocalStorage) {
-      localStorage.setItem('basicTargeting', JSON.stringify(updated));
-    }
-  };
-
   const updateField = (field: keyof UnifiedTargetingConfig, value: any) => {
     const updated = { ...targeting, selectedItems, [field]: value };
-    onUpdate(updated);
-    persistToLocalStorage(updated);
+    applyTargetingUpdate(updated);
   };
 
   const handleSearch = async () => {
@@ -265,7 +272,7 @@ export function UnifiedTargeting({
       ...targeting,
       selectedItems: newSelectedItems
     };
-    onUpdate(updated);
+    applyTargetingUpdate(updated);
     persistToLocalStorage(updated);
     toast.success(`Added: ${item.name}`);
   };
@@ -283,7 +290,7 @@ export function UnifiedTargeting({
       ...targeting,
       selectedItems: newSelectedItems
     };
-    onUpdate(updated);
+    applyTargetingUpdate(updated);
     persistToLocalStorage(updated);
     toast.success(`Added ${newItems.length} targeting options`);
   };
@@ -295,7 +302,7 @@ export function UnifiedTargeting({
       ...targeting,
       selectedItems: newSelectedItems
     };
-    onUpdate(updated);
+    applyTargetingUpdate(updated);
     persistToLocalStorage(updated);
   };
 
@@ -317,6 +324,17 @@ export function UnifiedTargeting({
 
   return (
     <div className="space-y-6">
+      {readOnly && (
+        <Alert className="border-amber-500/40 bg-amber-500/10">
+          <Lock className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+          <p className="text-sm leading-relaxed ml-6">
+            Unified targeting is locked because part of this ActiPlan is already live in the DSP. To change
+            targeting for an unpublished phase, open that phase in Step 3 and enable{" "}
+            <span className="font-medium">Override targeting</span>.
+          </p>
+        </Alert>
+      )}
+      <fieldset disabled={readOnly} className="border-0 p-0 m-0 min-w-0 space-y-6">
       {/* Basic Demographics */}
       <Card>
         <CardHeader>
@@ -549,7 +567,7 @@ export function UnifiedTargeting({
                     onClick={(e) => {
                       e.stopPropagation();
                       const updated = { ...targeting, selectedItems: [] };
-                      onUpdate(updated);
+                      applyTargetingUpdate(updated);
                       persistToLocalStorage(updated);
                       toast.success('Removed all targeting');
                     }}
@@ -570,7 +588,7 @@ export function UnifiedTargeting({
                           e.stopPropagation();
                           const newItems = selectedItems.filter(i => !i.platforms.includes(platform));
                           const updated = { ...targeting, selectedItems: newItems };
-                          onUpdate(updated);
+                          applyTargetingUpdate(updated);
                           persistToLocalStorage(updated);
                           toast.success(`Removed all ${label} targeting`);
                         }}
@@ -617,7 +635,7 @@ export function UnifiedTargeting({
           selectedKeywords={targeting.selectedKeywords || []}
           onUpdate={(keywords) => {
             const updated = { ...targeting, selectedItems, selectedKeywords: keywords };
-            onUpdate(updated);
+            applyTargetingUpdate(updated);
             persistToLocalStorage(updated);
           }}
           googleCustomerId={googleCustomerId}
@@ -703,7 +721,7 @@ export function UnifiedTargeting({
                 defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
                 defaultAdSetSplitUseCBO: useCBO,
               };
-              onUpdate(updated);
+              applyTargetingUpdate(updated);
               persistToLocalStorage(updated);
             };
             
@@ -779,7 +797,7 @@ export function UnifiedTargeting({
                           defaultAdSetsPerPlatform: newAdSetsPerPlatform,
                           defaultAdSets: adSets,
                         };
-                        onUpdate(updated);
+                        applyTargetingUpdate(updated);
                         persistToLocalStorage(updated);
                       }}
                       onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
@@ -870,7 +888,7 @@ export function UnifiedTargeting({
                               defaultAdSetsPerPlatform: newAdSetsPerPlatform,
                               defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
                             };
-                            onUpdate(updated);
+                            applyTargetingUpdate(updated);
                             persistToLocalStorage(updated);
                           }}
                           onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
@@ -939,7 +957,7 @@ export function UnifiedTargeting({
               defaultAdSetSplitUseCBO: true,
               ...(splitLevel ? { defaultGoogleSearchSplitLevel: splitLevel } : {}),
             };
-            onUpdate(updated);
+            applyTargetingUpdate(updated);
             persistToLocalStorage(updated);
           }
           setPendingSplitSelection(null);
@@ -976,12 +994,13 @@ export function UnifiedTargeting({
               defaultAdSetSplitUseCBO: false,
               ...(splitLevel ? { defaultGoogleSearchSplitLevel: splitLevel } : {}),
             };
-            onUpdate(updated);
+            applyTargetingUpdate(updated);
             persistToLocalStorage(updated);
           }
           setPendingSplitSelection(null);
         }}
       />
+      </fieldset>
     </div>
   );
 }

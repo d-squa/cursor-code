@@ -5,7 +5,9 @@ import {
   applyLockedBudgetSnapshots,
   buildLaunchLockScopeForPlan,
   isMarketBudgetLocked,
+  hasDspLivePlanLocks,
   isPhaseBudgetLocked,
+  isPhaseConfigLocked,
   isPlatformBudgetLocked,
   marketLockKey,
   type LaunchLockScope,
@@ -132,6 +134,9 @@ export function useCampaignLaunchLocks(
       isMarketBudgetLocked(platformId, marketName, scope),
     isPhaseBudgetLocked: (platformId: string, marketName: string, phaseName: string) =>
       isPhaseBudgetLocked(platformId, marketName, phaseName, scope),
+    isPhaseConfigLocked: (platformId: string, marketName: string, phaseName: string) =>
+      isPhaseConfigLocked(platformId, marketName, phaseName, scope),
+    isUnifiedTargetingLocked: hasDspLivePlanLocks(scope),
     applyFrozenBudgets,
   };
 }
