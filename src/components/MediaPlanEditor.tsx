@@ -74,10 +74,13 @@ import { translateAdFormats } from "@/utils/adFormats";
 import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
 import { useCampaignEditPermission } from "@/hooks/useCampaignEditPermission";
 import { useCampaignLaunchLocks } from "@/hooks/useCampaignLaunchLocks";
+import { extensionMarketLockKey, filterPlatformsForBudgetValidation } from "@/utils/campaignLaunchLocks";
 import {
-  extensionMarketLockKey,
-  filterPlatformsForBudgetValidation,
-} from "@/utils/campaignLaunchLocks";
+  buildExtensionLockIdsFromPlatforms,
+  loadExtensionLockIds,
+  persistExtensionLockIds,
+  restorePlatformsFromCampaignRecord,
+} from "@/utils/campaignEditorPersist";
 import { CampaignEditProvider } from "@/contexts/CampaignEditContext";
 import {
   BO_NUMBER_CONFLICT_MESSAGE,
@@ -153,6 +156,11 @@ export function MediaPlanEditor() {
     return urlParams.get("mode") === "extend";
   }, [location.search]);
 
+  const urlCampaignIdForExtension = useMemo(() => {
+    const urlParams = new URLSearchParams(location.search);
+    return urlParams.get("campaignId");
+  }, [location.search]);
+
   const {
     capabilities,
     loading: editPermLoading,
@@ -175,7 +183,27 @@ export function MediaPlanEditor() {
   const [extensionHydratedLockIds, setExtensionHydratedLockIds] = useState<{
     platformIds: Set<string>;
     marketIds: Set<string>;
-  } | null>(null);
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") !== "extend") return null;
+    const cid = params.get("campaignId");
+    return cid ? loadExtensionLockIds(cid) : null;
+  });
+
+  const applyExtensionLockIds = useCallback(
+    (platforms: PlatformWithMarkets[], campaignId?: string | null) => {
+      if (!extensionModeActive || platforms.length === 0) {
+        setExtensionHydratedLockIds(null);
+        return;
+      }
+      const locks = buildExtensionLockIdsFromPlatforms(platforms);
+      setExtensionHydratedLockIds(locks);
+      const cid = campaignId ?? urlCampaignIdForExtension ?? savedCampaignId;
+      if (cid) persistExtensionLockIds(cid, locks);
+    },
+    [extensionModeActive, urlCampaignIdForExtension, savedCampaignId],
+  );
 
   const launchLocks = useCampaignLaunchLocks(
     savedCampaignId ?? undefined,
@@ -1082,78 +1110,25 @@ export function MediaPlanEditor() {
         setGenericConfig((prev) => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
       }
 
-      // Restore platforms and markets completely from DB
-      const alloc = c.budget_allocation || {};
-      const splits = c.market_splits || {};
-      const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
-
+      const restoredPlatforms = restorePlatformsFromCampaignRecord(c);
       console.log("🔄 Restoring campaign from DB:", {
-        platforms: declaredPlatforms,
-        market_splits: splits,
+        platformCount: restoredPlatforms.length,
+        platformIds: restoredPlatforms.map((p) => p.id),
       });
 
-      if (declaredPlatforms.length > 0) {
-        const restoredPlatforms = declaredPlatforms.map((dp: any) => {
-          // Prefer market_splits if keyed by platform id; otherwise fall back to embedded markets on the platform object (legacy/sample data)
-          const splitMarkets = splits[dp.id];
-          const markets = Array.isArray(splitMarkets) && splitMarkets.length > 0
-            ? splitMarkets
-            : (Array.isArray(dp.markets) ? dp.markets : []);
-          console.log(
-            `  Platform ${dp.id} markets:`,
-            markets.map((m: any) => ({
-              id: m.id,
-              name: m.name,
-              adAccountId: m.adAccountId,
-              tiktokPixel: m.tiktokPixel,
-              tiktokIdentity: m.tiktokIdentity,
-              tiktokCatalog: m.tiktokCatalog,
-              tiktokProductSet: m.tiktokProductSet,
-              tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-              tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-            })),
-          );
-
-          // Filter out US from TikTok market countries
-          const filteredMarkets = markets.map((m: any) => {
-            if (dp.id === "tiktok" && Array.isArray(m.countries)) {
-              return {
-                ...m,
-                countries: m.countries.filter((c: string) => c !== "US"),
-              };
-            }
-            return m;
-          });
-
-          return {
-            id: dp.id,
-            name: dp.name,
-            enabled: true,
-            budgetPercentage: alloc[dp.id] ?? 0,
-            markets: filteredMarkets,
-          };
-        });
+      if (restoredPlatforms.length > 0) {
         const total = Number(c.total_budget) || 0;
         const floored =
           total > 0
             ? (enforceActiPlanBudgetFloors(restoredPlatforms, total) as PlatformWithMarkets[])
             : restoredPlatforms;
         setPlatformsWithMarkets(floored);
-
-        if (extensionModeActive && floored.length > 0) {
-          const platformIds = new Set(floored.map((p) => p.id).filter(Boolean) as string[]);
-          const marketIds = new Set(
-            floored.flatMap((p) =>
-              p.id
-                ? p.markets.map((m) => extensionMarketLockKey(p.id, m))
-                : p.markets.map((m) => m.id).filter(Boolean),
-            ) as string[],
-          );
-          setExtensionHydratedLockIds({ platformIds, marketIds });
+        applyExtensionLockIds(floored, (c as { id?: string }).id);
+        if (extensionModeActive) {
           extensionMode.captureSnapshot(floored, (c as { id?: string }).id);
-        } else {
-          setExtensionHydratedLockIds(null);
         }
+      } else if (!extensionModeActive) {
+        setExtensionHydratedLockIds(null);
       }
 
       setIsHydrated(true);
@@ -1181,6 +1156,7 @@ export function MediaPlanEditor() {
       setStartDate("");
       setEndDate("");
       setPlatformsWithMarkets([]);
+      setExtensionHydratedLockIds(null);
       setSavedCampaignId(null);
       setLoadedCampaignTeamId(null);
       setLoadedCampaignCreatorId(null);
@@ -1310,21 +1286,17 @@ export function MediaPlanEditor() {
     restore();
   }, [user, isHydrated]);
 
-  // Extension mode: freeze lock ids from first hydrated plan (fallback if snapshot is late)
+  // Extension mode: freeze lock ids when plan loads or URL switches to mode=extend
   useEffect(() => {
     if (!extensionModeActive || platformsWithMarkets.length === 0) return;
     setExtensionHydratedLockIds((prev) => {
       if (prev && prev.platformIds.size > 0) return prev;
-      return {
-        platformIds: new Set(platformsWithMarkets.map((p) => p.id).filter(Boolean) as string[]),
-        marketIds: new Set(
-          platformsWithMarkets.flatMap((p) =>
-            p.id ? p.markets.map((m) => extensionMarketLockKey(p.id, m)) : [],
-          ),
-        ),
-      };
+      const locks = buildExtensionLockIdsFromPlatforms(platformsWithMarkets);
+      const cid = urlCampaignIdForExtension ?? savedCampaignId;
+      if (cid) persistExtensionLockIds(cid, locks);
+      return locks;
     });
-  }, [extensionModeActive, platformsWithMarkets]);
+  }, [extensionModeActive, platformsWithMarkets, urlCampaignIdForExtension, savedCampaignId]);
 
   // Capture extension mode snapshot once campaign is hydrated
   useEffect(() => {
@@ -2823,6 +2795,7 @@ export function MediaPlanEditor() {
                 platforms={platformsWithMarkets}
                 setPlatforms={setPlatformsWithLaunchGuards}
                 totalBudget={parseFloat(totalBudget) || 0}
+                extensionModeActive={extensionModeActive}
                 isPlatformBudgetLocked={launchLocks.isPlatformBudgetLocked}
                 isMarketBudgetLocked={launchLocks.isMarketBudgetLocked}
                 extensionHydratedLockIds={extensionHydratedLockIds}
@@ -2869,7 +2842,7 @@ export function MediaPlanEditor() {
               </div>
               <div className="flex justify-between">
                 <span>Budget:</span>
-                <span className="font-medium text-foreground">${parseFloat(totalBudget).toLocaleString()}</span>
+                <span className="font-medium text-foreground">€{parseFloat(totalBudget).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span>Duration:</span>

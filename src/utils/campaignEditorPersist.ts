@@ -1,5 +1,6 @@
 import type { PlatformWithMarkets } from "@/types/mediaplan";
 import type { Market } from "@/types/mediaplan";
+import { extensionMarketLockKey } from "@/utils/campaignLaunchLocks";
 
 /** Serialize a market row for campaigns.market_splits (must stay in sync with MediaPlanEditor autosave). */
 export function mapMarketForCampaignPersist(m: Market) {
@@ -74,6 +75,116 @@ export function buildBudgetAllocationFromPlatforms(platformsWithMarkets: Platfor
     (acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }),
     {} as Record<string, number>,
   );
+}
+
+const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
+  meta: "Meta",
+  google: "Google Ads",
+  google_ads: "Google Ads",
+  tiktok: "TikTok",
+  linkedin: "LinkedIn",
+  snapchat: "Snapchat",
+  pinterest: "Pinterest",
+};
+
+/** Rebuild Step 1 platforms from campaigns row (platforms array and/or market_splits). */
+export function restorePlatformsFromCampaignRecord(c: {
+  platforms?: unknown;
+  market_splits?: Record<string, unknown>;
+  budget_allocation?: Record<string, number>;
+}): PlatformWithMarkets[] {
+  const alloc = c.budget_allocation || {};
+  const splits = (c.market_splits || {}) as Record<string, Market[]>;
+  const declared: any[] = Array.isArray(c.platforms) ? c.platforms : [];
+
+  const mapMarkets = (platformId: string, markets: Market[]) => {
+    if (platformId !== "tiktok") return markets;
+    return markets.map((m) => {
+      if (!Array.isArray((m as { countries?: string[] }).countries)) return m;
+      return {
+        ...m,
+        countries: (m as { countries: string[] }).countries.filter((code) => code !== "US"),
+      };
+    });
+  };
+
+  if (declared.length > 0) {
+    return declared.map((dp) => {
+      const splitMarkets = splits[dp.id];
+      const markets =
+        Array.isArray(splitMarkets) && splitMarkets.length > 0
+          ? splitMarkets
+          : Array.isArray(dp.markets)
+            ? dp.markets
+            : [];
+      return {
+        id: dp.id,
+        name: dp.name || PLATFORM_DISPLAY_NAMES[dp.id] || dp.id,
+        enabled: true,
+        budgetPercentage: alloc[dp.id] ?? dp.budgetPercentage ?? 0,
+        markets: mapMarkets(dp.id, markets as Market[]),
+      };
+    });
+  }
+
+  const platformIds = Object.keys(splits).filter(Boolean);
+  return platformIds.map((id) => ({
+    id,
+    name: PLATFORM_DISPLAY_NAMES[id] || id,
+    enabled: true,
+    budgetPercentage: alloc[id] ?? 0,
+    markets: mapMarkets(id, (splits[id] || []) as Market[]),
+  }));
+}
+
+export type ExtensionHydratedLockIds = {
+  platformIds: Set<string>;
+  marketIds: Set<string>;
+};
+
+export function buildExtensionLockIdsFromPlatforms(
+  platforms: PlatformWithMarkets[],
+): ExtensionHydratedLockIds {
+  return {
+    platformIds: new Set(platforms.map((p) => p.id).filter(Boolean) as string[]),
+    marketIds: new Set(
+      platforms.flatMap((p) =>
+        p.id ? p.markets.map((m) => extensionMarketLockKey(p.id, m)) : [],
+      ),
+    ),
+  };
+}
+
+function extensionLocksStorageKey(campaignId: string) {
+  return `actiplan-extension-locks:${campaignId}`;
+}
+
+export function persistExtensionLockIds(campaignId: string, locks: ExtensionHydratedLockIds) {
+  try {
+    sessionStorage.setItem(
+      extensionLocksStorageKey(campaignId),
+      JSON.stringify({
+        platformIds: [...locks.platformIds],
+        marketIds: [...locks.marketIds],
+      }),
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadExtensionLockIds(campaignId: string): ExtensionHydratedLockIds | null {
+  try {
+    const raw = sessionStorage.getItem(extensionLocksStorageKey(campaignId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { platformIds?: string[]; marketIds?: string[] };
+    return {
+      platformIds: new Set(parsed.platformIds || []),
+      marketIds: new Set(parsed.marketIds || []),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function buildMarketSplitsFromPlatforms(platformsWithMarkets: PlatformWithMarkets[]) {

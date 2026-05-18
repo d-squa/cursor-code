@@ -61,6 +61,8 @@ interface PlatformMarketBudgetSelectorProps {
   extensionHydratedLockIds?: { platformIds: Set<string>; marketIds: Set<string> } | null;
   dspLocksActive?: boolean;
   dspPartialPush?: boolean;
+  /** URL mode=extend (explicit prop — avoids context timing gaps). */
+  extensionModeActive?: boolean;
 }
 
 const AVAILABLE_PLATFORMS = [
@@ -92,6 +94,7 @@ export function PlatformMarketBudgetSelector({
   extensionHydratedLockIds = null,
   dspLocksActive = false,
   dspPartialPush = false,
+  extensionModeActive = false,
 }: PlatformMarketBudgetSelectorProps) {
   const extensionMode = useExtensionModeOptional();
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
@@ -163,11 +166,13 @@ export function PlatformMarketBudgetSelector({
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
 
+  const inExtensionMode = extensionModeActive || extensionMode.isExtensionMode;
+
   /** DSP-live and extension-mode original slices cannot change budget %. */
   const platformIsBudgetLocked = (platform: PlatformWithMarkets) => {
     if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) return true;
     if (
-      extensionMode.isExtensionMode &&
+      inExtensionMode &&
       platform.id &&
       (extensionMode.isOriginalPlatform(platform.id) ||
         (extensionHydratedLockIds?.platformIds.has(platform.id) ?? false))
@@ -179,7 +184,7 @@ export function PlatformMarketBudgetSelector({
 
   const marketIsBudgetLocked = (platform: PlatformWithMarkets, market: Market) => {
     if (platform.id && isMarketBudgetLocked?.(platform.id, market.name)) return true;
-    if (!extensionMode.isExtensionMode || !platform.id) return false;
+    if (!inExtensionMode || !platform.id) return false;
     const marketKey = extensionMarketLockKey(platform.id, market);
     if (
       extensionMode.isOriginalMarket(market.id) ||
@@ -196,7 +201,12 @@ export function PlatformMarketBudgetSelector({
     if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) {
       return "Live in DSP — budget locked";
     }
-    if (extensionMode.isExtensionMode && platform.id && extensionMode.isOriginalPlatform(platform.id)) {
+    if (
+      inExtensionMode &&
+      platform.id &&
+      (extensionMode.isOriginalPlatform(platform.id) ||
+        (extensionHydratedLockIds?.platformIds.has(platform.id) ?? false))
+    ) {
       return "Original plan platform — locked in extension mode";
     }
     return "Budget locked";
@@ -1649,7 +1659,7 @@ export function PlatformMarketBudgetSelector({
               show a red warning and block Next.
             </AlertDescription>
           </Alert>
-          {extensionMode.isExtensionMode ? (
+          {inExtensionMode ? (
             <Alert className="mt-3 border-amber-500/40 bg-amber-500/10">
               <AlertDescription className="text-xs leading-relaxed text-amber-900 dark:text-amber-100">
                 Extension mode: budgets for original platforms and markets are locked (padlock icon). Add new
