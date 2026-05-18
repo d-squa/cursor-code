@@ -26,6 +26,14 @@ export function marketLockKey(platformId: string, marketName: string): string {
   return `${platformId}::${marketName}`;
 }
 
+/** Stable key for extension-mode market locks when market.id is missing. */
+export function extensionMarketLockKey(
+  platformId: string,
+  market: { id?: string; name: string },
+): string {
+  return market.id || marketLockKey(platformId, market.name);
+}
+
 export function phaseLockKey(platformId: string, marketName: string, phaseName: string): string {
   return `${platformId}::${marketName}::${phaseName}`;
 }

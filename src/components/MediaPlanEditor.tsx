@@ -74,7 +74,10 @@ import { translateAdFormats } from "@/utils/adFormats";
 import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
 import { useCampaignEditPermission } from "@/hooks/useCampaignEditPermission";
 import { useCampaignLaunchLocks } from "@/hooks/useCampaignLaunchLocks";
-import { filterPlatformsForBudgetValidation } from "@/utils/campaignLaunchLocks";
+import {
+  extensionMarketLockKey,
+  filterPlatformsForBudgetValidation,
+} from "@/utils/campaignLaunchLocks";
 import { CampaignEditProvider } from "@/contexts/CampaignEditContext";
 import {
   BO_NUMBER_CONFLICT_MESSAGE,
@@ -168,6 +171,11 @@ export function MediaPlanEditor() {
   const isReadOnly = !editPermLoading && !canEditInEditor;
 
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
+  /** Extension mode: ids loaded from DB — budget lock fallback if snapshot is late. */
+  const [extensionHydratedLockIds, setExtensionHydratedLockIds] = useState<{
+    platformIds: Set<string>;
+    marketIds: Set<string>;
+  } | null>(null);
 
   const launchLocks = useCampaignLaunchLocks(
     savedCampaignId ?? undefined,
@@ -184,16 +192,30 @@ export function MediaPlanEditor() {
 
         if (extensionMode.isExtensionMode) {
           const prevPlatformById = new Map(prev.filter((p) => p.id).map((p) => [p.id, p]));
+          const isExtensionOriginalPlatform = (platformId: string) =>
+            extensionMode.isOriginalPlatform(platformId) ||
+            (extensionHydratedLockIds?.platformIds.has(platformId) ?? false);
           merged = next.map((platform) => {
-            if (!platform.id || !extensionMode.isOriginalPlatform(platform.id)) return platform;
+            if (!platform.id || !isExtensionOriginalPlatform(platform.id)) return platform;
             const prevPlatform = prevPlatformById.get(platform.id);
             if (!prevPlatform) return platform;
             return {
               ...platform,
               budgetPercentage: prevPlatform.budgetPercentage,
               markets: platform.markets.map((market) => {
-                if (!extensionMode.isOriginalMarket(market.id)) return market;
-                const prevMarket = prevPlatform.markets.find((m) => m.id === market.id);
+                const marketKey = platform.id
+                  ? extensionMarketLockKey(platform.id, market)
+                  : market.id;
+                const isExtensionOriginalMarket =
+                  extensionMode.isOriginalMarket(market.id) ||
+                  (marketKey ? extensionMode.isOriginalMarket(marketKey) : false) ||
+                  (marketKey ? (extensionHydratedLockIds?.marketIds.has(marketKey) ?? false) : false);
+                if (!isExtensionOriginalMarket) return market;
+                const prevMarket = prevPlatform.markets.find(
+                  (m) =>
+                    m.id === market.id ||
+                    (platform.id && extensionMarketLockKey(platform.id, m) === marketKey),
+                );
                 return prevMarket ? { ...market, budgetPercentage: prevMarket.budgetPercentage } : market;
               }),
             };
@@ -213,6 +235,7 @@ export function MediaPlanEditor() {
       extensionMode.isExtensionMode,
       extensionMode.isOriginalPlatform,
       extensionMode.isOriginalMarket,
+      extensionHydratedLockIds,
     ],
   );
 
@@ -1116,6 +1139,21 @@ export function MediaPlanEditor() {
             ? (enforceActiPlanBudgetFloors(restoredPlatforms, total) as PlatformWithMarkets[])
             : restoredPlatforms;
         setPlatformsWithMarkets(floored);
+
+        if (extensionModeActive && floored.length > 0) {
+          const platformIds = new Set(floored.map((p) => p.id).filter(Boolean) as string[]);
+          const marketIds = new Set(
+            floored.flatMap((p) =>
+              p.id
+                ? p.markets.map((m) => extensionMarketLockKey(p.id, m))
+                : p.markets.map((m) => m.id).filter(Boolean),
+            ) as string[],
+          );
+          setExtensionHydratedLockIds({ platformIds, marketIds });
+          extensionMode.captureSnapshot(floored, (c as { id?: string }).id);
+        } else {
+          setExtensionHydratedLockIds(null);
+        }
       }
 
       setIsHydrated(true);
@@ -1272,6 +1310,22 @@ export function MediaPlanEditor() {
     restore();
   }, [user, isHydrated]);
 
+  // Extension mode: freeze lock ids from first hydrated plan (fallback if snapshot is late)
+  useEffect(() => {
+    if (!extensionModeActive || platformsWithMarkets.length === 0) return;
+    setExtensionHydratedLockIds((prev) => {
+      if (prev && prev.platformIds.size > 0) return prev;
+      return {
+        platformIds: new Set(platformsWithMarkets.map((p) => p.id).filter(Boolean) as string[]),
+        marketIds: new Set(
+          platformsWithMarkets.flatMap((p) =>
+            p.id ? p.markets.map((m) => extensionMarketLockKey(p.id, m)) : [],
+          ),
+        ),
+      };
+    });
+  }, [extensionModeActive, platformsWithMarkets]);
+
   // Capture extension mode snapshot once campaign is hydrated
   useEffect(() => {
     console.log("🔒 Extension mode check:", {
@@ -1282,22 +1336,15 @@ export function MediaPlanEditor() {
       urlSearch: location.search,
     });
 
-    if (
-      extensionMode.isExtensionMode &&
-      isHydrated &&
-      platformsWithMarkets.length > 0 &&
-      !extensionMode.originalSnapshot
-    ) {
-      console.log("🔒 Triggering snapshot capture...");
-      extensionMode.captureSnapshot(platformsWithMarkets);
+    if (extensionMode.isExtensionMode && isHydrated && platformsWithMarkets.length > 0 && savedCampaignId) {
+      extensionMode.captureSnapshot(platformsWithMarkets, savedCampaignId);
     }
   }, [
     extensionMode.isExtensionMode,
     isHydrated,
     platformsWithMarkets,
-    extensionMode.originalSnapshot,
+    savedCampaignId,
     extensionMode.captureSnapshot,
-    location.search,
   ]);
 
   // Fetch first ad account ID for audience fetching
@@ -2778,6 +2825,9 @@ export function MediaPlanEditor() {
                 totalBudget={parseFloat(totalBudget) || 0}
                 isPlatformBudgetLocked={launchLocks.isPlatformBudgetLocked}
                 isMarketBudgetLocked={launchLocks.isMarketBudgetLocked}
+                extensionHydratedLockIds={extensionHydratedLockIds}
+                dspLocksActive={!launchLocks.loading && launchLocks.scope.lockedMarketKeys.size > 0}
+                dspPartialPush={launchLocks.hasPartialPush}
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
                 setTotalBudget={setTotalBudget}
