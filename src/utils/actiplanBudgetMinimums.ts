@@ -4,9 +4,19 @@ import {
   getEffectiveSearchKeywords,
   isSearchPhaseLike,
 } from "@/utils/searchStrategyCampaigns";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET,
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  formatActiPlanMoney,
+} from "@/utils/actiplanCurrency";
 
-/** Minimum allocated budget (EUR) for activation total, DSP campaigns, and ad sets. */
-export const ACTIPLAN_MIN_ENTITY_BUDGET_EUR = 50;
+export {
+  ACTIPLAN_CURRENCY_CODE,
+  ACTIPLAN_CURRENCY_SYMBOL,
+  ACTIPLAN_MIN_ENTITY_BUDGET,
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  formatActiPlanMoney,
+} from "@/utils/actiplanCurrency";
 
 export type BudgetViolationLevel =
   | "activation"
@@ -67,7 +77,7 @@ export function calculateMarketBudgetEur(
   return (platformBudget * (marketBudgetPct || 0)) / 100;
 }
 
-/** Minimum platform % so allocated EUR is at least the ActiPlan floor (0 when total is too small). */
+/** Minimum platform % so allocated USD is at least the ActiPlan floor (0 when total is too small). */
 export function minPlatformBudgetPercentage(totalBudgetEur: number, minimumEur = ACTIPLAN_MIN_ENTITY_BUDGET_EUR): number {
   if (!totalBudgetEur || totalBudgetEur <= 0) return 0;
   return Math.min(100, (minimumEur / totalBudgetEur) * 100);
@@ -79,7 +89,7 @@ export function getEffectivePhaseCount(phases?: Phase[] | null): number {
   return phases.length;
 }
 
-/** Minimum EUR for a market/platform slice that must fund N phases at €50 each. */
+/** Minimum USD for a market/platform slice that must fund N phases at $50 each. */
 export function minBudgetEurForPhaseCount(
   phaseCount: number,
   minimumPerPhase = ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
@@ -91,7 +101,7 @@ export function minMarketBudgetEurForPhases(phases?: Phase[] | null): number {
   return minBudgetEurForPhaseCount(getEffectivePhaseCount(phases));
 }
 
-/** Child % of parent budget needed to reach a minimum EUR amount. */
+/** Child % of parent budget needed to reach a minimum USD amount. */
 export function minPercentageForBudgetEur(parentBudgetEur: number, minimumChildEur: number): number {
   if (!parentBudgetEur || parentBudgetEur <= 0 || minimumChildEur <= 0) return 0;
   return Math.min(100, (minimumChildEur / parentBudgetEur) * 100);
@@ -118,9 +128,20 @@ export function clampBudgetPercentage(value: number, minPct: number, maxPct = 10
   return Math.max(minPct, Math.min(maxPct, value));
 }
 
+export function sumBudgetPercentages(
+  items: ReadonlyArray<{ budgetPercentage?: number | null }>,
+): number {
+  return items.reduce((sum, item) => sum + (item.budgetPercentage ?? 0), 0);
+}
+
+/** Highest % one row can use without pushing combined sibling rows over 100%. */
+export function maxBudgetPercentageWithinTotal(othersTotal: number, minPct = 0): number {
+  return clampBudgetPercentage(100 - othersTotal, minPct, 100);
+}
+
 export const ACTIPLAN_BUDGET_SLIDER_STEP = 0.5;
 
-/** Round minimum % up to slider step so 0.5% steps cannot sit below the € floor. */
+/** Round minimum % up to slider step so 0.5% steps cannot sit below the $ floor. */
 export function ceilBudgetPercentageToSliderStep(percentage: number, step = ACTIPLAN_BUDGET_SLIDER_STEP): number {
   if (!Number.isFinite(percentage) || percentage <= 0) return 0;
   if (!step || step <= 0) return percentage;
@@ -143,7 +164,7 @@ export function clampPercentageToMinimumEur(
   return clampBudgetPercentage(percentage, minPct);
 }
 
-/** Apply €50 (× phases) floors to every allocated platform and market share. */
+/** Apply $50 (× phases) floors to every allocated platform and market share. */
 export function enforceActiPlanBudgetFloors(
   platforms: Array<{
     id?: string;
@@ -168,7 +189,7 @@ export function enforceActiPlanBudgetFloors(
       step,
     );
 
-    // Every selected platform must allocate at least the ActiPlan floor (€50 or phase-aware minimum).
+    // Every selected platform must allocate at least the ActiPlan floor ($50 or phase-aware minimum).
     const platformPct = clampBudgetPercentage(platform.budgetPercentage ?? 0, minPlatformPct);
 
     const markets = (platform.markets ?? []).map((market) => {
@@ -194,7 +215,7 @@ export function enforceActiPlanBudgetFloors(
   });
 }
 
-/** Lowest platform EUR so every market can fund its phases at €50 each. */
+/** Lowest platform USD so every market can fund its phases at $50 each. */
 export function minPlatformBudgetEurForPhases(platform: {
   markets: Array<{ budgetPercentage?: number; phases?: Phase[] }>;
 }): number {
@@ -432,26 +453,27 @@ export function validateActiPlanBudgets(input: ActiPlanBudgetValidationInput): B
 }
 
 export function formatBudgetViolation(violation: BudgetViolation): string {
-  const min = violation.minimumEur.toFixed(0);
-  const amt = violation.amountEur.toFixed(2);
+  const min = formatActiPlanMoney(violation.minimumEur, 0);
+  const amt = formatActiPlanMoney(violation.amountEur);
+  const perPhaseMin = formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0);
 
   switch (violation.level) {
     case "activation":
-      return `Total activation budget must be at least €${min} (currently €${amt}).`;
+      return `Total activation budget must be at least ${min} (currently ${amt}).`;
     case "platform":
-      return violation.minimumEur > ACTIPLAN_MIN_ENTITY_BUDGET_EUR
-        ? `${violation.platformName || "Platform"}: platform budget €${amt} is below the €${min} minimum required for your phase count (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase). Increase platform share or total budget.`
-        : `${violation.platformName || "Platform"}: platform budget €${amt} is below the €${min} minimum. Increase its share or total budget.`;
+      return violation.minimumEur > ACTIPLAN_MIN_ENTITY_BUDGET
+        ? `${violation.platformName || "Platform"}: platform budget ${amt} is below the ${min} minimum required for your phase count (${perPhaseMin} per phase). Increase platform share or total budget.`
+        : `${violation.platformName || "Platform"}: platform budget ${amt} is below the ${min} minimum. Increase its share or total budget.`;
     case "market":
-      return `${violation.platformName || "Platform"} · ${violation.marketName}: market budget €${amt} is below the €${min} minimum.`;
+      return `${violation.platformName || "Platform"} · ${violation.marketName}: market budget ${amt} is below the ${min} minimum.`;
     case "phase":
-      return `${violation.platformName || "Platform"} · ${violation.marketName} · ${violation.phaseName}: phase budget €${amt} is below the €${min} minimum.`;
+      return `${violation.platformName || "Platform"} · ${violation.marketName} · ${violation.phaseName}: phase budget ${amt} is below the ${min} minimum.`;
     case "campaign":
-      return `${violation.platformName || "Platform"} · ${violation.marketName} · ${violation.campaignUnitName}: campaign budget €${amt} is below the €${min} minimum.`;
+      return `${violation.platformName || "Platform"} · ${violation.marketName} · ${violation.campaignUnitName}: campaign budget ${amt} is below the ${min} minimum.`;
     case "adset":
-      return `${violation.platformName || "Platform"} · ${violation.marketName} · ${violation.adSetName || "Ad set"}${violation.campaignUnitName ? ` (${violation.campaignUnitName})` : ""}: ad set budget €${amt} is below the €${min} minimum.`;
+      return `${violation.platformName || "Platform"} · ${violation.marketName} · ${violation.adSetName || "Ad set"}${violation.campaignUnitName ? ` (${violation.campaignUnitName})` : ""}: ad set budget ${amt} is below the ${min} minimum.`;
     default:
-      return `Budget €${amt} is below the €${min} minimum.`;
+      return `Budget ${amt} is below the ${min} minimum.`;
   }
 }
 

@@ -763,7 +763,7 @@ export default function PerformanceReport() {
               title="Budget / Spend"
               planned={metrics.planned.budget}
               actual={metrics.actual.spend}
-              prefix="€"
+              prefix="$"
               invertVariance
               icon={<Wallet className="h-4 w-4" />}
               accentColor="green"
@@ -809,13 +809,13 @@ export default function PerformanceReport() {
             <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">CPM</p>
-                <p className="text-2xl font-bold text-emerald-500">€{metrics.actual.cpm.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-emerald-500">${metrics.actual.cpm.toFixed(2)}</p>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">
               <CardContent className="p-4 text-center">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">CPC</p>
-                <p className="text-2xl font-bold text-purple-500">€{metrics.actual.cpc.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-purple-500">${metrics.actual.cpc.toFixed(2)}</p>
               </CardContent>
             </Card>
             <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">

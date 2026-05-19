@@ -88,7 +88,9 @@ import {
   isBoNumberUniqueViolation,
 } from "@/utils/campaignBoNumber";
 import {
-  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  ACTIPLAN_MIN_ENTITY_BUDGET,
+  ACTIPLAN_CURRENCY_SYMBOL,
+  formatActiPlanMoney,
   formatBudgetViolationsSummary,
   getActiPlanBudgetValidationInputFromEditorState,
   validateActiPlanBudgets,
@@ -1516,7 +1518,7 @@ export function MediaPlanEditor() {
       );
       if (budgetViolations.length > 0) {
         if (!silent) {
-          toast.error("Budget below €50 minimum", {
+          toast.error(`Budget below ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} minimum`, {
             description: formatBudgetViolationsSummary(budgetViolations),
             duration: 10000,
           });
@@ -1632,7 +1634,7 @@ export function MediaPlanEditor() {
     [platformsWithMarkets],
   );
 
-  // Keep every selected platform at the €50 floor in editor state (not only on slider drag).
+  // Keep every selected platform at the $50 floor in editor state (not only on slider drag).
   useEffect(() => {
     const totalEur = parseFloat(totalBudget) || 0;
     if (!isHydrated || totalEur <= 0) return;
@@ -1724,7 +1726,7 @@ export function MediaPlanEditor() {
   const ensureBudgetMinimums = (options?: { onlyEnabledPlatforms?: boolean; skipEmptyPlatformIds?: boolean }) => {
     const violations = collectBudgetViolations(options);
     if (violations.length === 0) return true;
-    toast.error("Budget below €50 minimum", {
+    toast.error(`Budget below ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} minimum`, {
       description: formatBudgetViolationsSummary(violations),
       duration: 10000,
     });
@@ -1747,7 +1749,7 @@ export function MediaPlanEditor() {
     const allPlatformsSelected = platformsWithMarkets.every((p) => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every((p) => p.markets.length > 0);
     const total = parseFloat(totalBudget) || 0;
-    const activationBudgetOk = total >= ACTIPLAN_MIN_ENTITY_BUDGET_EUR;
+    const activationBudgetOk = total >= ACTIPLAN_MIN_ENTITY_BUDGET;
     const noBudgetViolations = step1BudgetViolations.length === 0;
     return !!(
       campaignName.trim() &&
@@ -2699,7 +2701,7 @@ export function MediaPlanEditor() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="budget">Total Activation Budget (€) *</Label>
+              <Label htmlFor="budget">Total Activation Budget ({ACTIPLAN_CURRENCY_SYMBOL}) *</Label>
               <Input
                 id="budget"
                 type="number"
@@ -2710,21 +2712,21 @@ export function MediaPlanEditor() {
                 }}
                 onBlur={() => {
                   const n = parseFloat(totalBudget) || 0;
-                  if (n > 0 && n < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
-                    setTotalBudget(String(ACTIPLAN_MIN_ENTITY_BUDGET_EUR));
+                  if (n > 0 && n < ACTIPLAN_MIN_ENTITY_BUDGET) {
+                    setTotalBudget(String(ACTIPLAN_MIN_ENTITY_BUDGET));
                     toast.info(
-                      `Total activation budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}.`,
+                      `Total activation budget must be at least ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)}.`,
                     );
                   }
                 }}
-                placeholder={`Minimum €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`}
-                min={ACTIPLAN_MIN_ENTITY_BUDGET_EUR}
+                placeholder={`Minimum ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)}`}
+                min={ACTIPLAN_MIN_ENTITY_BUDGET}
                 step="0.01"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} total. Each platform, market, phase, campaign, and ad set must
-                receive at least €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after splits (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} × number of phases per market).
+                Minimum {formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} total. Each platform, market, phase, campaign, and ad set must
+                receive at least {formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} after splits ({formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} × number of phases per market).
               </p>
               {step1BudgetViolations.length > 0 && (
                 <Alert variant="destructive">
@@ -2916,7 +2918,7 @@ export function MediaPlanEditor() {
               </div>
               <div className="flex justify-between">
                 <span>Budget:</span>
-                <span className="font-medium text-foreground">€{parseFloat(totalBudget).toLocaleString()}</span>
+                <span className="font-medium text-foreground">{formatActiPlanMoney(parseFloat(totalBudget) || 0, 0)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Duration:</span>
@@ -4146,7 +4148,7 @@ export function MediaPlanEditor() {
               }),
             );
             if (optimizeViolations.length > 0) {
-              toast.error("Budget below €50 minimum", {
+              toast.error(`Budget below ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} minimum`, {
                 description: formatBudgetViolationsSummary(optimizeViolations),
                 duration: 10000,
               });

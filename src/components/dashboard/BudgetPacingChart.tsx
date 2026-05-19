@@ -64,7 +64,7 @@ export default function BudgetPacingChart({ data, totalPlannedBudget }: BudgetPa
                 yAxisId="left"
                 className="text-xs"
                 tick={{ fontSize: 10 }}
-                tickFormatter={(v) => `€${v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}`}
+                tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}`}
               />
               <YAxis 
                 yAxisId="right"
@@ -83,7 +83,7 @@ export default function BudgetPacingChart({ data, totalPlannedBudget }: BudgetPa
                 }}
                 formatter={(value: number, name: string) => {
                   if (name.includes('%')) return [`${value.toFixed(1)}%`, name];
-                  return [`€${value.toLocaleString()}`, name];
+                  return [`${value.toLocaleString()}`, name];
                 }}
               />
               <Legend />

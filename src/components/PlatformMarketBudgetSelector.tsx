@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff, RefreshCw, Lock } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Pin, PinOff, RefreshCw, Lock } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -24,7 +24,9 @@ import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import { PlatformMarketNav } from "./PlatformMarketNav";
 import { extensionMarketLockKey } from "@/utils/campaignLaunchLocks";
 import {
-  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  ACTIPLAN_MIN_ENTITY_BUDGET,
+  ACTIPLAN_CURRENCY_SYMBOL,
+  formatActiPlanMoney,
   calculateMarketBudgetEur,
   calculatePlatformBudgetEur,
   ACTIPLAN_BUDGET_SLIDER_STEP,
@@ -37,6 +39,7 @@ import {
   minPlatformBudgetEurForPhases,
   minPlatformBudgetPercentage,
   minPlatformBudgetPercentageForPhases,
+  maxBudgetPercentageWithinTotal,
 } from "@/utils/actiplanBudgetMinimums";
 
 interface PlatformMarketBudgetSelectorProps {
@@ -51,7 +54,7 @@ interface PlatformMarketBudgetSelectorProps {
   setEndDate?: (date: string) => void;
   setTotalBudget?: (budget: string) => void;
   selectedClientId?: string;
-  /** Shown above platform rows when allocations violate €50 minimum rules. */
+  /** Shown above platform rows when allocations violate $50 minimum rules. */
   budgetViolationsSummary?: string;
   /** DSP-live platform — budget cannot change (partial push). */
   isPlatformBudgetLocked?: (platformId: string, markets: Market[]) => boolean;
@@ -141,10 +144,7 @@ export function PlatformMarketBudgetSelector({
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
   
-  // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
-  const [budgetLocked, setBudgetLocked] = useState(false);
-  
-  // Fixed budget state - items that are fixed don't change when others are adjusted
+  // User-pinned rows keep their %; unpinned rows share the remainder and rebalance among themselves.
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
 
@@ -204,18 +204,37 @@ export function PlatformMarketBudgetSelector({
     return "Budget locked";
   };
 
+  const platformUserPinned = (index: number) => Boolean(fixedPlatforms[index]);
+
   const platformIsFixed = (index: number) =>
-    Boolean(fixedPlatforms[index] || platformIsBudgetLocked(platforms[index]));
+    Boolean(platformUserPinned(index) || platformIsBudgetLocked(platforms[index]));
+
+  const marketUserPinned = (marketId: string) => Boolean(fixedMarkets[marketId]);
 
   const marketIsFixed = (platform: PlatformWithMarkets, market: Market) =>
-    Boolean(fixedMarkets[market.id] || marketIsBudgetLocked(platform, market));
+    Boolean(marketUserPinned(market.id) || marketIsBudgetLocked(platform, market));
+
+  const shouldRedistributePlatforms = () => {
+    const userPinnedCount = platforms.filter((_, i) => platformUserPinned(i)).length;
+    const unpinnedCount = platforms.filter((_, i) => !platformIsFixed(i)).length;
+    return platforms.length > 1 && userPinnedCount > 0 && unpinnedCount > 1;
+  };
+
+  const shouldRedistributeMarkets = (platform: PlatformWithMarkets) => {
+    const userPinnedCount = platform.markets.filter((m) => marketUserPinned(m.id)).length;
+    const unpinnedCount = platform.markets.filter((m) => !marketIsFixed(platform, m)).length;
+    return platform.markets.length > 1 && userPinnedCount > 0 && unpinnedCount > 1;
+  };
 
   const togglePlatformFixed = (index: number) => {
-    setFixedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
+    if (platformIsBudgetLocked(platforms[index])) return;
+    setFixedPlatforms((prev) => ({ ...prev, [index]: !prev[index] }));
   };
-  
-  const toggleMarketFixed = (marketId: string) => {
-    setFixedMarkets(prev => ({ ...prev, [marketId]: !prev[marketId] }));
+
+  const toggleMarketFixed = (platform: PlatformWithMarkets, marketId: string) => {
+    const market = platform.markets.find((m) => m.id === marketId);
+    if (!market || marketIsBudgetLocked(platform, market)) return;
+    setFixedMarkets((prev) => ({ ...prev, [marketId]: !prev[marketId] }));
   };
   
   
@@ -1245,7 +1264,7 @@ export function PlatformMarketBudgetSelector({
       if (!platform.id) continue;
       if (platformIsBudgetLocked(platform)) continue;
       if (platform.budgetPercentage <= 0) {
-        toast.error(`Each platform requires at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+        toast.error(`Each platform requires at least ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)}`, {
           description: `${platform.name}: assign a platform budget share above 0%.`,
         });
         return false;
@@ -1254,8 +1273,8 @@ export function PlatformMarketBudgetSelector({
       const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
       const minPlatformEur = minPlatformBudgetEurForPhases(platform);
       if (platformBudgetEur < minPlatformEur) {
-        toast.error(`Minimum platform budget is €${minPlatformEur.toFixed(0)}`, {
-          description: `${platform.name}: €${platformBudgetEur.toFixed(2)} at ${platform.budgetPercentage.toFixed(1)}% of total (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase across markets).`,
+        toast.error(`Minimum platform budget is ${formatActiPlanMoney(minPlatformEur, 0)}`, {
+          description: `${platform.name}: ${formatActiPlanMoney(platformBudgetEur)} at ${platform.budgetPercentage.toFixed(1)}% of total (${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} per phase across markets).`,
         });
         return false;
       }
@@ -1273,8 +1292,8 @@ export function PlatformMarketBudgetSelector({
 
         const minMarketEur = minMarketBudgetEurForPhases(market.phases);
         if (marketBudgetEur < minMarketEur) {
-          toast.error(`Minimum market budget is €${minMarketEur.toFixed(0)}`, {
-            description: `${platform.name} · ${market.name}: €${marketBudgetEur.toFixed(2)} (${market.phases?.length || 1} phase(s) × €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}).`,
+          toast.error(`Minimum market budget is ${formatActiPlanMoney(minMarketEur, 0)}`, {
+            description: `${platform.name} · ${market.name}: ${formatActiPlanMoney(marketBudgetEur)} (${market.phases?.length || 1} phase(s) × ${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)}).`,
           });
           return false;
         }
@@ -1293,71 +1312,6 @@ export function PlatformMarketBudgetSelector({
     return valid;
   };
 
-  const budgetLockNormalizeSkipRef = useRef<string | null>(null);
-
-  // When budget lock is enabled, normalize to 100% then re-apply €50 floors (cannot bypass validation).
-  useEffect(() => {
-    if (!budgetLocked) {
-      budgetLockNormalizeSkipRef.current = null;
-      return;
-    }
-
-    let next = platforms;
-    const totalPlatformBudget = next.reduce((sum, p) => sum + p.budgetPercentage, 0);
-
-    if (totalPlatformBudget > 100) {
-      next = next.map((p) => ({
-        ...p,
-        budgetPercentage:
-          totalPlatformBudget > 0
-            ? (p.budgetPercentage / totalPlatformBudget) * 100
-            : 100 / next.length,
-      }));
-    }
-
-    next = next.map((p) => {
-      const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-      if (totalMarketBudget <= 100) return p;
-      return {
-        ...p,
-        markets: p.markets.map((m) => ({
-          ...m,
-          budgetPercentage:
-            totalMarketBudget > 0
-              ? (m.budgetPercentage / totalMarketBudget) * 100
-              : 100 / p.markets.length,
-        })),
-      };
-    });
-
-    const unchanged =
-      next.length === platforms.length &&
-      next.every((p, i) => {
-        const prev = platforms[i];
-        if ((p.budgetPercentage ?? 0) !== (prev.budgetPercentage ?? 0)) return false;
-        return (p.markets ?? []).every(
-          (m, j) => (m.budgetPercentage ?? 0) === (prev.markets?.[j]?.budgetPercentage ?? 0),
-        );
-      });
-    if (!unchanged) {
-      const fingerprint = JSON.stringify(
-        next.map((p) => [
-          p.budgetPercentage,
-          ...(p.markets ?? []).map((m) => m.budgetPercentage),
-        ]),
-      );
-      if (budgetLockNormalizeSkipRef.current === fingerprint) {
-        return;
-      }
-      if (!commitPlatforms(next)) {
-        budgetLockNormalizeSkipRef.current = fingerprint;
-      } else {
-        budgetLockNormalizeSkipRef.current = null;
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgetLocked, platforms, totalBudget]);
-
   const minPlatformSliderPct = (platform: PlatformWithMarkets) => {
     if (!platform.id || totalBudget <= 0) return 0;
     return ceilBudgetPercentageToSliderStep(
@@ -1375,6 +1329,62 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
+  const maxPlatformSliderPct = (platformIndex: number) => {
+    const platform = platforms[platformIndex];
+    const min = minPlatformSliderPct(platform);
+    const othersTotal = platforms.reduce(
+      (sum, p, i) => (i === platformIndex ? sum : sum + (p.budgetPercentage ?? 0)),
+      0,
+    );
+    return maxBudgetPercentageWithinTotal(othersTotal, min);
+  };
+
+  const maxMarketSliderPct = (platform: PlatformWithMarkets, marketId: string) => {
+    const market = platform.markets.find((m) => m.id === marketId);
+    const min = market ? minMarketSliderPct(platform, market) : 0;
+    const othersTotal = platform.markets.reduce(
+      (sum, m) => (m.id === marketId ? sum : sum + (m.budgetPercentage ?? 0)),
+      0,
+    );
+    return maxBudgetPercentageWithinTotal(othersTotal, min);
+  };
+
+  const trimPlatformBudgetsTo100 = (
+    nextPlatforms: PlatformWithMarkets[],
+    adjustIndex: number,
+    minPct: number,
+  ): PlatformWithMarkets[] => {
+    const total = nextPlatforms.reduce((sum, p) => sum + (p.budgetPercentage ?? 0), 0);
+    if (total <= 100) return nextPlatforms;
+    const overflow = total - 100;
+    return nextPlatforms.map((p, i) =>
+      i === adjustIndex
+        ? {
+            ...p,
+            budgetPercentage: Math.max(minPct, (p.budgetPercentage ?? 0) - overflow),
+          }
+        : p,
+    );
+  };
+
+  const trimMarketBudgetsTo100 = (
+    nextMarkets: Market[],
+    marketId: string,
+    minPct: number,
+  ): Market[] => {
+    const total = nextMarkets.reduce((sum, m) => sum + (m.budgetPercentage ?? 0), 0);
+    if (total <= 100) return nextMarkets;
+    const overflow = total - 100;
+    return nextMarkets.map((m) =>
+      m.id === marketId
+        ? {
+            ...m,
+            budgetPercentage: Math.max(minPct, (m.budgetPercentage ?? 0) - overflow),
+          }
+        : m,
+    );
+  };
+
   const updatePlatformBudget = (index: number, percentage: number) => {
     const currentPlatform = platforms[index];
     if (platformIsBudgetLocked(currentPlatform)) {
@@ -1382,14 +1392,30 @@ export function PlatformMarketBudgetSelector({
       return;
     }
     const minPlatformEur = currentPlatform.id ? minPlatformBudgetEurForPhases(currentPlatform) : 0;
+    const minPlatformPct =
+      currentPlatform.id && totalBudget > 0
+        ? ceilBudgetPercentageToSliderStep(
+            minPlatformBudgetPercentage(totalBudget, minPlatformEur),
+            ACTIPLAN_BUDGET_SLIDER_STEP,
+          )
+        : 0;
     let newPercentage =
       currentPlatform.id && totalBudget > 0
         ? clampPercentageToMinimumEur(percentage, totalBudget, minPlatformEur, ACTIPLAN_BUDGET_SLIDER_STEP)
         : clampBudgetPercentage(percentage, 0, 100);
+    const othersPlatformTotal = platforms.reduce(
+      (sum, p, i) => (i === index ? sum : sum + (p.budgetPercentage ?? 0)),
+      0,
+    );
+    newPercentage = clampBudgetPercentage(
+      newPercentage,
+      minPlatformPct,
+      maxBudgetPercentageWithinTotal(othersPlatformTotal, minPlatformPct),
+    );
 
     let nextPlatforms: PlatformWithMarkets[];
 
-    if (budgetLocked && platforms.length > 1) {
+    if (shouldRedistributePlatforms() && !platformIsFixed(index)) {
       const diff = newPercentage - currentPlatform.budgetPercentage;
       const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !platformIsFixed(i));
       const otherNonFixedTotalBudget = otherNonFixedPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
@@ -1424,6 +1450,7 @@ export function PlatformMarketBudgetSelector({
       );
     }
 
+    nextPlatforms = trimPlatformBudgetsTo100(nextPlatforms, index, minPlatformPct);
     commitPlatforms(nextPlatforms);
   };
 
@@ -1550,14 +1577,30 @@ export function PlatformMarketBudgetSelector({
     }
     const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform?.budgetPercentage ?? 0);
     const minMarketEur = currentMarket ? minMarketBudgetEurForPhases(currentMarket.phases) : 0;
+    const minMarketPct =
+      platform?.id && currentMarket && platformBudgetEur > 0
+        ? ceilBudgetPercentageToSliderStep(
+            minPercentageForBudgetEur(platformBudgetEur, minMarketEur),
+            ACTIPLAN_BUDGET_SLIDER_STEP,
+          )
+        : 0;
     let newPercentage =
       platform?.id && currentMarket && platformBudgetEur > 0 && percentage > 0
         ? clampPercentageToMinimumEur(percentage, platformBudgetEur, minMarketEur, ACTIPLAN_BUDGET_SLIDER_STEP)
         : clampBudgetPercentage(percentage, 0, 100);
+    const othersMarketTotal = (platform?.markets ?? []).reduce(
+      (sum, m) => (m.id === marketId ? sum : sum + (m.budgetPercentage ?? 0)),
+      0,
+    );
+    newPercentage = clampBudgetPercentage(
+      newPercentage,
+      minMarketPct,
+      maxBudgetPercentageWithinTotal(othersMarketTotal, minMarketPct),
+    );
 
     let nextPlatforms: PlatformWithMarkets[];
 
-    if (budgetLocked && platform.markets.length > 1) {
+    if (shouldRedistributeMarkets(platform) && !marketIsFixed(platform, currentMarket!)) {
       const diff = newPercentage - (currentMarket?.budgetPercentage ?? 0);
       const otherNonFixedMarkets = platform.markets.filter((m) => m.id !== marketId && !marketIsFixed(platform, m));
       const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
@@ -1566,31 +1609,35 @@ export function PlatformMarketBudgetSelector({
         if (i !== platformIndex) return p;
         return {
           ...p,
-          markets: p.markets.map((m) => {
-            if (m.id === marketId) {
-              return { ...m, budgetPercentage: newPercentage };
-            }
-            if (marketIsFixed(platform, m)) {
+          markets: trimMarketBudgetsTo100(
+            p.markets.map((m) => {
+              if (m.id === marketId) {
+                return { ...m, budgetPercentage: newPercentage };
+              }
+              if (marketIsFixed(platform, m)) {
+                return m;
+              }
+              const floorPct =
+                platformBudgetEur > 0
+                  ? ceilBudgetPercentageToSliderStep(
+                      minPercentageForBudgetEur(platformBudgetEur, minMarketBudgetEurForPhases(m.phases)),
+                      ACTIPLAN_BUDGET_SLIDER_STEP,
+                    )
+                  : 0;
+              if (otherNonFixedTotalBudget > 0) {
+                const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
+                const adjustment = diff * proportion;
+                return { ...m, budgetPercentage: Math.max(floorPct, m.budgetPercentage - adjustment) };
+              }
+              if (otherNonFixedMarkets.length > 0) {
+                const equalShare = diff / otherNonFixedMarkets.length;
+                return { ...m, budgetPercentage: Math.max(floorPct, m.budgetPercentage - equalShare) };
+              }
               return m;
-            }
-            const floorPct =
-              platformBudgetEur > 0
-                ? ceilBudgetPercentageToSliderStep(
-                    minPercentageForBudgetEur(platformBudgetEur, minMarketBudgetEurForPhases(m.phases)),
-                    ACTIPLAN_BUDGET_SLIDER_STEP,
-                  )
-                : 0;
-            if (otherNonFixedTotalBudget > 0) {
-              const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
-              const adjustment = diff * proportion;
-              return { ...m, budgetPercentage: Math.max(floorPct, m.budgetPercentage - adjustment) };
-            }
-            if (otherNonFixedMarkets.length > 0) {
-              const equalShare = diff / otherNonFixedMarkets.length;
-              return { ...m, budgetPercentage: Math.max(floorPct, m.budgetPercentage - equalShare) };
-            }
-            return m;
-          }),
+            }),
+            marketId,
+            minMarketPct,
+          ),
         };
       });
     } else {
@@ -1598,8 +1645,12 @@ export function PlatformMarketBudgetSelector({
         i === platformIndex
           ? {
               ...p,
-              markets: p.markets.map((m) =>
-                m.id === marketId ? { ...m, budgetPercentage: newPercentage } : m,
+              markets: trimMarketBudgetsTo100(
+                p.markets.map((m) =>
+                  m.id === marketId ? { ...m, budgetPercentage: newPercentage } : m,
+                ),
+                marketId,
+                minMarketPct,
               ),
             }
           : p,
@@ -1684,21 +1735,6 @@ export function PlatformMarketBudgetSelector({
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              variant={budgetLocked ? "default" : "outline"}
-              size="sm"
-              onClick={() => setBudgetLocked(!budgetLocked)}
-              className="gap-1"
-              title={budgetLocked ? "Budget lock enabled - budgets redistribute to stay at 100%" : "Enable budget lock to auto-redistribute budgets"}
-            >
-              {budgetLocked ? (
-                <Link2 className="h-3 w-3" />
-              ) : (
-                <Link2Off className="h-3 w-3" />
-              )}
-              {budgetLocked ? "Linked" : "Link Budgets"}
-            </Button>
-            <Button
-              type="button"
               variant="outline"
               size="sm"
               onClick={toggleAllPlatforms}
@@ -1723,7 +1759,7 @@ export function PlatformMarketBudgetSelector({
         </div>
         <Alert className="border-muted-foreground/25 bg-muted/30">
             <AlertDescription className="text-xs leading-relaxed">
-              Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per platform, market, and phase after splits. Amounts below that
+              Minimum {formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} per platform, market, and phase after splits. Amounts below that
               show a red warning and block Next.
             </AlertDescription>
           </Alert>
@@ -1822,14 +1858,14 @@ export function PlatformMarketBudgetSelector({
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-16 text-xs text-center"
                               min={minPlatformSliderPct(platform)}
-                              max="100"
+                              max={maxPlatformSliderPct(platformIndex).toFixed(1)}
                               step="0.1"
                               disabled={platformLaunchLocked}
                             />
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">€</span>
+                            <span className="text-xs text-muted-foreground">{ACTIPLAN_CURRENCY_SYMBOL}</span>
                             <Input
                               type="number"
                               value={Math.round(
@@ -1866,7 +1902,7 @@ export function PlatformMarketBudgetSelector({
                                 updatePlatformBudget(platformIndex, Math.max(value, minPct));
                               }}
                               min={minPlatformSliderPct(platform)}
-                              max={100}
+                              max={maxPlatformSliderPct(platformIndex)}
                               step={ACTIPLAN_BUDGET_SLIDER_STEP}
                               className="w-full"
                               disabled={platformLaunchLocked}
@@ -1889,7 +1925,7 @@ export function PlatformMarketBudgetSelector({
                               togglePlatformFixed(platformIndex);
                             }}
                             className="h-7 w-7 p-0"
-                            title={fixedPlatforms[platformIndex] ? "Budget is fixed (won't change when others adjust)" : "Fix budget (prevent changes when others adjust)"}
+                            title={fixedPlatforms[platformIndex] ? "Pinned — budget stays fixed; other platforms share the remainder" : "Pin budget — lock this platform's share while you adjust others"}
                           >
                             {fixedPlatforms[platformIndex] ? (
                               <Pin className="h-3 w-3" />
@@ -1940,7 +1976,7 @@ export function PlatformMarketBudgetSelector({
                         if (currentPlatformEur >= minPlatformEur) return null;
                         return (
                           <p className="text-xs text-amber-700 dark:text-amber-400">
-                            This platform needs at least €{minPlatformEur.toFixed(0)} (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase). Increase platform or total budget.
+                            This platform needs at least {formatActiPlanMoney(minPlatformEur, 0)} ({formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} per phase). Increase platform or total budget.
                           </p>
                         );
                       })()}
@@ -2031,14 +2067,14 @@ export function PlatformMarketBudgetSelector({
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-14 text-xs text-center"
                                         min={marketMinPct}
-                                        max="100"
+                                        max={maxMarketSliderPct(platform, market.id).toFixed(1)}
                                         step="0.1"
                                         disabled={marketLaunchLocked}
                                       />
                                       <span className="text-xs text-muted-foreground">%</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">€</span>
+                                      <span className="text-xs text-muted-foreground">{ACTIPLAN_CURRENCY_SYMBOL}</span>
                                       <Input
                                         type="number"
                                         value={Math.round(marketBudget)}
@@ -2068,7 +2104,7 @@ export function PlatformMarketBudgetSelector({
                                         onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                         onValueCommit={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                         min={marketMinPct}
-                                        max={100}
+                                        max={maxMarketSliderPct(platform, market.id)}
                                         step={ACTIPLAN_BUDGET_SLIDER_STEP}
                                         className="w-full"
                                         disabled={marketLaunchLocked}
@@ -2092,10 +2128,10 @@ export function PlatformMarketBudgetSelector({
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        toggleMarketFixed(market.id);
+                                        toggleMarketFixed(platform, market.id);
                                       }}
                                       className="h-6 w-6 p-0"
-                                      title={fixedMarkets[market.id] ? "Budget is fixed (won't change when others adjust)" : "Fix budget (prevent changes when others adjust)"}
+                                      title={fixedMarkets[market.id] ? "Pinned — budget stays fixed; other markets share the remainder" : "Pin budget — lock this market's share while you adjust others"}
                                     >
                                       {fixedMarkets[market.id] ? (
                                         <Pin className="h-3 w-3" />
@@ -2619,7 +2655,7 @@ export function PlatformMarketBudgetSelector({
 
                                 {(market.metaBidStrategy === "LOWEST_COST_WITH_BID_CAP" || market.metaBidStrategy === "COST_CAP") && (
                                   <div className="space-y-1">
-                                    <Label className="text-xs">Bid Amount (€)</Label>
+                                    <Label className="text-xs">Bid Amount ({ACTIPLAN_CURRENCY_SYMBOL})</Label>
                                     <Input
                                       className="h-7 text-xs"
                                       type="number"
@@ -3118,7 +3154,7 @@ export function PlatformMarketBudgetSelector({
                               {/* TikTok Bid Amount - Only show when Cost Cap is selected */}
                               {platform.name.toLowerCase().includes('tiktok') && market.tiktokBidStrategy === "COST_CAP" && (
                                 <div className="space-y-1">
-                                  <Label className="text-xs">Bid Amount (€) *</Label>
+                                  <Label className="text-xs">Bid Amount ({ACTIPLAN_CURRENCY_SYMBOL}) *</Label>
                                   <Input
                                     type="number"
                                     step="0.01"

@@ -167,7 +167,7 @@ export default function PlatformComparisonSection({ data }: PlatformComparisonSe
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => `€${value.toLocaleString()}`}
+                    formatter={(value: number) => `${value.toLocaleString()}`}
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--popover))', 
                       border: '1px solid hsl(var(--border))',
@@ -208,12 +208,12 @@ export default function PlatformComparisonSection({ data }: PlatformComparisonSe
                     axisLine={{ stroke: 'hsl(var(--border))' }}
                   />
                   <YAxis 
-                    tickFormatter={(v) => `€${v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}`} 
+                    tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}`} 
                     tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={{ stroke: 'hsl(var(--border))' }}
                   />
                   <Tooltip 
-                    formatter={(value: number) => `€${value.toLocaleString()}`}
+                    formatter={(value: number) => `${value.toLocaleString()}`}
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--popover))', 
                       border: '1px solid hsl(var(--border))',
@@ -309,8 +309,8 @@ export default function PlatformComparisonSection({ data }: PlatformComparisonSe
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end">
-                        <span className="font-semibold">€{formatNumber(row.actualSpend)}</span>
-                        <span className="text-xs text-muted-foreground">€{formatNumber(row.plannedBudget)} planned</span>
+                        <span className="font-semibold">${formatNumber(row.actualSpend)}</span>
+                        <span className="text-xs text-muted-foreground">${formatNumber(row.plannedBudget)} planned</span>
                         {getVarianceIndicator(getVariance(row.plannedBudget, row.actualSpend), true)}
                       </div>
                     </TableCell>
@@ -339,10 +339,10 @@ export default function PlatformComparisonSection({ data }: PlatformComparisonSe
                       <span className="font-semibold text-blue-600 dark:text-blue-400">{row.ctr.toFixed(2)}%</span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">€{row.cpm.toFixed(2)}</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">${row.cpm.toFixed(2)}</span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="font-semibold text-purple-600 dark:text-purple-400">€{row.cpc.toFixed(2)}</span>
+                      <span className="font-semibold text-purple-600 dark:text-purple-400">${row.cpc.toFixed(2)}</span>
                     </TableCell>
                   </TableRow>
                 ))}

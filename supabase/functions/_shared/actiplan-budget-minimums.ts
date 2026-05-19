@@ -1,4 +1,4 @@
-/** Shared minimum budget rules for launch validation and DSP push (EUR). */
+/** Shared minimum budget rules for launch validation and DSP push (USD). */
 
 import {
   buildSearchStrategyCampaigns,
@@ -43,7 +43,7 @@ export function formatMinimumBudgetMessage(
   amountEur: number,
   minimumEur = ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
 ): string {
-  return `${entityLabel} budget is €${amountEur.toFixed(2)}. Minimum allocated budget is €${minimumEur.toFixed(0)}. Increase total budget or allocation percentages.`;
+  return `${entityLabel} budget is $${amountEur.toFixed(2)}. Minimum allocated budget is $${minimumEur.toFixed(0)}. Increase total budget or allocation percentages.`;
 }
 
 function pushActiPlanError(

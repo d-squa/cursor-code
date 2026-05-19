@@ -15,13 +15,15 @@ import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
 import {
   ACTIPLAN_BUDGET_SLIDER_STEP,
-  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  ACTIPLAN_MIN_ENTITY_BUDGET,
+  formatActiPlanMoney,
   calculateAdSetBudgetEur,
   calculatePhaseBudgetEur,
   ceilBudgetPercentageToSliderStep,
   clampBudgetPercentage,
   clampPercentageToMinimumEur,
   getEffectivePhaseCount,
+  maxBudgetPercentageWithinTotal,
   minBudgetEurForPhaseCount,
   minMarketBudgetEurForPhases,
   minPhaseBudgetPercentage,
@@ -1354,7 +1356,7 @@ export function PhaseScheduler({
     const requiredMarket = minBudgetEurForPhaseCount(nextPhases.length);
     if (marketBudget && marketBudget > 0 && marketBudget < requiredMarket) {
       toast.error(`Market budget too low for ${nextPhases.length} phases`, {
-        description: `Allocate at least €${requiredMarket} to this market (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase).`,
+        description: `Allocate at least ${formatActiPlanMoney(requiredMarket, 0)} to this market (${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} per phase).`,
       });
     }
   };
@@ -1383,17 +1385,26 @@ export function PhaseScheduler({
     setEditingName(null);
   };
 
+  const maxPhaseBudgetPct = (phaseId: string) => {
+    const othersTotal = phases.reduce(
+      (sum, p) => (p.id === phaseId ? sum : sum + (p.budgetPercentage ?? 0)),
+      0,
+    );
+    return maxBudgetPercentageWithinTotal(othersTotal, minPhasePct);
+  };
+
   const updatePhaseBudget = (phaseId: string, budget: number) => {
     if (!assertPhaseEditable(phaseId)) return;
-    const clampedBudget =
+    let clampedBudget =
       marketBudget && marketBudget > 0 && budget > 0
         ? clampPercentageToMinimumEur(
             budget,
             marketBudget,
-            ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+            ACTIPLAN_MIN_ENTITY_BUDGET,
             ACTIPLAN_BUDGET_SLIDER_STEP,
           )
         : clampBudgetPercentage(budget, 0);
+    clampedBudget = clampBudgetPercentage(clampedBudget, minPhasePct, maxPhaseBudgetPct(phaseId));
     onPhasesChange(phases.map((p) => (p.id === phaseId ? { ...p, budgetPercentage: clampedBudget } : p)));
   };
 
@@ -1424,7 +1435,8 @@ export function PhaseScheduler({
   const updateBudgetValue = (phaseId: string, value: string) => {
     const numValue = parseFloat(value);
     const minPct = minPhasePct;
-    if (!isNaN(numValue) && numValue >= minPct && numValue <= 100) {
+    const maxPct = maxPhaseBudgetPct(phaseId);
+    if (!isNaN(numValue) && numValue >= minPct && numValue <= maxPct) {
       updatePhaseBudget(phaseId, numValue);
     } else if (!isNaN(numValue) && numValue < minPct) {
       updatePhaseBudget(phaseId, minPct);
@@ -1568,8 +1580,8 @@ export function PhaseScheduler({
         {marketBudgetBelowPhaseFloor && !marketConfigLocked && (
           <Alert className="mt-2 py-2">
             <AlertDescription className="text-xs">
-              {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least €{minMarketBudgetEur.toFixed(0)} on this market
-              (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} each). Current market budget: €{marketBudget?.toFixed(0)}. Increase market or platform budget in step 1.
+              {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least {formatActiPlanMoney(minMarketBudgetEur, 0)} on this market
+              ({formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} each). Current market budget: {formatActiPlanMoney(marketBudget ?? 0, 0)}. Increase market or platform budget in step 1.
             </AlertDescription>
           </Alert>
         )}
@@ -1692,7 +1704,7 @@ export function PhaseScheduler({
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-6 w-16 text-xs px-1 py-0"
                           min={minPhasePct}
-                          max="100"
+                          max={maxPhaseBudgetPct(phase.id)}
                           autoFocus
                         />
                         <span className="text-[10px]">%</span>
@@ -1882,7 +1894,7 @@ export function PhaseScheduler({
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-5 w-16 text-xs px-1 py-0"
                           min={minPhasePct}
-                          max="100"
+                          max={maxPhaseBudgetPct(phase.id)}
                           autoFocus
                         />
                         <span className="text-[10px]">%</span>
