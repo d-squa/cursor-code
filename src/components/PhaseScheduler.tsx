@@ -1704,7 +1704,7 @@ export function PhaseScheduler({
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-6 w-16 text-xs px-1 py-0"
                           min={minPhasePct}
-                          max={maxPhaseBudgetPct(phase.id)}
+                          max={100}
                           autoFocus
                         />
                         <span className="text-[10px]">%</span>
@@ -1894,7 +1894,7 @@ export function PhaseScheduler({
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-5 w-16 text-xs px-1 py-0"
                           min={minPhasePct}
-                          max={maxPhaseBudgetPct(phase.id)}
+                          max={100}
                           autoFocus
                         />
                         <span className="text-[10px]">%</span>
