@@ -1334,24 +1334,22 @@ export function MediaPlanEditor() {
     });
   }, [extensionModeActive, platformsWithMarkets, urlCampaignIdForExtension, savedCampaignId]);
 
-  // Capture extension mode snapshot once campaign is hydrated
-  useEffect(() => {
-    console.log("🔒 Extension mode check:", {
-      isExtensionMode: extensionMode.isExtensionMode,
-      isHydrated,
-      platformCount: platformsWithMarkets.length,
-      hasSnapshot: !!extensionMode.originalSnapshot,
-      urlSearch: location.search,
-    });
+  // Capture extension snapshot once when extending (not on every platform edit).
+  const platformsForExtensionSnapshotRef = useRef(platformsWithMarkets);
+  platformsForExtensionSnapshotRef.current = platformsWithMarkets;
 
-    if (extensionMode.isExtensionMode && isHydrated && platformsWithMarkets.length > 0 && savedCampaignId) {
-      extensionMode.captureSnapshot(platformsWithMarkets, savedCampaignId);
-    }
+  useEffect(() => {
+    if (!extensionMode.isExtensionMode) return;
+    if (!isHydrated || !savedCampaignId) return;
+    if (platformsForExtensionSnapshotRef.current.length === 0) return;
+    if (extensionMode.originalSnapshot) return;
+
+    extensionMode.captureSnapshot(platformsForExtensionSnapshotRef.current, savedCampaignId);
   }, [
     extensionMode.isExtensionMode,
     isHydrated,
-    platformsWithMarkets,
     savedCampaignId,
+    extensionMode.originalSnapshot,
     extensionMode.captureSnapshot,
   ]);
 
