@@ -126,6 +126,9 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
     }
   }, [isExtensionMode, urlCampaignId]);
 
+  const originalSnapshotRef = useRef(originalSnapshot);
+  originalSnapshotRef.current = originalSnapshot;
+
   const captureSnapshot = useCallback(
     (platforms: PlatformWithMarkets[], campaignId?: string | null) => {
       if (!isExtensionMode || platforms.length === 0) return;
@@ -133,9 +136,9 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
       const cid = campaignId ?? urlCampaignId;
       if (!cid) return;
 
-      if (originalSnapshot && snapshotCampaignIdRef.current === cid) {
-        const hasEntities =
-          originalSnapshot.platformIds.size > 0 || originalSnapshot.marketIds.size > 0;
+      const existing = originalSnapshotRef.current;
+      if (existing && snapshotCampaignIdRef.current === cid) {
+        const hasEntities = existing.platformIds.size > 0 || existing.marketIds.size > 0;
         const next = buildSnapshotFromPlatforms(platforms);
         const nextHasEntities = next.platformIds.size > 0 || next.marketIds.size > 0;
         if (hasEntities || !nextHasEntities) return;
@@ -149,14 +152,8 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
       snapshotCampaignIdRef.current = cid;
       setOriginalSnapshot(snapshot);
       persistSnapshot(cid, snapshot);
-
-      console.log('📸 Extension mode: captured snapshot', {
-        campaignId: cid,
-        platforms: [...snapshot.platformIds],
-        markets: snapshot.marketIds.size,
-      });
     },
-    [isExtensionMode, urlCampaignId, originalSnapshot],
+    [isExtensionMode, urlCampaignId],
   );
 
   const isOriginalPlatform = useCallback(
