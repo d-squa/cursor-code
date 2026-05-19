@@ -1367,13 +1367,13 @@ export function PlatformMarketBudgetSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetLocked, platforms, totalBudget]);
 
-  const minPlatformSliderPct = (platform: PlatformWithMarkets) =>
-    platform.id && totalBudget > 0
-      ? ceilBudgetPercentageToSliderStep(
-          minPlatformBudgetPercentageForPhases(totalBudget, platform),
-          ACTIPLAN_BUDGET_SLIDER_STEP,
-        )
-      : 0;
+  const minPlatformSliderPct = (platform: PlatformWithMarkets) => {
+    if (!platform.id || totalBudget <= 0 || (platform.budgetPercentage ?? 0) <= 0) return 0;
+    return ceilBudgetPercentageToSliderStep(
+      minPlatformBudgetPercentageForPhases(totalBudget, platform),
+      ACTIPLAN_BUDGET_SLIDER_STEP,
+    );
+  };
 
   const minMarketSliderPct = (platform: PlatformWithMarkets, market: Market) => {
     if (!platform.id || totalBudget <= 0) return 0;
@@ -1391,8 +1391,9 @@ export function PlatformMarketBudgetSelector({
       return;
     }
     const minPlatformEur = currentPlatform.id ? minPlatformBudgetEurForPhases(currentPlatform) : 0;
+    const hadPlatformAllocation = (currentPlatform.budgetPercentage ?? 0) > 0;
     let newPercentage =
-      currentPlatform.id && totalBudget > 0 && percentage > 0
+      currentPlatform.id && totalBudget > 0 && (percentage > 0 || hadPlatformAllocation)
         ? clampPercentageToMinimumEur(percentage, totalBudget, minPlatformEur, ACTIPLAN_BUDGET_SLIDER_STEP)
         : clampBudgetPercentage(percentage, 0, 100);
 

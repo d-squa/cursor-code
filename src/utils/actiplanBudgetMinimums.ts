@@ -133,11 +133,13 @@ export function clampPercentageToMinimumEur(
   minimumEur: number,
   step = ACTIPLAN_BUDGET_SLIDER_STEP,
 ): number {
-  if (!parentBudgetEur || parentBudgetEur <= 0 || percentage <= 0) return percentage;
+  if (!parentBudgetEur || parentBudgetEur <= 0) return percentage;
   const minPct = ceilBudgetPercentageToSliderStep(
     minPercentageForBudgetEur(parentBudgetEur, minimumEur),
     step,
   );
+  if (minPct <= 0) return percentage;
+  if (percentage <= 0) return minPct;
   return clampBudgetPercentage(percentage, minPct);
 }
 
