@@ -118,6 +118,17 @@ export function clampBudgetPercentage(value: number, minPct: number, maxPct = 10
   return Math.max(minPct, Math.min(maxPct, value));
 }
 
+export function sumBudgetPercentages(
+  items: ReadonlyArray<{ budgetPercentage?: number | null }>,
+): number {
+  return items.reduce((sum, item) => sum + (item.budgetPercentage ?? 0), 0);
+}
+
+/** Highest % one row can use without pushing combined sibling rows over 100%. */
+export function maxBudgetPercentageWithinTotal(othersTotal: number, minPct = 0): number {
+  return clampBudgetPercentage(100 - othersTotal, minPct, 100);
+}
+
 export const ACTIPLAN_BUDGET_SLIDER_STEP = 0.5;
 
 /** Round minimum % up to slider step so 0.5% steps cannot sit below the € floor. */
