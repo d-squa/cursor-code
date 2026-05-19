@@ -144,28 +144,6 @@ export function PlatformMarketBudgetSelector({
   // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
   const [budgetLocked, setBudgetLocked] = useState(false);
   
-  const platformBudgetFloorFingerprint = platforms
-    .map((p) => `${p.id ?? ""}:${p.budgetPercentage ?? 0}`)
-    .join("|");
-
-  // Re-apply €50 (× phase count) floors when total budget or platform rows change.
-  useEffect(() => {
-    if (totalBudget <= 0) return;
-    setPlatforms((prev) => {
-      const next = enforceActiPlanBudgetFloors(prev, totalBudget) as PlatformWithMarkets[];
-      const unchanged =
-        prev.length === next.length &&
-        prev.every((p, i) => {
-          const n = next[i];
-          if ((p.budgetPercentage ?? 0) !== (n.budgetPercentage ?? 0)) return false;
-          return (p.markets ?? []).every(
-            (m, j) => (m.budgetPercentage ?? 0) === (n.markets?.[j]?.budgetPercentage ?? 0),
-          );
-        });
-      return unchanged ? prev : next;
-    });
-  }, [totalBudget, platformBudgetFloorFingerprint, setPlatforms]);
-  
   // Fixed budget state - items that are fixed don't change when others are adjusted
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
@@ -1388,12 +1366,6 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
-  const effectivePlatformBudgetPct = (platform: PlatformWithMarkets) => {
-    const pct = platform.budgetPercentage ?? 0;
-    if (!platform.id || totalBudget <= 0) return pct;
-    return Math.max(pct, minPlatformSliderPct(platform));
-  };
-
   const minMarketSliderPct = (platform: PlatformWithMarkets, market: Market) => {
     if (!platform.id || totalBudget <= 0) return 0;
     const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
@@ -1842,7 +1814,7 @@ export function PlatformMarketBudgetSelector({
                           <div className="flex items-center gap-1">
                             <Input
                               type="number"
-                              value={effectivePlatformBudgetPct(platform).toFixed(1)}
+                              value={(platform.budgetPercentage ?? 0).toFixed(1)}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0);
@@ -1863,7 +1835,7 @@ export function PlatformMarketBudgetSelector({
                               value={Math.round(
                                 calculatePlatformBudgetEur(
                                   totalBudget,
-                                  effectivePlatformBudgetPct(platform),
+                                  platform.budgetPercentage ?? 0,
                                 ),
                               )}
                               onChange={(e) => {
@@ -1884,9 +1856,15 @@ export function PlatformMarketBudgetSelector({
                           {/* Always visible slider */}
                           <div className="w-48" onClick={(e) => e.stopPropagation()}>
                             <Slider
-                              value={[effectivePlatformBudgetPct(platform)]}
-                              onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
-                              onValueCommit={([value]) => updatePlatformBudget(platformIndex, value)}
+                              value={[Math.max(platform.budgetPercentage ?? 0, minPlatformSliderPct(platform))]}
+                              onValueChange={([value]) => {
+                                const minPct = minPlatformSliderPct(platform);
+                                updatePlatformBudget(platformIndex, Math.max(value, minPct));
+                              }}
+                              onValueCommit={([value]) => {
+                                const minPct = minPlatformSliderPct(platform);
+                                updatePlatformBudget(platformIndex, Math.max(value, minPct));
+                              }}
                               min={minPlatformSliderPct(platform)}
                               max={100}
                               step={ACTIPLAN_BUDGET_SLIDER_STEP}

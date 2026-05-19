@@ -1483,7 +1483,24 @@ export function MediaPlanEditor() {
       if (!isHydrated) return false;
       if (!canEditInEditor || editPermLoading) return false;
 
-      const platformsToPersist = launchLocks.applyFrozenBudgets(platformsWithMarkets);
+      const totalEur = parseFloat(totalBudget) || 0;
+      let platformsToPersist = launchLocks.applyFrozenBudgets(platformsWithMarkets);
+      if (totalEur > 0) {
+        platformsToPersist = enforceActiPlanBudgetFloors(
+          platformsToPersist,
+          totalEur,
+        ) as PlatformWithMarkets[];
+      }
+
+      const budgetDrifted = platformsToPersist.some((p, i) => {
+        const prev = platformsWithMarkets[i];
+        if (!prev || p.id !== prev.id) return false;
+        return (p.budgetPercentage ?? 0) !== (prev.budgetPercentage ?? 0);
+      });
+      if (budgetDrifted) {
+        setPlatformsWithLaunchGuards(platformsToPersist);
+      }
+
       const budgetViolations = validateActiPlanBudgets(
         getActiPlanBudgetValidationInputFromEditorState({
           totalBudget,
@@ -1574,7 +1591,7 @@ export function MediaPlanEditor() {
         console.log("💾 Campaign persisted", { budget_allocation: budgetAllocation });
         return true;
       } catch (error) {
-        console.error("Error persisting campaign:", error);
+        console.error("Error auto-saving ActiPlan:", error);
         if (!silent) {
           toast.error("Failed to save ActiPlan changes");
         }
@@ -1603,8 +1620,31 @@ export function MediaPlanEditor() {
       activeWorkspaceId,
       launchLocks.applyFrozenBudgets,
       launchLocks.scope,
+      setPlatformsWithLaunchGuards,
     ],
   );
+
+  const platformBudgetEnforceFingerprint = useMemo(
+    () =>
+      platformsWithMarkets
+        .map((p) => `${p.id ?? ""}:${p.budgetPercentage ?? 0}`)
+        .join("|"),
+    [platformsWithMarkets],
+  );
+
+  // Keep every selected platform at the €50 floor in editor state (not only on slider drag).
+  useEffect(() => {
+    const totalEur = parseFloat(totalBudget) || 0;
+    if (!isHydrated || totalEur <= 0) return;
+
+    setPlatformsWithLaunchGuards((prev) => {
+      const floored = enforceActiPlanBudgetFloors(prev, totalEur) as PlatformWithMarkets[];
+      const unchanged = prev.every(
+        (p, i) => (p.budgetPercentage ?? 0) === (floored[i]?.budgetPercentage ?? 0),
+      );
+      return unchanged ? prev : floored;
+    });
+  }, [isHydrated, totalBudget, platformBudgetEnforceFingerprint, setPlatformsWithLaunchGuards]);
 
   const persistCampaignDraftRef = useRef(persistCampaignDraft);
   persistCampaignDraftRef.current = persistCampaignDraft;
