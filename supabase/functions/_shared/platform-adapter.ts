@@ -546,10 +546,10 @@ class TikTokAdapter implements PlatformAdapter {
       
       // STEP 2: Define TikTok minimum bid requirements
       const TIKTOK_MIN_BIDS: Record<string, number> = {
-        CPC: 10,   // €10 minimum for CPC
-        CPM: 5,    // €5 minimum for CPM
-        CPV: 2,    // €2 minimum for CPV
-        OCPM: 1,   // €1 minimum for OCPM
+        CPC: 10,   // $10 minimum for CPC
+        CPM: 5,    // $5 minimum for CPM
+        CPV: 2,    // $2 minimum for CPV
+        OCPM: 1,   // $1 minimum for OCPM
       };
       
       // STEP 3: Determine final optimization goal and billing event
@@ -577,12 +577,12 @@ class TikTokAdapter implements PlatformAdapter {
       let finalBidAmount = params.bidAmount || minimumBid;
       
       if (finalBidAmount < minimumBid) {
-        console.error(`❌ CRITICAL: Bid €${finalBidAmount} is below TikTok minimum €${minimumBid} for ${requiredBillingEvent}`);
-        console.error(`Setting bid to minimum: €${minimumBid}`);
+        console.error(`❌ CRITICAL: Bid ${finalBidAmount} is below TikTok minimum ${minimumBid} for ${requiredBillingEvent}`);
+        console.error(`Setting bid to minimum: ${minimumBid}`);
         finalBidAmount = minimumBid;
       }
       
-      console.log(`Final bid amount: €${finalBidAmount} (minimum: €${minimumBid})`);
+      console.log(`Final bid amount: ${finalBidAmount} (minimum: ${minimumBid})`);
       
       // STEP 5: Map bid strategy to TikTok's bid_type
       const mapBidStrategy = (strategy?: string): string => {
@@ -756,10 +756,10 @@ class TikTokAdapter implements PlatformAdapter {
       if (bidType !== "BID_TYPE_NO_BID") {
         if (requiredBillingEvent === 'OCPM') {
           body.conversion_bid_price = finalBidAmount;
-          console.log(`✅ Including conversion_bid_price: €${finalBidAmount} for OCPM billing`);
+          console.log(`✅ Including conversion_bid_price: ${finalBidAmount} for OCPM billing`);
         } else {
           body.bid_price = finalBidAmount;
-          console.log(`✅ Including bid_price: €${finalBidAmount} for ${requiredBillingEvent} billing`);
+          console.log(`✅ Including bid_price: ${finalBidAmount} for ${requiredBillingEvent} billing`);
         }
       } else {
         console.log(`⚠️ Skipping bid field for bid_type: ${bidType} (automatic bidding)`);

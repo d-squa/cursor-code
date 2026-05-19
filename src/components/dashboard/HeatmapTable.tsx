@@ -82,7 +82,7 @@ export default function HeatmapTable({
                       )}
                     >
                       {col.key.includes('budget') || col.key.includes('spend') || col.key.includes('cpm') || col.key.includes('cpc') 
-                        ? `€${formatNumber(row[col.key])}` 
+                        ? `$${formatNumber(row[col.key])}` 
                         : col.key.includes('ctr') || col.key.includes('rate')
                         ? `${formatNumber(row[col.key])}%`
                         : formatNumber(row[col.key])

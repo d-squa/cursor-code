@@ -392,7 +392,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
         {/* Bid Amount - hidden when Advantage+ Shopping is enabled */}
         {showBidAmount && !phase.metaAdvantagePlusCampaign && (
           <div className="space-y-2">
-            <Label>Bid Amount (€)</Label>
+            <Label>Bid Amount ($)</Label>
             <Input
               type="number"
               placeholder="e.g., 10.00"

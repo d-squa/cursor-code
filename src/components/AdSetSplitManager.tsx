@@ -49,7 +49,7 @@ interface AdSetSplitManagerProps {
   // Cross-exclude for audience_selection
   autoCrossExclude?: boolean;
   onAutoCrossExcludeChange?: (enabled: boolean) => void;
-  /** Absolute phase budget (EUR) for validating ad set minimum allocations. */
+  /** Absolute phase budget (USD) for validating ad set minimum allocations. */
   phaseBudgetEur?: number;
 }
 

@@ -15,7 +15,8 @@ import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
 import {
   ACTIPLAN_BUDGET_SLIDER_STEP,
-  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  ACTIPLAN_MIN_ENTITY_BUDGET,
+  formatActiPlanMoney,
   calculateAdSetBudgetEur,
   calculatePhaseBudgetEur,
   ceilBudgetPercentageToSliderStep,
@@ -1355,7 +1356,7 @@ export function PhaseScheduler({
     const requiredMarket = minBudgetEurForPhaseCount(nextPhases.length);
     if (marketBudget && marketBudget > 0 && marketBudget < requiredMarket) {
       toast.error(`Market budget too low for ${nextPhases.length} phases`, {
-        description: `Allocate at least €${requiredMarket} to this market (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase).`,
+        description: `Allocate at least ${formatActiPlanMoney(requiredMarket, 0)} to this market (${formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} per phase).`,
       });
     }
   };
@@ -1399,7 +1400,7 @@ export function PhaseScheduler({
         ? clampPercentageToMinimumEur(
             budget,
             marketBudget,
-            ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+            ACTIPLAN_MIN_ENTITY_BUDGET,
             ACTIPLAN_BUDGET_SLIDER_STEP,
           )
         : clampBudgetPercentage(budget, 0);
@@ -1579,8 +1580,8 @@ export function PhaseScheduler({
         {marketBudgetBelowPhaseFloor && !marketConfigLocked && (
           <Alert className="mt-2 py-2">
             <AlertDescription className="text-xs">
-              {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least €{minMarketBudgetEur.toFixed(0)} on this market
-              (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} each). Current market budget: €{marketBudget?.toFixed(0)}. Increase market or platform budget in step 1.
+              {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least {formatActiPlanMoney(minMarketBudgetEur, 0)} on this market
+              ({formatActiPlanMoney(ACTIPLAN_MIN_ENTITY_BUDGET, 0)} each). Current market budget: {formatActiPlanMoney(marketBudget ?? 0, 0)}. Increase market or platform budget in step 1.
             </AlertDescription>
           </Alert>
         )}

@@ -127,7 +127,7 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, hasAccessT
       entityType: 'adset',
       field: 'budget',
       fieldPath: 'step1',
-      message: `Budget is €${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
+      message: `Budget is $${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
       severity: 'error'
     });
   }
@@ -244,7 +244,7 @@ function validateTikTokCampaign(campaign: any, market: any, phase: any, hasAcces
       entityType: 'ad_group',
       field: 'budget',
       fieldPath: 'step1',
-      message: `Budget is €${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
+      message: `Budget is $${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
       severity: 'error'
     });
   }
@@ -424,7 +424,7 @@ const handler = async (req: Request): Promise<Response> => {
           `Market ${market.name} (${platformName}): hasAccessToken=${hasAccessToken}, team_id=${campaign.team_id ?? "none"}`,
         );
         
-        console.log(`Market ${market.name}: budgetPct=${marketBudgetPct}, calculated budget=€${calculatedBudget.toFixed(2)}`);
+        console.log(`Market ${market.name}: budgetPct=${marketBudgetPct}, calculated budget=$${calculatedBudget.toFixed(2)}`);
         
         // Get phases from market, or create a default phase if none exist
         const phases = (market.phases && market.phases.length > 0) 

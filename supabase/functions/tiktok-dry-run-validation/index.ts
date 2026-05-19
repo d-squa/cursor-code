@@ -371,7 +371,7 @@ serve(async (req: Request) => {
     console.log(`📋 Enabled dimensions: ${enabledDimensions.join(", ")}`);
 
     const { start, end, days } = buildDates();
-    const totalBudget = 700; // €700 total (meets TikTok minimums)
+    const totalBudget = 700; // $700 total (meets TikTok minimums)
     const dailyBudget = Math.round((totalBudget / days) * 100) / 100;
 
     const locationId = COUNTRY_LOCATION_MAP[countryCode.toUpperCase()] || COUNTRY_LOCATION_MAP["GB"];
