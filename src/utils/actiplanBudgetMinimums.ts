@@ -262,30 +262,31 @@ function getCampaignUnitsForPhase(params: {
   phaseBudgetEur: number;
   selectedKeywords?: Array<Record<string, unknown>>;
 }): Array<{ name: string; budgetEur: number }> {
+  const { platformId, market, phase, phaseBudgetEur, selectedKeywords } = params;
   const phaseName = phase.name || "Default";
   const keywords = getEffectiveSearchKeywords({
-    keywords: params.selectedKeywords as any,
-    platformId: params.platformId,
-    market: params.market,
+    keywords: selectedKeywords as any,
+    platformId,
+    market,
     phase: phase as Record<string, unknown>,
   });
 
-  if (isSearchPhaseLike({ platformId: params.platformId, phase: phase as Record<string, unknown> })) {
+  if (isSearchPhaseLike({ platformId, phase: phase as Record<string, unknown> })) {
     const groups = getSearchStrategyGroups({
       keywords: keywords as any,
-      platformId: params.platformId,
-      market: params.market,
+      platformId,
+      market,
     });
 
     if (groups.length > 0) {
       return groups.map((group) => ({
         name: `${phaseName} - ${group.label}`,
-        budgetEur: calculatePhaseBudgetEur(params.phaseBudgetEur, group.budgetPercentage),
+        budgetEur: calculatePhaseBudgetEur(phaseBudgetEur, group.budgetPercentage),
       }));
     }
   }
 
-  return [{ name: phaseName, budgetEur: params.phaseBudgetEur }];
+  return [{ name: phaseName, budgetEur: phaseBudgetEur }];
 }
 
 /** Step 3 treats missing `enabled` as on; only explicit `false` is excluded. */
