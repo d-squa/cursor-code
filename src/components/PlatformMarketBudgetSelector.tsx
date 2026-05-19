@@ -37,6 +37,7 @@ import {
   minPlatformBudgetEurForPhases,
   minPlatformBudgetPercentage,
   minPlatformBudgetPercentageForPhases,
+  maxBudgetPercentageWithinTotal,
 } from "@/utils/actiplanBudgetMinimums";
 
 interface PlatformMarketBudgetSelectorProps {
@@ -1375,6 +1376,62 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
+  const maxPlatformSliderPct = (platformIndex: number) => {
+    const platform = platforms[platformIndex];
+    const min = minPlatformSliderPct(platform);
+    const othersTotal = platforms.reduce(
+      (sum, p, i) => (i === platformIndex ? sum : sum + (p.budgetPercentage ?? 0)),
+      0,
+    );
+    return maxBudgetPercentageWithinTotal(othersTotal, min);
+  };
+
+  const maxMarketSliderPct = (platform: PlatformWithMarkets, marketId: string) => {
+    const market = platform.markets.find((m) => m.id === marketId);
+    const min = market ? minMarketSliderPct(platform, market) : 0;
+    const othersTotal = platform.markets.reduce(
+      (sum, m) => (m.id === marketId ? sum : sum + (m.budgetPercentage ?? 0)),
+      0,
+    );
+    return maxBudgetPercentageWithinTotal(othersTotal, min);
+  };
+
+  const trimPlatformBudgetsTo100 = (
+    nextPlatforms: PlatformWithMarkets[],
+    adjustIndex: number,
+    minPct: number,
+  ): PlatformWithMarkets[] => {
+    const total = nextPlatforms.reduce((sum, p) => sum + (p.budgetPercentage ?? 0), 0);
+    if (total <= 100) return nextPlatforms;
+    const overflow = total - 100;
+    return nextPlatforms.map((p, i) =>
+      i === adjustIndex
+        ? {
+            ...p,
+            budgetPercentage: Math.max(minPct, (p.budgetPercentage ?? 0) - overflow),
+          }
+        : p,
+    );
+  };
+
+  const trimMarketBudgetsTo100 = (
+    nextMarkets: Market[],
+    marketId: string,
+    minPct: number,
+  ): Market[] => {
+    const total = nextMarkets.reduce((sum, m) => sum + (m.budgetPercentage ?? 0), 0);
+    if (total <= 100) return nextMarkets;
+    const overflow = total - 100;
+    return nextMarkets.map((m) =>
+      m.id === marketId
+        ? {
+            ...m,
+            budgetPercentage: Math.max(minPct, (m.budgetPercentage ?? 0) - overflow),
+          }
+        : m,
+    );
+  };
+
   const updatePlatformBudget = (index: number, percentage: number) => {
     const currentPlatform = platforms[index];
     if (platformIsBudgetLocked(currentPlatform)) {
@@ -1382,10 +1439,26 @@ export function PlatformMarketBudgetSelector({
       return;
     }
     const minPlatformEur = currentPlatform.id ? minPlatformBudgetEurForPhases(currentPlatform) : 0;
+    const minPlatformPct =
+      currentPlatform.id && totalBudget > 0
+        ? ceilBudgetPercentageToSliderStep(
+            minPlatformBudgetPercentage(totalBudget, minPlatformEur),
+            ACTIPLAN_BUDGET_SLIDER_STEP,
+          )
+        : 0;
     let newPercentage =
       currentPlatform.id && totalBudget > 0
         ? clampPercentageToMinimumEur(percentage, totalBudget, minPlatformEur, ACTIPLAN_BUDGET_SLIDER_STEP)
         : clampBudgetPercentage(percentage, 0, 100);
+    const othersPlatformTotal = platforms.reduce(
+      (sum, p, i) => (i === index ? sum : sum + (p.budgetPercentage ?? 0)),
+      0,
+    );
+    newPercentage = clampBudgetPercentage(
+      newPercentage,
+      minPlatformPct,
+      maxBudgetPercentageWithinTotal(othersPlatformTotal, minPlatformPct),
+    );
 
     let nextPlatforms: PlatformWithMarkets[];
 
@@ -1424,6 +1497,7 @@ export function PlatformMarketBudgetSelector({
       );
     }
 
+    nextPlatforms = trimPlatformBudgetsTo100(nextPlatforms, index, minPlatformPct);
     commitPlatforms(nextPlatforms);
   };
 
@@ -1550,10 +1624,26 @@ export function PlatformMarketBudgetSelector({
     }
     const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform?.budgetPercentage ?? 0);
     const minMarketEur = currentMarket ? minMarketBudgetEurForPhases(currentMarket.phases) : 0;
+    const minMarketPct =
+      platform?.id && currentMarket && platformBudgetEur > 0
+        ? ceilBudgetPercentageToSliderStep(
+            minPercentageForBudgetEur(platformBudgetEur, minMarketEur),
+            ACTIPLAN_BUDGET_SLIDER_STEP,
+          )
+        : 0;
     let newPercentage =
       platform?.id && currentMarket && platformBudgetEur > 0 && percentage > 0
         ? clampPercentageToMinimumEur(percentage, platformBudgetEur, minMarketEur, ACTIPLAN_BUDGET_SLIDER_STEP)
         : clampBudgetPercentage(percentage, 0, 100);
+    const othersMarketTotal = (platform?.markets ?? []).reduce(
+      (sum, m) => (m.id === marketId ? sum : sum + (m.budgetPercentage ?? 0)),
+      0,
+    );
+    newPercentage = clampBudgetPercentage(
+      newPercentage,
+      minMarketPct,
+      maxBudgetPercentageWithinTotal(othersMarketTotal, minMarketPct),
+    );
 
     let nextPlatforms: PlatformWithMarkets[];
 
@@ -1598,12 +1688,26 @@ export function PlatformMarketBudgetSelector({
         i === platformIndex
           ? {
               ...p,
-              markets: p.markets.map((m) =>
-                m.id === marketId ? { ...m, budgetPercentage: newPercentage } : m,
+              markets: trimMarketBudgetsTo100(
+                p.markets.map((m) =>
+                  m.id === marketId ? { ...m, budgetPercentage: newPercentage } : m,
+                ),
+                marketId,
+                minMarketPct,
               ),
             }
           : p,
       );
+    }
+
+    if (budgetLocked && platform.markets.length > 1) {
+      nextPlatforms = nextPlatforms.map((p, i) => {
+        if (i !== platformIndex) return p;
+        return {
+          ...p,
+          markets: trimMarketBudgetsTo100(p.markets, marketId, minMarketPct),
+        };
+      });
     }
 
     commitPlatforms(nextPlatforms);
@@ -1822,7 +1926,7 @@ export function PlatformMarketBudgetSelector({
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-16 text-xs text-center"
                               min={minPlatformSliderPct(platform)}
-                              max="100"
+                              max={maxPlatformSliderPct(platformIndex).toFixed(1)}
                               step="0.1"
                               disabled={platformLaunchLocked}
                             />
@@ -1866,7 +1970,7 @@ export function PlatformMarketBudgetSelector({
                                 updatePlatformBudget(platformIndex, Math.max(value, minPct));
                               }}
                               min={minPlatformSliderPct(platform)}
-                              max={100}
+                              max={maxPlatformSliderPct(platformIndex)}
                               step={ACTIPLAN_BUDGET_SLIDER_STEP}
                               className="w-full"
                               disabled={platformLaunchLocked}
@@ -2031,7 +2135,7 @@ export function PlatformMarketBudgetSelector({
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-14 text-xs text-center"
                                         min={marketMinPct}
-                                        max="100"
+                                        max={maxMarketSliderPct(platform, market.id).toFixed(1)}
                                         step="0.1"
                                         disabled={marketLaunchLocked}
                                       />
@@ -2068,7 +2172,7 @@ export function PlatformMarketBudgetSelector({
                                         onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                         onValueCommit={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                         min={marketMinPct}
-                                        max={100}
+                                        max={maxMarketSliderPct(platform, market.id)}
                                         step={ACTIPLAN_BUDGET_SLIDER_STEP}
                                         className="w-full"
                                         disabled={marketLaunchLocked}
