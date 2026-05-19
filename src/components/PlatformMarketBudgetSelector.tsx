@@ -1858,7 +1858,7 @@ export function PlatformMarketBudgetSelector({
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-16 text-xs text-center"
                               min={minPlatformSliderPct(platform)}
-                              max={maxPlatformSliderPct(platformIndex).toFixed(1)}
+                              max="100"
                               step="0.1"
                               disabled={platformLaunchLocked}
                             />
@@ -1902,7 +1902,7 @@ export function PlatformMarketBudgetSelector({
                                 updatePlatformBudget(platformIndex, Math.max(value, minPct));
                               }}
                               min={minPlatformSliderPct(platform)}
-                              max={maxPlatformSliderPct(platformIndex)}
+                              max={100}
                               step={ACTIPLAN_BUDGET_SLIDER_STEP}
                               className="w-full"
                               disabled={platformLaunchLocked}
@@ -2067,7 +2067,7 @@ export function PlatformMarketBudgetSelector({
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-14 text-xs text-center"
                                         min={marketMinPct}
-                                        max={maxMarketSliderPct(platform, market.id).toFixed(1)}
+                                        max="100"
                                         step="0.1"
                                         disabled={marketLaunchLocked}
                                       />
@@ -2104,7 +2104,7 @@ export function PlatformMarketBudgetSelector({
                                         onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                         onValueCommit={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                         min={marketMinPct}
-                                        max={maxMarketSliderPct(platform, market.id)}
+                                        max={100}
                                         step={ACTIPLAN_BUDGET_SLIDER_STEP}
                                         className="w-full"
                                         disabled={marketLaunchLocked}
