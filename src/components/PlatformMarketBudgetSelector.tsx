@@ -267,8 +267,13 @@ export function PlatformMarketBudgetSelector({
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
+  /** Prevent meta ad-account default backfill from re-entering fetchMetaResources (infinite loop). */
+  const metaAutoPopulateRanRef = useRef<string | null>(null);
+  const metaAutoPopulateInFlightRef = useRef(false);
+
   // Fetch all Meta, TikTok, and Google resources from database
   useEffect(() => {
+    metaAutoPopulateRanRef.current = null;
     fetchMetaResources();
     fetchTiktokResources();
     fetchGoogleResources();
@@ -310,6 +315,15 @@ export function PlatformMarketBudgetSelector({
     }
   };
 
+  type MetaResourceSnapshot = {
+    pixels: { id: string; name: string; adAccountId?: string }[];
+    pages: { id: string; name: string }[];
+    instagramAccounts: { id: string; username?: string; name?: string }[];
+    catalogs: { id: string; name: string }[];
+    productSets: { id: string; name: string; catalogId?: string }[];
+    conversionEvents: { pixelId: string; id: string; name: string }[];
+  };
+
   const fetchMetaResources = async () => {
     setIsLoadingAccounts(true);
     setLoadingAdAccounts(true);
@@ -318,7 +332,16 @@ export function PlatformMarketBudgetSelector({
     setLoadingCatalogs(true);
     setLoadingProductSets(true);
     setLoadingConversionEvents(true);
-    
+
+    const resourceSnapshot: MetaResourceSnapshot = {
+      pixels: [],
+      pages: [],
+      instagramAccounts: [],
+      catalogs: [],
+      productSets: [],
+      conversionEvents: [],
+    };
+
     try {
       // Fetch ad accounts from database with their defaults
       // Show all accounts - client filtering is optional (accounts without client_id should always be visible)
@@ -404,10 +427,11 @@ export function PlatformMarketBudgetSelector({
         const uniquePages = Array.from(
           new Map(pagesData.map((page: any) => [page.page_id, page])).values()
         );
-        setPages(uniquePages.map((page: any) => ({
+        resourceSnapshot.pages = uniquePages.map((page: any) => ({
           id: page.page_id,
           name: page.page_name,
-        })));
+        }));
+        setPages(resourceSnapshot.pages);
       } else if (!pagesError && !pagesData) {
         console.warn("No pages data returned");
       }
@@ -423,11 +447,12 @@ export function PlatformMarketBudgetSelector({
         const uniquePixels = Array.from(
           new Map(pixelsData.map((pixel: any) => [pixel.pixel_id, pixel])).values()
         );
-        setPixels(uniquePixels.map((pixel: any) => ({
+        resourceSnapshot.pixels = uniquePixels.map((pixel: any) => ({
           id: pixel.pixel_id,
           name: pixel.pixel_name,
           adAccountId: pixel.ad_account_id,
-        })));
+        }));
+        setPixels(resourceSnapshot.pixels);
       }
 
       // Fetch catalogs from database
@@ -441,10 +466,11 @@ export function PlatformMarketBudgetSelector({
         const uniqueCatalogs = Array.from(
           new Map(catalogsData.map((catalog: any) => [catalog.catalog_id, catalog])).values()
         );
-        setCatalogs(uniqueCatalogs.map((catalog: any) => ({
+        resourceSnapshot.catalogs = uniqueCatalogs.map((catalog: any) => ({
           id: catalog.catalog_id,
           name: catalog.catalog_name,
-        })));
+        }));
+        setCatalogs(resourceSnapshot.catalogs);
       }
 
       // Fetch product sets from database
@@ -463,11 +489,12 @@ export function PlatformMarketBudgetSelector({
         const uniqueProductSets = Array.from(
           new Map(productSetsData.map((ps: any) => [ps.product_set_id, ps])).values()
         );
-        setProductSets(uniqueProductSets.map((ps: any) => ({
+        resourceSnapshot.productSets = uniqueProductSets.map((ps: any) => ({
           id: ps.product_set_id,
           name: ps.product_set_name,
           catalogId: ps.catalog_id,
-        })));
+        }));
+        setProductSets(resourceSnapshot.productSets);
       } else if (!productSetsError && !productSetsData) {
         console.warn("No product sets data returned");
       }
@@ -483,12 +510,13 @@ export function PlatformMarketBudgetSelector({
         const uniqueEvents = Array.from(
           new Map(eventsData.map((event: any) => [`${event.pixel_id}-${event.event_name}`, event])).values()
         );
-        setConversionEvents(uniqueEvents.map((event: any) => ({
+        resourceSnapshot.conversionEvents = uniqueEvents.map((event: any) => ({
           pixelId: event.pixel_id,
           id: event.event_name,
           name: event.event_name,
           type: event.event_type || "standard",
-        })));
+        }));
+        setConversionEvents(resourceSnapshot.conversionEvents);
       }
 
       // Fetch Instagram accounts from database
@@ -502,11 +530,18 @@ export function PlatformMarketBudgetSelector({
         const uniqueIgAccounts = Array.from(
           new Map(igData.map((ig: any) => [ig.instagram_account_id, ig])).values()
         );
-        setInstagramAccounts(uniqueIgAccounts.map((ig: any) => ({
+        resourceSnapshot.instagramAccounts = uniqueIgAccounts.map((ig: any) => ({
           id: ig.instagram_account_id,
           username: ig.username,
           name: ig.username,
-        })));
+        }));
+        setInstagramAccounts(resourceSnapshot.instagramAccounts);
+      }
+
+      const populateKey = selectedClientId ?? "__all__";
+      if (metaAutoPopulateRanRef.current !== populateKey && !metaAutoPopulateInFlightRef.current) {
+        metaAutoPopulateRanRef.current = populateKey;
+        await autoPopulateDefaults(resourceSnapshot);
       }
     } catch (error: any) {
       console.error("Failed to fetch Meta resources:", error);
@@ -519,86 +554,106 @@ export function PlatformMarketBudgetSelector({
       setLoadingCatalogs(false);
       setLoadingProductSets(false);
       setLoadingConversionEvents(false);
-      
-      // After all resources are loaded, auto-populate defaults if not already set
-      autoPopulateDefaults();
     }
   };
 
-  // Auto-populate defaults for ad accounts that don't have them set
-  const autoPopulateDefaults = async () => {
+  /** Backfill missing meta_ad_accounts defaults in DB — never re-call fetchMetaResources (causes infinite loop). */
+  const autoPopulateDefaults = async (resources: MetaResourceSnapshot) => {
+    if (metaAutoPopulateInFlightRef.current) return;
+    metaAutoPopulateInFlightRef.current = true;
     try {
-      const { data: adAccountsData } = await supabase
-        .from("meta_ad_accounts" as any)
-        .select("*");
-
-      if (!adAccountsData) return;
-
-      const updates: any[] = [];
-
-      adAccountsData.forEach((acc: any) => {
-        const needsUpdate = !acc.default_pixel_id || !acc.default_page_id;
-        
-        if (needsUpdate) {
-          const update: any = {
-            account_id: acc.account_id,
-          };
-
-          // Auto-select first pixel for this ad account if not set
-          if (!acc.default_pixel_id) {
-            const firstPixel = pixels.find(p => p.adAccountId === acc.account_id);
-            if (firstPixel) update.default_pixel_id = firstPixel.id;
-          }
-
-          // Auto-select first page if not set
-          if (!acc.default_page_id && pages.length > 0) {
-            update.default_page_id = pages[0].id;
-          }
-
-          // Auto-select first Instagram account if not set
-          if (!acc.default_instagram_account_id && instagramAccounts.length > 0) {
-            update.default_instagram_account_id = instagramAccounts[0].id;
-          }
-
-          // Auto-select first catalog if not set
-          if (!acc.default_catalog_id && catalogs.length > 0) {
-            update.default_catalog_id = catalogs[0].id;
-          }
-
-          // Auto-select first product set if not set
-          if (!acc.default_product_set_id && productSets.length > 0) {
-            update.default_product_set_id = productSets[0].id;
-          }
-
-          // Auto-select first conversion event if not set
-          if (!acc.default_conversion_event && conversionEvents.length > 0) {
-            update.default_conversion_event = conversionEvents[0].id;
-          }
-
-          if (Object.keys(update).length > 1) { // More than just account_id
-            updates.push(update);
-          }
-        }
-      });
-
-      // Batch update all ad accounts with auto-populated defaults
-      if (updates.length > 0) {
-        for (const update of updates) {
-          const accountId = update.account_id;
-          delete update.account_id;
-          
-          await supabase
-            .from("meta_ad_accounts" as any)
-            .update(update)
-            .eq("account_id", accountId);
-        }
-
-        // Refresh the defaults after updating
-        await fetchMetaResources();
-        toast.success(`Auto-populated defaults for ${updates.length} ad account(s)`);
+      let query = supabase.from("meta_ad_accounts" as any).select("*");
+      if (selectedClientId) {
+        query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
       }
+      if (!isSampleMode) {
+        query = (query as any).eq("is_sample", false);
+      }
+      const { data: adAccountsData } = await query;
+
+      if (!adAccountsData?.length) return;
+
+      const updates: { account_id: string; patch: Record<string, string> }[] = [];
+
+      for (const acc of adAccountsData as any[]) {
+        const patch: Record<string, string> = {};
+
+        if (!acc.default_pixel_id) {
+          const firstPixel = resources.pixels.find((p) => p.adAccountId === acc.account_id);
+          if (firstPixel) patch.default_pixel_id = firstPixel.id;
+        }
+        if (!acc.default_page_id && resources.pages.length > 0) {
+          patch.default_page_id = resources.pages[0].id;
+        }
+        if (!acc.default_instagram_account_id && resources.instagramAccounts.length > 0) {
+          patch.default_instagram_account_id = resources.instagramAccounts[0].id;
+        }
+        if (!acc.default_catalog_id && resources.catalogs.length > 0) {
+          patch.default_catalog_id = resources.catalogs[0].id;
+        }
+        if (!acc.default_product_set_id && resources.productSets.length > 0) {
+          patch.default_product_set_id = resources.productSets[0].id;
+        }
+        if (!acc.default_conversion_event && resources.conversionEvents.length > 0) {
+          patch.default_conversion_event = resources.conversionEvents[0].id;
+        }
+
+        if (Object.keys(patch).length > 0) {
+          updates.push({ account_id: acc.account_id, patch });
+        }
+      }
+
+      if (updates.length === 0) return;
+
+      for (const { account_id, patch } of updates) {
+        await supabase.from("meta_ad_accounts" as any).update(patch).eq("account_id", account_id);
+      }
+
+      const { data: refreshed } = await query;
+      if (refreshed) {
+        const defaults: Record<string, any> = {};
+        refreshed.forEach((acc: any) => {
+          defaults[acc.account_id] = {
+            pixelId: acc.default_pixel_id,
+            pageId: acc.default_page_id,
+            instagramActorId: acc.default_instagram_account_id,
+            catalog: acc.default_catalog_id,
+            productSet: acc.default_product_set_id,
+            conversionEvent: acc.default_conversion_event,
+            bidStrategy: acc.default_bid_strategy,
+            bidAmount: acc.default_bid_amount,
+            mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
+            publisherPlatforms: Array.isArray(acc.default_publisher_platforms)
+              ? acc.default_publisher_platforms
+              : ["facebook", "instagram", "audience_network"],
+            positions: acc.default_positions || {},
+            advantagePlusPlacements: acc.default_advantage_plus_placements ?? true,
+            optimizationLocation: acc.default_optimization_location,
+            appStore: acc.default_app_store,
+            appId: acc.default_app_id,
+            landingPageUrl: acc.default_landing_page_url,
+            messagingMode: acc.default_messaging_mode,
+            messengerEnabled: acc.default_messenger_enabled,
+            instagramDmEnabled: acc.default_instagram_dm_enabled,
+            whatsappEnabled: acc.default_whatsapp_enabled,
+            whatsappNumber: acc.default_whatsapp_number,
+            clickWindow: acc.default_click_window,
+            viewWindow: acc.default_view_window,
+            billingEvent: acc.default_billing_event,
+            advantagePlusCampaign: acc.default_advantage_plus_campaign ?? false,
+            advantagePlusAudience: acc.default_advantage_plus_audience ?? false,
+            advantagePlusCreative: acc.default_advantage_plus_creative ?? false,
+            conversionCount: acc.default_conversion_count || "all_conversions",
+          };
+        });
+        setAdAccountDefaults(defaults);
+      }
+
+      toast.success(`Auto-populated defaults for ${updates.length} ad account(s)`);
     } catch (error) {
       console.error("Failed to auto-populate defaults:", error);
+    } finally {
+      metaAutoPopulateInFlightRef.current = false;
     }
   };
 
@@ -822,72 +877,84 @@ export function PlatformMarketBudgetSelector({
     }
   };
 
-  // Re-apply TikTok defaults to markets that were restored from draft but missing key fields
+  // Re-apply TikTok defaults to markets restored from draft (once per defaults load — avoid platforms dep loop)
+  const tiktokDefaultsAppliedRef = useRef<string>("");
   useEffect(() => {
-    if (Object.keys(tiktokAdAccountDefaults).length === 0) return;
-    
-    let hasUpdates = false;
-    const updatedPlatforms = platforms.map(platform => {
-      if (!platform.id?.toLowerCase().includes('tiktok')) return platform;
-      
-      const updatedMarkets = platform.markets.map(market => {
-        if (!market.adAccountId) return market;
-        
-        const defaults = tiktokAdAccountDefaults[market.adAccountId];
-        if (!defaults) return market;
-        
-        // Check if market is missing key defaults that we should apply
-        const needsPixel = !market.tiktokPixel && defaults.pixelId;
-        const needsIdentity = !market.tiktokIdentity && defaults.identityId;
-        const needsCatalog = !market.tiktokCatalog && defaults.catalogId;
-        const needsProductSet = !market.tiktokProductSet && defaults.productSetId;
-        const needsOptEvent = !market.tiktokOptimizationEvent && defaults.optimizationEvent;
-        const needsOptLocation = !market.tiktokOptimizationLocation && defaults.optimizationLocation;
-        const needsBidStrategy = !market.tiktokBidStrategy && defaults.bidStrategy;
-        const needsLandingPage = !market.tiktokLandingPageUrl && defaults.landingPageUrl;
-        const needsPlacementType = !market.tiktokPlacementType && defaults.placementType;
-        
-        if (!needsPixel && !needsIdentity && !needsCatalog && !needsProductSet && !needsOptEvent && 
-            !needsOptLocation && !needsBidStrategy && !needsLandingPage && !needsPlacementType) {
-          return market;
-        }
-        
-        hasUpdates = true;
-        console.log('🔄 Re-applying TikTok defaults to market:', market.id, {
-          needsPixel,
-          needsIdentity,
-          needsCatalog,
-          needsOptLocation,
-          needsBidStrategy,
-          defaults
+    const defaultsKey = JSON.stringify(Object.keys(tiktokAdAccountDefaults).sort());
+    if (!defaultsKey || defaultsKey === "[]" || tiktokDefaultsAppliedRef.current === defaultsKey) return;
+
+    setPlatforms((prev) => {
+      let hasUpdates = false;
+      const updatedPlatforms = prev.map((platform) => {
+        if (!platform.id?.toLowerCase().includes("tiktok")) return platform;
+
+        const updatedMarkets = platform.markets.map((market) => {
+          if (!market.adAccountId) return market;
+
+          const defaults = tiktokAdAccountDefaults[market.adAccountId];
+          if (!defaults) return market;
+
+          const needsPixel = !market.tiktokPixel && defaults.pixelId;
+          const needsIdentity = !market.tiktokIdentity && defaults.identityId;
+          const needsCatalog = !market.tiktokCatalog && defaults.catalogId;
+          const needsProductSet = !market.tiktokProductSet && defaults.productSetId;
+          const needsOptEvent = !market.tiktokOptimizationEvent && defaults.optimizationEvent;
+          const needsOptLocation = !market.tiktokOptimizationLocation && defaults.optimizationLocation;
+          const needsBidStrategy = !market.tiktokBidStrategy && defaults.bidStrategy;
+          const needsLandingPage = !market.tiktokLandingPageUrl && defaults.landingPageUrl;
+          const needsPlacementType = !market.tiktokPlacementType && defaults.placementType;
+
+          if (
+            !needsPixel &&
+            !needsIdentity &&
+            !needsCatalog &&
+            !needsProductSet &&
+            !needsOptEvent &&
+            !needsOptLocation &&
+            !needsBidStrategy &&
+            !needsLandingPage &&
+            !needsPlacementType
+          ) {
+            return market;
+          }
+
+          hasUpdates = true;
+          return {
+            ...market,
+            tiktokPixel: needsPixel ? defaults.pixelId : market.tiktokPixel,
+            tiktokIdentity: needsIdentity ? defaults.identityId : market.tiktokIdentity,
+            tiktokCatalog: needsCatalog ? defaults.catalogId : market.tiktokCatalog,
+            tiktokProductSet: needsProductSet ? defaults.productSetId : market.tiktokProductSet,
+            tiktokOptimizationEvent: needsOptEvent ? defaults.optimizationEvent : market.tiktokOptimizationEvent,
+            tiktokOptimizationLocation: needsOptLocation ? defaults.optimizationLocation : market.tiktokOptimizationLocation,
+            tiktokBidStrategy: needsBidStrategy ? defaults.bidStrategy : market.tiktokBidStrategy,
+            tiktokLandingPageUrl: needsLandingPage ? defaults.landingPageUrl : market.tiktokLandingPageUrl,
+            tiktokPlacementType: needsPlacementType ? defaults.placementType : market.tiktokPlacementType,
+            tiktokPlacements:
+              !market.tiktokPlacements && defaults.placements ? defaults.placements : market.tiktokPlacements,
+            tiktokAppId: !market.tiktokAppId && defaults.appId ? defaults.appId : market.tiktokAppId,
+            tiktokAppName: !market.tiktokAppName && defaults.appName ? defaults.appName : market.tiktokAppName,
+            tiktokClickWindow:
+              market.tiktokClickWindow === undefined && defaults.clickWindow !== undefined
+                ? defaults.clickWindow
+                : market.tiktokClickWindow,
+            tiktokViewWindow:
+              market.tiktokViewWindow === undefined && defaults.viewWindow !== undefined
+                ? defaults.viewWindow
+                : market.tiktokViewWindow,
+          };
         });
-        
-        return {
-          ...market,
-          tiktokPixel: needsPixel ? defaults.pixelId : market.tiktokPixel,
-          tiktokIdentity: needsIdentity ? defaults.identityId : market.tiktokIdentity,
-          tiktokCatalog: needsCatalog ? defaults.catalogId : market.tiktokCatalog,
-          tiktokProductSet: needsProductSet ? defaults.productSetId : market.tiktokProductSet,
-          tiktokOptimizationEvent: needsOptEvent ? defaults.optimizationEvent : market.tiktokOptimizationEvent,
-          tiktokOptimizationLocation: needsOptLocation ? defaults.optimizationLocation : market.tiktokOptimizationLocation,
-          tiktokBidStrategy: needsBidStrategy ? defaults.bidStrategy : market.tiktokBidStrategy,
-          tiktokLandingPageUrl: needsLandingPage ? defaults.landingPageUrl : market.tiktokLandingPageUrl,
-          tiktokPlacementType: needsPlacementType ? defaults.placementType : market.tiktokPlacementType,
-          tiktokPlacements: !market.tiktokPlacements && defaults.placements ? defaults.placements : market.tiktokPlacements,
-          tiktokAppId: !market.tiktokAppId && defaults.appId ? defaults.appId : market.tiktokAppId,
-          tiktokAppName: !market.tiktokAppName && defaults.appName ? defaults.appName : market.tiktokAppName,
-          tiktokClickWindow: market.tiktokClickWindow === undefined && defaults.clickWindow !== undefined ? defaults.clickWindow : market.tiktokClickWindow,
-          tiktokViewWindow: market.tiktokViewWindow === undefined && defaults.viewWindow !== undefined ? defaults.viewWindow : market.tiktokViewWindow,
-        };
+
+        return { ...platform, markets: updatedMarkets };
       });
-      
-      return { ...platform, markets: updatedMarkets };
+
+      if (hasUpdates) {
+        tiktokDefaultsAppliedRef.current = defaultsKey;
+        return updatedPlatforms;
+      }
+      return prev;
     });
-    
-    if (hasUpdates) {
-      setPlatforms(updatedPlatforms);
-    }
-  }, [tiktokAdAccountDefaults, platforms]);
+  }, [tiktokAdAccountDefaults, setPlatforms]);
 
   // Fetch connected platforms and Meta resources on mount
   useEffect(() => {

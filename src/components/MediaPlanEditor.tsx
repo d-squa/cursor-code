@@ -2820,7 +2820,7 @@ export function MediaPlanEditor() {
                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Link a client to this ActiPlan, then click Apply Defaults to load platforms, markets, and ad account defaults. Changing the client alone does not overwrite your plan.
+                Link a client to this ActiPlan, then click Apply Defaults to load platforms, markets, and ad account defaults. Changing the client alone does not overwrite your plan or re-run auto-populate.
               </p>
             </div>
 
