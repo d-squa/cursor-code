@@ -168,10 +168,8 @@ export function enforceActiPlanBudgetFloors(
       step,
     );
 
-    let platformPct = platform.budgetPercentage ?? 0;
-    if (platformPct > 0) {
-      platformPct = clampBudgetPercentage(platformPct, minPlatformPct);
-    }
+    // Every selected platform must allocate at least the ActiPlan floor (€50 or phase-aware minimum).
+    const platformPct = clampBudgetPercentage(platform.budgetPercentage ?? 0, minPlatformPct);
 
     const markets = (platform.markets ?? []).map((market) => {
       const marketPct = market.budgetPercentage ?? 0;
