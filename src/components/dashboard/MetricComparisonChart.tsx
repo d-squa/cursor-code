@@ -175,7 +175,7 @@ export default function MetricComparisonChart({
                       return `${v.toFixed(1)}%`;
                     }
                     if (config?.label === 'CPC' || config?.label === 'CPM' || config?.label === 'CPR' || config?.label.includes('Cost')) {
-                      return `€${v.toFixed(2)}`;
+                      return `${v.toFixed(2)}`;
                     }
                     return v.toFixed(2);
                   }}
@@ -193,7 +193,7 @@ export default function MetricComparisonChart({
                       return `${v.toFixed(1)}%`;
                     }
                     if (config?.label === 'CPC' || config?.label === 'CPM' || config?.label === 'CPR' || config?.label.includes('Cost')) {
-                      return `€${v.toFixed(2)}`;
+                      return `${v.toFixed(2)}`;
                     }
                     return v.toFixed(2);
                   }}
@@ -213,7 +213,7 @@ export default function MetricComparisonChart({
                       return [`${value.toFixed(2)}%`, label];
                     }
                     if (metric?.label === 'CPC' || metric?.label === 'CPM' || metric?.label === 'CPR' || metric?.label.includes('Cost')) {
-                      return [`€${value.toFixed(2)}`, label];
+                      return [`${value.toFixed(2)}`, label];
                     }
                     return [value.toFixed(2), label];
                   }}

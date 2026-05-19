@@ -122,7 +122,7 @@ export default function MarketComparisonSection({ data }: MarketComparisonSectio
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => `€${value.toLocaleString()}`} />
+                  <Tooltip formatter={(value: number) => `${value.toLocaleString()}`} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -141,8 +141,8 @@ export default function MarketComparisonSection({ data }: MarketComparisonSectio
                 <BarChart data={barChartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="market" tick={{ fontSize: 10 }} />
-                  <YAxis tickFormatter={(v) => `€${v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}`} tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(value: number) => `€${value.toLocaleString()}`} />
+                  <YAxis tickFormatter={(v) => `${v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}`} tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: number) => `${value.toLocaleString()}`} />
                   <Legend />
                   <Bar dataKey="Planned Budget" fill="hsl(var(--muted-foreground))" opacity={0.5} />
                   <Bar dataKey="Actual Spend" fill="#22c55e" />
@@ -181,8 +181,8 @@ export default function MarketComparisonSection({ data }: MarketComparisonSectio
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end">
-                        <span className="font-medium">€{formatNumber(row.actualSpend)}</span>
-                        <span className="text-xs text-muted-foreground">€{formatNumber(row.plannedBudget)} planned</span>
+                        <span className="font-medium">${formatNumber(row.actualSpend)}</span>
+                        <span className="text-xs text-muted-foreground">${formatNumber(row.plannedBudget)} planned</span>
                         {getVarianceIndicator(getVariance(row.plannedBudget, row.actualSpend), true)}
                       </div>
                     </TableCell>
@@ -208,8 +208,8 @@ export default function MarketComparisonSection({ data }: MarketComparisonSectio
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-medium">{row.ctr.toFixed(2)}%</TableCell>
-                    <TableCell className="text-right font-medium">€{row.cpm.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-medium">€{row.cpc.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">${row.cpm.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium">${row.cpc.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

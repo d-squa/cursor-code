@@ -673,7 +673,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
         {/* Bid Amount */}
         {showBidAmount && (
           <div className="space-y-2">
-            <Label>Bid Amount (€)</Label>
+            <Label>Bid Amount ($)</Label>
             <Input
               type="number"
               placeholder="e.g., 10.00"
@@ -683,7 +683,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
               step="0.01"
             />
             <p className="text-xs text-muted-foreground">
-              Minimum €10 for CPC, €5 for CPM, €1 for OCPM
+              Minimum $10 for CPC, $5 for CPM, $1 for OCPM
             </p>
           </div>
         )}

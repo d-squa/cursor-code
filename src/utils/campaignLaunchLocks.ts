@@ -190,7 +190,7 @@ export function buildLaunchLockScope(entries: LaunchStatusRow[]): LaunchLockScop
   };
 }
 
-/** Platform row locked when any market on that platform is live (platform % shifts live EUR). */
+/** Platform row locked when any market on that platform is live (platform % shifts live spend). */
 export function resolveLockedPlatformIds(
   platforms: PlatformWithMarkets[],
   lockedMarketKeys: Set<string>,
@@ -298,7 +298,7 @@ export function hasDspLivePlanLocks(scope: LaunchLockScope): boolean {
   return scope.lockedMarketKeys.size > 0 || scope.lockedPhaseKeys.size > 0;
 }
 
-/** €50 validation runs only on unpublished markets (DSP-live slices excluded). */
+/** $50 validation runs only on unpublished markets (DSP-live slices excluded). */
 export function filterPlatformsForBudgetValidation(
   platforms: PlatformWithMarkets[],
   scope: LaunchLockScope,

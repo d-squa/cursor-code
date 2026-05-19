@@ -39,15 +39,15 @@ const PLATFORM_MINIMUM_BUDGETS = {
     name: "Meta",
   },
   tiktok: {
-    // TikTok requires higher minimums - ~€380 for short campaigns, scales with duration
+    // TikTok requires higher minimums - ~$380 for short campaigns, scales with duration
     // Per TikTok docs: $50/day minimum, or $50 * campaign_days for lifetime (varies by region)
     // EU region often requires higher minimums
     dailyMinimum: 50,
     lifetimeMinimumPerDay: 50,
-    // For short campaigns (< 7 days), TikTok enforces a flat minimum (~€380 in EU)
+    // For short campaigns (< 7 days), TikTok enforces a flat minimum (~$380 in some regions)
     shortCampaignMinimum: 380,
     shortCampaignDays: 7,
-    currency: "EUR",
+    currency: "USD",
     name: "TikTok",
   },
 };
@@ -62,7 +62,7 @@ interface BudgetValidationError {
   durationDays: number;
   message: string;
   fieldPath: string;
-  /** When true, push is aborted (ActiPlan €50 minimum). */
+  /** When true, push is aborted (ActiPlan $50 minimum). */
   blocking?: boolean;
 }
 
@@ -1616,7 +1616,7 @@ const handler = async (req: Request): Promise<Response> => {
         JSON.stringify({
           success: false,
           error: "Budget below ActiPlan minimum",
-          message: `Each campaign and ad set must have at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} allocated. Adjust total budget or splits before pushing.`,
+          message: `Each campaign and ad set must have at least $${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} allocated. Adjust total budget or splits before pushing.`,
           budgetErrors: blockingBudgetErrors,
         }),
         {
@@ -5588,7 +5588,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any, s
         // Get bid amount from market defaults or phase overrides
         const bidAmount = phase.tiktokBidAmount || market.tiktokBidAmount || undefined;
         if (bidAmount) {
-          console.log(`Using bid amount: €${bidAmount}`);
+          console.log(`Using bid amount: $${bidAmount}`);
         } else {
           console.warn(`⚠️ No bid amount configured - TikTok may require bid amount for CPC/CPM billing events`);
         }
@@ -5697,7 +5697,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any, s
             adGroupBudget = Math.round(campaignBudget * (tiktokAdSet.budgetPercentage / 100) * 100) / 100;
           }
           console.log(
-            `📊 TikTok Ad Group "${tiktokAdSet.name}" budget: €${adGroupBudget} (${tiktokAdSet.budgetPercentage}% of phase budget, CBO: ${isTiktokCBO})`,
+            `📊 TikTok Ad Group "${tiktokAdSet.name}" budget: $${adGroupBudget} (${tiktokAdSet.budgetPercentage}% of phase budget, CBO: ${isTiktokCBO})`,
           );
 
           // Build targeting with split overrides

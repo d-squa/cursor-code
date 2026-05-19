@@ -41,7 +41,7 @@ const CHART_COLORS = [
 
 const formatValue = (value: number, metricKey: string): string => {
   if (metricKey === 'spend') {
-    return `€${value >= 1000 ? (value / 1000).toFixed(1) + 'K' : value.toFixed(0)}`;
+    return `$${value >= 1000 ? (value / 1000).toFixed(1) + 'K' : value.toFixed(0)}`;
   }
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;

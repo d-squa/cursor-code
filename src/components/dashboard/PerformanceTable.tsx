@@ -98,7 +98,7 @@ export default function PerformanceTable({ data, title, groupBy }: PerformanceTa
                     </TableCell>
                   )}
                   <TableCell className="text-right">
-                    <MetricCell planned={row.plannedBudget} actual={row.actualSpend} prefix="€" invertVariance />
+                    <MetricCell planned={row.plannedBudget} actual={row.actualSpend} prefix="$" invertVariance />
                   </TableCell>
                   <TableCell className="text-right">
                     <MetricCell planned={row.plannedImpressions} actual={row.actualImpressions} />
@@ -113,10 +113,10 @@ export default function PerformanceTable({ data, title, groupBy }: PerformanceTa
                     <span className="font-medium">{row.ctr?.toFixed(2)}%</span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className="font-medium">€{row.cpm?.toFixed(2)}</span>
+                    <span className="font-medium">${row.cpm?.toFixed(2)}</span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className="font-medium">€{row.cpc?.toFixed(2)}</span>
+                    <span className="font-medium">${row.cpc?.toFixed(2)}</span>
                   </TableCell>
                 </TableRow>
               ))}

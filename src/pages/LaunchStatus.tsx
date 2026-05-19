@@ -467,7 +467,7 @@ export default function LaunchStatus() {
               ? budgetErrors
                   .map(
                     (e: any) =>
-                      `${e.platform} ${e.market}/${e.phase}: €${e.currentBudget?.toFixed(2) || "0"} (min: €${e.minimumRequired?.toFixed(2) || "?"})`,
+                      `${e.platform} ${e.market}/${e.phase}: $${e.currentBudget?.toFixed(2) || "0"} (min: $${e.minimumRequired?.toFixed(2) || "?"})`,
                   )
                   .join("\n")
               : "One or more campaigns have budgets below platform minimums.";
@@ -1440,7 +1440,7 @@ export default function LaunchStatus() {
           <h1 className="text-2xl font-bold">{campaign.name}</h1>
           <p className="text-sm text-muted-foreground">
             {format(new Date(campaign.start_date), "MMM dd")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
-            {" · "}€{campaign.total_budget.toLocaleString()}
+            {" · "}${campaign.total_budget.toLocaleString()}
           </p>
         </div>
         <Badge variant={allLive ? "default" : hasErrors ? "destructive" : "secondary"}>
