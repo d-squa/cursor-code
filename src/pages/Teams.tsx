@@ -615,7 +615,7 @@ export default function Teams() {
                               });
                             }}
                           >
-                            <SelectTrigger className="h-9 w-[min(100%,11rem)] min-w-0 justify-between gap-1 py-1.5 text-left text-sm [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:line-clamp-none">
+                            <SelectTrigger className="h-9 w-[min(100%,11rem)] min-w-0 justify-between gap-2 py-2 text-left text-sm [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left [&>span]:whitespace-normal [&>span]:break-words [&>span]:leading-snug [&>span]:line-clamp-none">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-w-[min(100vw-2rem,380px)]">
