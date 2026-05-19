@@ -11,6 +11,7 @@ import {
   getGoogleAdsCampaignTypes,
   getGoogleAdsSubtypes,
   getGoogleAdsCampaignConfig,
+  resolveGoogleBidStrategyForCampaignType,
   type GoogleAdsCampaignType,
 } from "@/utils/googleAdsCampaignMatrix";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
@@ -301,13 +302,22 @@ export function GoogleAdsPhaseConfig({ phase, onUpdate, onUpdateMany, googleCust
     }
   }, [googleCustomerId, phase.googleProductFeed]);
 
-  // Single source of truth: Optimization Goal drives Google Bid Strategy.
-  // Keep googleBidStrategy in sync so downstream DSP push & conditional inputs work.
+  // Sync bid strategy from optimization goal only when valid for this campaign type
+  // (e.g. never copy TARGET_CPM onto Search — Google rejects target_cpm in that context).
   useEffect(() => {
-    if (phase.optimizationGoal && phase.optimizationGoal !== phase.googleBidStrategy) {
-      onUpdate("googleBidStrategy", phase.optimizationGoal);
+    if (!selectedType) return;
+
+    const resolved = resolveGoogleBidStrategyForCampaignType(
+      selectedType,
+      effectiveSubtype || undefined,
+      phase.optimizationGoal,
+      phase.googleBidStrategy,
+    );
+
+    if (resolved && resolved !== phase.googleBidStrategy) {
+      onUpdate("googleBidStrategy", resolved);
     }
-  }, [phase.optimizationGoal]);
+  }, [phase.optimizationGoal, phase.googleBidStrategy, selectedType, effectiveSubtype, onUpdate]);
 
   const handleCampaignTypeChange = (value: string) => {
     const patch: Record<string, any> = { googleCampaignType: value, googleCampaignSubtype: "" };

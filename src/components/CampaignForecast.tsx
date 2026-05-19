@@ -31,6 +31,10 @@ import { ForecastOptionsDialog, ForecastOptions } from "./ForecastOptionsDialog"
 import { MarkupPreviewDialog, MarkupPreviewData } from "./MarkupPreviewDialog";
 import { Step5ForecastNav } from "./Step5ForecastNav";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
+import {
+  buildPlanBudgetFingerprint,
+  planBudgetMatchesSnapshot,
+} from "@/utils/campaignEditorPersist";
 
 // Helper: call AI forecast with retry + exponential backoff for 429 rate limits
 const invokeAIForecastWithRetry = async (
@@ -100,6 +104,10 @@ interface CampaignForecastProps {
   onBack: () => void;
   onFinalize: () => void;
   onBudgetOptimize?: (newPlatforms: PlatformWithMarkets[]) => void;
+  /** Persist plan state before refreshing forecasts so budget splits are not lost. */
+  onBeforeForecastRefresh?: () => void | Promise<void>;
+  /** View-only (e.g. team viewer role): no saves, forecast refresh, or approval actions. */
+  readOnly?: boolean;
 }
 
 interface ForecastMetrics {
@@ -238,6 +246,8 @@ export function CampaignForecast({
   onBack,
   onFinalize,
   onBudgetOptimize,
+  onBeforeForecastRefresh,
+  readOnly = false,
 }: CampaignForecastProps) {
   const navigate = useNavigate();
   const { isSampleMode } = useSampleMode();
@@ -256,6 +266,7 @@ export function CampaignForecast({
   const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
   const [budgetOptimization, setBudgetOptimization] = useState<BudgetOptimizationResult | null>(null);
   const [budgetRecommendationOpen, setBudgetRecommendationOpen] = useState(false);
+  const loadedPlanBudgetFingerprintRef = useRef<string | null>(null);
   const lastPoppedForecastId = useRef<string | null>(null);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [forecastOptionsOpen, setForecastOptionsOpen] = useState(false);
@@ -516,14 +527,30 @@ export function CampaignForecast({
           .single();
 
         const forecastData = campaign?.forecast_data as any;
+        const currentFingerprint = buildPlanBudgetFingerprint(totalBudget, platforms);
+        const storedFingerprint =
+          forecastData?.planBudgetFingerprint ??
+          (forecastData?.platformsSnapshot
+            ? buildPlanBudgetFingerprint(
+                forecastData.totalBudget ?? totalBudget,
+                forecastData.platformsSnapshot,
+              )
+            : null);
 
-        if (forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
+        if (
+          forecastData?.forecasts &&
+          Object.keys(forecastData.forecasts).length > 0 &&
+          (!storedFingerprint || storedFingerprint === currentFingerprint)
+        ) {
           setForecasts(forecastData.forecasts);
           if (forecastData.actiplanForecast) {
             setActiplanForecast(forecastData.actiplanForecast);
           }
+          loadedPlanBudgetFingerprintRef.current = currentFingerprint;
           setHasExistingForecast(true);
           console.log("Loaded existing forecast data");
+        } else if (forecastData?.forecasts && storedFingerprint && storedFingerprint !== currentFingerprint) {
+          console.log("Skipping stale campaign.forecast_data — plan budgets changed since last forecast");
         }
       } catch (error) {
         console.error("Error loading existing forecast:", error);
@@ -547,7 +574,7 @@ export function CampaignForecast({
 
     loadExistingForecast();
     loadBenchmarks();
-  }, [campaignId, resolvedIndustry]);
+  }, [campaignId, resolvedIndustry, totalBudget, platforms]);
 
   useEffect(() => {
     if (!existingLoadComplete || versionsLoading || hasExistingForecast || Object.keys(forecasts).length > 0) return;
@@ -556,13 +583,43 @@ export function CampaignForecast({
     const latestForecast = latestVersion?.forecast_data as any;
     if (!latestForecast?.forecasts || Object.keys(latestForecast.forecasts).length === 0) return;
 
+    if (
+      !planBudgetMatchesSnapshot(
+        totalBudget,
+        platforms,
+        latestVersion.platforms_snapshot,
+        latestVersion.total_budget,
+      )
+    ) {
+      console.log("Skipping stale forecast version — plan budgets changed since last forecast");
+      return;
+    }
+
     setForecasts(latestForecast.forecasts);
     if (latestForecast.actiplanForecast) {
       setActiplanForecast(latestForecast.actiplanForecast);
     }
+    loadedPlanBudgetFingerprintRef.current = buildPlanBudgetFingerprint(totalBudget, platforms);
     setHasExistingForecast(true);
     console.log("Loaded latest saved forecast version");
-  }, [existingLoadComplete, versionsLoading, versions, hasExistingForecast, forecasts]);
+  }, [existingLoadComplete, versionsLoading, versions, hasExistingForecast, forecasts, totalBudget, platforms]);
+
+  // Drop cached deliverables when step-1 budgets change so UI matches the plan builder.
+  useEffect(() => {
+    if (!existingLoadComplete || Object.keys(forecasts).length === 0) return;
+
+    const currentFingerprint = buildPlanBudgetFingerprint(totalBudget, platforms);
+    if (
+      loadedPlanBudgetFingerprintRef.current &&
+      loadedPlanBudgetFingerprintRef.current !== currentFingerprint
+    ) {
+      setForecasts({});
+      setActiplanForecast(null);
+      setHasExistingForecast(false);
+      loadedPlanBudgetFingerprintRef.current = null;
+      setBudgetOptimization(null);
+    }
+  }, [totalBudget, platforms, existingLoadComplete, forecasts]);
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
   // Note: we also auto-fetch in sample/tour mode so the seeded ActiPlan shows
@@ -583,6 +640,7 @@ export function CampaignForecast({
   // Auto-save forecast data when it changes
   useEffect(() => {
     const saveForecastData = async () => {
+      if (readOnly) return;
       if (!campaignId || Object.keys(forecasts).length === 0) return;
 
       try {
@@ -595,6 +653,9 @@ export function CampaignForecast({
               generatedAt: new Date().toISOString(),
               forecasts,
               actiplanForecast,
+              planBudgetFingerprint: buildPlanBudgetFingerprint(totalBudget, platforms),
+              platformsSnapshot: platforms,
+              totalBudget,
               totalMetrics: totalMetrics ? {
                 reach: totalMetrics.reach,
                 impressions: totalMetrics.impressions,
@@ -613,7 +674,7 @@ export function CampaignForecast({
     };
 
     saveForecastData();
-  }, [forecasts, actiplanForecast, campaignId]);
+  }, [forecasts, actiplanForecast, campaignId, readOnly, totalBudget, platforms]);
 
   // Sync benchmarks for all selected ad accounts across platforms
   const syncBenchmarksForSelectedAccounts = async (): Promise<void> => {
@@ -1584,6 +1645,10 @@ export function CampaignForecast({
   };
 
   const handleFetchForecasts = async (options?: ForecastOptions) => {
+    if (!readOnly) {
+      await onBeforeForecastRefresh?.();
+    }
+
     setLoading(true);
     setHasExistingForecast(false);
     
@@ -2319,9 +2384,15 @@ export function CampaignForecast({
         // Show base forecast (without markup)
         setForecasts(newForecasts);
         setActiplanForecast(beforeActiplan);
+        loadedPlanBudgetFingerprintRef.current = buildPlanBudgetFingerprint(totalBudget, platforms);
 
         // Save base version
-        const basePayload = { generatedAt: new Date().toISOString(), forecasts: newForecasts, actiplanForecast: beforeActiplan };
+        const basePayload = {
+          generatedAt: new Date().toISOString(),
+          forecasts: newForecasts,
+          actiplanForecast: beforeActiplan,
+          planBudgetFingerprint: loadedPlanBudgetFingerprintRef.current,
+        };
         saveVersion(basePayload, platforms, totalBudget, undefined, "Base forecast (before markup)");
 
         // Store the markup-applied state for when user accepts
@@ -2386,9 +2457,15 @@ export function CampaignForecast({
         const actiplan = buildActiplan(platformForecasts);
         setForecasts(newForecasts);
         setActiplanForecast(actiplan);
+        loadedPlanBudgetFingerprintRef.current = buildPlanBudgetFingerprint(totalBudget, platforms);
         toast.success("Forecasts fetched successfully!");
 
-        const forecastPayload = { generatedAt: new Date().toISOString(), forecasts: newForecasts, actiplanForecast: actiplan };
+        const forecastPayload = {
+          generatedAt: new Date().toISOString(),
+          forecasts: newForecasts,
+          actiplanForecast: actiplan,
+          planBudgetFingerprint: loadedPlanBudgetFingerprintRef.current,
+        };
         saveVersion(forecastPayload, platforms, totalBudget);
       }
 
@@ -2719,7 +2796,7 @@ export function CampaignForecast({
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            {!isSampleMode && !loading && Object.keys(forecasts).length === 0 && (
+            {!readOnly && !isSampleMode && !loading && Object.keys(forecasts).length === 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
@@ -2734,7 +2811,7 @@ export function CampaignForecast({
                 )}
               </Button>
             )}
-            {!isSampleMode && !loading && Object.keys(forecasts).length > 0 && (
+            {!readOnly && !isSampleMode && !loading && Object.keys(forecasts).length > 0 && (
               <Button onClick={() => setForecastOptionsOpen(true)} variant="outline" disabled={isSyncingBenchmarks}>
                 {isSyncingBenchmarks ? (
                   <>
@@ -2878,6 +2955,7 @@ export function CampaignForecast({
                 </DropdownMenuContent>
               </DropdownMenu>
             </LockedFeatureButton>
+            {!readOnly && (
             <LockedFeatureButton feature="request_modifications">
               <Button 
                 variant="outline" 
@@ -2888,6 +2966,7 @@ export function CampaignForecast({
                 Send for Approval
               </Button>
             </LockedFeatureButton>
+            )}
             <Button 
               variant="outline"
               onClick={() => navigate(`/app/creatives?campaignId=${campaignId}`)} 
@@ -2896,6 +2975,7 @@ export function CampaignForecast({
               <Wand2 className="h-4 w-4 mr-2" />
               Mesh Ads
             </Button>
+            {!readOnly && (
             <Button 
               variant="gradient" 
               onClick={handleGoToLaunchStatus} 
@@ -2904,9 +2984,12 @@ export function CampaignForecast({
               <Rocket className="h-4 w-4 mr-2" />
               Launch Campaign
             </Button>
+            )}
+            {!readOnly && (
             <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
               Save Draft
             </Button>
+            )}
           </div>
         </div>
 

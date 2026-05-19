@@ -735,6 +735,54 @@ export function getGoogleAdsBidStrategies(campaignType: string, subtype?: string
   return config?.bidStrategies || [];
 }
 
+const GOOGLE_BID_STRATEGY_API_TO_LABEL: Record<string, string> = {
+  TARGET_CPM: "Target CPM",
+  TARGET_CPV: "Target CPV",
+  TARGET_CPA: "Target CPA",
+  TARGET_ROAS: "Target ROAS",
+  MAXIMIZE_CONVERSIONS: "Maximize Conversions",
+  MAXIMIZE_CONVERSION_VALUE: "Maximize Conversion Value",
+  MAXIMIZE_CLICKS: "Maximize Clicks",
+  MANUAL_CPC: "Manual CPC",
+  MAXIMUM_CPC: "Maximum CPC",
+  TARGET_IMPRESSION_SHARE: "Target Impression Share",
+  CPM: "CPM",
+  VIEWABLE_IMPRESSIONS: "Viewable Impressions",
+};
+
+/** Pick a bid strategy label/API token allowed for the Google campaign type (avoids e.g. TARGET_CPM on Search). */
+export function resolveGoogleBidStrategyForCampaignType(
+  campaignType: string,
+  subtype: string | undefined,
+  preferredStrategy?: string,
+  fallbackStrategy?: string,
+): string | undefined {
+  const allowed = getGoogleAdsBidStrategies(campaignType, subtype);
+  if (!allowed.length) {
+    return preferredStrategy || fallbackStrategy;
+  }
+
+  const candidates = [preferredStrategy, fallbackStrategy].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    if (allowed.includes(candidate)) {
+      return candidate;
+    }
+
+    const apiKey = candidate.toUpperCase().replace(/[\s-]+/g, "_");
+    const fromApi = GOOGLE_BID_STRATEGY_API_TO_LABEL[apiKey];
+    if (fromApi && allowed.includes(fromApi)) {
+      return fromApi;
+    }
+
+    const humanMatch = Object.entries(GOOGLE_BID_STRATEGY_API_TO_LABEL).find(([, label]) => label === candidate);
+    if (humanMatch && allowed.includes(humanMatch[1])) {
+      return humanMatch[1];
+    }
+  }
+
+  return allowed[0];
+}
+
 /**
  * Get valid ad formats for a campaign type + subtype
  */

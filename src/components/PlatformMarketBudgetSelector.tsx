@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff, RefreshCw } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff, RefreshCw, Lock } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -14,12 +15,29 @@ import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { useSampleMode } from "@/contexts/SampleModeContext";
+import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import { PlatformMarketNav } from "./PlatformMarketNav";
+import { extensionMarketLockKey } from "@/utils/campaignLaunchLocks";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  calculateMarketBudgetEur,
+  calculatePlatformBudgetEur,
+  ACTIPLAN_BUDGET_SLIDER_STEP,
+  ceilBudgetPercentageToSliderStep,
+  clampBudgetPercentage,
+  clampPercentageToMinimumEur,
+  enforceActiPlanBudgetFloors,
+  minMarketBudgetEurForPhases,
+  minPercentageForBudgetEur,
+  minPlatformBudgetEurForPhases,
+  minPlatformBudgetPercentage,
+  minPlatformBudgetPercentageForPhases,
+} from "@/utils/actiplanBudgetMinimums";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -33,6 +51,18 @@ interface PlatformMarketBudgetSelectorProps {
   setEndDate?: (date: string) => void;
   setTotalBudget?: (budget: string) => void;
   selectedClientId?: string;
+  /** Shown above platform rows when allocations violate €50 minimum rules. */
+  budgetViolationsSummary?: string;
+  /** DSP-live platform — budget cannot change (partial push). */
+  isPlatformBudgetLocked?: (platformId: string, markets: Market[]) => boolean;
+  /** DSP-live market — budget cannot change (partial push). */
+  isMarketBudgetLocked?: (platformId: string, marketName: string) => boolean;
+  /** Extension mode: ids frozen at hydrate (before snapshot). */
+  extensionHydratedLockIds?: { platformIds: Set<string>; marketIds: Set<string> } | null;
+  dspLocksActive?: boolean;
+  dspPartialPush?: boolean;
+  /** URL mode=extend (explicit prop — avoids context timing gaps). */
+  extensionModeActive?: boolean;
 }
 
 const AVAILABLE_PLATFORMS = [
@@ -57,8 +87,16 @@ export function PlatformMarketBudgetSelector({
   setStartDate,
   setEndDate,
   setTotalBudget,
-  selectedClientId
+  selectedClientId,
+  budgetViolationsSummary,
+  isPlatformBudgetLocked,
+  isMarketBudgetLocked,
+  extensionHydratedLockIds = null,
+  dspLocksActive = false,
+  dspPartialPush = false,
+  extensionModeActive = false,
 }: PlatformMarketBudgetSelectorProps) {
+  const extensionMode = useExtensionModeOptional();
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<any[]>([]);
@@ -106,55 +144,72 @@ export function PlatformMarketBudgetSelector({
   // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
   const [budgetLocked, setBudgetLocked] = useState(false);
   
-  // When budget lock is enabled, normalize all platforms and their markets to 100% if they exceed it
-  useEffect(() => {
-    if (!budgetLocked) return;
-    
-    // Check if platform totals exceed 100%
-    const totalPlatformBudget = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
-    
-    if (totalPlatformBudget > 100) {
-      // Normalize platform budgets proportionally to 100%
-      const normalizedPlatforms = platforms.map(p => ({
-        ...p,
-        budgetPercentage: totalPlatformBudget > 0 
-          ? (p.budgetPercentage / totalPlatformBudget) * 100 
-          : 100 / platforms.length,
-      }));
-      
-      setPlatforms(normalizedPlatforms);
-    }
-    
-    // Also check each platform's markets
-    const platformsNeedingMarketNormalization = platforms.filter(p => {
-      const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-      return totalMarketBudget > 100;
-    });
-    
-    if (platformsNeedingMarketNormalization.length > 0) {
-      setPlatforms(prev => prev.map(p => {
-        const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-        
-        if (totalMarketBudget > 100) {
-          return {
-            ...p,
-            markets: p.markets.map(m => ({
-              ...m,
-              budgetPercentage: totalMarketBudget > 0 
-                ? (m.budgetPercentage / totalMarketBudget) * 100 
-                : 100 / p.markets.length,
-            })),
-          };
-        }
-        return p;
-      }));
-    }
-  }, [budgetLocked]);
-  
   // Fixed budget state - items that are fixed don't change when others are adjusted
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
-  
+
+  const inExtensionMode = extensionModeActive || extensionMode.isExtensionMode;
+
+  /** DSP-live and extension-mode original slices cannot change budget %. */
+  const platformIsBudgetLocked = (platform: PlatformWithMarkets) => {
+    if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) return true;
+    if (
+      inExtensionMode &&
+      platform.id &&
+      (extensionMode.isOriginalPlatform(platform.id) ||
+        (extensionHydratedLockIds?.platformIds.has(platform.id) ?? false))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const marketIsBudgetLocked = (platform: PlatformWithMarkets, market: Market) => {
+    if (platform.id && isMarketBudgetLocked?.(platform.id, market.name)) return true;
+    if (!inExtensionMode || !platform.id) return false;
+    const marketKey = extensionMarketLockKey(platform.id, market);
+    if (
+      extensionMode.isOriginalMarket(market.id) ||
+      extensionMode.isOriginalMarket(marketKey) ||
+      (extensionHydratedLockIds?.marketIds.has(marketKey) ?? false) ||
+      (market.id ? (extensionHydratedLockIds?.marketIds.has(market.id) ?? false) : false)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const platformBudgetLockTitle = (platform: PlatformWithMarkets) => {
+    if (platform.id && isPlatformBudgetLocked?.(platform.id, platform.markets)) {
+      return "Live in DSP — budget cannot change";
+    }
+    if (
+      inExtensionMode &&
+      platform.id &&
+      (extensionMode.isOriginalPlatform(platform.id) ||
+        (extensionHydratedLockIds?.platformIds.has(platform.id) ?? false))
+    ) {
+      return "Original plan platform — budget locked in extension mode";
+    }
+    return "Budget locked";
+  };
+
+  const marketBudgetLockTitle = (platform: PlatformWithMarkets, market: Market) => {
+    if (platform.id && isMarketBudgetLocked?.(platform.id, market.name)) {
+      return "Live in DSP — budget cannot change";
+    }
+    if (marketIsBudgetLocked(platform, market)) {
+      return "Original plan market — budget locked in extension mode";
+    }
+    return "Budget locked";
+  };
+
+  const platformIsFixed = (index: number) =>
+    Boolean(fixedPlatforms[index] || platformIsBudgetLocked(platforms[index]));
+
+  const marketIsFixed = (platform: PlatformWithMarkets, market: Market) =>
+    Boolean(fixedMarkets[market.id] || marketIsBudgetLocked(platform, market));
+
   const togglePlatformFixed = (index: number) => {
     setFixedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
   };
@@ -194,8 +249,13 @@ export function PlatformMarketBudgetSelector({
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
+  /** Prevent meta ad-account default backfill from re-entering fetchMetaResources (infinite loop). */
+  const metaAutoPopulateRanRef = useRef<string | null>(null);
+  const metaAutoPopulateInFlightRef = useRef(false);
+
   // Fetch all Meta, TikTok, and Google resources from database
   useEffect(() => {
+    metaAutoPopulateRanRef.current = null;
     fetchMetaResources();
     fetchTiktokResources();
     fetchGoogleResources();
@@ -237,6 +297,15 @@ export function PlatformMarketBudgetSelector({
     }
   };
 
+  type MetaResourceSnapshot = {
+    pixels: { id: string; name: string; adAccountId?: string }[];
+    pages: { id: string; name: string }[];
+    instagramAccounts: { id: string; username?: string; name?: string }[];
+    catalogs: { id: string; name: string }[];
+    productSets: { id: string; name: string; catalogId?: string }[];
+    conversionEvents: { pixelId: string; id: string; name: string }[];
+  };
+
   const fetchMetaResources = async () => {
     setIsLoadingAccounts(true);
     setLoadingAdAccounts(true);
@@ -245,7 +314,16 @@ export function PlatformMarketBudgetSelector({
     setLoadingCatalogs(true);
     setLoadingProductSets(true);
     setLoadingConversionEvents(true);
-    
+
+    const resourceSnapshot: MetaResourceSnapshot = {
+      pixels: [],
+      pages: [],
+      instagramAccounts: [],
+      catalogs: [],
+      productSets: [],
+      conversionEvents: [],
+    };
+
     try {
       // Fetch ad accounts from database with their defaults
       // Show all accounts - client filtering is optional (accounts without client_id should always be visible)
@@ -331,10 +409,11 @@ export function PlatformMarketBudgetSelector({
         const uniquePages = Array.from(
           new Map(pagesData.map((page: any) => [page.page_id, page])).values()
         );
-        setPages(uniquePages.map((page: any) => ({
+        resourceSnapshot.pages = uniquePages.map((page: any) => ({
           id: page.page_id,
           name: page.page_name,
-        })));
+        }));
+        setPages(resourceSnapshot.pages);
       } else if (!pagesError && !pagesData) {
         console.warn("No pages data returned");
       }
@@ -350,11 +429,12 @@ export function PlatformMarketBudgetSelector({
         const uniquePixels = Array.from(
           new Map(pixelsData.map((pixel: any) => [pixel.pixel_id, pixel])).values()
         );
-        setPixels(uniquePixels.map((pixel: any) => ({
+        resourceSnapshot.pixels = uniquePixels.map((pixel: any) => ({
           id: pixel.pixel_id,
           name: pixel.pixel_name,
           adAccountId: pixel.ad_account_id,
-        })));
+        }));
+        setPixels(resourceSnapshot.pixels);
       }
 
       // Fetch catalogs from database
@@ -368,10 +448,11 @@ export function PlatformMarketBudgetSelector({
         const uniqueCatalogs = Array.from(
           new Map(catalogsData.map((catalog: any) => [catalog.catalog_id, catalog])).values()
         );
-        setCatalogs(uniqueCatalogs.map((catalog: any) => ({
+        resourceSnapshot.catalogs = uniqueCatalogs.map((catalog: any) => ({
           id: catalog.catalog_id,
           name: catalog.catalog_name,
-        })));
+        }));
+        setCatalogs(resourceSnapshot.catalogs);
       }
 
       // Fetch product sets from database
@@ -390,11 +471,12 @@ export function PlatformMarketBudgetSelector({
         const uniqueProductSets = Array.from(
           new Map(productSetsData.map((ps: any) => [ps.product_set_id, ps])).values()
         );
-        setProductSets(uniqueProductSets.map((ps: any) => ({
+        resourceSnapshot.productSets = uniqueProductSets.map((ps: any) => ({
           id: ps.product_set_id,
           name: ps.product_set_name,
           catalogId: ps.catalog_id,
-        })));
+        }));
+        setProductSets(resourceSnapshot.productSets);
       } else if (!productSetsError && !productSetsData) {
         console.warn("No product sets data returned");
       }
@@ -410,12 +492,13 @@ export function PlatformMarketBudgetSelector({
         const uniqueEvents = Array.from(
           new Map(eventsData.map((event: any) => [`${event.pixel_id}-${event.event_name}`, event])).values()
         );
-        setConversionEvents(uniqueEvents.map((event: any) => ({
+        resourceSnapshot.conversionEvents = uniqueEvents.map((event: any) => ({
           pixelId: event.pixel_id,
           id: event.event_name,
           name: event.event_name,
           type: event.event_type || "standard",
-        })));
+        }));
+        setConversionEvents(resourceSnapshot.conversionEvents);
       }
 
       // Fetch Instagram accounts from database
@@ -429,11 +512,18 @@ export function PlatformMarketBudgetSelector({
         const uniqueIgAccounts = Array.from(
           new Map(igData.map((ig: any) => [ig.instagram_account_id, ig])).values()
         );
-        setInstagramAccounts(uniqueIgAccounts.map((ig: any) => ({
+        resourceSnapshot.instagramAccounts = uniqueIgAccounts.map((ig: any) => ({
           id: ig.instagram_account_id,
           username: ig.username,
           name: ig.username,
-        })));
+        }));
+        setInstagramAccounts(resourceSnapshot.instagramAccounts);
+      }
+
+      const populateKey = selectedClientId ?? "__all__";
+      if (metaAutoPopulateRanRef.current !== populateKey && !metaAutoPopulateInFlightRef.current) {
+        metaAutoPopulateRanRef.current = populateKey;
+        await autoPopulateDefaults(resourceSnapshot);
       }
     } catch (error: any) {
       console.error("Failed to fetch Meta resources:", error);
@@ -446,86 +536,106 @@ export function PlatformMarketBudgetSelector({
       setLoadingCatalogs(false);
       setLoadingProductSets(false);
       setLoadingConversionEvents(false);
-      
-      // After all resources are loaded, auto-populate defaults if not already set
-      autoPopulateDefaults();
     }
   };
 
-  // Auto-populate defaults for ad accounts that don't have them set
-  const autoPopulateDefaults = async () => {
+  /** Backfill missing meta_ad_accounts defaults in DB — never re-call fetchMetaResources (causes infinite loop). */
+  const autoPopulateDefaults = async (resources: MetaResourceSnapshot) => {
+    if (metaAutoPopulateInFlightRef.current) return;
+    metaAutoPopulateInFlightRef.current = true;
     try {
-      const { data: adAccountsData } = await supabase
-        .from("meta_ad_accounts" as any)
-        .select("*");
-
-      if (!adAccountsData) return;
-
-      const updates: any[] = [];
-
-      adAccountsData.forEach((acc: any) => {
-        const needsUpdate = !acc.default_pixel_id || !acc.default_page_id;
-        
-        if (needsUpdate) {
-          const update: any = {
-            account_id: acc.account_id,
-          };
-
-          // Auto-select first pixel for this ad account if not set
-          if (!acc.default_pixel_id) {
-            const firstPixel = pixels.find(p => p.adAccountId === acc.account_id);
-            if (firstPixel) update.default_pixel_id = firstPixel.id;
-          }
-
-          // Auto-select first page if not set
-          if (!acc.default_page_id && pages.length > 0) {
-            update.default_page_id = pages[0].id;
-          }
-
-          // Auto-select first Instagram account if not set
-          if (!acc.default_instagram_account_id && instagramAccounts.length > 0) {
-            update.default_instagram_account_id = instagramAccounts[0].id;
-          }
-
-          // Auto-select first catalog if not set
-          if (!acc.default_catalog_id && catalogs.length > 0) {
-            update.default_catalog_id = catalogs[0].id;
-          }
-
-          // Auto-select first product set if not set
-          if (!acc.default_product_set_id && productSets.length > 0) {
-            update.default_product_set_id = productSets[0].id;
-          }
-
-          // Auto-select first conversion event if not set
-          if (!acc.default_conversion_event && conversionEvents.length > 0) {
-            update.default_conversion_event = conversionEvents[0].id;
-          }
-
-          if (Object.keys(update).length > 1) { // More than just account_id
-            updates.push(update);
-          }
-        }
-      });
-
-      // Batch update all ad accounts with auto-populated defaults
-      if (updates.length > 0) {
-        for (const update of updates) {
-          const accountId = update.account_id;
-          delete update.account_id;
-          
-          await supabase
-            .from("meta_ad_accounts" as any)
-            .update(update)
-            .eq("account_id", accountId);
-        }
-
-        // Refresh the defaults after updating
-        await fetchMetaResources();
-        toast.success(`Auto-populated defaults for ${updates.length} ad account(s)`);
+      let query = supabase.from("meta_ad_accounts" as any).select("*");
+      if (selectedClientId) {
+        query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
       }
+      if (!isSampleMode) {
+        query = (query as any).eq("is_sample", false);
+      }
+      const { data: adAccountsData } = await query;
+
+      if (!adAccountsData?.length) return;
+
+      const updates: { account_id: string; patch: Record<string, string> }[] = [];
+
+      for (const acc of adAccountsData as any[]) {
+        const patch: Record<string, string> = {};
+
+        if (!acc.default_pixel_id) {
+          const firstPixel = resources.pixels.find((p) => p.adAccountId === acc.account_id);
+          if (firstPixel) patch.default_pixel_id = firstPixel.id;
+        }
+        if (!acc.default_page_id && resources.pages.length > 0) {
+          patch.default_page_id = resources.pages[0].id;
+        }
+        if (!acc.default_instagram_account_id && resources.instagramAccounts.length > 0) {
+          patch.default_instagram_account_id = resources.instagramAccounts[0].id;
+        }
+        if (!acc.default_catalog_id && resources.catalogs.length > 0) {
+          patch.default_catalog_id = resources.catalogs[0].id;
+        }
+        if (!acc.default_product_set_id && resources.productSets.length > 0) {
+          patch.default_product_set_id = resources.productSets[0].id;
+        }
+        if (!acc.default_conversion_event && resources.conversionEvents.length > 0) {
+          patch.default_conversion_event = resources.conversionEvents[0].id;
+        }
+
+        if (Object.keys(patch).length > 0) {
+          updates.push({ account_id: acc.account_id, patch });
+        }
+      }
+
+      if (updates.length === 0) return;
+
+      for (const { account_id, patch } of updates) {
+        await supabase.from("meta_ad_accounts" as any).update(patch).eq("account_id", account_id);
+      }
+
+      const { data: refreshed } = await query;
+      if (refreshed) {
+        const defaults: Record<string, any> = {};
+        refreshed.forEach((acc: any) => {
+          defaults[acc.account_id] = {
+            pixelId: acc.default_pixel_id,
+            pageId: acc.default_page_id,
+            instagramActorId: acc.default_instagram_account_id,
+            catalog: acc.default_catalog_id,
+            productSet: acc.default_product_set_id,
+            conversionEvent: acc.default_conversion_event,
+            bidStrategy: acc.default_bid_strategy,
+            bidAmount: acc.default_bid_amount,
+            mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
+            publisherPlatforms: Array.isArray(acc.default_publisher_platforms)
+              ? acc.default_publisher_platforms
+              : ["facebook", "instagram", "audience_network"],
+            positions: acc.default_positions || {},
+            advantagePlusPlacements: acc.default_advantage_plus_placements ?? true,
+            optimizationLocation: acc.default_optimization_location,
+            appStore: acc.default_app_store,
+            appId: acc.default_app_id,
+            landingPageUrl: acc.default_landing_page_url,
+            messagingMode: acc.default_messaging_mode,
+            messengerEnabled: acc.default_messenger_enabled,
+            instagramDmEnabled: acc.default_instagram_dm_enabled,
+            whatsappEnabled: acc.default_whatsapp_enabled,
+            whatsappNumber: acc.default_whatsapp_number,
+            clickWindow: acc.default_click_window,
+            viewWindow: acc.default_view_window,
+            billingEvent: acc.default_billing_event,
+            advantagePlusCampaign: acc.default_advantage_plus_campaign ?? false,
+            advantagePlusAudience: acc.default_advantage_plus_audience ?? false,
+            advantagePlusCreative: acc.default_advantage_plus_creative ?? false,
+            conversionCount: acc.default_conversion_count || "all_conversions",
+          };
+        });
+        setAdAccountDefaults(defaults);
+      }
+
+      toast.success(`Auto-populated defaults for ${updates.length} ad account(s)`);
     } catch (error) {
       console.error("Failed to auto-populate defaults:", error);
+    } finally {
+      metaAutoPopulateInFlightRef.current = false;
     }
   };
 
@@ -749,72 +859,84 @@ export function PlatformMarketBudgetSelector({
     }
   };
 
-  // Re-apply TikTok defaults to markets that were restored from draft but missing key fields
+  // Re-apply TikTok defaults to markets restored from draft (once per defaults load — avoid platforms dep loop)
+  const tiktokDefaultsAppliedRef = useRef<string>("");
   useEffect(() => {
-    if (Object.keys(tiktokAdAccountDefaults).length === 0) return;
-    
-    let hasUpdates = false;
-    const updatedPlatforms = platforms.map(platform => {
-      if (!platform.id?.toLowerCase().includes('tiktok')) return platform;
-      
-      const updatedMarkets = platform.markets.map(market => {
-        if (!market.adAccountId) return market;
-        
-        const defaults = tiktokAdAccountDefaults[market.adAccountId];
-        if (!defaults) return market;
-        
-        // Check if market is missing key defaults that we should apply
-        const needsPixel = !market.tiktokPixel && defaults.pixelId;
-        const needsIdentity = !market.tiktokIdentity && defaults.identityId;
-        const needsCatalog = !market.tiktokCatalog && defaults.catalogId;
-        const needsProductSet = !market.tiktokProductSet && defaults.productSetId;
-        const needsOptEvent = !market.tiktokOptimizationEvent && defaults.optimizationEvent;
-        const needsOptLocation = !market.tiktokOptimizationLocation && defaults.optimizationLocation;
-        const needsBidStrategy = !market.tiktokBidStrategy && defaults.bidStrategy;
-        const needsLandingPage = !market.tiktokLandingPageUrl && defaults.landingPageUrl;
-        const needsPlacementType = !market.tiktokPlacementType && defaults.placementType;
-        
-        if (!needsPixel && !needsIdentity && !needsCatalog && !needsProductSet && !needsOptEvent && 
-            !needsOptLocation && !needsBidStrategy && !needsLandingPage && !needsPlacementType) {
-          return market;
-        }
-        
-        hasUpdates = true;
-        console.log('🔄 Re-applying TikTok defaults to market:', market.id, {
-          needsPixel,
-          needsIdentity,
-          needsCatalog,
-          needsOptLocation,
-          needsBidStrategy,
-          defaults
+    const defaultsKey = JSON.stringify(Object.keys(tiktokAdAccountDefaults).sort());
+    if (!defaultsKey || defaultsKey === "[]" || tiktokDefaultsAppliedRef.current === defaultsKey) return;
+
+    setPlatforms((prev) => {
+      let hasUpdates = false;
+      const updatedPlatforms = prev.map((platform) => {
+        if (!platform.id?.toLowerCase().includes("tiktok")) return platform;
+
+        const updatedMarkets = platform.markets.map((market) => {
+          if (!market.adAccountId) return market;
+
+          const defaults = tiktokAdAccountDefaults[market.adAccountId];
+          if (!defaults) return market;
+
+          const needsPixel = !market.tiktokPixel && defaults.pixelId;
+          const needsIdentity = !market.tiktokIdentity && defaults.identityId;
+          const needsCatalog = !market.tiktokCatalog && defaults.catalogId;
+          const needsProductSet = !market.tiktokProductSet && defaults.productSetId;
+          const needsOptEvent = !market.tiktokOptimizationEvent && defaults.optimizationEvent;
+          const needsOptLocation = !market.tiktokOptimizationLocation && defaults.optimizationLocation;
+          const needsBidStrategy = !market.tiktokBidStrategy && defaults.bidStrategy;
+          const needsLandingPage = !market.tiktokLandingPageUrl && defaults.landingPageUrl;
+          const needsPlacementType = !market.tiktokPlacementType && defaults.placementType;
+
+          if (
+            !needsPixel &&
+            !needsIdentity &&
+            !needsCatalog &&
+            !needsProductSet &&
+            !needsOptEvent &&
+            !needsOptLocation &&
+            !needsBidStrategy &&
+            !needsLandingPage &&
+            !needsPlacementType
+          ) {
+            return market;
+          }
+
+          hasUpdates = true;
+          return {
+            ...market,
+            tiktokPixel: needsPixel ? defaults.pixelId : market.tiktokPixel,
+            tiktokIdentity: needsIdentity ? defaults.identityId : market.tiktokIdentity,
+            tiktokCatalog: needsCatalog ? defaults.catalogId : market.tiktokCatalog,
+            tiktokProductSet: needsProductSet ? defaults.productSetId : market.tiktokProductSet,
+            tiktokOptimizationEvent: needsOptEvent ? defaults.optimizationEvent : market.tiktokOptimizationEvent,
+            tiktokOptimizationLocation: needsOptLocation ? defaults.optimizationLocation : market.tiktokOptimizationLocation,
+            tiktokBidStrategy: needsBidStrategy ? defaults.bidStrategy : market.tiktokBidStrategy,
+            tiktokLandingPageUrl: needsLandingPage ? defaults.landingPageUrl : market.tiktokLandingPageUrl,
+            tiktokPlacementType: needsPlacementType ? defaults.placementType : market.tiktokPlacementType,
+            tiktokPlacements:
+              !market.tiktokPlacements && defaults.placements ? defaults.placements : market.tiktokPlacements,
+            tiktokAppId: !market.tiktokAppId && defaults.appId ? defaults.appId : market.tiktokAppId,
+            tiktokAppName: !market.tiktokAppName && defaults.appName ? defaults.appName : market.tiktokAppName,
+            tiktokClickWindow:
+              market.tiktokClickWindow === undefined && defaults.clickWindow !== undefined
+                ? defaults.clickWindow
+                : market.tiktokClickWindow,
+            tiktokViewWindow:
+              market.tiktokViewWindow === undefined && defaults.viewWindow !== undefined
+                ? defaults.viewWindow
+                : market.tiktokViewWindow,
+          };
         });
-        
-        return {
-          ...market,
-          tiktokPixel: needsPixel ? defaults.pixelId : market.tiktokPixel,
-          tiktokIdentity: needsIdentity ? defaults.identityId : market.tiktokIdentity,
-          tiktokCatalog: needsCatalog ? defaults.catalogId : market.tiktokCatalog,
-          tiktokProductSet: needsProductSet ? defaults.productSetId : market.tiktokProductSet,
-          tiktokOptimizationEvent: needsOptEvent ? defaults.optimizationEvent : market.tiktokOptimizationEvent,
-          tiktokOptimizationLocation: needsOptLocation ? defaults.optimizationLocation : market.tiktokOptimizationLocation,
-          tiktokBidStrategy: needsBidStrategy ? defaults.bidStrategy : market.tiktokBidStrategy,
-          tiktokLandingPageUrl: needsLandingPage ? defaults.landingPageUrl : market.tiktokLandingPageUrl,
-          tiktokPlacementType: needsPlacementType ? defaults.placementType : market.tiktokPlacementType,
-          tiktokPlacements: !market.tiktokPlacements && defaults.placements ? defaults.placements : market.tiktokPlacements,
-          tiktokAppId: !market.tiktokAppId && defaults.appId ? defaults.appId : market.tiktokAppId,
-          tiktokAppName: !market.tiktokAppName && defaults.appName ? defaults.appName : market.tiktokAppName,
-          tiktokClickWindow: market.tiktokClickWindow === undefined && defaults.clickWindow !== undefined ? defaults.clickWindow : market.tiktokClickWindow,
-          tiktokViewWindow: market.tiktokViewWindow === undefined && defaults.viewWindow !== undefined ? defaults.viewWindow : market.tiktokViewWindow,
-        };
+
+        return { ...platform, markets: updatedMarkets };
       });
-      
-      return { ...platform, markets: updatedMarkets };
+
+      if (hasUpdates) {
+        tiktokDefaultsAppliedRef.current = defaultsKey;
+        return updatedPlatforms;
+      }
+      return prev;
     });
-    
-    if (hasUpdates) {
-      setPlatforms(updatedPlatforms);
-    }
-  }, [tiktokAdAccountDefaults, platforms]);
+  }, [tiktokAdAccountDefaults, setPlatforms]);
 
   // Fetch connected platforms and Meta resources on mount
   useEffect(() => {
@@ -1078,9 +1200,9 @@ export function PlatformMarketBudgetSelector({
         return translatedMarket;
       };
 
-      setPlatforms(
-        platforms.map((p, i) => 
-          i === index 
+      setPlatforms((prev) => {
+        const mapped = prev.map((p, i) =>
+          i === index
             ? {
                 ...p,
                 id: selectedPlatform.id,
@@ -1093,9 +1215,12 @@ export function PlatformMarketBudgetSelector({
                   ),
                 ),
               }
-            : p
-        )
-      );
+            : p,
+        ) as PlatformWithMarkets[];
+        return totalBudget > 0
+          ? (enforceActiPlanBudgetFloors(mapped, totalBudget) as PlatformWithMarkets[])
+          : mapped;
+      });
     }
   };
 
@@ -1115,51 +1240,191 @@ export function PlatformMarketBudgetSelector({
     setPlatforms([...platforms, newPlatform]);
   };
 
-  const updatePlatformBudget = (index: number, percentage: number) => {
-    const newPercentage = Math.max(0, Math.min(100, percentage));
-    
-    if (budgetLocked && platforms.length > 1) {
-      // Calculate the difference and redistribute to other non-fixed platforms proportionally
-      const currentPlatform = platforms[index];
-      const diff = newPercentage - currentPlatform.budgetPercentage;
-      
-      // Get total budget of other non-fixed platforms
-      const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !fixedPlatforms[i]);
-      const otherNonFixedTotalBudget = otherNonFixedPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
-      
-      setPlatforms(
-        platforms.map((p, i) => {
-          if (i === index) {
-            return { ...p, budgetPercentage: newPercentage };
-          }
-          
-          // Skip fixed platforms - they don't change
-          if (fixedPlatforms[i]) {
-            return p;
-          }
-          
-          // Redistribute proportionally among other non-fixed platforms
-          if (otherNonFixedTotalBudget > 0) {
-            const proportion = p.budgetPercentage / otherNonFixedTotalBudget;
-            const adjustment = diff * proportion;
-            return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - adjustment) };
-          } else if (otherNonFixedPlatforms.length > 0) {
-            // If other non-fixed platforms have 0 budget, distribute equally among them
-            const equalShare = diff / otherNonFixedPlatforms.length;
-            return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - equalShare) };
-          }
-          return p;
-        })
+  const validateBudgetAllocations = (nextPlatforms: PlatformWithMarkets[]): boolean => {
+    for (const platform of nextPlatforms) {
+      if (!platform.id) continue;
+      if (platformIsBudgetLocked(platform)) continue;
+      if (platform.budgetPercentage <= 0) {
+        toast.error(`Each platform requires at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`, {
+          description: `${platform.name}: assign a platform budget share above 0%.`,
+        });
+        return false;
+      }
+
+      const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
+      const minPlatformEur = minPlatformBudgetEurForPhases(platform);
+      if (platformBudgetEur < minPlatformEur) {
+        toast.error(`Minimum platform budget is €${minPlatformEur.toFixed(0)}`, {
+          description: `${platform.name}: €${platformBudgetEur.toFixed(2)} at ${platform.budgetPercentage.toFixed(1)}% of total (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase across markets).`,
+        });
+        return false;
+      }
+
+      for (const market of platform.markets) {
+        if (marketIsBudgetLocked(platform, market)) continue;
+
+        const marketBudgetEur = calculateMarketBudgetEur(
+          totalBudget,
+          platform.budgetPercentage,
+          market.budgetPercentage ?? 100,
+        );
+        const marketPct = market.budgetPercentage ?? 0;
+        if (marketPct <= 0) continue;
+
+        const minMarketEur = minMarketBudgetEurForPhases(market.phases);
+        if (marketBudgetEur < minMarketEur) {
+          toast.error(`Minimum market budget is €${minMarketEur.toFixed(0)}`, {
+            description: `${platform.name} · ${market.name}: €${marketBudgetEur.toFixed(2)} (${market.phases?.length || 1} phase(s) × €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}).`,
+          });
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const commitPlatforms = (nextPlatforms: PlatformWithMarkets[]): boolean => {
+    const next =
+      totalBudget > 0
+        ? (enforceActiPlanBudgetFloors(nextPlatforms, totalBudget) as PlatformWithMarkets[])
+        : nextPlatforms;
+    const valid = validateBudgetAllocations(next);
+    setPlatforms(next);
+    return valid;
+  };
+
+  const budgetLockNormalizeSkipRef = useRef<string | null>(null);
+
+  // When budget lock is enabled, normalize to 100% then re-apply €50 floors (cannot bypass validation).
+  useEffect(() => {
+    if (!budgetLocked) {
+      budgetLockNormalizeSkipRef.current = null;
+      return;
+    }
+
+    let next = platforms;
+    const totalPlatformBudget = next.reduce((sum, p) => sum + p.budgetPercentage, 0);
+
+    if (totalPlatformBudget > 100) {
+      next = next.map((p) => ({
+        ...p,
+        budgetPercentage:
+          totalPlatformBudget > 0
+            ? (p.budgetPercentage / totalPlatformBudget) * 100
+            : 100 / next.length,
+      }));
+    }
+
+    next = next.map((p) => {
+      const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+      if (totalMarketBudget <= 100) return p;
+      return {
+        ...p,
+        markets: p.markets.map((m) => ({
+          ...m,
+          budgetPercentage:
+            totalMarketBudget > 0
+              ? (m.budgetPercentage / totalMarketBudget) * 100
+              : 100 / p.markets.length,
+        })),
+      };
+    });
+
+    const unchanged =
+      next.length === platforms.length &&
+      next.every((p, i) => {
+        const prev = platforms[i];
+        if ((p.budgetPercentage ?? 0) !== (prev.budgetPercentage ?? 0)) return false;
+        return (p.markets ?? []).every(
+          (m, j) => (m.budgetPercentage ?? 0) === (prev.markets?.[j]?.budgetPercentage ?? 0),
+        );
+      });
+    if (!unchanged) {
+      const fingerprint = JSON.stringify(
+        next.map((p) => [
+          p.budgetPercentage,
+          ...(p.markets ?? []).map((m) => m.budgetPercentage),
+        ]),
       );
+      if (budgetLockNormalizeSkipRef.current === fingerprint) {
+        return;
+      }
+      if (!commitPlatforms(next)) {
+        budgetLockNormalizeSkipRef.current = fingerprint;
+      } else {
+        budgetLockNormalizeSkipRef.current = null;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgetLocked, platforms, totalBudget]);
+
+  const minPlatformSliderPct = (platform: PlatformWithMarkets) => {
+    if (!platform.id || totalBudget <= 0) return 0;
+    return ceilBudgetPercentageToSliderStep(
+      minPlatformBudgetPercentageForPhases(totalBudget, platform),
+      ACTIPLAN_BUDGET_SLIDER_STEP,
+    );
+  };
+
+  const minMarketSliderPct = (platform: PlatformWithMarkets, market: Market) => {
+    if (!platform.id || totalBudget <= 0) return 0;
+    const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
+    return ceilBudgetPercentageToSliderStep(
+      minPercentageForBudgetEur(platformBudgetEur, minMarketBudgetEurForPhases(market.phases)),
+      ACTIPLAN_BUDGET_SLIDER_STEP,
+    );
+  };
+
+  const updatePlatformBudget = (index: number, percentage: number) => {
+    const currentPlatform = platforms[index];
+    if (platformIsBudgetLocked(currentPlatform)) {
+      toast.info(platformBudgetLockTitle(currentPlatform), { id: "dsp-budget-locked" });
+      return;
+    }
+    const minPlatformEur = currentPlatform.id ? minPlatformBudgetEurForPhases(currentPlatform) : 0;
+    let newPercentage =
+      currentPlatform.id && totalBudget > 0
+        ? clampPercentageToMinimumEur(percentage, totalBudget, minPlatformEur, ACTIPLAN_BUDGET_SLIDER_STEP)
+        : clampBudgetPercentage(percentage, 0, 100);
+
+    let nextPlatforms: PlatformWithMarkets[];
+
+    if (budgetLocked && platforms.length > 1) {
+      const diff = newPercentage - currentPlatform.budgetPercentage;
+      const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !platformIsFixed(i));
+      const otherNonFixedTotalBudget = otherNonFixedPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
+
+      nextPlatforms = platforms.map((p, i) => {
+        if (i === index) {
+          return { ...p, budgetPercentage: newPercentage };
+        }
+        if (platformIsFixed(i)) {
+          return p;
+        }
+        const floorPct = p.id && totalBudget > 0
+          ? ceilBudgetPercentageToSliderStep(
+              minPlatformBudgetPercentage(totalBudget, minPlatformBudgetEurForPhases(p)),
+              ACTIPLAN_BUDGET_SLIDER_STEP,
+            )
+          : 0;
+        if (otherNonFixedTotalBudget > 0) {
+          const proportion = p.budgetPercentage / otherNonFixedTotalBudget;
+          const adjustment = diff * proportion;
+          return { ...p, budgetPercentage: Math.max(floorPct, p.budgetPercentage - adjustment) };
+        }
+        if (otherNonFixedPlatforms.length > 0) {
+          const equalShare = diff / otherNonFixedPlatforms.length;
+          return { ...p, budgetPercentage: Math.max(floorPct, p.budgetPercentage - equalShare) };
+        }
+        return p;
+      });
     } else {
-      setPlatforms(
-        platforms.map((p, i) => 
-          i === index 
-            ? { ...p, budgetPercentage: newPercentage }
-            : p
-        )
+      nextPlatforms = platforms.map((p, i) =>
+        i === index ? { ...p, budgetPercentage: newPercentage } : p,
       );
     }
+
+    commitPlatforms(nextPlatforms);
   };
 
   const addMarket = (index: number) => {
@@ -1272,60 +1537,76 @@ export function PlatformMarketBudgetSelector({
   };
 
   const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
-    const newPercentage = Math.max(0, Math.min(100, percentage));
-    
-    setPlatforms(
-      platforms.map((p, i) => {
+    const platform = platforms[platformIndex];
+    const currentMarket = platform?.markets.find((m) => m.id === marketId);
+    if (currentMarket && marketIsBudgetLocked(platform, currentMarket)) {
+      toast.info(
+        platform.id && isMarketBudgetLocked?.(platform.id, currentMarket.name)
+          ? "This market is live in the DSP — budget is locked."
+          : "Original plan market — locked in extension mode",
+        { id: "dsp-budget-locked" },
+      );
+      return;
+    }
+    const platformBudgetEur = calculatePlatformBudgetEur(totalBudget, platform?.budgetPercentage ?? 0);
+    const minMarketEur = currentMarket ? minMarketBudgetEurForPhases(currentMarket.phases) : 0;
+    let newPercentage =
+      platform?.id && currentMarket && platformBudgetEur > 0 && percentage > 0
+        ? clampPercentageToMinimumEur(percentage, platformBudgetEur, minMarketEur, ACTIPLAN_BUDGET_SLIDER_STEP)
+        : clampBudgetPercentage(percentage, 0, 100);
+
+    let nextPlatforms: PlatformWithMarkets[];
+
+    if (budgetLocked && platform.markets.length > 1) {
+      const diff = newPercentage - (currentMarket?.budgetPercentage ?? 0);
+      const otherNonFixedMarkets = platform.markets.filter((m) => m.id !== marketId && !marketIsFixed(platform, m));
+      const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+
+      nextPlatforms = platforms.map((p, i) => {
         if (i !== platformIndex) return p;
-        
-        const currentMarket = p.markets.find(m => m.id === marketId);
-        if (!currentMarket) return p;
-        
-        if (budgetLocked && p.markets.length > 1) {
-          // Calculate the difference and redistribute to other non-fixed markets proportionally
-          const diff = newPercentage - currentMarket.budgetPercentage;
-          
-          // Get non-fixed markets (excluding the one being changed)
-          const otherNonFixedMarkets = p.markets.filter(m => m.id !== marketId && !fixedMarkets[m.id]);
-          const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-          
-          return {
-            ...p,
-            markets: p.markets.map(m => {
-              if (m.id === marketId) {
-                return { ...m, budgetPercentage: newPercentage };
-              }
-              
-              // Skip fixed markets - they don't change
-              if (fixedMarkets[m.id]) {
-                return m;
-              }
-              
-              // Redistribute proportionally among other non-fixed markets
-              if (otherNonFixedTotalBudget > 0) {
-                const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
-                const adjustment = diff * proportion;
-                return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - adjustment) };
-              } else if (otherNonFixedMarkets.length > 0) {
-                // If other non-fixed markets have 0 budget, distribute equally among them
-                const equalShare = diff / otherNonFixedMarkets.length;
-                return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - equalShare) };
-              }
+        return {
+          ...p,
+          markets: p.markets.map((m) => {
+            if (m.id === marketId) {
+              return { ...m, budgetPercentage: newPercentage };
+            }
+            if (marketIsFixed(platform, m)) {
               return m;
-            })
-          };
-        } else {
-          return {
-            ...p,
-            markets: p.markets.map(m => 
-              m.id === marketId 
-                ? { ...m, budgetPercentage: newPercentage }
-                : m
-            )
-          };
-        }
-      })
-    );
+            }
+            const floorPct =
+              platformBudgetEur > 0
+                ? ceilBudgetPercentageToSliderStep(
+                    minPercentageForBudgetEur(platformBudgetEur, minMarketBudgetEurForPhases(m.phases)),
+                    ACTIPLAN_BUDGET_SLIDER_STEP,
+                  )
+                : 0;
+            if (otherNonFixedTotalBudget > 0) {
+              const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
+              const adjustment = diff * proportion;
+              return { ...m, budgetPercentage: Math.max(floorPct, m.budgetPercentage - adjustment) };
+            }
+            if (otherNonFixedMarkets.length > 0) {
+              const equalShare = diff / otherNonFixedMarkets.length;
+              return { ...m, budgetPercentage: Math.max(floorPct, m.budgetPercentage - equalShare) };
+            }
+            return m;
+          }),
+        };
+      });
+    } else {
+      nextPlatforms = platforms.map((p, i) =>
+        i === platformIndex
+          ? {
+              ...p,
+              markets: p.markets.map((m) =>
+                m.id === marketId ? { ...m, budgetPercentage: newPercentage } : m,
+              ),
+            }
+          : p,
+      );
+    }
+
+    commitPlatforms(nextPlatforms);
   };
 
   const handleBudgetSliderChange = (platformIndex: number, marketId: string, percentage: number) => {
@@ -1397,10 +1678,10 @@ export function PlatformMarketBudgetSelector({
         }
       />
     <Card id="pm-section-platform-market">
-      <CardHeader>
-        <div className="flex items-center justify-between">
+      <CardHeader className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle>Platform & Market Selection</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant={budgetLocked ? "default" : "outline"}
@@ -1439,6 +1720,37 @@ export function PlatformMarketBudgetSelector({
               Add Platform
             </Button>
           </div>
+        </div>
+        <Alert className="border-muted-foreground/25 bg-muted/30">
+            <AlertDescription className="text-xs leading-relaxed">
+              Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per platform, market, and phase after splits. Amounts below that
+              show a red warning and block Next.
+            </AlertDescription>
+          </Alert>
+          {inExtensionMode ? (
+            <Alert className="mt-3 border-amber-500/40 bg-amber-500/10">
+              <AlertDescription className="text-xs leading-relaxed text-amber-900 dark:text-amber-100">
+                Extension mode: budgets for original platforms and markets are locked (padlock icon). Add new
+                platforms or markets to allocate unpublished budget only.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {dspLocksActive ? (
+            <Alert className="mt-3 border-amber-500/40 bg-amber-500/10">
+              <AlertDescription className="text-xs leading-relaxed text-amber-900 dark:text-amber-100">
+                {dspPartialPush
+                  ? "Some markets are live in the DSP — their budgets are locked. Reallocate only among unpublished markets."
+                  : "This ActiPlan is live in the DSP — pushed budgets are locked."}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {budgetViolationsSummary ? (
+            <Alert variant="destructive" className="mt-3">
+              <AlertDescription className="text-xs whitespace-pre-line">
+                {budgetViolationsSummary}
+              </AlertDescription>
+            </Alert>
+          ) : null}
           {getConnectedPlatformTypes().size === 0 && (
             <div className="flex items-center gap-2 mt-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
               <span>⚠️</span>
@@ -1451,13 +1763,13 @@ export function PlatformMarketBudgetSelector({
               </span>
             </div>
           )}
-        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
           {platforms.map((platform, platformIndex) => {
             const availablePlatforms = getAvailablePlatforms(platform.id);
-            
+            const platformLaunchLocked = platformIsBudgetLocked(platform);
+
             return (
               <Collapsible
                 key={platformIndex}
@@ -1502,49 +1814,72 @@ export function PlatformMarketBudgetSelector({
                           <div className="flex items-center gap-1">
                             <Input
                               type="number"
-                              value={platform.budgetPercentage.toFixed(1)}
+                              value={(platform.budgetPercentage ?? 0).toFixed(1)}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0);
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-16 text-xs text-center"
-                              min="0"
+                              min={minPlatformSliderPct(platform)}
                               max="100"
                               step="0.1"
+                              disabled={platformLaunchLocked}
                             />
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">$</span>
+                            <span className="text-xs text-muted-foreground">€</span>
                             <Input
                               type="number"
-                              value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
+                              value={Math.round(
+                                calculatePlatformBudgetEur(
+                                  totalBudget,
+                                  platform.budgetPercentage ?? 0,
+                                ),
+                              )}
                               onChange={(e) => {
                                 e.stopPropagation();
-                                const amount = parseFloat(e.target.value) || 0;
+                                const minEur = Math.round(minPlatformBudgetEurForPhases(platform));
+                                const amount = Math.max(minEur, parseFloat(e.target.value) || 0);
                                 if (totalBudget > 0) {
                                   const percentage = (amount / totalBudget) * 100;
-                                  updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
+                                  updatePlatformBudget(platformIndex, percentage);
                                 }
                               }}
                               onClick={(e) => e.stopPropagation()}
                               className="h-7 w-24 text-xs"
-                              min="0"
+                              min={Math.round(minPlatformBudgetEurForPhases(platform))}
+                              disabled={platformLaunchLocked}
                             />
                           </div>
                           {/* Always visible slider */}
                           <div className="w-48" onClick={(e) => e.stopPropagation()}>
                             <Slider
-                              value={[platform.budgetPercentage]}
-                              onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
-                              min={0}
+                              value={[Math.max(platform.budgetPercentage ?? 0, minPlatformSliderPct(platform))]}
+                              onValueChange={([value]) => {
+                                const minPct = minPlatformSliderPct(platform);
+                                updatePlatformBudget(platformIndex, Math.max(value, minPct));
+                              }}
+                              onValueCommit={([value]) => {
+                                const minPct = minPlatformSliderPct(platform);
+                                updatePlatformBudget(platformIndex, Math.max(value, minPct));
+                              }}
+                              min={minPlatformSliderPct(platform)}
                               max={100}
-                              step={0.5}
+                              step={ACTIPLAN_BUDGET_SLIDER_STEP}
                               className="w-full"
+                              disabled={platformLaunchLocked}
                             />
                           </div>
-                          {/* Fixed budget toggle for platform */}
+                          {platformLaunchLocked ? (
+                            <span
+                              title={platformBudgetLockTitle(platform)}
+                              className="inline-flex h-7 w-7 items-center justify-center"
+                            >
+                              <Lock className="h-3 w-3 text-amber-700 dark:text-amber-400" />
+                            </span>
+                          ) : (
                           <Button
                             type="button"
                             variant={fixedPlatforms[platformIndex] ? "secondary" : "ghost"}
@@ -1562,6 +1897,7 @@ export function PlatformMarketBudgetSelector({
                               <PinOff className="h-3 w-3" />
                             )}
                           </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1598,6 +1934,16 @@ export function PlatformMarketBudgetSelector({
                 <CollapsibleContent>
                   {platform.id && (
                     <div className="px-4 pb-4 space-y-4">
+                      {(() => {
+                        const minPlatformEur = minPlatformBudgetEurForPhases(platform);
+                        const currentPlatformEur = calculatePlatformBudgetEur(totalBudget, platform.budgetPercentage);
+                        if (currentPlatformEur >= minPlatformEur) return null;
+                        return (
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            This platform needs at least €{minPlatformEur.toFixed(0)} (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase). Increase platform or total budget.
+                          </p>
+                        );
+                      })()}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm">Markets</Label>
@@ -1626,7 +1972,15 @@ export function PlatformMarketBudgetSelector({
                         </div>
 
                       {platform.markets.map((market) => {
-                        const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
+                        const marketMinPct = minMarketSliderPct(platform, market);
+                        const marketMinEur = minMarketBudgetEurForPhases(market.phases);
+                        const effectiveMarketPct = Math.max(market.budgetPercentage, marketMinPct);
+                        const marketBudget = calculateMarketBudgetEur(
+                          totalBudget,
+                          platform.budgetPercentage,
+                          effectiveMarketPct,
+                        );
+                        const marketLaunchLocked = marketIsBudgetLocked(platform, market);
 
                         return (
                           <Collapsible
@@ -1676,43 +2030,62 @@ export function PlatformMarketBudgetSelector({
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-14 text-xs text-center"
-                                        min="0"
+                                        min={marketMinPct}
                                         max="100"
                                         step="0.1"
+                                        disabled={marketLaunchLocked}
                                       />
                                       <span className="text-xs text-muted-foreground">%</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">$</span>
+                                      <span className="text-xs text-muted-foreground">€</span>
                                       <Input
                                         type="number"
                                         value={Math.round(marketBudget)}
                                         onChange={(e) => {
                                           e.stopPropagation();
-                                          const amount = parseFloat(e.target.value) || 0;
-                                          const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+                                          const minEur = Math.round(marketMinEur);
+                                          const amount = Math.max(minEur, parseFloat(e.target.value) || 0);
+                                          const platformBudget = calculatePlatformBudgetEur(
+                                            totalBudget,
+                                            platform.budgetPercentage,
+                                          );
                                           if (platformBudget > 0) {
                                             const percentage = (amount / platformBudget) * 100;
-                                            updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                            updateMarketBudget(platformIndex, market.id, percentage);
                                           }
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="h-6 w-20 text-xs"
-                                        min="0"
+                                        min={Math.round(marketMinEur)}
+                                        disabled={marketLaunchLocked}
                                       />
                                     </div>
                                     {/* Always visible slider */}
                                     <div className="w-40" onClick={(e) => e.stopPropagation()}>
                                       <Slider
-                                        value={[market.budgetPercentage]}
+                                        value={[Math.max(market.budgetPercentage, marketMinPct)]}
                                         onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
-                                        min={0}
+                                        onValueCommit={([value]) => updateMarketBudget(platformIndex, market.id, value)}
+                                        min={marketMinPct}
                                         max={100}
-                                        step={0.5}
+                                        step={ACTIPLAN_BUDGET_SLIDER_STEP}
                                         className="w-full"
+                                        disabled={marketLaunchLocked}
                                       />
                                     </div>
-                                    {/* Fixed budget toggle for market */}
+                                    {marketLaunchLocked ? (
+                                      <span
+                                        title={
+                                          platform.id && isMarketBudgetLocked?.(platform.id, market.name)
+                                            ? "Live in DSP — budget locked"
+                                            : "Original plan market — locked in extension mode"
+                                        }
+                                        className="inline-flex h-6 w-6 items-center justify-center"
+                                      >
+                                        <Lock className="h-3 w-3 text-amber-700 dark:text-amber-400" />
+                                      </span>
+                                    ) : (
                                     <Button
                                       type="button"
                                       variant={fixedMarkets[market.id] ? "secondary" : "ghost"}
@@ -1730,6 +2103,7 @@ export function PlatformMarketBudgetSelector({
                                         <PinOff className="h-3 w-3" />
                                       )}
                                     </Button>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -3003,12 +3377,12 @@ export function PlatformMarketBudgetSelector({
                                 </Badge>
                               </div>
                               <Slider
-                                value={[market.budgetPercentage]}
-                                onValueCommit={([value]) => handleBudgetSliderChange(platformIndex, market.id, value)}
+                                value={[Math.max(market.budgetPercentage, marketMinPct)]}
                                 onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
-                                min={0}
+                                onValueCommit={([value]) => updateMarketBudget(platformIndex, market.id, value)}
+                                min={marketMinPct}
                                 max={100}
-                                step={0.5}
+                                step={ACTIPLAN_BUDGET_SLIDER_STEP}
                                 className="w-full"
                               />
                               <div className="grid grid-cols-2 gap-2">
@@ -3019,7 +3393,7 @@ export function PlatformMarketBudgetSelector({
                                     value={market.budgetPercentage.toFixed(1)}
                                     onChange={(e) => updateMarketBudget(platformIndex, market.id, parseFloat(e.target.value) || 0)}
                                     className="h-7 text-xs"
-                                    min="0"
+                                    min={marketMinPct}
                                     max="100"
                                     step="0.1"
                                   />
@@ -3030,15 +3404,16 @@ export function PlatformMarketBudgetSelector({
                                     type="number"
                                     value={Math.round(marketBudget)}
                                     onChange={(e) => {
-                                      const amount = parseFloat(e.target.value) || 0;
+                                      const minEur = Math.round(marketMinEur);
+                                      const amount = Math.max(minEur, parseFloat(e.target.value) || 0);
                                       const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
                                       if (platformBudget > 0) {
                                         const percentage = (amount / platformBudget) * 100;
-                                        updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                        updateMarketBudget(platformIndex, market.id, percentage);
                                       }
                                     }}
                                     className="h-7 text-xs"
-                                    min="0"
+                                    min={Math.round(marketMinEur)}
                                   />
                                 </div>
                               </div>

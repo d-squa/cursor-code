@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ import { useActiplanTimeTracking } from "@/hooks/useActiplanTimeTracking";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
-import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
+import { PlatformWithMarkets, FunnelStage, type Market, type Phase } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { Badge } from "@/components/ui/badge";
@@ -72,12 +72,34 @@ import { normalizeLanguageValues } from "@/utils/targetingOptions";
 import { translateObjective, translateGoogleCampaignType } from "@/utils/crossPlatformObjectiveMapping";
 import { translateAdFormats } from "@/utils/adFormats";
 import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
+import { useCampaignEditPermission } from "@/hooks/useCampaignEditPermission";
+import { useCampaignLaunchLocks } from "@/hooks/useCampaignLaunchLocks";
+import { extensionMarketLockKey, filterPlatformsForBudgetValidation } from "@/utils/campaignLaunchLocks";
+import {
+  buildExtensionLockIdsFromPlatforms,
+  loadExtensionLockIds,
+  persistExtensionLockIds,
+  restorePlatformsFromCampaignRecord,
+} from "@/utils/campaignEditorPersist";
+import { CampaignEditProvider } from "@/contexts/CampaignEditContext";
 import {
   BO_NUMBER_CONFLICT_MESSAGE,
   findBoNumberConflict,
   isBoNumberUniqueViolation,
 } from "@/utils/campaignBoNumber";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  formatBudgetViolationsSummary,
+  getActiPlanBudgetValidationInputFromEditorState,
+  validateActiPlanBudgets,
+  enforceActiPlanBudgetFloors,
+} from "@/utils/actiplanBudgetMinimums";
 import { CreativeMatchingDialog } from "@/components/creative/CreativeMatchingDialog";
+import {
+  buildBudgetAllocationFromPlatforms,
+  buildMarketSplitsFromPlatforms,
+  getSelectedPlatformsWithMarkets,
+} from "@/utils/campaignEditorPersist";
 
 // Helper: map internal focus to funnel template key
 const mapFocusToTemplate = (focus?: string): string | undefined => {
@@ -124,10 +146,167 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [loadedCampaignTeamId, setLoadedCampaignTeamId] = useState<string | null>(null);
+  const [loadedCampaignCreatorId, setLoadedCampaignCreatorId] = useState<string | null>(null);
+  const [loadedCampaignStatus, setLoadedCampaignStatus] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+
+  const extensionModeActive = useMemo(() => {
+    const urlParams = new URLSearchParams(location.search);
+    return urlParams.get("mode") === "extend";
+  }, [location.search]);
+
+  const urlCampaignIdForExtension = useMemo(() => {
+    const urlParams = new URLSearchParams(location.search);
+    return urlParams.get("campaignId");
+  }, [location.search]);
+
+  const {
+    capabilities,
+    loading: editPermLoading,
+    canEditInEditor,
+    lockPlanFoundation,
+    isViewer,
+    isCollaborator,
+  } = useCampaignEditPermission({
+    campaignId: savedCampaignId,
+    campaignTeamId: loadedCampaignTeamId,
+    campaignCreatorId: loadedCampaignCreatorId,
+    campaignStatus: loadedCampaignStatus,
+    extensionMode: extensionModeActive,
+  });
+
+  const isReadOnly = !editPermLoading && !canEditInEditor;
+
+  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
+  /** Extension mode: ids loaded from DB — budget lock fallback if snapshot is late. */
+  const [extensionHydratedLockIds, setExtensionHydratedLockIds] = useState<{
+    platformIds: Set<string>;
+    marketIds: Set<string>;
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") !== "extend") return null;
+    const cid = params.get("campaignId");
+    return cid ? loadExtensionLockIds(cid) : null;
+  });
+
+  const applyExtensionLockIds = useCallback(
+    (platforms: PlatformWithMarkets[], campaignId?: string | null) => {
+      if (!extensionModeActive || platforms.length === 0) {
+        setExtensionHydratedLockIds(null);
+        return;
+      }
+      const locks = buildExtensionLockIdsFromPlatforms(platforms);
+      setExtensionHydratedLockIds(locks);
+      const cid = campaignId ?? urlCampaignIdForExtension ?? savedCampaignId;
+      if (cid) persistExtensionLockIds(cid, locks);
+    },
+    [extensionModeActive, urlCampaignIdForExtension, savedCampaignId],
+  );
+
+  const launchLocks = useCampaignLaunchLocks(
+    savedCampaignId ?? undefined,
+    platformsWithMarkets,
+    loadedCampaignStatus,
+  );
+
+  const setPlatformsWithLaunchGuards = useCallback(
+    (updater: SetStateAction<PlatformWithMarkets[]>) => {
+      setPlatformsWithMarkets((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        const total = parseFloat(totalBudget) || 0;
+        let merged = next;
+
+        if (extensionMode.isExtensionMode) {
+          const prevPlatformById = new Map(prev.filter((p) => p.id).map((p) => [p.id, p]));
+          const isExtensionOriginalPlatform = (platformId: string) =>
+            extensionMode.isOriginalPlatform(platformId) ||
+            (extensionHydratedLockIds?.platformIds.has(platformId) ?? false);
+          merged = next.map((platform) => {
+            if (!platform.id || !isExtensionOriginalPlatform(platform.id)) return platform;
+            const prevPlatform = prevPlatformById.get(platform.id);
+            if (!prevPlatform) return platform;
+            const platformDspLocked = launchLocks.isPlatformBudgetLocked(
+              platform.id,
+              platform.markets,
+            );
+            return {
+              ...platform,
+              budgetPercentage: platformDspLocked
+                ? prevPlatform.budgetPercentage
+                : platform.budgetPercentage,
+              markets: platform.markets.map((market) => {
+                const marketKey = platform.id
+                  ? extensionMarketLockKey(platform.id, market)
+                  : market.id;
+                const isExtensionOriginalMarket =
+                  extensionMode.isOriginalMarket(market.id) ||
+                  (marketKey ? extensionMode.isOriginalMarket(marketKey) : false) ||
+                  (marketKey ? (extensionHydratedLockIds?.marketIds.has(marketKey) ?? false) : false);
+                if (!isExtensionOriginalMarket) return market;
+                const marketDspLocked = launchLocks.isMarketBudgetLocked(platform.id, market.name);
+                const prevMarket = prevPlatform.markets.find(
+                  (m) =>
+                    m.id === market.id ||
+                    (platform.id && extensionMarketLockKey(platform.id, m) === marketKey),
+                );
+                if (!prevMarket) return market;
+                return {
+                  ...market,
+                  budgetPercentage: marketDspLocked
+                    ? prevMarket.budgetPercentage
+                    : market.budgetPercentage,
+                };
+              }),
+            };
+          });
+        }
+
+        const floored =
+          total > 0
+            ? (enforceActiPlanBudgetFloors(merged, total) as PlatformWithMarkets[])
+            : merged;
+        return launchLocks.applyFrozenBudgets(floored);
+      });
+    },
+    [
+      launchLocks.applyFrozenBudgets,
+      totalBudget,
+      extensionMode.isExtensionMode,
+      extensionMode.isOriginalPlatform,
+      extensionMode.isOriginalMarket,
+      extensionHydratedLockIds,
+      launchLocks.isPlatformBudgetLocked,
+      launchLocks.isMarketBudgetLocked,
+    ],
+  );
+
+  useEffect(() => {
+    if (lockPlanFoundation && extensionModeActive && currentStep < 3) {
+      setCurrentStep(3);
+    }
+  }, [lockPlanFoundation, extensionModeActive, currentStep]);
+
+  /** Step 3 / phase config: DSP-live slices only (not extension-original). */
+  const isMarketConfigLockedForEditor = useCallback(
+    (platformId: string, market: Market) =>
+      launchLocks.isMarketBudgetLocked(platformId, market.name),
+    [launchLocks],
+  );
+
+  const isPhaseConfigLockedForEditor = useCallback(
+    (platformId: string, market: Market, phase: Phase) =>
+      launchLocks.isPhaseConfigLocked(platformId, market.name, phase.name),
+    [launchLocks],
+  );
+
+  const isPlatformLiveInDsp = useCallback(
+    (platformId: string, markets: Market[]) =>
+      launchLocks.isPlatformBudgetLocked(platformId, markets),
+    [launchLocks],
+  );
   const lastCampaignIdRef = useRef<string | null>(null);
-  // Track whether client selection was an explicit user action (not hydration)
-  const clientSelectionIsUserAction = useRef<boolean>(false);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
@@ -149,7 +328,6 @@ export function MediaPlanEditor() {
       lookalikeAudience: "",
     },
   });
-  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
 
   // Guard: skip the next generic→market phase sync (prevents circular clobber of budgetType, etc.)
@@ -231,31 +409,26 @@ export function MediaPlanEditor() {
     }
   }, [user]);
 
-  // Auto-populate when client is selected (and required fields are filled)
-  useEffect(() => {
-    console.log("🔍 Client selection effect triggered", {
-      selectedClientId,
-      hasBudget: !!totalBudget,
-      hasStartDate: !!startDate,
-      hasEndDate: !!endDate,
-      isHydrated,
-    });
-
-    if (selectedClientId && totalBudget && startDate && endDate && isHydrated && clientSelectionIsUserAction.current) {
-      console.log("✅ All conditions met, auto-populating from client...");
-      autoPopulateFromClient();
-      clientSelectionIsUserAction.current = false;
-    } else if (selectedClientId && clientSelectionIsUserAction.current && (!totalBudget || !startDate || !endDate)) {
-      console.log("⚠️ Client selected but missing required fields");
-      toast.error("Please fill in budget, start date, and end date first");
+  const autoPopulateFromClient = useCallback(async () => {
+    if (!selectedClientId) {
+      toast.error("Select a client first");
+      return;
     }
-  }, [selectedClientId, totalBudget, startDate, endDate, isHydrated]);
+    if (!totalBudget || !startDate || !endDate) {
+      toast.error("Please fill in budget, start date, and end date first");
+      return;
+    }
+    if (!isHydrated) return;
 
-  const autoPopulateFromClient = async () => {
+    if (launchLocks.scope.lockedMarketKeys.size > 0) {
+      toast.error("Cannot apply client defaults while part of this ActiPlan is live in the DSP.");
+      return;
+    }
+
     const selectedClient = clients.find((c) => c.id === selectedClientId) as any;
     if (!selectedClient) return;
 
-    console.log("🔄 Auto-populating from client:", selectedClient);
+    console.log("🔄 Applying client defaults:", selectedClient);
 
     const clientPlatforms = Array.isArray(selectedClient.platforms) ? selectedClient.platforms : [];
     const clientMarkets = Array.isArray(selectedClient.markets) ? selectedClient.markets : [];
@@ -269,19 +442,20 @@ export function MediaPlanEditor() {
       ? normalizeLanguageValues(selectedClient.default_languages)
       : [];
 
-    const clientTargetingDefaults: UnifiedTargetingConfig = {
-      ageMin: selectedClient.default_age_min ?? 18,
-      ageMax: selectedClient.default_age_max ?? 65,
-      genders: selectedClient.default_gender ? [selectedClient.default_gender] : ["all"],
-      devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
-      languages: normalizedLanguages,
-      os: [],
-      selectedItems: basicTargeting.selectedItems || [], // Preserve any existing selected items
-    };
-
-    console.log("🎯 Setting basicTargeting from client defaults:", clientTargetingDefaults);
-    setBasicTargeting(clientTargetingDefaults);
-    localStorage.setItem("basicTargeting", JSON.stringify(clientTargetingDefaults));
+    console.log("🎯 Applying basicTargeting from client defaults");
+    setBasicTargeting((prev) => {
+      const next = {
+        ageMin: selectedClient.default_age_min ?? 18,
+        ageMax: selectedClient.default_age_max ?? 65,
+        genders: selectedClient.default_gender ? [selectedClient.default_gender] : ["all"],
+        devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
+        languages: normalizedLanguages,
+        os: [] as string[],
+        selectedItems: prev.selectedItems || [],
+      };
+      localStorage.setItem("basicTargeting", JSON.stringify(next));
+      return next;
+    });
 
     // Platform name normalization mapping
     const platformMapping: Record<string, string> = {
@@ -541,20 +715,32 @@ export function MediaPlanEditor() {
       return sum + autoMarkets.length;
     }, 0);
 
-    setPlatformsWithMarkets(newPlatforms);
+    const total = parseFloat(totalBudget) || 0;
+    const nextPlatforms =
+      total > 0 ? (enforceActiPlanBudgetFloors(newPlatforms, total) as PlatformWithMarkets[]) : newPlatforms;
+    setPlatformsWithLaunchGuards(nextPlatforms);
 
     if (totalAutoMarkets > 0) {
       toast.success(
-        `Auto-populated ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`,
+        `Applied ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`,
         { duration: 5000 },
       );
     } else {
       toast.success(
-        `Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`,
+        `Applied ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`,
         { duration: 5000 },
       );
     }
-  };
+  }, [
+    selectedClientId,
+    totalBudget,
+    startDate,
+    endDate,
+    isHydrated,
+    clients,
+    launchLocks.scope.lockedMarketKeys.size,
+    setPlatformsWithLaunchGuards,
+  ]);
 
   // Unified targeting (Step 2)
   const [basicTargeting, setBasicTargeting] = useState<UnifiedTargetingConfig>({ selectedItems: [] });
@@ -910,6 +1096,9 @@ export function MediaPlanEditor() {
 
   const hydrateFromCampaign = (c: any) => {
     try {
+      setLoadedCampaignTeamId(c.team_id ?? null);
+      setLoadedCampaignCreatorId(c.user_id ?? null);
+      setLoadedCampaignStatus(c.status ?? null);
       setCampaignName(c.name || "");
       setBoNumber(c.bo_number || "");
       setTotalBudget(String(c.total_budget ?? ""));
@@ -955,58 +1144,25 @@ export function MediaPlanEditor() {
         setGenericConfig((prev) => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
       }
 
-      // Restore platforms and markets completely from DB
-      const alloc = c.budget_allocation || {};
-      const splits = c.market_splits || {};
-      const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
-
+      const restoredPlatforms = restorePlatformsFromCampaignRecord(c);
       console.log("🔄 Restoring campaign from DB:", {
-        platforms: declaredPlatforms,
-        market_splits: splits,
+        platformCount: restoredPlatforms.length,
+        platformIds: restoredPlatforms.map((p) => p.id),
       });
 
-      if (declaredPlatforms.length > 0) {
-        const restoredPlatforms = declaredPlatforms.map((dp: any) => {
-          // Prefer market_splits if keyed by platform id; otherwise fall back to embedded markets on the platform object (legacy/sample data)
-          const splitMarkets = splits[dp.id];
-          const markets = Array.isArray(splitMarkets) && splitMarkets.length > 0
-            ? splitMarkets
-            : (Array.isArray(dp.markets) ? dp.markets : []);
-          console.log(
-            `  Platform ${dp.id} markets:`,
-            markets.map((m: any) => ({
-              id: m.id,
-              name: m.name,
-              adAccountId: m.adAccountId,
-              tiktokPixel: m.tiktokPixel,
-              tiktokIdentity: m.tiktokIdentity,
-              tiktokCatalog: m.tiktokCatalog,
-              tiktokProductSet: m.tiktokProductSet,
-              tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-              tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-            })),
-          );
-
-          // Filter out US from TikTok market countries
-          const filteredMarkets = markets.map((m: any) => {
-            if (dp.id === "tiktok" && Array.isArray(m.countries)) {
-              return {
-                ...m,
-                countries: m.countries.filter((c: string) => c !== "US"),
-              };
-            }
-            return m;
-          });
-
-          return {
-            id: dp.id,
-            name: dp.name,
-            enabled: true,
-            budgetPercentage: alloc[dp.id] ?? 0,
-            markets: filteredMarkets,
-          };
-        });
-        setPlatformsWithMarkets(restoredPlatforms);
+      if (restoredPlatforms.length > 0) {
+        const total = Number(c.total_budget) || 0;
+        const floored =
+          total > 0
+            ? (enforceActiPlanBudgetFloors(restoredPlatforms, total) as PlatformWithMarkets[])
+            : restoredPlatforms;
+        setPlatformsWithMarkets(floored);
+        applyExtensionLockIds(floored, (c as { id?: string }).id);
+        if (extensionModeActive) {
+          extensionMode.captureSnapshot(floored, (c as { id?: string }).id);
+        }
+      } else if (!extensionModeActive) {
+        setExtensionHydratedLockIds(null);
       }
 
       setIsHydrated(true);
@@ -1034,7 +1190,11 @@ export function MediaPlanEditor() {
       setStartDate("");
       setEndDate("");
       setPlatformsWithMarkets([]);
+      setExtensionHydratedLockIds(null);
       setSavedCampaignId(null);
+      setLoadedCampaignTeamId(null);
+      setLoadedCampaignCreatorId(null);
+      setLoadedCampaignStatus(null);
       setGenericConfig({
         strategy: "auto-detect",
         strategyFocus: "auto",
@@ -1160,6 +1320,18 @@ export function MediaPlanEditor() {
     restore();
   }, [user, isHydrated]);
 
+  // Extension mode: freeze lock ids when plan loads or URL switches to mode=extend
+  useEffect(() => {
+    if (!extensionModeActive || platformsWithMarkets.length === 0) return;
+    setExtensionHydratedLockIds((prev) => {
+      if (prev && prev.platformIds.size > 0) return prev;
+      const locks = buildExtensionLockIdsFromPlatforms(platformsWithMarkets);
+      const cid = urlCampaignIdForExtension ?? savedCampaignId;
+      if (cid) persistExtensionLockIds(cid, locks);
+      return locks;
+    });
+  }, [extensionModeActive, platformsWithMarkets, urlCampaignIdForExtension, savedCampaignId]);
+
   // Capture extension mode snapshot once campaign is hydrated
   useEffect(() => {
     console.log("🔒 Extension mode check:", {
@@ -1170,22 +1342,15 @@ export function MediaPlanEditor() {
       urlSearch: location.search,
     });
 
-    if (
-      extensionMode.isExtensionMode &&
-      isHydrated &&
-      platformsWithMarkets.length > 0 &&
-      !extensionMode.originalSnapshot
-    ) {
-      console.log("🔒 Triggering snapshot capture...");
-      extensionMode.captureSnapshot(platformsWithMarkets);
+    if (extensionMode.isExtensionMode && isHydrated && platformsWithMarkets.length > 0 && savedCampaignId) {
+      extensionMode.captureSnapshot(platformsWithMarkets, savedCampaignId);
     }
   }, [
     extensionMode.isExtensionMode,
     isHydrated,
     platformsWithMarkets,
-    extensionMode.originalSnapshot,
+    savedCampaignId,
     extensionMode.captureSnapshot,
-    location.search,
   ]);
 
   // Fetch first ad account ID for audience fetching
@@ -1309,37 +1474,66 @@ export function MediaPlanEditor() {
     }
   }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategy]);
 
-  // Auto-save draft whenever key fields change (including basicTargeting)
-  // IMPORTANT: Guard against saving before hydration completes.
-  // Otherwise, we can overwrite persisted campaign fields with empty defaults during route changes / reloads.
-  useEffect(() => {
-    if (!savedCampaignId || !user) return;
-    if (!isHydrated) {
-      console.log("⏸️ Auto-save skipped (not hydrated yet)");
-      return;
-    }
+  const persistInFlightRef = useRef(false);
 
-    console.log("⏰ Auto-save triggered");
+  const persistCampaignDraft = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      if (!savedCampaignId || !user) return false;
+      if (!isHydrated) return false;
+      if (!canEditInEditor || editPermLoading) return false;
 
-    const timer = setTimeout(async () => {
+      const totalEur = parseFloat(totalBudget) || 0;
+      let platformsToPersist = launchLocks.applyFrozenBudgets(platformsWithMarkets);
+      if (totalEur > 0) {
+        platformsToPersist = enforceActiPlanBudgetFloors(
+          platformsToPersist,
+          totalEur,
+        ) as PlatformWithMarkets[];
+      }
+
+      const budgetDrifted = platformsToPersist.some((p, i) => {
+        const prev = platformsWithMarkets[i];
+        if (!prev || p.id !== prev.id) return false;
+        return (p.budgetPercentage ?? 0) !== (prev.budgetPercentage ?? 0);
+      });
+      if (budgetDrifted) {
+        setPlatformsWithLaunchGuards(platformsToPersist);
+      }
+
+      const budgetViolations = validateActiPlanBudgets(
+        getActiPlanBudgetValidationInputFromEditorState({
+          totalBudget,
+          startDate,
+          endDate,
+          platformsWithMarkets: filterPlatformsForBudgetValidation(
+            platformsToPersist,
+            launchLocks.scope,
+          ),
+          basicTargeting,
+          skipEmptyPlatformIds: true,
+        }),
+      );
+      if (budgetViolations.length > 0) {
+        if (!silent) {
+          toast.error("Budget below €50 minimum", {
+            description: formatBudgetViolationsSummary(budgetViolations),
+            duration: 10000,
+          });
+        }
+        return false;
+      }
+
+      const selectedPlatforms = getSelectedPlatformsWithMarkets(platformsToPersist);
+      if (selectedPlatforms.length === 0) return false;
+      const hasAnyMarkets = selectedPlatforms.some((p) => (p.markets?.length || 0) > 0);
+      if (!hasAnyMarkets) return false;
+
+      if (persistInFlightRef.current) return false;
+      persistInFlightRef.current = true;
+
       try {
-        const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
-
-        // Safety: if the editor state is temporarily empty (e.g. during re-hydration / route changes),
-        // do NOT overwrite an existing campaign with empty platforms/market_splits.
-        if (selectedPlatforms.length === 0) {
-          console.log("⏸️ Auto-save skipped (no selected platforms; avoiding market_splits clobber)");
-          return;
-        }
-
-        const hasAnyMarkets = selectedPlatforms.some((p) => (p.markets?.length || 0) > 0);
-        if (!hasAnyMarkets) {
-          console.log("⏸️ Auto-save skipped (no markets; avoiding market_splits clobber)");
-          return;
-        }
-
-        const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
-
+        const budgetAllocation = buildBudgetAllocationFromPlatforms(platformsToPersist);
         const trimmedBo = boNumber.trim();
         const teamIdForBo = loadedCampaignTeamId ?? activeWorkspaceId;
         const boConflictId =
@@ -1348,110 +1542,32 @@ export function MediaPlanEditor() {
             : null;
 
         const updatePayload: Record<string, unknown> = {
-            name: campaignName,
-            objective: genericConfig.strategyFocus || "conversions",
-            total_budget: parseFloat(totalBudget) || 0,
-            start_date: startDate || null,
-            end_date: endDate || null,
-            platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
-            budget_allocation: budgetAllocation,
-            updated_at: new Date().toISOString(),
-            market_splits: platformsWithMarkets.reduce((acc, platform) => {
-              console.log(
-                `💾 Auto-saving platform ${platform.id}, markets:`,
-                platform.markets.map((m) => ({
-                  name: m.name,
-                  phases: m.phases?.map((p) => ({
-                    name: p.name,
-                    tiktokFrequencySchedule: p.tiktokFrequencySchedule,
-                    tiktokBidStrategy: p.tiktokBidStrategy,
-                    tiktokOptimizationLocation: p.tiktokOptimizationLocation,
-                  })),
-                })),
-              );
-              return {
-                ...acc,
-                [platform.id]: platform.markets.map((m) => ({
-                  id: m.id,
-                  name: m.name,
-                  budgetPercentage: m.budgetPercentage,
-                  accountName: m.accountName,
-                  adAccountId: m.adAccountId,
-                  page: m.page,
-                  pageId: m.pageId,
-                  pixel: m.pixel,
-                  catalog: m.catalog,
-                  productSet: m.productSet,
-                  conversionEvent: m.conversionEvent,
-                  adFormats: m.adFormats,
-                  phases: m.phases,
-                  isCBOEnabled: m.isCBOEnabled,
-                  isLifetimeBudget: m.isLifetimeBudget,
-                  instagramActorId: m.instagramActorId,
-                  strategy: m.strategy,
-                  strategyFocus: m.strategyFocus,
-                  // TikTok-specific fields
-                  tiktokPixel: m.tiktokPixel,
-                  tiktokIdentity: m.tiktokIdentity,
-                  tiktokCatalog: m.tiktokCatalog,
-                  tiktokProductSet: m.tiktokProductSet,
-                  tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-                  tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-                  tiktokBidStrategy: m.tiktokBidStrategy,
-                  tiktokBidAmount: m.tiktokBidAmount,
-                  // TikTok destination fields
-                  tiktokOptimizationLocation: m.tiktokOptimizationLocation,
-                  tiktokAppId: m.tiktokAppId,
-                  tiktokAppName: m.tiktokAppName,
-                  tiktokMessagingApp: (m as any).tiktokMessagingApp,
-                  tiktokFacebookPageId: (m as any).tiktokFacebookPageId,
-                  tiktokMessageEventSet: (m as any).tiktokMessageEventSet,
-                  tiktokWhatsappNumber: (m as any).tiktokWhatsappNumber,
-                  tiktokZaloAccountId: (m as any).tiktokZaloAccountId,
-                  tiktokLineBusinessId: (m as any).tiktokLineBusinessId,
-                  tiktokPlacementType: m.tiktokPlacementType,
-                  tiktokPlacements: m.tiktokPlacements,
-                  tiktokClickWindow: (m as any).tiktokClickWindow,
-                  tiktokViewWindow: (m as any).tiktokViewWindow,
-                  // Meta fields
-                  metaBidStrategy: m.metaBidStrategy,
-                  metaBidAmount: m.metaBidAmount,
-                  metaOptimizationLocation: (m as any).metaOptimizationLocation,
-                  metaAppStore: (m as any).metaAppStore,
-                  metaAppId: (m as any).metaAppId,
-                  metaMessagingMode: (m as any).metaMessagingMode,
-                  metaMessengerEnabled: (m as any).metaMessengerEnabled,
-                  metaInstagramDmEnabled: (m as any).metaInstagramDmEnabled,
-                  metaWhatsappEnabled: (m as any).metaWhatsappEnabled,
-                  metaWhatsappNumber: (m as any).metaWhatsappNumber,
-                  metaLandingPageUrl: (m as any).metaLandingPageUrl,
-                  metaPublisherPlatforms: m.metaPublisherPlatforms || m.publisherPlatforms,
-                  metaPositions: m.metaPositions || m.positions,
-                   // Google Ads fields
-                   googleObjective: m.googleObjective,
-                   googleLandingPageUrl: m.googleLandingPageUrl,
-                   googleBidStrategy: m.googleBidStrategy,
-                   googleTargetCpa: m.googleTargetCpa,
-                   googleTargetRoas: m.googleTargetRoas,
-                   googleMaxCpcBid: m.googleMaxCpcBid,
-                })),
-              };
-            }, {}),
-            generic_config: {
-              strategy: genericConfig.strategy,
-              strategyFocus: genericConfig.strategyFocus,
-              hasPhases: genericConfig.hasPhases,
-              phases: genericConfig.phases,
-              campaigns: genericConfig.campaigns,
-              targeting: genericConfig.targeting,
-              basicTargeting: basicTargeting, // Include basicTargeting to prevent it from being overwritten
-              selectedClientId: selectedClientId,
-              clientIndustry: clients.find((c) => c.id === selectedClientId)?.industry,
-            } as any,
+          name: campaignName,
+          objective: genericConfig.strategyFocus || "conversions",
+          total_budget: parseFloat(totalBudget) || 0,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
+          budget_allocation: budgetAllocation,
+          updated_at: new Date().toISOString(),
+          market_splits: buildMarketSplitsFromPlatforms(platformsToPersist),
+          generic_config: {
+            strategy: genericConfig.strategy,
+            strategyFocus: genericConfig.strategyFocus,
+            hasPhases: genericConfig.hasPhases,
+            phases: genericConfig.phases,
+            campaigns: genericConfig.campaigns,
+            targeting: genericConfig.targeting,
+            basicTargeting: basicTargeting,
+            selectedClientId: selectedClientId,
+            clientIndustry: clients.find((c) => c.id === selectedClientId)?.industry,
+          } as any,
         };
 
         if (boConflictId) {
-          toast.error(BO_NUMBER_CONFLICT_MESSAGE, { id: "bo-number-conflict-autosave" });
+          if (!silent) {
+            toast.error(BO_NUMBER_CONFLICT_MESSAGE, { id: "bo-number-conflict-autosave" });
+          }
         } else {
           updatePayload.bo_number = trimmedBo || null;
         }
@@ -1463,17 +1579,111 @@ export function MediaPlanEditor() {
 
         if (saveError) {
           if (isBoNumberUniqueViolation(saveError)) {
-            toast.error(BO_NUMBER_CONFLICT_MESSAGE, { id: "bo-number-conflict-autosave" });
+            if (!silent) {
+              toast.error(BO_NUMBER_CONFLICT_MESSAGE, { id: "bo-number-conflict-autosave" });
+            }
           } else {
             throw saveError;
           }
-        } else {
-          console.log("Auto-saved draft");
+          return false;
         }
+
+        console.log("💾 Campaign persisted", { budget_allocation: budgetAllocation });
+        return true;
       } catch (error) {
-        console.error("Error auto-saving:", error);
+        console.error("Error auto-saving ActiPlan:", error);
+        if (!silent) {
+          toast.error("Failed to save ActiPlan changes");
+        }
+        return false;
+      } finally {
+        persistInFlightRef.current = false;
       }
-    }, 1000); // Debounce for 1 second
+    },
+    [
+      savedCampaignId,
+      user,
+      isHydrated,
+      canEditInEditor,
+      editPermLoading,
+      platformsWithMarkets,
+      campaignName,
+      boNumber,
+      totalBudget,
+      startDate,
+      endDate,
+      genericConfig,
+      basicTargeting,
+      selectedClientId,
+      clients,
+      loadedCampaignTeamId,
+      activeWorkspaceId,
+      launchLocks.applyFrozenBudgets,
+      launchLocks.scope,
+      setPlatformsWithLaunchGuards,
+    ],
+  );
+
+  const platformBudgetEnforceFingerprint = useMemo(
+    () =>
+      platformsWithMarkets
+        .map((p) => `${p.id ?? ""}:${p.budgetPercentage ?? 0}`)
+        .join("|"),
+    [platformsWithMarkets],
+  );
+
+  // Keep every selected platform at the €50 floor in editor state (not only on slider drag).
+  useEffect(() => {
+    const totalEur = parseFloat(totalBudget) || 0;
+    if (!isHydrated || totalEur <= 0) return;
+
+    setPlatformsWithLaunchGuards((prev) => {
+      const floored = enforceActiPlanBudgetFloors(prev, totalEur) as PlatformWithMarkets[];
+      const unchanged = prev.every(
+        (p, i) => (p.budgetPercentage ?? 0) === (floored[i]?.budgetPercentage ?? 0),
+      );
+      return unchanged ? prev : floored;
+    });
+  }, [isHydrated, totalBudget, platformBudgetEnforceFingerprint, setPlatformsWithLaunchGuards]);
+
+  const persistCampaignDraftRef = useRef(persistCampaignDraft);
+  persistCampaignDraftRef.current = persistCampaignDraft;
+
+  // Flush pending edits when leaving the editor (debounced autosave is cancelled on unmount).
+  useEffect(() => {
+    return () => {
+      void persistCampaignDraftRef.current({ silent: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        void persistCampaignDraftRef.current({ silent: true });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  const previousStepRef = useRef(currentStep);
+  useEffect(() => {
+    if (previousStepRef.current !== currentStep) {
+      void persistCampaignDraft({ silent: true });
+      previousStepRef.current = currentStep;
+    }
+  }, [currentStep, persistCampaignDraft]);
+
+  // Auto-save draft whenever key fields change (including basicTargeting)
+  // IMPORTANT: Guard against saving before hydration completes.
+  useEffect(() => {
+    if (!savedCampaignId || !user) return;
+    if (!isHydrated) return;
+    if (!canEditInEditor || editPermLoading) return;
+
+    const timer = setTimeout(() => {
+      void persistCampaignDraft({ silent: true });
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [
@@ -1486,16 +1696,69 @@ export function MediaPlanEditor() {
     genericConfig,
     basicTargeting,
     savedCampaignId,
+    canEditInEditor,
+    editPermLoading,
     user,
     isHydrated,
     selectedClientId,
     clients,
+    persistCampaignDraft,
   ]);
+
+  const collectBudgetViolations = (options?: { onlyEnabledPlatforms?: boolean; skipEmptyPlatformIds?: boolean }) =>
+    validateActiPlanBudgets(
+      getActiPlanBudgetValidationInputFromEditorState({
+        totalBudget,
+        startDate,
+        endDate,
+        platformsWithMarkets: filterPlatformsForBudgetValidation(
+          platformsWithMarkets,
+          launchLocks.scope,
+        ),
+        basicTargeting,
+        onlyEnabledPlatforms: options?.onlyEnabledPlatforms,
+        skipEmptyPlatformIds: options?.skipEmptyPlatformIds,
+      }),
+    );
+
+  const ensureBudgetMinimums = (options?: { onlyEnabledPlatforms?: boolean; skipEmptyPlatformIds?: boolean }) => {
+    const violations = collectBudgetViolations(options);
+    if (violations.length === 0) return true;
+    toast.error("Budget below €50 minimum", {
+      description: formatBudgetViolationsSummary(violations),
+      duration: 10000,
+    });
+    return false;
+  };
+
+  const step1BudgetViolations = useMemo(
+    () => collectBudgetViolations({ skipEmptyPlatformIds: true }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [totalBudget, startDate, endDate, platformsWithMarkets, basicTargeting],
+  );
+
+  const step3BudgetViolations = useMemo(
+    () => collectBudgetViolations({ onlyEnabledPlatforms: true }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [totalBudget, startDate, endDate, platformsWithMarkets, basicTargeting],
+  );
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every((p) => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every((p) => p.markets.length > 0);
-    return !!(campaignName.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
+    const total = parseFloat(totalBudget) || 0;
+    const activationBudgetOk = total >= ACTIPLAN_MIN_ENTITY_BUDGET_EUR;
+    const noBudgetViolations = step1BudgetViolations.length === 0;
+    return !!(
+      campaignName.trim() &&
+      totalBudget &&
+      startDate &&
+      endDate &&
+      allPlatformsSelected &&
+      allHaveMarkets &&
+      activationBudgetOk &&
+      noBudgetViolations
+    );
   };
 
   const isStrategyComplete = () => {
@@ -1503,8 +1766,7 @@ export function MediaPlanEditor() {
   };
 
   const isPhaseSchedulerComplete = () => {
-    // Always allow proceeding - phasing is optional
-    return true;
+    return collectBudgetViolations({ onlyEnabledPlatforms: true }).length === 0;
   };
 
   const isTargetingComplete = () => {
@@ -1515,7 +1777,7 @@ export function MediaPlanEditor() {
     // When a platform is enabled, copy generic config to it
     const newPlatforms = updatedPlatforms.map((platform, idx) => {
       const oldPlatform = platforms[idx];
-      if (platform.enabled && !oldPlatform.enabled && genericConfig.strategy) {
+      if (platform.enabled !== false && !oldPlatform.enabled && genericConfig.strategy) {
         // Platform just got enabled, copy generic config
         return {
           ...platform,
@@ -1536,7 +1798,7 @@ export function MediaPlanEditor() {
   };
 
   const isAllPlatformsConfigured = () => {
-    const enabledPlatforms = platforms.filter((p) => p.enabled);
+    const enabledPlatforms = platforms.filter((p) => p.enabled !== false);
     if (enabledPlatforms.length === 0) return false;
     return enabledPlatforms.every((p) => {
       if (!p.config) return false;
@@ -1571,6 +1833,10 @@ export function MediaPlanEditor() {
   };
 
   const handleLaunch = async () => {
+    if (!capabilities.canEditPlan) {
+      toast.error("You do not have permission to save this ActiPlan.");
+      return;
+    }
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
       return;
@@ -1586,10 +1852,18 @@ export function MediaPlanEditor() {
       }
     }
 
+    if (!ensureBudgetMinimums({ onlyEnabledPlatforms: true })) {
+      return;
+    }
+
     setSaving(true);
     try {
-      // If campaign is already saved, just redirect
+      // If campaign is already saved, persist latest edits then redirect
       if (savedCampaignId) {
+        const persisted = await persistCampaignDraft();
+        if (!persisted) {
+          return;
+        }
         toast.success("ActiPlan ready!");
         setTimeout(() => {
           window.location.href = "/app/actiplans";
@@ -1729,7 +2003,7 @@ export function MediaPlanEditor() {
       const metaAccountIds = Array.from(
         new Set(
           platformsWithMarkets
-            .filter((p) => p.enabled && (p.id === "meta" || p.name.toLowerCase() === "meta"))
+            .filter((p) => p.enabled !== false && (p.id === "meta" || p.name.toLowerCase() === "meta"))
             .flatMap((p) => p.markets.map((m) => m.adAccountId).filter(Boolean) as string[]),
         ),
       );
@@ -1737,7 +2011,7 @@ export function MediaPlanEditor() {
       const tiktokAccountIds = Array.from(
         new Set(
           platformsWithMarkets
-            .filter((p) => p.enabled && (p.id === "tiktok" || p.name.toLowerCase() === "tiktok"))
+            .filter((p) => p.enabled !== false && (p.id === "tiktok" || p.name.toLowerCase() === "tiktok"))
             .flatMap((p) => p.markets.map((m) => m.adAccountId).filter(Boolean) as string[]),
         ),
       );
@@ -1896,7 +2170,7 @@ export function MediaPlanEditor() {
   useEffect(() => {
     const hasAccountsWithPhases = platformsWithMarkets.some(
       (p) =>
-        p.enabled &&
+        p.enabled !== false &&
         p.markets.some(
           (m) => m.adAccountId && m.phases && m.phases.length > 0 && m.phases.some((ph) => ph.budgetType === undefined),
         ),
@@ -1951,12 +2225,24 @@ export function MediaPlanEditor() {
   ]);
 
   const saveCampaignDraft = async () => {
+    if (!canEditInEditor) {
+      toast.error(
+        isCollaborator
+          ? "Use Extend Campaign (QC) on approved plans to add phases or markets — budget and strategy stay locked."
+          : "You have view-only access to this ActiPlan.",
+      );
+      return null;
+    }
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
       return null;
     }
 
     if (!validateBudgetTypes()) {
+      return null;
+    }
+
+    if (!ensureBudgetMinimums({ skipEmptyPlatformIds: true })) {
       return null;
     }
 
@@ -1971,6 +2257,7 @@ export function MediaPlanEditor() {
     }
 
     if (savedCampaignId) {
+      await persistCampaignDraft();
       return savedCampaignId;
     }
 
@@ -1978,8 +2265,8 @@ export function MediaPlanEditor() {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("User not authenticated");
 
-      const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
-      const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+      const selectedPlatforms = getSelectedPlatformsWithMarkets(platformsWithMarkets);
+      const budgetAllocation = buildBudgetAllocationFromPlatforms(platformsWithMarkets);
 
       const { data: campaign, error } = await supabase
         .from("campaigns")
@@ -1994,65 +2281,7 @@ export function MediaPlanEditor() {
           end_date: endDate || null,
           platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
           budget_allocation: budgetAllocation,
-          market_splits: platformsWithMarkets.reduce((acc, platform) => {
-            console.log(
-              `💾 Saving platform ${platform.id}:`,
-              platform.markets.map((m) => ({
-                id: m.id,
-                name: m.name,
-                adAccountId: m.adAccountId,
-                tiktokPixel: m.tiktokPixel,
-                tiktokIdentity: m.tiktokIdentity,
-                tiktokCatalog: m.tiktokCatalog,
-                tiktokProductSet: m.tiktokProductSet,
-                tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-              })),
-            );
-            return {
-              ...acc,
-              [platform.id]: platform.markets.map((m) => ({
-                id: m.id,
-                name: m.name,
-                budgetPercentage: m.budgetPercentage,
-                accountName: m.accountName,
-                adAccountId: m.adAccountId,
-                page: m.page,
-                pageId: m.pageId,
-                pixel: m.pixel,
-                catalog: m.catalog,
-                productSet: m.productSet,
-                conversionEvent: m.conversionEvent,
-                tiktokPixel: m.tiktokPixel,
-                tiktokIdentity: m.tiktokIdentity,
-                tiktokCatalog: m.tiktokCatalog,
-                tiktokProductSet: m.tiktokProductSet,
-                tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-                tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-                 // Google Ads fields
-                 googleObjective: m.googleObjective,
-                 googleLandingPageUrl: m.googleLandingPageUrl,
-                 googleBidStrategy: m.googleBidStrategy,
-                 googleTargetCpa: m.googleTargetCpa,
-                 googleTargetRoas: m.googleTargetRoas,
-                 googleMaxCpcBid: m.googleMaxCpcBid,
-                adFormats: m.adFormats,
-                phases: m.phases,
-                instagramActorId: m.instagramActorId,
-                strategy: m.strategy,
-                strategyFocus: m.strategyFocus,
-                isCBOEnabled: m.isCBOEnabled,
-                isLifetimeBudget: m.isLifetimeBudget,
-                countries: m.countries,
-                gender: m.gender,
-                languages: m.languages,
-                ageMin: m.ageMin,
-                ageMax: m.ageMax,
-                publisherPlatforms: m.publisherPlatforms,
-                positions: m.positions,
-                detailedTargeting: m.detailedTargeting,
-              })),
-            };
-          }, {}),
+          market_splits: buildMarketSplitsFromPlatforms(platformsWithMarkets),
           generic_config: {
             strategy: genericConfig.strategy,
             strategyFocus: genericConfig.strategyFocus,
@@ -2090,6 +2319,7 @@ export function MediaPlanEditor() {
   };
 
   const ensureDraft = async () => {
+    if (!canEditInEditor || editPermLoading) return;
     // Prevent concurrent draft creation - this fixes the race condition
     // where multiple field changes trigger multiple INSERTs before the first completes
     if (savedCampaignId || draftCreationInProgressRef.current) {
@@ -2103,6 +2333,16 @@ export function MediaPlanEditor() {
       draftCreationInProgressRef.current = false;
     }
   };
+
+  /** Flush step-1 budgets to DB before leaving the plan builder (ensureDraft alone skips when campaign exists). */
+  const persistPlanBeforeStepChange = useCallback(async () => {
+    if (!canEditInEditor || editPermLoading) return;
+    if (savedCampaignId) {
+      await persistCampaignDraft({ silent: true });
+      return;
+    }
+    await ensureDraft();
+  }, [savedCampaignId, canEditInEditor, editPermLoading, persistCampaignDraft]);
 
   const getAvailablePlatforms = () => {
     const allPlatforms = [
@@ -2337,16 +2577,76 @@ export function MediaPlanEditor() {
   };
 
   return (
+    <CampaignEditProvider
+      value={{
+        canEdit: canEditInEditor,
+        isViewer,
+        loading: editPermLoading,
+      }}
+    >
+    <fieldset disabled={isReadOnly} className="min-w-0 border-0 p-0 m-0 disabled:opacity-100">
     <div className="space-y-6">
+      {isReadOnly && isViewer && (
+        <Alert className="border-muted-foreground/30 bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            You have <span className="font-medium">viewer</span> access on this team. This ActiPlan is
+            read-only — you can review it but cannot change budgets, targeting, or other settings.
+          </AlertDescription>
+        </Alert>
+      )}
+      {isCollaborator && isReadOnly && !isViewer && (
+        <Alert className="border-muted-foreground/30 bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-medium">QC (Collaborator):</span> use{" "}
+            <span className="font-medium">Extend Campaign (QC)</span> from ActiPlans on approved or live
+            plans to add phases or markets. Budget, dates, and strategy stay locked. You can also use Mesh
+            Creatives and QC actions (modification requests, activity log).
+          </AlertDescription>
+        </Alert>
+      )}
+      {lockPlanFoundation && canEditInEditor && (
+        <Alert className="border-primary/30 bg-primary/5">
+          <ShieldAlert className="h-4 w-4 text-primary" />
+          <AlertDescription>
+            Activation budget and dates are locked for your role. You can add new platforms, markets, and
+            phases only — not change the original plan foundation.
+          </AlertDescription>
+        </Alert>
+      )}
+      {isReadOnly && !isViewer && !isCollaborator && (
+        <Alert className="border-muted-foreground/30 bg-muted/40">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>This ActiPlan is read-only for your account.</AlertDescription>
+        </Alert>
+      )}
       {/* Extension Mode Banner */}
       {extensionMode.isExtensionMode && (
         <Alert className="border-primary/50 bg-primary/5">
           <ShieldAlert className="h-4 w-4 text-primary" />
-          <AlertDescription className="flex items-center gap-2">
-            <span className="font-medium">Extension Mode:</span>
-            <span className="text-muted-foreground">
-              Existing campaign structure is locked. You can duplicate items or add new platforms, markets, and phases.
-            </span>
+          <AlertDescription className="text-sm leading-relaxed">
+            <span className="font-medium">Extension Mode:</span>{" "}
+            Original platforms and markets keep their budgets (amber padlock on Step 1). You can add new platforms,
+            markets, and phases and allocate budget only to those new items.
+          </AlertDescription>
+        </Alert>
+      )}
+      {!launchLocks.loading && launchLocks.scope.lockedMarketKeys.size > 0 && (
+        <Alert className="border-amber-500/40 bg-amber-500/10">
+          <Lock className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+          <AlertDescription className="text-sm leading-relaxed">
+            {launchLocks.hasPartialPush ? (
+              <>
+                Some platforms or markets are already live in the DSP. Live phases are locked on Step 3. You can
+                still edit Step 2 targeting; pushed phases keep their own settings unless you use per-phase override
+                on unpublished slices. Reallocate budget only among unpublished items on Step 1.
+              </>
+            ) : (
+              <>
+                This ActiPlan is live in the DSP. Budgets and configuration for pushed items are locked.
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -2359,7 +2659,7 @@ export function MediaPlanEditor() {
               <CardTitle>Step 1: Activation Details</CardTitle>
               <CardDescription>Define your activation's core parameters</CardDescription>
             </div>
-            {currentStep > 1 && (
+            {currentStep > 1 && !lockPlanFoundation && (
               <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
                 Edit
               </Button>
@@ -2368,6 +2668,7 @@ export function MediaPlanEditor() {
         </CardHeader>
         {currentStep === 1 ? (
           <CardContent className="space-y-6">
+            <fieldset disabled={lockPlanFoundation} className="border-0 p-0 m-0 min-w-0 space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Activation Name</Label>
@@ -2398,7 +2699,7 @@ export function MediaPlanEditor() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="budget">Total Activation Budget ($) *</Label>
+              <Label htmlFor="budget">Total Activation Budget (€) *</Label>
               <Input
                 id="budget"
                 type="number"
@@ -2407,9 +2708,31 @@ export function MediaPlanEditor() {
                   setTotalBudget(e.target.value);
                   ensureDraft();
                 }}
-                placeholder="Enter total budget"
+                onBlur={() => {
+                  const n = parseFloat(totalBudget) || 0;
+                  if (n > 0 && n < ACTIPLAN_MIN_ENTITY_BUDGET_EUR) {
+                    setTotalBudget(String(ACTIPLAN_MIN_ENTITY_BUDGET_EUR));
+                    toast.info(
+                      `Total activation budget must be at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}.`,
+                    );
+                  }
+                }}
+                placeholder={`Minimum €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR}`}
+                min={ACTIPLAN_MIN_ENTITY_BUDGET_EUR}
+                step="0.01"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Minimum €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} total. Each platform, market, phase, campaign, and ad set must
+                receive at least €{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} after splits (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} × number of phases per market).
+              </p>
+              {step1BudgetViolations.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertDescription className="text-xs whitespace-pre-line">
+                    {formatBudgetViolationsSummary(step1BudgetViolations, 4)}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -2458,7 +2781,6 @@ export function MediaPlanEditor() {
                     navigate("/app/settings/accounts");
                     return;
                   }
-                  clientSelectionIsUserAction.current = true;
                   setSelectedClientId(value || "");
                   ensureDraft();
                 }}
@@ -2530,14 +2852,7 @@ export function MediaPlanEditor() {
                  size="sm"
                  disabled={!selectedClientId || !totalBudget || !startDate || !endDate}
                  onClick={() => {
-                   clientSelectionIsUserAction.current = true;
-                   // Re-trigger by setting same client id
-                   const currentClient = selectedClientId;
-                   setSelectedClientId("");
-                   setTimeout(() => {
-                     clientSelectionIsUserAction.current = true;
-                     setSelectedClientId(currentClient || "");
-                   }, 0);
+                   void autoPopulateFromClient();
                  }}
                  className="shrink-0"
                >
@@ -2545,33 +2860,48 @@ export function MediaPlanEditor() {
                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Selecting a client will auto-populate platforms, markets, and ad account defaults
+                Link a client to this ActiPlan, then click Apply Defaults to load platforms, markets, and ad account defaults. Changing the client alone does not overwrite your plan or re-run auto-populate.
               </p>
             </div>
 
             <div className="pt-4">
               <PlatformMarketBudgetSelector
                 platforms={platformsWithMarkets}
-                setPlatforms={setPlatformsWithMarkets}
+                setPlatforms={setPlatformsWithLaunchGuards}
                 totalBudget={parseFloat(totalBudget) || 0}
+                extensionModeActive={extensionModeActive}
+                isPlatformBudgetLocked={launchLocks.isPlatformBudgetLocked}
+                isMarketBudgetLocked={launchLocks.isMarketBudgetLocked}
+                extensionHydratedLockIds={extensionHydratedLockIds}
+                dspLocksActive={!launchLocks.loading && launchLocks.scope.lockedMarketKeys.size > 0}
+                dspPartialPush={launchLocks.hasPartialPush}
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
                 setTotalBudget={setTotalBudget}
                 selectedClientId={selectedClientId}
+                budgetViolationsSummary={
+                  step1BudgetViolations.length > 0
+                    ? formatBudgetViolationsSummary(step1BudgetViolations, 4)
+                    : undefined
+                }
               />
             </div>
 
             <div className="flex justify-end pt-4">
               <Button
                 onClick={async () => {
-                  await ensureDraft();
+                  if (!ensureBudgetMinimums({ skipEmptyPlatformIds: true })) {
+                    return;
+                  }
+                  await persistPlanBeforeStepChange();
                   setCurrentStep(2);
                 }}
-                disabled={!isSampleMode && !isActivationDetailsComplete()}
+                disabled={!isActivationDetailsComplete()}
               >
                 Next: Targeting
               </Button>
             </div>
+            </fieldset>
           </CardContent>
         ) : (
           <CardContent className="py-4">
@@ -2586,7 +2916,7 @@ export function MediaPlanEditor() {
               </div>
               <div className="flex justify-between">
                 <span>Budget:</span>
-                <span className="font-medium text-foreground">${parseFloat(totalBudget).toLocaleString()}</span>
+                <span className="font-medium text-foreground">€{parseFloat(totalBudget).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span>Duration:</span>
@@ -2620,6 +2950,7 @@ export function MediaPlanEditor() {
           {currentStep === 2 ? (
             <CardContent>
               <UnifiedTargeting
+                readOnly={false}
                 targeting={basicTargeting}
                 onUpdate={(targeting) => {
                   console.log("📋 Received targeting update from BasicTargeting:", targeting);
@@ -2670,14 +3001,14 @@ export function MediaPlanEditor() {
                   platformsWithMarkets.find((p) => p.id === "meta")?.name || platformsWithMarkets[0]?.name || "Meta"
                 }
                 selectedPlatforms={platformsWithMarkets
-                  .filter((p) => p.enabled)
+                  .filter((p) => p.enabled !== false)
                   .map((p) => ({
                     id: p.id,
                     name: p.name,
                     adAccountId:
                       p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : (p.id === "google" || p.id === "google_ads") ? firstGoogleCustomerId : undefined,
                   }))}
-                askSplitLevel={platformsWithMarkets.some((p) => p.enabled && (p.id === "google" || p.id === "google_ads" || p.name.toLowerCase().includes("google")))}
+                askSplitLevel={platformsWithMarkets.some((p) => p.enabled !== false && (p.id === "google" || p.id === "google_ads" || p.name.toLowerCase().includes("google")))}
                 markets={keywordSearchScope.markets}
                 googleMarkets={keywordSearchScope.googleMarkets}
                 tiktokMarkets={keywordSearchScope.tiktokMarkets}
@@ -2688,6 +3019,9 @@ export function MediaPlanEditor() {
                 </Button>
                 <Button
                   onClick={async () => {
+                    if (!ensureBudgetMinimums({ skipEmptyPlatformIds: true })) {
+                      return;
+                    }
                     // Create targeting preset snapshot
                     const preset = { ...basicTargeting };
                     setTargetingPreset(preset);
@@ -2725,9 +3059,10 @@ export function MediaPlanEditor() {
                       }
                     }
 
+                    await persistPlanBeforeStepChange();
                     setCurrentStep(3);
-                    await ensureDraft();
                   }}
+                  disabled={step1BudgetViolations.length > 0}
                 >
                   Continue to Strategy
                 </Button>
@@ -2848,13 +3183,13 @@ export function MediaPlanEditor() {
               {/* Phase Scheduling */}
               {(() => {
                 const totalMarkets = platformsWithMarkets.reduce(
-                  (sum, p) => sum + (p.enabled ? p.markets.length : 0),
+                  (sum, p) => sum + (p.enabled !== false ? p.markets.length : 0),
                   0,
                 );
 
                 if (totalMarkets === 1) {
                   // Single market: show strategy configuration and PhaseScheduler
-                  const singlePlatform = platformsWithMarkets.find((p) => p.enabled && p.markets.length > 0);
+                  const singlePlatform = platformsWithMarkets.find((p) => p.enabled !== false && p.markets.length > 0);
                   const singleMarket = singlePlatform ? singlePlatform.markets[0] : null;
 
                   return singleMarket ? (
@@ -3038,6 +3373,16 @@ export function MediaPlanEditor() {
                           ((singlePlatform?.budgetPercentage || 0) / 100) *
                           ((singleMarket.budgetPercentage || 0) / 100)
                         }
+                        marketConfigLocked={
+                          singlePlatform?.id
+                            ? isMarketConfigLockedForEditor(singlePlatform.id, singleMarket)
+                            : false
+                        }
+                        isPhaseConfigLocked={(phase) =>
+                          singlePlatform?.id
+                            ? isPhaseConfigLockedForEditor(singlePlatform.id, singleMarket, phase)
+                            : false
+                        }
                         activationContext={{
                           activationName: campaignName,
                           boNumber: boNumber,
@@ -3071,7 +3416,7 @@ export function MediaPlanEditor() {
                               <DropdownMenuLabel className="text-xs">Expand</DropdownMenuLabel>
                               <DropdownMenuItem className="text-xs" onClick={() => {
                                 const newState: Record<string, boolean> = {};
-                                platformsWithMarkets.filter(p => p.enabled && p.markets.length > 0).forEach(p => { newState[p.id] = true; });
+                                platformsWithMarkets.filter(p => p.enabled !== false && p.markets.length > 0).forEach(p => { newState[p.id] = true; });
                                 setExpandedPlatforms(newState);
                               }}>
                                 All Platforms
@@ -3140,7 +3485,7 @@ export function MediaPlanEditor() {
                         </div>
                       </div>
                       {platformsWithMarkets.map((platform) =>
-                        platform.enabled && platform.markets.length > 0 ? (
+                        platform.enabled !== false && platform.markets.length > 0 ? (
                           <Collapsible
                             key={platform.id}
                             open={expandedPlatforms[platform.id]}
@@ -3153,10 +3498,10 @@ export function MediaPlanEditor() {
                                 <Button variant="ghost" className="flex-1 justify-between p-4 hover:bg-accent">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold text-lg">{platform.name}</span>
-                                    {extensionMode.isExtensionMode && extensionMode.isOriginalPlatform(platform.id) && (
-                                      <Badge variant="outline" className="text-xs gap-1">
+                                    {isPlatformLiveInDsp(platform.id, platform.markets) && (
+                                      <Badge variant="outline" className="text-xs gap-1 border-amber-500/50 text-amber-800 dark:text-amber-300">
                                         <Lock className="h-3 w-3" />
-                                        Locked
+                                        Live in DSP
                                       </Badge>
                                     )}
                                   </div>
@@ -3226,11 +3571,11 @@ export function MediaPlanEditor() {
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
                                           <div className="flex items-center gap-2">
                                             <h4 className="font-medium">{getMarketLabel(market.name)}</h4>
-                                            {extensionMode.isExtensionMode &&
-                                              extensionMode.isOriginalMarket(market.id) && (
-                                                <Badge variant="outline" className="text-xs gap-1">
+                                            {platform.id &&
+                                              launchLocks.isMarketBudgetLocked(platform.id, market.name) && (
+                                                <Badge variant="outline" className="text-xs gap-1 border-amber-500/50 text-amber-800 dark:text-amber-300">
                                                   <Lock className="h-3 w-3" />
-                                                  Locked
+                                                  Live in DSP
                                                 </Badge>
                                               )}
                                             <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -3502,6 +3847,16 @@ export function MediaPlanEditor() {
                                               ((platform.budgetPercentage || 0) / 100) *
                                               ((market.budgetPercentage || 0) / 100)
                                             }
+                                            marketConfigLocked={
+                                              platform.id
+                                                ? isMarketConfigLockedForEditor(platform.id, market)
+                                                : false
+                                            }
+                                            isPhaseConfigLocked={(phase) =>
+                                              platform.id
+                                                ? isPhaseConfigLockedForEditor(platform.id, market, phase)
+                                                : false
+                                            }
                                             activationContext={{
                                               activationName: campaignName,
                                               boNumber: boNumber,
@@ -3537,6 +3892,14 @@ export function MediaPlanEditor() {
                 return null;
               })()}
 
+              {step3BudgetViolations.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertDescription className="text-xs whitespace-pre-line">
+                    {formatBudgetViolationsSummary(step3BudgetViolations, 5)}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(2)}>
                   Back
@@ -3545,7 +3908,7 @@ export function MediaPlanEditor() {
                   onClick={async () => {
                     // Only generate phases if markets don't have phases yet
                     const totalMarkets = platformsWithMarkets.reduce(
-                      (sum, p) => sum + (p.enabled ? p.markets.length : 0),
+                      (sum, p) => sum + (p.enabled !== false ? p.markets.length : 0),
                       0,
                     );
 
@@ -3554,7 +3917,7 @@ export function MediaPlanEditor() {
                       // Check if any market is missing phases
                       const needsPhaseGeneration = platformsWithMarkets.some(
                         (platform) =>
-                          platform.enabled &&
+                          platform.enabled !== false &&
                           platform.markets.some((market) => !market.phases || market.phases.length === 0),
                       );
 
@@ -3657,6 +4020,9 @@ export function MediaPlanEditor() {
                     if (!validateBudgetTypes()) {
                       return;
                     }
+                    if (!ensureBudgetMinimums({ onlyEnabledPlatforms: true })) {
+                      return;
+                    }
                     // Check taxonomy validation before proceeding
                     if (!isTaxonomyComplete()) {
                       const missingCount = getTotalMissingTaxonomyFields();
@@ -3665,14 +4031,13 @@ export function MediaPlanEditor() {
                       );
                       return;
                     }
-                    await ensureDraft();
+                    await persistPlanBeforeStepChange();
                     setCurrentStep(4);
                   }}
                   disabled={
-                    !isSampleMode && (
-                      !genericConfig.strategy ||
-                      (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus)
-                    )
+                    !genericConfig.strategy ||
+                    (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus) ||
+                    !isPhaseSchedulerComplete()
                   }
                 >
                   Next: Forecast & Save
@@ -3762,9 +4127,35 @@ export function MediaPlanEditor() {
           tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
+          readOnly={isReadOnly || !capabilities.canSendForApproval}
           onBudgetOptimize={(newPlatforms) => {
-            setPlatformsWithMarkets(newPlatforms);
+            if (isReadOnly) return;
+            const total = parseFloat(totalBudget) || 0;
+            const floored =
+              total > 0
+                ? (enforceActiPlanBudgetFloors(newPlatforms, total) as PlatformWithMarkets[])
+                : newPlatforms;
+            const optimizeViolations = validateActiPlanBudgets(
+              getActiPlanBudgetValidationInputFromEditorState({
+                totalBudget,
+                startDate,
+                endDate,
+                platformsWithMarkets: floored,
+                basicTargeting,
+                skipEmptyPlatformIds: true,
+              }),
+            );
+            if (optimizeViolations.length > 0) {
+              toast.error("Budget below €50 minimum", {
+                description: formatBudgetViolationsSummary(optimizeViolations),
+                duration: 10000,
+              });
+              return;
+            }
+            setPlatformsWithMarkets(floored);
+            void persistCampaignDraft({ silent: true });
           }}
+          onBeforeForecastRefresh={() => persistPlanBeforeStepChange()}
         />
       )}
 
@@ -3820,5 +4211,7 @@ export function MediaPlanEditor() {
         campaignName={campaignName}
       />
     </div>
+    </fieldset>
+    </CampaignEditProvider>
   );
 }

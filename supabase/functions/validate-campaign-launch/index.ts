@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { resolveHasActivePlatformToken } from "../_shared/platform-connection-resolver.ts";
 import { buildSearchStrategyCampaigns, getEffectiveSearchKeywords, isSearchPhaseLike } from "../_shared/search-strategy-campaigns.ts";
+import {
+  calculateAdSetBudgetEur,
+  formatMinimumBudgetMessage,
+  isBelowActiPlanMinimumBudget,
+} from "../_shared/actiplan-budget-minimums.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +119,6 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, hasAccessT
     }
   }
   
-  // Check budget - use calculated budget, not raw market.budget
   if (calculatedBudget <= 0) {
     errors.push({
       platform: 'Meta',
@@ -122,7 +126,7 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, hasAccessT
       phase: phaseName,
       entityType: 'adset',
       field: 'budget',
-      fieldPath: 'step1', // Navigate to step 1 for budget
+      fieldPath: 'step1',
       message: `Budget is €${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
       severity: 'error'
     });
@@ -232,7 +236,6 @@ function validateTikTokCampaign(campaign: any, market: any, phase: any, hasAcces
     }
   }
   
-  // Check budget - use calculated budget
   if (calculatedBudget <= 0) {
     errors.push({
       platform: 'TikTok',
@@ -243,17 +246,6 @@ function validateTikTokCampaign(campaign: any, market: any, phase: any, hasAcces
       fieldPath: 'step1',
       message: `Budget is €${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
       severity: 'error'
-    });
-  } else if (calculatedBudget < 20) {
-    errors.push({
-      platform: 'TikTok',
-      market: marketName,
-      phase: phaseName,
-      entityType: 'ad_group',
-      field: 'budget',
-      fieldPath: 'step1',
-      message: `TikTok requires minimum daily budget of €20. Current: €${calculatedBudget.toFixed(2)}`,
-      severity: 'warning'
     });
   }
   
@@ -377,6 +369,19 @@ const handler = async (req: Request): Promise<Response> => {
     console.log('Validating campaign:', campaign.name);
     console.log('Total budget:', totalBudget);
     console.log('Market splits keys:', Object.keys(marketSplits));
+
+    if (isBelowActiPlanMinimumBudget(totalBudget)) {
+      result.errors.push({
+        platform: 'ActiPlan',
+        market: '',
+        phase: '',
+        entityType: 'campaign',
+        field: 'budget',
+        fieldPath: 'step1',
+        message: formatMinimumBudgetMessage('Activation total budget', totalBudget),
+        severity: 'error',
+      });
+    }
     
     for (const [platformId, markets] of Object.entries(marketSplits)) {
       const campaignPlatform = campaignPlatforms.find((p: any) => p.id === platformId);
@@ -433,6 +438,19 @@ const handler = async (req: Request): Promise<Response> => {
           // Create consistent entity phase name for matching
           const entityPhaseName = phase.name || 'Default';
           const entityMarketName = market.name || market.id;
+
+          if (isBelowActiPlanMinimumBudget(phaseBudget)) {
+            result.errors.push({
+              platform: platformName,
+              market: entityMarketName,
+              phase: entityPhaseName,
+              entityType: 'campaign',
+              field: 'budget',
+              fieldPath: 'step3',
+              message: formatMinimumBudgetMessage(`Phase "${entityPhaseName}"`, phaseBudget),
+              severity: 'error',
+            });
+          }
           
           let validationErrors: ValidationError[] = [];
           
@@ -538,6 +556,19 @@ const handler = async (req: Request): Promise<Response> => {
               }];
 
           for (const unit of campaignUnits) {
+            if (isBelowActiPlanMinimumBudget(unit.budget)) {
+              result.errors.push({
+                platform: platformName,
+                market: entityMarketName,
+                phase: entityPhaseName,
+                entityType: 'campaign',
+                field: 'budget',
+                fieldPath: 'step3',
+                message: formatMinimumBudgetMessage(`Campaign "${unit.name}"`, unit.budget),
+                severity: 'error',
+              });
+            }
+
             result.entities.push({
               platform: platformName,
               market: entityMarketName,
@@ -576,8 +607,21 @@ const handler = async (req: Request): Promise<Response> => {
             for (const unit of campaignUnits) {
               for (const adSet of effectiveAdSets!) {
                 const adSetBudgetPct = adSet.budgetPercentage || (100 / effectiveAdSets!.length);
-                const adSetBudget = (unit.budget * adSetBudgetPct) / 100;
+                const adSetBudget = calculateAdSetBudgetEur(unit.budget, adSetBudgetPct);
                 const adSetName = adSet.name || `Ad Set ${adSet.id?.substring(0, 6) || 'Unknown'}`;
+
+                if (isBelowActiPlanMinimumBudget(adSetBudget)) {
+                  result.errors.push({
+                    platform: platformName,
+                    market: entityMarketName,
+                    phase: entityPhaseName,
+                    entityType: 'adset',
+                    field: 'budget',
+                    fieldPath: 'step3',
+                    message: formatMinimumBudgetMessage(`Ad set "${adSetName}"`, adSetBudget),
+                    severity: 'error',
+                  });
+                }
 
                 // Calculate proportional metrics for this ad set
                 const adSetImpressions = unit.impressions ? Math.round(unit.impressions * (adSetBudgetPct / 100)) : null;
@@ -602,6 +646,19 @@ const handler = async (req: Request): Promise<Response> => {
           } else {
             // No ad set splits - create a single generic ad set entity
             for (const unit of campaignUnits) {
+              if (isBelowActiPlanMinimumBudget(unit.budget)) {
+                result.errors.push({
+                  platform: platformName,
+                  market: entityMarketName,
+                  phase: entityPhaseName,
+                  entityType: 'adset',
+                  field: 'budget',
+                  fieldPath: 'step3',
+                  message: formatMinimumBudgetMessage(`Ad set for "${unit.name}"`, unit.budget),
+                  severity: 'error',
+                });
+              }
+
               result.entities.push({
                 platform: platformName,
                 market: entityMarketName,

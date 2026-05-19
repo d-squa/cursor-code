@@ -70,6 +70,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { buildMediaPlanDataFromCampaign, downloadMediaPlanExcel } from "@/utils/excelGenerator";
+import { logCampaignHistoryEntry } from "@/utils/campaignHistory";
+import {
+  resolveCampaignCapabilities,
+  type CampaignCapabilities,
+} from "@/utils/campaignPermissions";
+import { useRole } from "@/hooks/useRole";
 interface Campaign {
   id: string;
   name: string;
@@ -104,11 +110,16 @@ interface Campaign {
   };
   user_role?: string;
   can_edit?: boolean;
+  can_extend?: boolean;
+  can_qc_workflow?: boolean;
+  can_access_creatives?: boolean;
+  capabilities?: CampaignCapabilities;
   is_admin_or_owner?: boolean;
 }
 
 export default function ActiPlans() {
   const { user } = useAuth();
+  const { role: workspaceRole, loading: workspaceRoleLoading } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
   const { hasAccess, tier } = useFeatureAccess();
@@ -200,7 +211,7 @@ export default function ActiPlans() {
           ? supabase.from("profiles").select("id, email, company_name").in("id", userIds)
           : Promise.resolve({ data: [] as any[] } as any),
         teamIds.length > 0
-          ? supabase.from("teams").select("id, name").in("id", teamIds)
+          ? supabase.from("teams").select("id, name, owner_id").in("id", teamIds)
           : Promise.resolve({ data: [] as any[] } as any),
       ]);
 
@@ -215,7 +226,10 @@ export default function ActiPlans() {
       ]);
 
       const isAdminOrOwner =
-        isOwnerResult === true || userRoles?.some((r: any) => r.role === "admin" || r.role === "owner");
+        isOwnerResult === true ||
+        userRoles?.some((r: any) =>
+          ["admin", "owner", "campaign_manager"].includes(r.role),
+        );
       setIsAdminOrOwner(isAdminOrOwner || false);
 
       // Fetch latest status changes for each campaign
@@ -227,7 +241,7 @@ export default function ActiPlans() {
           .from("campaign_change_history")
           .select("campaign_id, action, created_at, user_id")
           .in("campaign_id", campaignIds)
-          .in("action", ["approved", "rejected", "pushed_to_dsp"])
+          .in("action", ["approved", "rejected", "sent_for_approval", "pushed_to_dsp"])
           .order("created_at", { ascending: false });
 
         // Group by campaign_id and keep only the latest
@@ -286,10 +300,14 @@ export default function ActiPlans() {
         // Find user's role for this campaign's team
         const userRole = userRoles?.find((role: any) => role.team_id === campaign.team_id);
 
-        // Check if user can edit
-        const isCreator = campaign.user_id === user?.id;
-        const hasEditRole = userRole && ["admin", "owner", "campaign_manager", "member"].includes(userRole.role);
-        const canEdit = (isCreator || hasEditRole) && campaign.status !== "rejected";
+        const teamRow = campaign.team_id ? teamsMap[campaign.team_id] : undefined;
+        const capabilities = resolveCampaignCapabilities({
+          userId: user?.id,
+          creatorId: campaign.user_id,
+          teamRole: userRole?.role,
+          isTeamOwner: teamRow?.owner_id === user?.id,
+          status: campaign.status,
+        });
 
         // Find latest status change
         const latestChange = latestStatusChanges[campaign.id];
@@ -301,7 +319,11 @@ export default function ActiPlans() {
             : undefined,
           team: campaign.team_id && teamsMap[campaign.team_id] ? { name: teamsMap[campaign.team_id].name } : undefined,
           user_role: userRole?.role,
-          can_edit: canEdit,
+          can_edit: capabilities.canEditPlan,
+          can_extend: capabilities.canEditExtension,
+          can_qc_workflow: capabilities.canQCWorkflow,
+          can_access_creatives: capabilities.canAccessCreatives,
+          capabilities,
           is_admin_or_owner: isAdminOrOwner,
           qc_status: qcStatusMap[campaign.id] || null,
           last_status_change: latestChange
@@ -334,13 +356,14 @@ export default function ActiPlans() {
 
       if (updateError) throw updateError;
 
-      // Log to history
-      await supabase.from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user?.id,
+      await logCampaignHistoryEntry({
+        campaignId: campaign.id,
+        userId: user?.id,
         action: "approved",
-        change_type: "status_change",
-        description: `Status changed from ${campaign.status} to approved`,
+        changeType: "status_change",
+        description: "ActiPlan approved",
+        oldStatus: campaign.status,
+        newStatus: "approved",
       });
 
       // Send notification email
@@ -372,12 +395,14 @@ export default function ActiPlans() {
 
       if (updateError) throw updateError;
 
-      await supabase.from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user?.id,
+      await logCampaignHistoryEntry({
+        campaignId: campaign.id,
+        userId: user?.id,
         action: "rejected",
-        change_type: "status_change",
-        description: `Status changed from ${campaign.status} to rejected`,
+        changeType: "status_change",
+        description: "ActiPlan rejected",
+        oldStatus: campaign.status,
+        newStatus: "rejected",
       });
 
       await supabase.functions.invoke("send-approval-notification", {
@@ -561,43 +586,49 @@ export default function ActiPlans() {
     return <Badge variant={config.variant} className={config.className}>{config.label}</Badge>;
   };
 
-  const canEdit = (campaign: Campaign) => {
-    return campaign.can_edit === true;
-  };
+  const capsFor = (campaign: Campaign) =>
+    campaign.capabilities ??
+    resolveCampaignCapabilities({
+      userId: user?.id,
+      creatorId: campaign.user_id,
+      teamRole: campaign.user_role,
+      status: campaign.status,
+    });
+
+  const canEdit = (campaign: Campaign) => capsFor(campaign).canEditPlan;
+
+  const canExtend = (campaign: Campaign) => capsFor(campaign).canEditExtension;
+
+  const canQCWorkflow = (campaign: Campaign) => capsFor(campaign).canQCWorkflow;
+
+  const canAccessCreatives = (campaign: Campaign) => capsFor(campaign).canAccessCreatives;
 
   const canApprove = (campaign: Campaign) => {
+    const caps = capsFor(campaign);
+    if (!caps.canApprove) return false;
+    const isAwaitingApproval =
+      campaign.status === "draft" || campaign.status === "awaiting_approval";
     const isNotCreator = campaign.user_id !== user?.id;
-    const isAwaitingApproval = campaign.status === "draft" || campaign.status === "awaiting_approval";
-    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-
-    return (isNotCreator || isTeamOwnerOrAdmin) && isAwaitingApproval;
+    return isAwaitingApproval && (isNotCreator || caps.isCampaignManager);
   };
 
   const canPushToDSP = (campaign: Campaign) => {
-    const isCreator = campaign.user_id === user?.id;
-    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-    // Allow launch for approved, live, pushed_to_dsp, or partially_pushed campaigns
-    const isReady = ["approved", "live", "pushed_to_dsp", "partially_pushed"].includes(campaign.status || "");
-
-    return (isCreator || isTeamOwnerOrAdmin) && isReady;
+    const caps = capsFor(campaign);
+    if (!caps.canLaunch) return false;
+    return ["approved", "live", "pushed_to_dsp", "partially_pushed", "ready_for_push"].includes(
+      campaign.status || "",
+    );
   };
 
   const canViewLaunchStatus = (campaign: Campaign) => {
-    const isCreator = campaign.user_id === user?.id;
-    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-    // Show launch status for any campaign that's approved or beyond
-    const isReady = ["approved", "live", "pushed_to_dsp", "partially_pushed"].includes(campaign.status || "");
-
-    return (isCreator || isTeamOwnerOrAdmin) && isReady;
+    const caps = capsFor(campaign);
+    if (!caps.canLaunch && !caps.canQCWorkflow) return false;
+    return ["approved", "live", "pushed_to_dsp", "partially_pushed", "ready_for_push"].includes(
+      campaign.status || "",
+    );
   };
 
-  const canDelete = (campaign: Campaign) => {
-    const isCreator = campaign.user_id === user?.id;
-    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-    const isNotLive = campaign.status !== "live";
-
-    return (isCreator || isTeamOwnerOrAdmin) && isNotLive;
-  };
+  const canDelete = (campaign: Campaign) => capsFor(campaign).canDelete;
 
   const filterCampaigns = (status: string) => {
     const list = status === "all"
@@ -834,6 +865,12 @@ export default function ActiPlans() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {!canEdit(campaign) && (
+                    <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      View ActiPlan
+                    </DropdownMenuItem>
+                  )}
                   {canEdit(campaign) &&
                     !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                       <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
@@ -841,16 +878,19 @@ export default function ActiPlans() {
                         Edit ActiPlan
                       </DropdownMenuItem>
                     )}
-                  {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
-                  {canEdit(campaign) &&
-                    ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
+                  {canExtend(campaign) &&
+                    ["approved", "ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(
+                      campaign.status || "",
+                    ) && (
+                      <DropdownMenuItem
+                        onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}
+                      >
                         <PlusCircle className="w-4 h-4 mr-2" />
-                        Extend Campaign
+                        {canEdit(campaign) ? "Extend Campaign" : "Extend Campaign (QC)"}
                       </DropdownMenuItem>
                     )}
                   {/* Duplicate ActiPlan */}
-                  {hasAccess("duplicate_actiplans") ? (
+                  {canEdit(campaign) && hasAccess("duplicate_actiplans") ? (
                     <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
                       <Copy className="w-4 h-4 mr-2" />
                       Duplicate ActiPlan
@@ -880,9 +920,7 @@ export default function ActiPlans() {
                         status,
                       )
                     ) {
-                      const isCreator = campaign.user_id === user?.id;
-                      const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-                      if (!isCreator && !isTeamOwnerOrAdmin) return null;
+                      if (!canPushToDSP(campaign) && !canViewLaunchStatus(campaign)) return null;
 
                       let menuLabel = "Launch Status";
                       if (status === "draft" || status === "approved" || status === "ready_for_push") {
@@ -912,14 +950,15 @@ export default function ActiPlans() {
                     return null;
                   })()}
                   {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
-                  {hasAccess("creative_matching") ? (
-                    <DropdownMenuItem onClick={() => navigate(`/app/creatives?campaignId=${campaign.id}`)}>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Mesh Creatives
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
-                  )}
+                  {canAccessCreatives(campaign) &&
+                    (hasAccess("creative_matching") ? (
+                      <DropdownMenuItem onClick={() => navigate(`/app/creatives?campaignId=${campaign.id}`)}>
+                        <Wand2 className="w-4 h-4 mr-2" />
+                        Mesh Creatives
+                      </DropdownMenuItem>
+                    ) : (
+                      <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
+                    ))}
 
                   {/* View History - after Delete ActiPlan with separator for pushed_to_dsp */}
                   {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
@@ -1015,7 +1054,8 @@ export default function ActiPlans() {
                   )}
 
                   {/* Request Modifications and Check Modification Requests */}
-                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                  {canQCWorkflow(campaign) &&
+                    ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <>
                       <DropdownMenuSeparator />
                       {hasAccess("request_modifications") ? (
@@ -1052,7 +1092,8 @@ export default function ActiPlans() {
                   )}
 
                   {/* Request Modifications for non-pushed campaigns */}
-                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                  {canQCWorkflow(campaign) &&
+                    !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <>
                       {hasAccess("request_modifications") ? (
                         <DropdownMenuItem
@@ -1088,7 +1129,8 @@ export default function ActiPlans() {
                   )}
 
                   {/* Log an Action and Activity Log for pushed campaigns */}
-                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                  {canQCWorkflow(campaign) &&
+                    ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
@@ -1136,7 +1178,8 @@ export default function ActiPlans() {
                   )}
 
                   {/* Submit Request - for operational requests (Enterprise+ only) */}
-                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") &&
+                  {canQCWorkflow(campaign) &&
+                    ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") &&
                     (hasAccess("request_modifications") ? (
                       <DropdownMenuItem
                         onClick={() => {
@@ -1248,17 +1291,22 @@ export default function ActiPlans() {
               </div>
             </div>
           )}
-          <Button
-            disabled={isSampleMode}
-            title={isSampleMode ? "Disabled during the sample tour" : undefined}
-            onClick={() => {
-              localStorage.removeItem("draftCampaignId");
-              localStorage.removeItem("basicTargeting");
-              navigate("/app?new=true");
-            }}
-          >
-            New ActiPlan
-          </Button>
+          {workspaceRole &&
+            workspaceRole !== "viewer" &&
+            workspaceRole !== "collaborator" &&
+            !workspaceRoleLoading && (
+            <Button
+              disabled={isSampleMode}
+              title={isSampleMode ? "Disabled during the sample tour" : undefined}
+              onClick={() => {
+                localStorage.removeItem("draftCampaignId");
+                localStorage.removeItem("basicTargeting");
+                navigate("/app?new=true");
+              }}
+            >
+              New ActiPlan
+            </Button>
+          )}
         </div>
       </div>
 

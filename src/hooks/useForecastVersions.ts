@@ -42,6 +42,21 @@ export function useForecastVersions(campaignId: string | undefined) {
     loadVersions();
   }, [loadVersions]);
 
+  const resolveNextVersionNumber = useCallback(async (): Promise<number> => {
+    if (!campaignId) return 1;
+
+    const { data, error } = await (supabase as any)
+      .from("forecast_versions")
+      .select("version_number")
+      .eq("campaign_id", campaignId)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return (data?.version_number ?? 0) + 1;
+  }, [campaignId]);
+
   const saveVersion = useCallback(async (
     forecastData: any,
     platformsSnapshot: any,
@@ -54,32 +69,48 @@ export function useForecastVersions(campaignId: string | undefined) {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData?.user?.id) throw new Error("Not authenticated");
 
-      const nextVersion = versions.length > 0 ? versions[0].version_number + 1 : 1;
+      const insertPayload = (versionNumber: number) => ({
+        campaign_id: campaignId,
+        version_number: versionNumber,
+        forecast_data: forecastData,
+        platforms_snapshot: platformsSnapshot,
+        total_budget: totalBudget,
+        label: label || `Forecast v${versionNumber}`,
+        description: description || null,
+        user_id: userData.user.id,
+      });
 
-      const { data, error } = await (supabase as any)
-        .from("forecast_versions")
-        .insert({
-          campaign_id: campaignId,
-          version_number: nextVersion,
-          forecast_data: forecastData,
-          platforms_snapshot: platformsSnapshot,
-          total_budget: totalBudget,
-          label: label || `Forecast v${nextVersion}`,
-          description: description || null,
-          user_id: userData.user.id,
-        })
-        .select()
-        .single();
+      const maxAttempts = 3;
+      let lastError: unknown = null;
 
-      if (error) throw error;
-      setVersions(prev => [data, ...prev]);
-      return data as ForecastVersion;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const nextVersion = await resolveNextVersionNumber();
+        const { data, error } = await (supabase as any)
+          .from("forecast_versions")
+          .insert(insertPayload(nextVersion))
+          .select()
+          .single();
+
+        if (!error) {
+          setVersions(prev => [data, ...prev]);
+          return data as ForecastVersion;
+        }
+
+        if (error.code === "23505" && attempt < maxAttempts - 1) {
+          lastError = error;
+          continue;
+        }
+
+        throw error;
+      }
+
+      throw lastError ?? new Error("Failed to save forecast version");
     } catch (err) {
       console.error("Failed to save forecast version:", err);
       toast.error("Failed to save forecast version");
       return null;
     }
-  }, [campaignId, versions]);
+  }, [campaignId, resolveNextVersionNumber]);
 
   return { versions, loading, loadVersions, saveVersion };
 }

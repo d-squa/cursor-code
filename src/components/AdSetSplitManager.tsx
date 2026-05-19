@@ -15,6 +15,14 @@ import { getPlacementsForSelection } from "@/utils/placements";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ACTIPLAN_BUDGET_SLIDER_STEP,
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  ceilBudgetPercentageToSliderStep,
+  clampBudgetPercentage,
+  clampPercentageToMinimumEur,
+  minAdSetBudgetPercentage,
+} from "@/utils/actiplanBudgetMinimums";
 
 interface AdSetSplitManagerProps {
   dimension: AdSetSplitDimension;
@@ -41,6 +49,8 @@ interface AdSetSplitManagerProps {
   // Cross-exclude for audience_selection
   autoCrossExclude?: boolean;
   onAutoCrossExcludeChange?: (enabled: boolean) => void;
+  /** Absolute phase budget (EUR) for validating ad set minimum allocations. */
+  phaseBudgetEur?: number;
 }
 
 const DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
@@ -247,6 +257,7 @@ export function AdSetSplitManager({
   currentDevices,
   autoCrossExclude = true,
   onAutoCrossExcludeChange,
+  phaseBudgetEur,
 }: AdSetSplitManagerProps) {
   // State for cross-exclude (default true for audience_selection)
   const [localAutoCrossExclude, setLocalAutoCrossExclude] = useState(autoCrossExclude);
@@ -540,8 +551,27 @@ export function AdSetSplitManager({
     }
   };
 
+  const minAdSetSliderPct = () =>
+    phaseBudgetEur && phaseBudgetEur > 0
+      ? ceilBudgetPercentageToSliderStep(
+          minAdSetBudgetPercentage(phaseBudgetEur),
+          ACTIPLAN_BUDGET_SLIDER_STEP,
+        )
+      : 0;
+
   // Update ad set with auto-taxonomy name regeneration
   const updateAdSet = (id: string, updates: Partial<AdSetConfig>) => {
+    if (updates.budgetPercentage !== undefined && phaseBudgetEur && phaseBudgetEur > 0) {
+      updates = {
+        ...updates,
+        budgetPercentage: clampPercentageToMinimumEur(
+          updates.budgetPercentage,
+          phaseBudgetEur,
+          ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+          ACTIPLAN_BUDGET_SLIDER_STEP,
+        ),
+      };
+    }
     onAdSetsChange(adSets.map(as => {
       if (as.id === id) {
         const updated = { ...as, ...updates };
@@ -1175,10 +1205,22 @@ export function AdSetSplitManager({
                     <Label className="text-xs text-muted-foreground">Budget %</Label>
                     <div className="flex items-center gap-2">
                       <Slider
-                        value={[adSet.budgetPercentage]}
-                        onValueChange={([value]) => updateAdSet(adSet.id, { budgetPercentage: value })}
+                        value={[Math.max(adSet.budgetPercentage, minAdSetSliderPct())]}
+                        onValueChange={([value]) => {
+                          const minPct = minAdSetSliderPct();
+                          updateAdSet(adSet.id, {
+                            budgetPercentage: clampBudgetPercentage(value, minPct),
+                          });
+                        }}
+                        onValueCommit={([value]) => {
+                          const minPct = minAdSetSliderPct();
+                          updateAdSet(adSet.id, {
+                            budgetPercentage: clampBudgetPercentage(value, minPct),
+                          });
+                        }}
+                        min={minAdSetSliderPct()}
                         max={100}
-                        step={1}
+                        step={ACTIPLAN_BUDGET_SLIDER_STEP}
                         className="flex-1"
                       />
                       <span className="w-12 text-sm text-right">{adSet.budgetPercentage}%</span>

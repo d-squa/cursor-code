@@ -22,6 +22,8 @@ import {
   TEAM_ASSIGNABLE_ROLES,
   type SubscriptionMember,
 } from "@/utils/subscriptionRoster";
+import { formatTeamRoleLabel } from "@/utils/campaignPermissions";
+import { SelectedRoleHint, TeamRoleSelectItems } from "@/components/roles/RoleSelectItems";
 import type { Enums } from "@/integrations/supabase/types";
 
 type AppRole = Enums<"app_role">;
@@ -152,10 +154,17 @@ export function AssignTeamMembersDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add team members</DialogTitle>
-          <DialogDescription>
-            Select users from your subscription roster and set their role on{" "}
-            <span className="font-medium text-foreground">{teamName}</span>. Users must already
-            exist under Settings → Subscription Users.
+          <DialogDescription className="space-y-2">
+            <span>
+              Select users from your subscription roster and set their <span className="font-medium">team role</span> on{" "}
+              <span className="font-medium text-foreground">{teamName}</span>. Users must already exist under Settings →
+              Subscription Users.
+            </span>
+            <span className="block text-xs">
+              <span className="font-medium text-foreground">Subscription</span> = account access.{" "}
+              <span className="font-medium text-foreground">Team role</span> = what they can do on this team&apos;s
+              ActiPlans (build, QC, view-only).
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -303,7 +312,7 @@ function TeamRoleSelect({
   onRoleChange: (userId: string, role: AppRole) => void;
 }) {
   return (
-    <div className="sm:w-44 shrink-0">
+    <div className="sm:w-[min(100%,280px)] shrink-0">
       <Select
         value={value || undefined}
         onValueChange={(role) => onRoleChange(memberId, role as AppRole)}
@@ -311,14 +320,11 @@ function TeamRoleSelect({
         <SelectTrigger className="h-9">
           <SelectValue placeholder="Team role" />
         </SelectTrigger>
-        <SelectContent>
-          {TEAM_ASSIGNABLE_ROLES.map((role) => (
-            <SelectItem key={role} value={role}>
-              {formatSubscriptionRoleLabel(role)}
-            </SelectItem>
-          ))}
+        <SelectContent className="max-w-[min(100vw-2rem,380px)]">
+          <TeamRoleSelectItems roles={TEAM_ASSIGNABLE_ROLES} />
         </SelectContent>
       </Select>
+      <SelectedRoleHint role={value || undefined} scope="team" />
     </div>
   );
 }

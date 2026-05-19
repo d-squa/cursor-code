@@ -13,7 +13,21 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
+import {
+  ACTIPLAN_BUDGET_SLIDER_STEP,
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  calculateAdSetBudgetEur,
+  calculatePhaseBudgetEur,
+  ceilBudgetPercentageToSliderStep,
+  clampBudgetPercentage,
+  clampPercentageToMinimumEur,
+  getEffectivePhaseCount,
+  minBudgetEurForPhaseCount,
+  minMarketBudgetEurForPhases,
+  minPhaseBudgetPercentage,
+} from "@/utils/actiplanBudgetMinimums";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
+import { toast } from "sonner";
 import { platformAdFormats } from "@/utils/adFormats";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -187,6 +201,10 @@ interface PhaseSchedulerProps {
   phaseExpandSignal?: { action: 'expand' | 'collapse'; target?: string; counter: number };
   // Taxonomy validation callback - reports if all custom fields are complete
   onTaxonomyValidationChange?: (isComplete: boolean, totalMissing: number) => void;
+  /** Phase (or whole market) is live in DSP — block edits for that phase only. */
+  isPhaseConfigLocked?: (phase: Phase) => boolean;
+  /** Every phase on this market is live — block adding phases. */
+  marketConfigLocked?: boolean;
 }
 
 interface DraggingState {
@@ -219,6 +237,8 @@ export function PhaseScheduler({
   activationContext,
   onTaxonomyValidationChange,
   phaseExpandSignal,
+  isPhaseConfigLocked,
+  marketConfigLocked = false,
 }: PhaseSchedulerProps) {
   const extensionMode = useExtensionModeOptional();
   const isGooglePlatform = platformId?.toLowerCase() === 'google' || platformId?.toLowerCase() === 'google_ads';
@@ -229,6 +249,18 @@ export function PhaseScheduler({
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
   const prevSignalRef = useRef(0);
+
+  const phaseCount = getEffectivePhaseCount(phases);
+  const minMarketBudgetEur = minMarketBudgetEurForPhases(phases);
+  const minPhasePct =
+    marketBudget && marketBudget > 0
+      ? ceilBudgetPercentageToSliderStep(
+          minPhaseBudgetPercentage(marketBudget),
+          ACTIPLAN_BUDGET_SLIDER_STEP,
+        )
+      : 0;
+  const marketBudgetBelowPhaseFloor =
+    Boolean(marketBudget && marketBudget > 0 && marketBudget < minMarketBudgetEur);
 
   // Handle expand/collapse signal from parent
   useEffect(() => {
@@ -1144,13 +1176,28 @@ export function PhaseScheduler({
     return (e as MouseEvent).clientX;
   };
 
+  const phaseIsDspLocked = (phase: Phase) => isPhaseConfigLocked?.(phase) ?? false;
+
+  const assertPhaseEditable = (phaseId: string): boolean => {
+    const phase = phasesRef.current.find((p) => p.id === phaseId);
+    if (phase && phaseIsDspLocked(phase)) {
+      toast.info("This phase is live in the DSP — it cannot be edited.", { id: "dsp-phase-locked" });
+      return false;
+    }
+    return true;
+  };
+
   const handleDragStart = (phaseId: string, type: 'start' | 'end' | 'move', e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const phase = phases.find(p => p.id === phaseId);
     if (!phase) return;
-    
+    if (phaseIsDspLocked(phase)) {
+      toast.info("This phase is live in the DSP — timeline cannot be changed.", { id: "dsp-phase-locked" });
+      return;
+    }
+
     const clientX = getClientX(e);
     setDragging({ 
       phaseId, 
@@ -1287,6 +1334,12 @@ export function PhaseScheduler({
   }
 
   const addPhase = () => {
+    if (marketConfigLocked) {
+      toast.info("This market is locked — add phases only on new or unpublished markets.", {
+        id: "dsp-market-locked",
+      });
+      return;
+    }
     const defaultPublisherConfig = getDefaultPublisherConfig();
     const newPhase: Phase = {
       id: `phase-${Date.now()}`,
@@ -1296,14 +1349,23 @@ export function PhaseScheduler({
       budgetPercentage: 0,
       ...defaultPublisherConfig,
     };
-    commitManualPhaseStructureChange([...phases, newPhase]);
+    const nextPhases = [...phases, newPhase];
+    commitManualPhaseStructureChange(nextPhases);
+    const requiredMarket = minBudgetEurForPhaseCount(nextPhases.length);
+    if (marketBudget && marketBudget > 0 && marketBudget < requiredMarket) {
+      toast.error(`Market budget too low for ${nextPhases.length} phases`, {
+        description: `Allocate at least €${requiredMarket} to this market (€${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} per phase).`,
+      });
+    }
   };
 
   const removePhase = (phaseId: string) => {
+    if (!assertPhaseEditable(phaseId)) return;
     commitManualPhaseStructureChange(phases.filter(p => p.id !== phaseId));
   };
 
   const duplicatePhase = (phaseId: string) => {
+    if (!assertPhaseEditable(phaseId)) return;
     const phaseToDuplicate = phases.find(p => p.id === phaseId);
     if (!phaseToDuplicate) return;
     
@@ -1316,12 +1378,23 @@ export function PhaseScheduler({
   };
 
   const updatePhaseName = (phaseId: string, name: string) => {
+    if (!assertPhaseEditable(phaseId)) return;
     onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, name } : p));
     setEditingName(null);
   };
 
   const updatePhaseBudget = (phaseId: string, budget: number) => {
-    onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, budgetPercentage: budget } : p));
+    if (!assertPhaseEditable(phaseId)) return;
+    const clampedBudget =
+      marketBudget && marketBudget > 0 && budget > 0
+        ? clampPercentageToMinimumEur(
+            budget,
+            marketBudget,
+            ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+            ACTIPLAN_BUDGET_SLIDER_STEP,
+          )
+        : clampBudgetPercentage(budget, 0);
+    onPhasesChange(phases.map((p) => (p.id === phaseId ? { ...p, budgetPercentage: clampedBudget } : p)));
   };
 
   const snapToPreviousPhase = (phaseId: string) => {
@@ -1350,13 +1423,17 @@ export function PhaseScheduler({
 
   const updateBudgetValue = (phaseId: string, value: string) => {
     const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+    const minPct = minPhasePct;
+    if (!isNaN(numValue) && numValue >= minPct && numValue <= 100) {
       updatePhaseBudget(phaseId, numValue);
+    } else if (!isNaN(numValue) && numValue < minPct) {
+      updatePhaseBudget(phaseId, minPct);
     }
   };
 
   const updatePhaseField = (phaseId: string, field: string, value: any) => {
     console.log("📝 updatePhaseField called:", { phaseId, field, value });
+    if (!assertPhaseEditable(phaseId)) return;
 
     const base = phasesRef.current;
     const updatedPhases = base.map((p) => (p.id === phaseId ? { ...p, [field]: value } : p));
@@ -1371,6 +1448,7 @@ export function PhaseScheduler({
 
   const updatePhaseFields = (phaseId: string, updates: Record<string, any>) => {
     console.log("📝 updatePhaseFields called:", { phaseId, updates });
+    if (!assertPhaseEditable(phaseId)) return;
 
     const base = phasesRef.current;
     const updatedPhases = base.map((p) => (p.id === phaseId ? { ...p, ...updates } : p));
@@ -1471,7 +1549,7 @@ export function PhaseScheduler({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Phase Timeline</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={addPhase}>
+          <Button type="button" variant="outline" size="sm" onClick={addPhase} disabled={marketConfigLocked}>
             <Plus className="h-3 w-3 mr-1" />
             Add Phase
           </Button>
@@ -1479,6 +1557,22 @@ export function PhaseScheduler({
         <p className="text-xs text-muted-foreground mt-1">
           {format(campaignStart, "MMM d, yyyy")} - {format(campaignEnd, "MMM d, yyyy")} ({totalDays + 1} days)
         </p>
+        {marketConfigLocked && (
+          <Alert className="mt-2 py-2 border-amber-500/40 bg-amber-500/10">
+            <AlertDescription className="text-xs flex items-center gap-2">
+              <Lock className="h-3 w-3 shrink-0" />
+              This market is live in the DSP. Existing phases are read-only; use override targeting on unpublished phases only.
+            </AlertDescription>
+          </Alert>
+        )}
+        {marketBudgetBelowPhaseFloor && !marketConfigLocked && (
+          <Alert className="mt-2 py-2">
+            <AlertDescription className="text-xs">
+              {phaseCount} phase{phaseCount === 1 ? "" : "s"} need at least €{minMarketBudgetEur.toFixed(0)} on this market
+              (€{ACTIPLAN_MIN_ENTITY_BUDGET_EUR} each). Current market budget: €{marketBudget?.toFixed(0)}. Increase market or platform budget in step 1.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardHeader>
       <CardContent>
         <div
@@ -1498,6 +1592,7 @@ export function PhaseScheduler({
 
           {/* Phase bars */}
           {phases.filter(p => !p.isLoyaltyPhase).map((phase, index) => {
+            const phaseDspLocked = phaseIsDspLocked(phase);
             const startPos = dateToPosition(phase.startDate);
             const endPos = dateToPosition(phase.endDate);
             const width = endPos - startPos;
@@ -1509,7 +1604,11 @@ export function PhaseScheduler({
             return (
               <div
                 key={phase.id}
-                className={`absolute h-12 ${getPhaseColor(index)} border-2 rounded-md transition-shadow hover:shadow-lg cursor-move touch-none select-none`}
+                className={`absolute h-12 ${getPhaseColor(index)} border-2 rounded-md transition-shadow touch-none select-none ${
+                  phaseDspLocked
+                    ? "cursor-not-allowed opacity-60"
+                    : "hover:shadow-lg cursor-move"
+                }`}
                 style={{
                   left: `${startPos}%`,
                   width: `${width}%`,
@@ -1517,13 +1616,14 @@ export function PhaseScheduler({
                   zIndex: dragging?.phaseId === phase.id ? 20 : 10,
                 }}
                 onMouseDown={(e) => {
-                  // Only trigger move if not clicking on handles or buttons
+                  if (phaseDspLocked) return;
                   const target = e.target as HTMLElement;
                   if (!target.closest('[data-handle]') && !target.closest('button') && !target.closest('input')) {
                     handleDragStart(phase.id, 'move', e);
                   }
                 }}
                 onTouchStart={(e) => {
+                  if (phaseDspLocked) return;
                   const target = e.target as HTMLElement;
                   if (!target.closest('[data-handle]') && !target.closest('button') && !target.closest('input')) {
                     handleDragStart(phase.id, 'move', e);
@@ -1533,9 +1633,15 @@ export function PhaseScheduler({
                 {/* Start handle */}
                 <div
                   data-handle="start"
-                  className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-current opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
-                  onMouseDown={(e) => handleDragStart(phase.id, 'start', e)}
-                  onTouchStart={(e) => handleDragStart(phase.id, 'start', e)}
+                  className={`absolute left-0 top-0 bottom-0 w-4 bg-current opacity-50 transition-opacity touch-none ${
+                    phaseDspLocked ? "cursor-not-allowed opacity-30" : "cursor-ew-resize hover:opacity-100 active:opacity-100"
+                  }`}
+                  onMouseDown={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "start", e);
+                  }}
+                  onTouchStart={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "start", e);
+                  }}
                 >
                   <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
@@ -1585,7 +1691,7 @@ export function PhaseScheduler({
                           onBlur={() => setEditingBudget(null)}
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-6 w-16 text-xs px-1 py-0"
-                          min="0"
+                          min={minPhasePct}
                           max="100"
                           autoFocus
                         />
@@ -1686,9 +1792,15 @@ export function PhaseScheduler({
                 {/* End handle */}
                 <div
                   data-handle="end"
-                  className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-current opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
-                  onMouseDown={(e) => handleDragStart(phase.id, 'end', e)}
-                  onTouchStart={(e) => handleDragStart(phase.id, 'end', e)}
+                  className={`absolute right-0 top-0 bottom-0 w-4 bg-current opacity-50 transition-opacity touch-none ${
+                    phaseDspLocked ? "cursor-not-allowed opacity-30" : "cursor-ew-resize hover:opacity-100 active:opacity-100"
+                  }`}
+                  onMouseDown={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "end", e);
+                  }}
+                  onTouchStart={(e) => {
+                    if (!phaseDspLocked) handleDragStart(phase.id, "end", e);
+                  }}
                 >
                   <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
@@ -1769,7 +1881,7 @@ export function PhaseScheduler({
                           onBlur={() => setEditingBudget(null)}
                           onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
                           className="h-5 w-16 text-xs px-1 py-0"
-                          min="0"
+                          min={minPhasePct}
                           max="100"
                           autoFocus
                         />
@@ -1890,7 +2002,8 @@ export function PhaseScheduler({
                 budgetPct: totalGroupVol > 0 ? Math.round((g.totalVol / totalGroupVol) * 100) : Math.round(100 / groups.length),
               }));
             })() : [];
-            
+            const phaseDspLocked = phaseIsDspLocked(phase);
+
             return (
               <Collapsible
                 key={phase.id}
@@ -1908,6 +2021,12 @@ export function PhaseScheduler({
                         <div className="flex items-center gap-3 flex-wrap">
                           <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
                           <span className="font-medium">{phase.name}</span>
+                          {phaseDspLocked && (
+                            <Badge variant="outline" className="text-xs gap-1 border-amber-500/50 text-amber-800 dark:text-amber-300">
+                              <Lock className="h-3 w-3" />
+                              Live in DSP
+                            </Badge>
+                          )}
                           {phase.objective && (
                             <span className="text-xs text-muted-foreground">
                               ({getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal).rationale})
@@ -1980,11 +2099,12 @@ export function PhaseScheduler({
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 hover:bg-accent"
+                        disabled={phaseDspLocked}
                         onClick={(e) => {
                           e.stopPropagation();
                           duplicatePhase(phase.id);
                         }}
-                        title="Duplicate phase"
+                        title={phaseDspLocked ? "Live in DSP — cannot duplicate" : "Duplicate phase"}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -1993,11 +2113,12 @@ export function PhaseScheduler({
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 hover:bg-destructive/20 hover:text-destructive"
+                        disabled={phaseDspLocked}
                         onClick={(e) => {
                           e.stopPropagation();
                           removePhase(phase.id);
                         }}
-                        title="Delete phase"
+                        title={phaseDspLocked ? "Live in DSP — cannot delete" : "Delete phase"}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -2067,7 +2188,22 @@ export function PhaseScheduler({
                   )}
 
                   <CollapsibleContent>
-                    <div className="p-4 pt-0 space-y-4 border-t">
+                    <fieldset disabled={phaseDspLocked} className="border-0 p-0 m-0 min-w-0">
+                    <div
+                      className={`p-4 pt-0 space-y-4 border-t ${
+                        phaseDspLocked
+                          ? "pointer-events-none select-none opacity-60 [&_[role=combobox]]:pointer-events-none"
+                          : ""
+                      }`}
+                    >
+                      {phaseDspLocked && (
+                        <Alert className="py-2 border-amber-500/40 bg-amber-500/10">
+                          <AlertDescription className="text-xs flex items-center gap-2">
+                            <Lock className="h-3 w-3 shrink-0" />
+                            This phase is live in the DSP and cannot be edited. On unpublished phases, use Override targeting in that phase&apos;s settings.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       {/* Campaign & Ad Set Taxonomy - Right after phase name */}
                       {adAccountId && !taxonomyLoading && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3544,6 +3680,11 @@ export function PhaseScheduler({
                                   platformName={platformName}
                                   platformId={platformId || 'meta'}
                                   phaseName={phase.name}
+                                  phaseBudgetEur={
+                                    marketBudget
+                                      ? calculatePhaseBudgetEur(marketBudget, phase.budgetPercentage)
+                                      : undefined
+                                  }
                                   useCBO={phase.useCBO ?? basicTargeting?.defaultAdSetSplitUseCBO}
                                   onAdSetsChange={(adSets) => {
                                     // If inheriting, first copy to phase then update
@@ -3579,6 +3720,7 @@ export function PhaseScheduler({
                       })()}
 
                     </div>
+                    </fieldset>
                   </CollapsibleContent>
                 </div>
               </Collapsible>

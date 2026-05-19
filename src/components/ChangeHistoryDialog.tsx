@@ -92,10 +92,17 @@ export function ChangeHistoryDialog({
     }
   };
 
+  const formatStatusLabel = (status: string) =>
+    status
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
   const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
       approved: "Approved",
       rejected: "Rejected",
+      sent_for_approval: "Sent for Approval",
       modification_requested: "Modification Requested",
       modification_accepted: "Modification Accepted",
       modification_completed: "Modification Completed",
@@ -284,7 +291,7 @@ export function ChangeHistoryDialog({
                   {entry.old_status && entry.new_status && (
                     <p className="text-sm">
                       <span className="font-medium">Status Change:</span>{" "}
-                      {entry.old_status} → {entry.new_status}
+                      {formatStatusLabel(entry.old_status)} → {formatStatusLabel(entry.new_status)}
                     </p>
                   )}
                 </div>

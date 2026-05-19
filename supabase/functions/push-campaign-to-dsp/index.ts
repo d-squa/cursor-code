@@ -1,9 +1,20 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken, getAccessTokenWithRefresh } from "../_shared/vault-helper.ts";
-import { getGooglePlatformCandidatesForCustomer } from "../_shared/platform-connection-resolver.ts";
+import {
+  getGooglePlatformCandidatesForCustomer,
+  inferAccountExternalIdFromMarkets,
+  resolveConnectedPlatformWithAccessToken,
+  resolvePlatformConnectionType,
+} from "../_shared/platform-connection-resolver.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
+import {
+  ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+  formatMinimumBudgetMessage,
+  isBelowActiPlanMinimumBudget,
+  validateActiPlanBudgetsForPush,
+} from "../_shared/actiplan-budget-minimums.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,6 +62,8 @@ interface BudgetValidationError {
   durationDays: number;
   message: string;
   fieldPath: string;
+  /** When true, push is aborted (ActiPlan €50 minimum). */
+  blocking?: boolean;
 }
 
 function validatePlatformBudgets(
@@ -893,6 +906,18 @@ async function updateLaunchStatuses(
 
           let { data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery(adSetEntityName).select();
 
+          // Fallback: validate-campaign-launch registers default ad sets as "{campaign} - {market} - {phase} - Ad Set"
+          // but some push paths reported the phase name twice. Prefer the planning-format name.
+          if (
+            (!adsetUpdateResult || adsetUpdateResult.length === 0) &&
+            campaignEntityName &&
+            adSetEntityName &&
+            !/\s-\sAd Set$/i.test(adSetEntityName)
+          ) {
+            const planningDefaultAdSetName = `${campaignEntityName} - Ad Set`;
+            ({ data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery(planningDefaultAdSetName).select());
+          }
+
           // Fallback ONLY for nameless legacy rows — never blanket-update siblings.
           if ((!adsetUpdateResult || adsetUpdateResult.length === 0) && adSetEntityName) {
             ({ data: adsetUpdateResult, error: adsetUpdateError } = await buildAdSetQuery(null, true).select());
@@ -1486,6 +1511,22 @@ const handler = async (req: Request): Promise<Response> => {
     const allBudgetErrors: BudgetValidationError[] = [];
     const marketSplits = campaign.market_splits || {};
     const budgetAllocation = campaign.budget_allocation || {};
+    const totalBudget = campaign.total_budget || 0;
+
+    if (isBelowActiPlanMinimumBudget(totalBudget)) {
+      allBudgetErrors.push({
+        platform: "ActiPlan",
+        market: "",
+        phase: "",
+        calculatedBudget: totalBudget,
+        minimumRequired: ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+        budgetType: "lifetime",
+        durationDays: 1,
+        message: formatMinimumBudgetMessage("Activation total budget", totalBudget),
+        fieldPath: "step1",
+        blocking: true,
+      });
+    }
 
     for (const [platformId, markets] of Object.entries(marketSplits)) {
       const campaignPlatform = (campaign.platforms || []).find((p: any) => p.id === platformId);
@@ -1541,15 +1582,54 @@ const handler = async (req: Request): Promise<Response> => {
         const platformConfig = { budgetPercentage: platformBudgetPercentage };
         const budgetErrors = validatePlatformBudgets(campaign, platformConfig, platformName, marketsToValidate);
         allBudgetErrors.push(...budgetErrors);
+
+        const actiPlanErrors = validateActiPlanBudgetsForPush(
+          campaign,
+          platformId,
+          platformName,
+          platformBudgetPercentage,
+          marketsToValidate,
+        );
+        for (const err of actiPlanErrors) {
+          allBudgetErrors.push({
+            platform: err.platform,
+            market: err.market,
+            phase: err.phase,
+            calculatedBudget: 0,
+            minimumRequired: ACTIPLAN_MIN_ENTITY_BUDGET_EUR,
+            budgetType: "lifetime",
+            durationDays: 1,
+            message: err.message,
+            fieldPath: err.fieldPath,
+            blocking: true,
+          });
+        }
       }
     }
 
-    // Budget warnings are logged but do NOT block the push
-    // The DSP platforms will validate and reject if budgets are truly too low
+    const blockingBudgetErrors = allBudgetErrors.filter((err) => err.blocking === true);
+    const platformBudgetWarnings = allBudgetErrors.filter((err) => err.blocking !== true);
+
+    if (blockingBudgetErrors.length > 0) {
+      console.log(`❌ Pre-push budget validation blocked: ${blockingBudgetErrors.length} ActiPlan minimum violation(s)`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Budget below ActiPlan minimum",
+          message: `Each campaign and ad set must have at least €${ACTIPLAN_MIN_ENTITY_BUDGET_EUR} allocated. Adjust total budget or splits before pushing.`,
+          budgetErrors: blockingBudgetErrors,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const budgetWarnings: Array<{ platform: string; market: string; phase: string; message: string }> = [];
-    if (allBudgetErrors.length > 0) {
-      console.log(`⚠️ Pre-push budget warnings: ${allBudgetErrors.length} potential issue(s) (proceeding anyway)`);
-      for (const err of allBudgetErrors) {
+    if (platformBudgetWarnings.length > 0) {
+      console.log(`⚠️ Pre-push platform budget warnings: ${platformBudgetWarnings.length} potential issue(s) (proceeding anyway)`);
+      for (const err of platformBudgetWarnings) {
         console.log(`  ⚠️ ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
         budgetWarnings.push({
           platform: err.platform,
@@ -1576,41 +1656,42 @@ const handler = async (req: Request): Promise<Response> => {
       const budgetAllocation = campaign.budget_allocation || {};
       const platformBudgetPercentage = budgetAllocation[platformId] || 0;
 
-      // Find connected platform
-      const platform = platforms.find(
-        (p) =>
-          p.platform_type.toLowerCase() === platformName.toLowerCase() ||
-          (platformName.includes("Meta") && p.platform_type === "meta") ||
-          (platformName.includes("Google") && p.platform_type === "google"),
+      const platformConnectionType = resolvePlatformConnectionType(platformName);
+      if (!platformConnectionType) {
+        console.warn(`Unsupported platform for push: ${platformName}`);
+        results.push({
+          platform: platformName,
+          error: "Platform not supported for push",
+          markets: markets,
+        });
+        continue;
+      }
+
+      const accountExternalId = inferAccountExternalIdFromMarkets(
+        platformConnectionType,
+        markets as Record<string, unknown>,
       );
 
-      if (!platform) {
-        console.warn(`Platform ${platformName} not connected for user`);
+      const resolvedPlatform = await resolveConnectedPlatformWithAccessToken(supabase, {
+        userId: campaignOwnerId,
+        additionalUserId: user.id,
+        platformType: platformConnectionType,
+        campaignTeamId: campaign.team_id,
+        accountExternalId,
+        extraCandidates: platforms,
+      });
+
+      if (!resolvedPlatform) {
+        console.error(`No access token found for platform ${platformName} (team_id=${campaign.team_id ?? "none"})`);
         results.push({
           platform: platformName,
-          error: "Platform not connected",
+          error: "Platform access token not found. Reconnect the platform in Platform Connections for this workspace, or ask a teammate who connected it to sync accounts.",
           markets: markets,
         });
         continue;
       }
 
-      // Get access token from Vault (with refresh for Google OAuth)
-      const platformType = platformName.toLowerCase().includes("google") ? "google" : undefined;
-      const accessToken = platformType === "google"
-        ? await getAccessTokenWithRefresh(supabase, platform.id, platform.access_token, "google")
-        : await getAccessToken(supabase, platform.id, platform.access_token);
-      if (!accessToken) {
-        console.error(`No access token found for platform ${platformName}`);
-        results.push({
-          platform: platformName,
-          error: "Platform access token not found",
-          markets: markets,
-        });
-        continue;
-      }
-
-      // Add access token to platform object for adapter use
-      const platformWithToken = { ...platform, access_token: accessToken };
+      const platformWithToken = resolvedPlatform;
 
       // Create platform config structure - filter out already-pushed markets
       const filteredMarkets: Record<string, any> = {};
@@ -4002,14 +4083,20 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           // ============= END AD CREATION =============
           } // end skipCreatives guard
 
+          const launchStatusCampaignName = `${campaign.name} - ${market.name} - ${phase.name}`;
+          const launchStatusAdSetSuffix =
+            adSetConfig.id !== "default"
+              ? adSetConfig.name || `Ad Set ${adSetConfig.id?.substring(0, 6) || "Unknown"}`
+              : "Ad Set";
+
           results.push({
             platform: "Meta",
             market: market.name,
             phase: phase.name,
             campaignId: campaignData.id,
-            campaignEntityName: `${campaign.name} - ${market.name} - ${phase.name}`,
+            campaignEntityName: launchStatusCampaignName,
             adSetId: adSetData.id,
-            adSetEntityName: `${campaign.name} - ${market.name} - ${phase.name} - ${adSetConfig.name || `Ad Set ${adSetConfig.id?.substring(0, 6) || "Unknown"}`}`,
+            adSetEntityName: `${launchStatusCampaignName} - ${launchStatusAdSetSuffix}`,
             adSetName: adSetPayload.name,
             budget: adSetConfig.adSetBudget,
             budgetType: budgetType,
@@ -4082,6 +4169,7 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
         supabase,
         campaign.user_id,
         cleanCustomerId,
+        campaign.team_id,
       );
 
       if (platformCandidates.length > 0) {
